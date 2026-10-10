@@ -133,3 +133,18 @@ fn gdd_2_3_population_never_negative_and_zero_capacity() {
     yearly(&mut v);
     assert!(v.iter().all(|p| p.population >= 0.0 && p.population.is_finite()));
 }
+
+#[test]
+fn gdd_2_4_famine_karma_stays_within_the_field_range() {
+    // 連年饑荒：業氣逐年累加，但不超過值域上限 1（GDD 2.4「所有州郡氣場值域 0..1」）。
+    let k = 10.0 * POP_CAP_PER_HAB;
+    let mut v = vec![prov(0, 10.0, 2.0 * k, vec![])];
+    v[0].karma_qi = 0.99;
+    for _ in 0..5 {
+        v[0].population = 2.0 * v[0].capacity.max(k);
+        yearly(&mut v);
+    }
+    assert!(v[0].karma_qi <= 1.0, "業氣 {} 超過值域", v[0].karma_qi);
+    assert!(v[0].karma_qi > 0.99);
+}
+

@@ -38,7 +38,8 @@ pub fn yearly(provinces: &mut [Province]) -> Vec<(ProvinceId, u32)> {
         if p.population > FAMINE_THRESHOLD * k {
             let deaths = (p.population - k) * FAMINE_DEATH_RATE;
             p.population -= deaths;
-            p.karma_qi += FAMINE_KARMA;
+            // 州郡氣場的值域是 0..1，寫入即截斷（GDD 2.4、6.3 通則）。
+            p.karma_qi = (p.karma_qi + FAMINE_KARMA).min(1.0);
             famines.push((p.id, deaths.round() as u32));
         }
         p.population = p.population.max(0.0);
