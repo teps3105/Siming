@@ -114,10 +114,10 @@
   "dial_paused": "已暫停",
   "dial_running": "運行中",
   "dial_speed_unit": "倍速",
-  "place_continent": "大洲名",
-  "place_province": "州郡名",
-  "place_seat": "治所名",
-  "place_river": "江河名",
-  "place_range": "山脈名",
+  "place_continent": "大洲",
+  "place_province": "州郡",
+  "place_seat": "治所",
+  "place_river": "江河",
+  "place_range": "山脈",
   "place_node": "洞天福地"
 }

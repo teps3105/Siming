@@ -29,7 +29,10 @@ const TERRAIN_LEGEND: Array[String] = [
 ]
 ## 例簽列出的地名種類（顏色見 MapOverlay.KIND_COLORS）。
 const PLACE_LEGEND: Array[String] = ["continent", "province", "seat", "river", "range", "node"]
-const LEGEND_SPACE := 210.0
+## 地名欄組排幾欄；地形欄組佔例簽內寬的比例。
+const PLACE_COLUMNS := 2
+const LEGEND_SPLIT := 0.5
+const LEGEND_SPACE := 160.0
 
 var mode: TerrainMap.Mode = TerrainMap.Mode.SHANHE
 ## 目前的輸入裝置是否為搖桿（決定畫哪一種實體鍵圖像）。
@@ -141,36 +144,48 @@ func _draw() -> void:
 
 func _draw_legend(entry: Dictionary) -> void:
 	var lines: Array = []
+	# 右側並排的第二欄組：山河模式列出各種地名在地圖上的顏色。
+	var places: Array = []
 	match entry["mode"]:
 		TerrainMap.Mode.SHANHE:
 			for key in TERRAIN_LEGEND:
 				lines.append([key, "terrain"])
-			# 地名的顏色：每種地名用它在地圖上的顏色寫出來。
 			for kind in PLACE_LEGEND:
-				lines.append(["place_%s" % kind, "place", kind])
+				places.append(["place_%s" % kind, "place", kind])
 		TerrainMap.Mode.TIANXIA:
 			lines = [["legend_tianxia", ""]]
 		TerrainMap.Mode.LINGMAI:
 			lines = [["legend_lingmai", "ramp"]]
 		_:
 			lines = [["mode_disabled_hint", ""]]
-	var title_size := Ink.font_size(Ink.SIZE_SECTION, _unit)
-	var note_size := Ink.font_size(Ink.SIZE_NOTE, _unit)
 	var row := 20.0 * _unit
 	var columns := 2 if lines.size() > 4 else 1
 	var rows := int(ceil(float(lines.size()) / columns))
-	var height := 14.0 * _unit + title_size + 6.0 * _unit + rows * row + 8.0 * _unit
+	if not places.is_empty():
+		rows = maxi(rows, int(ceil(float(places.size()) / PLACE_COLUMNS)))
+	# 例簽沒有標題，容器裡只有圖例本身。
+	var height := 10.0 * _unit + rows * row + 6.0 * _unit
 	var band := Ink.SLIP_BAND
 	var slip := Rect2(Vector2(_side() + band, size.y - (SEAL_SIZE + BADGE_RISE + 14.0) * _unit - band - height), Vector2(size.x - (_side() + band) * 2.0, height))
 	Ink.paper_slip(self, slip)
 	var cursor := slip.position + Vector2(12.0, 10.0) * _unit
-	Ink.text(self, cursor, Locale.t("mode_%s" % entry["key"]), title_size)
-	cursor.y += title_size + 6.0 * _unit
-	var column_width := (slip.size.x - 24.0 * _unit) / columns
+	var inner := slip.size.x - 24.0 * _unit
+	# 有地名欄組時，地形佔左邊、地名佔右邊，中間一道淡墨直線。
+	var left := inner * (LEGEND_SPLIT if not places.is_empty() else 1.0)
+	_draw_legend_lines(lines, cursor, left / columns, columns, row)
+	if not places.is_empty():
+		var divider := cursor.x + left
+		draw_line(Vector2(divider, cursor.y), Vector2(divider, cursor.y + rows * row - 4.0 * _unit), Color(Ink.INK_LIGHT, 0.4), 1.0)
+		_draw_legend_lines(places, cursor + Vector2(left + 12.0 * _unit, 0.0), (inner - left - 12.0 * _unit) / PLACE_COLUMNS, PLACE_COLUMNS, row)
+
+
+func _draw_legend_lines(lines: Array, origin: Vector2, column_width: float, columns: int, row: float) -> void:
+	var note_size := Ink.font_size(Ink.SIZE_NOTE, _unit)
 	for i in lines.size():
-		var pos := cursor + Vector2(column_width * (i % columns), row * (i / columns))
+		var pos := origin + Vector2(column_width * (i % columns), row * (i / columns))
 		var swatch: String = lines[i][1]
 		var text_x := 0.0
+		var ink := Ink.INK
 		if swatch == "ramp":
 			var steps := 5
 			for k in steps:
@@ -181,10 +196,8 @@ func _draw_legend(entry: Dictionary) -> void:
 		elif swatch == "terrain":
 			TerrainSwatches.chip(self, Rect2(pos + Vector2(0.0, (note_size - 12.0 * _unit) * 0.5 + 2.0), Vector2(13.0, 12.0) * _unit), lines[i][0])
 			text_x = 19.0 * _unit
-		var ink := Ink.INK
-		if swatch == "place":
+		elif swatch == "place":
 			ink = MapOverlay.KIND_COLORS[lines[i][2]]
-			text_x = 19.0 * _unit
 		Ink.text(self, pos + Vector2(text_x, 0.0), Locale.t(lines[i][0]), note_size, ink)
 
 
