@@ -85,8 +85,24 @@ func _build() -> void:
 
 ## 輸入裝置換了（鍵鼠↔搖桿），器物上的實體鍵圖像跟著換。
 func _process(_delta: float) -> void:
-	if _camera != null and _dial != null and _camera.use_crosshair != _dial.gamepad:
+	if _camera == null or _dial == null:
+		return
+	if _camera.use_crosshair != _dial.gamepad:
 		_apply_device()
+	_overlay.reserved = _occupied()
+
+
+## 器物目前佔住的畫面範圍（地圖標籤要避開）。
+func _occupied() -> Array[Rect2]:
+	var disc := Rect2(_dial.position, Vector2.ONE * _dial._disc_radius() * 2.0)
+	var slips := _dial._title_rect().merge(_dial._speed_rect())
+	slips.position += _dial.position
+	var seals := _seals._seal_rect(0).merge(_seals._seal_rect(SealBox.SEALS.size() - 1))
+	seals.position += _seals.position
+	var out: Array[Rect2] = [disc.grow(6.0), slips.grow(6.0), seals.grow(6.0)]
+	if _card.visible:
+		out.append(Rect2(_card.position, _card.size).grow(6.0))
+	return out
 
 
 func _apply_device() -> void:

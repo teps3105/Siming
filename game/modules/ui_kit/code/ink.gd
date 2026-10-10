@@ -31,7 +31,9 @@ const CARD_BAND := 6.0
 ## 尚未開放的按鈕，圖示與文字的不透明度。
 const DISABLED_GLYPH_ALPHA := 0.75
 ## 實體鍵圖像的高度。
-const KEY_HEIGHT := 18.0
+const KEY_HEIGHT := 20.0
+## 實體鍵圖像裡的字級（Steam Deck 版面同樣受 DECK_MIN_SIZE 限制）。
+const KEY_TEXT_SIZE := 12
 ## 搖桿面鍵的顏色（依 Xbox 慣例的綠紅藍黃，取色票內相近的低彩度色，GDD 5.9）。
 const PAD_FACE_COLORS := {"A": Color("5E8A5A"), "B": Color("B23A2E"), "X": Color("4F8F9A"), "Y": Color("C9A246")}
 const PAD_SHOULDERS: Array[String] = ["LB", "RB", "LT", "RT", "Start", "Select"]
@@ -118,7 +120,7 @@ static func key_glyph(item: CanvasItem, pos: Vector2, label: String, unit: float
 	var height := KEY_HEIGHT * unit
 	var width := key_glyph_width(label, unit)
 	var rect := Rect2(pos, Vector2(width, height))
-	var size := maxi(int(round(11.0 * unit)), 11)
+	var size := font_size(KEY_TEXT_SIZE, unit)
 	var extent := text_size(label, size)
 	var at := pos + (rect.size - extent) * 0.5
 	if PAD_FACE_COLORS.has(label):
@@ -150,7 +152,7 @@ static func key_glyph_width(label: String, unit: float) -> float:
 	var height := KEY_HEIGHT * unit
 	if PAD_FACE_COLORS.has(label):
 		return height
-	return maxf(height, text_size(label, maxi(int(round(11.0 * unit)), 11)).x + 10.0 * unit)
+	return maxf(height, text_size(label, font_size(KEY_TEXT_SIZE, unit)).x + 10.0 * unit)
 
 
 ## 圓鈕：朱底（red）或紙底朱圈，中間一個圖示。回傳圖示該用的顏色。

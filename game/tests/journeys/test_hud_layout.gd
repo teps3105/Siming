@@ -52,6 +52,7 @@ func test_deck_sizes_and_text_floor() -> void:
 	for base: int in [Ink.SIZE_NOTE, Ink.SIZE_SECTION, Ink.SIZE_BODY, Ink.SIZE_TITLE]:
 		assert_gt(Ink.font_size(base, _hud._unit), 15, "Deck 下所有字級至少 16")
 	assert_eq(Ink.font_size(Ink.SIZE_NOTE, 1.0), Ink.SIZE_NOTE, "桌機字級不變")
+	assert_gt(Ink.font_size(Ink.KEY_TEXT_SIZE, _hud._unit), 15, "Deck 下鍵帽裡的字也至少 16")
 	_hud._card.show_province(0)
 	await wait(0.5)
 	assert_lt(absf(_hud._card.size.x - DECK_VIEW.x * 0.45), 1.0, "Deck 命簿是右側 45% 寬的抽屜")
@@ -216,4 +217,17 @@ func test_a_path_half_a_map_away_is_not_split_across_the_screen() -> void:
 	var points: PackedVector2Array = _hud._overlay._path_on_screen(path)
 	assert_eq(points.size(), 2)
 	assert_lt(points[0].distance_to(points[1]), 400.0, "相鄰兩格在畫面上應該相鄰，不是分在畫面兩側")
+
+
+func test_map_labels_keep_clear_of_the_instruments() -> void:
+	await _boot(FLOW_VIEW)
+	_hud._card.show_province(0)
+	await wait(0.5)
+	var reserved: Array[Rect2] = _hud._overlay.reserved
+	assert_eq(reserved.size(), 4, "圓盤、兩張簽、模式鈕與開著的命簿")
+	var card := Rect2(_hud._card.position, _hud._card.size)
+	assert_true(reserved[3].encloses(card), "命簿的範圍在避讓區內")
+	_hud._card.close()
+	await wait(0.5)
+	assert_eq(_hud._overlay.reserved.size(), 3, "命簿收起後不再佔位")
 

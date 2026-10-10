@@ -41,6 +41,8 @@ var _nodes: Array[Dictionary] = []
 var _seats: Array[Dictionary] = []
 var _hover_province := -1
 var _hover_text := ""
+## 介面器物佔住的畫面範圍：地圖標籤避開這些地方，不鑽到器物底下露出半截。
+var reserved: Array[Rect2] = []
 
 
 func setup(world: SimWorld, map: TerrainMap, camera: MapCamera, unit: float) -> void:
@@ -93,7 +95,7 @@ func _draw_labels() -> void:
 	var map_w := _map.map_size.x
 	var z_frac := _camera.z / map_w
 	var screen := get_viewport_rect()
-	var taken: Array[Rect2] = []
+	var taken: Array[Rect2] = reserved.duplicate()
 	for label in _labels:
 		var rule: Dictionary = LABEL_RULES[label["kind"]]
 		if z_frac > rule["z_max"] or z_frac < rule["z_min"]:
