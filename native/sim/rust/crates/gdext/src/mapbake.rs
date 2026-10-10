@@ -6,8 +6,8 @@ use siming_sim::{Geography, Province, NO_PROVINCE};
 
 /// 貼圖相對遊戲格的超取樣倍率（海岸有號場、水深）。
 pub const SS: usize = 4;
-/// 地形網格相對遊戲格的超取樣倍率（GDD 5.3：2×2）。
-pub const MESH_SS: usize = 2;
+/// 地形網格相對遊戲格的超取樣倍率（GDD 5.3：4×4）。
+pub const MESH_SS: usize = 4;
 /// GDD 5.2：平面視角下南北緣之外可見的寬度（地圖寬的比例）。
 pub const FRONTIER_FRAC: f32 = 0.05;
 /// `paper` 貼圖的邊長。
@@ -413,8 +413,33 @@ const RIVER_MIN_CELLS: u32 = 4;
 /// 每個河格的貝茲曲線取樣段數。
 const RIVER_CURVE_STEPS: usize = 6;
 
-/// 依高度推出每個河格的下游格，每格以「經上、下游中點、本格為控制點」的二次貝茲曲線取樣成帶。
-pub fn build_river_mesh(geo: &Geography, relief: &Relief) -> RiverArrays {
+/// 一段河流曲線（二次貝茲）：`p0 → p2`，控制點 `p1`，座標為世界座標 (x, z)（遊戲格）。
+#[derive(Clone, Copy)]
+pub struct RiverCurve {
+    pub p0: (f32, f32),
+    pub p1: (f32, f32),
+    pub p2: (f32, f32),
+    /// 顯示等級：1 小河、2 大河、3 江。
+    pub level: f32,
+    /// 兩端的寬度係數（源頭收細）。
+    pub k0: f32,
+    pub k2: f32,
+}
+
+impl RiverCurve {
+    /// 曲線上參數 t（0..1）的位置。
+    pub fn at(&self, t: f32) -> (f32, f32) {
+        let (a, b, c) = ((1.0 - t) * (1.0 - t), 2.0 * t * (1.0 - t), t * t);
+        (
+            a * self.p0.0 + b * self.p1.0 + c * self.p2.0,
+            a * self.p0.1 + b * self.p1.1 + c * self.p2.1,
+        )
+    }
+}
+
+/// 依高度推出每個河格的下游格，每格以「經上、下游中點、本格為控制點」的二次貝茲曲線表示。
+/// 河流網格與高度場的河谷共用這份曲線，河線因此一定落在谷底。
+pub fn river_curves(geo: &Geography) -> Vec<RiverCurve> {
     let (w, h) = (geo.w as usize, geo.h as usize);
     let is_river = |i: usize| geo.river[i] > 0 && !geo.terrain[i].is_water();
     // 顯示等級：具名幹流整條以該河的等級繪製（否則同一條江上下游等級不同，遠景會斷成虛線）。
@@ -491,44 +516,7 @@ pub fn build_river_mesh(geo: &Geography, relief: &Relief) -> RiverArrays {
         .map(|i| is_river(i) && comp_size[root(&mut comp, i)] >= RIVER_MIN_CELLS)
         .collect();
     let lat_of_row = |y: usize| 90.0 - 180.0 * (y as f32 + 0.5) / h as f32;
-    let mut out = RiverArrays::default();
-    // 一條曲線：p0 → p2，控制點 p1；k0、k2 為兩端的寬度係數。
-    let mut curve =
-        |p0: (f32, f32), p1: (f32, f32), p2: (f32, f32), level: f32, k0: f32, k2: f32| {
-            let at = |t: f32| {
-                let (a, b, c) = ((1.0 - t) * (1.0 - t), 2.0 * t * (1.0 - t), t * t);
-                (
-                    a * p0.0 + b * p1.0 + c * p2.0,
-                    a * p0.1 + b * p1.1 + c * p2.1,
-                )
-            };
-            let n = RIVER_CURVE_STEPS;
-            let pts: Vec<[f32; 3]> = (0..=n)
-                .map(|k| {
-                    let (x, z) = at(k as f32 / n as f32);
-                    [x, relief.height_at(x, z), z]
-                })
-                .collect();
-            let base = out.positions.len() as i32;
-            for k in 0..=n {
-                let (a, b) = (pts[k.saturating_sub(1)], pts[(k + 1).min(n)]);
-                let mut t = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
-                let len = (t[0] * t[0] + t[1] * t[1] + t[2] * t[2]).sqrt().max(1e-6);
-                t = [t[0] / len, t[1] / len, t[2] / len];
-                let kk = k0 + (k2 - k0) * k as f32 / n as f32;
-                for side in [-1.0f32, 1.0] {
-                    out.positions.push(pts[k]);
-                    out.tangents.push(t);
-                    out.side_level.push([side, level]);
-                    out.taper.push([kk, 0.0]);
-                }
-            }
-            for k in 0..n as i32 {
-                let a = base + k * 2;
-                out.indices
-                    .extend_from_slice(&[a, a + 1, a + 2, a + 1, a + 3, a + 2]);
-            }
-        };
+    let mut out = Vec::new();
     for i in 0..w * h {
         if !keep[i] || lat_of_row(i / w).abs() > RIVER_MAX_LAT_DEG {
             continue;
@@ -536,24 +524,68 @@ pub fn build_river_mesh(geo: &Geography, relief: &Relief) -> RiverArrays {
         let c = ((i % w) as f32 + 0.5, (i / w) as f32 + 0.5);
         let off = |dx: i32, dy: i32| (c.0 + dx as f32 * 0.5, c.1 + dy as f32 * 0.5);
         let level = lvl(i);
+        let mut push = |p0, p1, p2, k0, k2| {
+            out.push(RiverCurve {
+                p0,
+                p1,
+                p2,
+                level,
+                k0,
+                k2,
+            })
+        };
         match down[i] {
             Some((_, dx, dy)) => {
                 let end = off(dx, dy);
                 if ups[i].is_empty() {
                     // 源頭：由本格中心出發，收細。
-                    curve(c, c, end, level, 0.6, 1.0);
+                    push(c, c, end, 0.6, 1.0);
                 } else {
                     for &(_, px, py) in &ups[i] {
-                        curve(off(px, py), c, end, level, 1.0, 1.0);
+                        push(off(px, py), c, end, 1.0, 1.0);
                     }
                 }
             }
             None => {
                 // 終點（窪地）：由各上游中點收束到本格中心。
                 for &(_, px, py) in &ups[i] {
-                    curve(off(px, py), c, c, level, 1.0, 1.0);
+                    push(off(px, py), c, c, 1.0, 1.0);
                 }
             }
+        }
+    }
+    out
+}
+
+/// 把河流曲線取樣成帶狀網格；高度取細化後的高度場（河谷已刻入，河線在谷底）。
+pub fn build_river_mesh(geo: &Geography, relief: &Relief) -> RiverArrays {
+    let mut out = RiverArrays::default();
+    let n = RIVER_CURVE_STEPS;
+    for curve in river_curves(geo) {
+        let pts: Vec<[f32; 3]> = (0..=n)
+            .map(|k| {
+                let (x, z) = curve.at(k as f32 / n as f32);
+                [x, relief.height_at(x, z), z]
+            })
+            .collect();
+        let base = out.positions.len() as i32;
+        for k in 0..=n {
+            let (a, b) = (pts[k.saturating_sub(1)], pts[(k + 1).min(n)]);
+            let mut t = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+            let len = (t[0] * t[0] + t[1] * t[1] + t[2] * t[2]).sqrt().max(1e-6);
+            t = [t[0] / len, t[1] / len, t[2] / len];
+            let kk = curve.k0 + (curve.k2 - curve.k0) * k as f32 / n as f32;
+            for side in [-1.0f32, 1.0] {
+                out.positions.push(pts[k]);
+                out.tangents.push(t);
+                out.side_level.push([side, curve.level]);
+                out.taper.push([kk, 0.0]);
+            }
+        }
+        for k in 0..n as i32 {
+            let a = base + k * 2;
+            out.indices
+                .extend_from_slice(&[a, a + 1, a + 2, a + 1, a + 3, a + 2]);
         }
     }
     out

@@ -4,6 +4,7 @@
 //! 細格高度先以三次 B 樣條放大（磨掉格點階梯），再疊上振幅與當地坡度成正比的碎形細節——
 //! 坡緩處海岸曲折、坡陡處海岸平直，與實際地形相同。只做顯示用的換算，不進世界雜湊（GDD 6.1）。
 
+use crate::mapbake::{river_curves, RiverCurve};
 use siming_sim::{FineGeography, Geography, Terrain};
 
 /// 高度貼圖相對來源格（細格）的放大倍率。
@@ -26,6 +27,11 @@ const GULLY_FLOOR: f32 = 0.012;
 /// 山區權重：相對高度占最高點的比例由此區間漸入。
 const MOUNTAIN_ALT_START: f32 = 0.14;
 const MOUNTAIN_ALT_FULL: f32 = 0.45;
+/// 河谷的半寬（遊戲格）：河線兩側在這個距離內往河心漸降。
+const RIVER_VALLEY_RADIUS: f32 = 1.1;
+/// 河谷深度 = (坡度 × `RIVER_SLOPE_GAIN` + 最高點高度 × `RIVER_BASE`) × 等級係數 × 河谷剖面。
+const RIVER_SLOPE_GAIN: f32 = 1.4;
+const RIVER_BASE: f32 = 0.006;
 /// 山區短波起伏的減弱比例。
 const MOUNTAIN_CALM: f32 = 0.75;
 /// 平地上的最小細節振幅（遠小於 `SHORE_EPS`，不會憑空生出島或湖）。
@@ -192,6 +198,58 @@ fn grid_cubic(grid: &[f32], w: usize, h: usize, wrap: bool, x: f32, y: f32) -> f
     sum
 }
 
+/// 河谷剖面（0 谷外 .. 等級係數 谷心）：把河流曲線畫到工作格上，離河心越近值越大。
+/// 等級係數：小河 0.5、大河 0.75、江 1。回傳（剖面、寬、高）。
+fn river_valleys(src: &Source, curves: &[RiverCurve], grid_w: usize) -> (Vec<f32>, usize, usize) {
+    let (gw, gh) = (src.w * GULLY_SS, src.h * GULLY_SS);
+    // 一個遊戲格等於幾個工作格。
+    let per_cell = gw as f32 / grid_w as f32;
+    let reach = RIVER_VALLEY_RADIUS * per_cell;
+    let mut out = vec![0f32; gw * gh];
+    const STEPS: usize = 8;
+    for curve in curves {
+        let weight = 0.25 + 0.25 * curve.level;
+        let mut prev = curve.at(0.0);
+        for k in 1..=STEPS {
+            let cur = curve.at(k as f32 / STEPS as f32);
+            // 線段兩端（工作格座標，格中心在整數座標）。
+            let a = (prev.0 * per_cell - 0.5, prev.1 * per_cell - 0.5);
+            let b = (cur.0 * per_cell - 0.5, cur.1 * per_cell - 0.5);
+            let len2 = ((b.0 - a.0).powi(2) + (b.1 - a.1).powi(2)).max(1e-6);
+            let (x0, x1) = (
+                (a.0.min(b.0) - reach).floor() as i32,
+                (a.0.max(b.0) + reach).ceil() as i32,
+            );
+            let (y0, y1) = (
+                (a.1.min(b.1) - reach).floor() as i32,
+                (a.1.max(b.1) + reach).ceil() as i32,
+            );
+            for y in y0.max(0)..=y1.min(gh as i32 - 1) {
+                for x in x0..=x1 {
+                    let xi = if src.wrap {
+                        x.rem_euclid(gw as i32)
+                    } else if x < 0 || x >= gw as i32 {
+                        continue;
+                    } else {
+                        x
+                    };
+                    let (px, py) = (x as f32, y as f32);
+                    let t = (((px - a.0) * (b.0 - a.0) + (py - a.1) * (b.1 - a.1)) / len2)
+                        .clamp(0.0, 1.0);
+                    let d = ((px - (a.0 + (b.0 - a.0) * t)).powi(2)
+                        + (py - (a.1 + (b.1 - a.1) * t)).powi(2))
+                    .sqrt();
+                    let profile = 1.0 - smoothstep(0.0, reach, d);
+                    let cell = &mut out[y as usize * gw + xi as usize];
+                    *cell = cell.max(profile * weight);
+                }
+            }
+            prev = cur;
+        }
+    }
+    (out, gw, gh)
+}
+
 /// 溝谷的匯流程度（0 稜線 .. 1 谷底）。
 ///
 /// 在工作格上讓每個陸格的水流向最陡的鄰格（D8），由高到低累加匯流面積；面積取對數後模糊一次。
@@ -201,6 +259,8 @@ fn carve_gullies(
     src: &Source,
     signed: &[f32],
     slope: &[f32],
+    valleys: &[f32],
+    peak: f32,
     radius: f32,
 ) -> (Vec<f32>, usize, usize) {
     let (gw, gh) = (src.w * GULLY_SS, src.h * GULLY_SS);
@@ -224,8 +284,12 @@ fn carve_gullies(
             let f = 1.0 / wavelength;
             let noise = gradient_noise([p[0] * f, p[1] * f, p[2] * f]);
             let jitter = (hash3(x as i32, y as i32, 77) & 0xffff) as f32 / 65535.0 * 2e-6;
+            // 先減去河谷，溝谷的水才會匯向模擬的河流。
+            let river_carve =
+                valleys[y * gw + x] * (local_slope * RIVER_SLOPE_GAIN + peak * RIVER_BASE);
             height[y * gw + x] = src.cubic(signed, gx, gy)
                 + noise * (local_slope * wavelength * DETAIL_SLOPE_GAIN + DETAIL_FLOOR)
+                - river_carve
                 + jitter;
         }
     }
@@ -456,7 +520,9 @@ pub fn build_relief(geo: &Geography, fine: &FineGeography) -> Relief {
 
     let peak = signed.iter().cloned().fold(0.0, f32::max).max(1e-4);
     let radius = grid_w as f32 / std::f32::consts::TAU;
-    let (gullies, gw, gh) = carve_gullies(&src, &signed, &slope, radius);
+    let curves = river_curves(geo);
+    let (valleys, gw, gh) = river_valleys(&src, &curves, grid_w);
+    let (gullies, _, _) = carve_gullies(&src, &signed, &slope, &valleys, peak, radius);
     let mut elevation = vec![0f32; w * h];
     let mut lake = vec![0u8; w * h];
     for ty in 0..h {
@@ -490,19 +556,21 @@ pub fn build_relief(geo: &Geography, fine: &FineGeography) -> Relief {
                 };
                 detail += n * calm * (local_slope * wavelength * DETAIL_SLOPE_GAIN + DETAIL_FLOOR);
             }
+            // 河谷：沿模擬的河流曲線往下刻，河線因此落在谷底；溝谷的水也會匯向它。
+            let scale = (RELIEF_SS / GULLY_SS) as f32;
+            let (wx, wy) = (
+                (tx as f32 + 0.5) / scale - 0.5,
+                (ty as f32 + 0.5) / scale - 0.5,
+            );
+            let valley = grid_cubic(&valleys, gw, gh, src.wrap, wx, wy).max(0.0);
+            let mut carve = valley * (local_slope * RIVER_SLOPE_GAIN + peak * RIVER_BASE);
             // 山區：刻入順坡而下的溝谷；谷與谷之間就是沿坡向延伸的山脊（稜線高度不變）。
-            let mut carve = 0.0;
             if mountain > 0.0 {
-                let scale = (RELIEF_SS / GULLY_SS) as f32;
-                let (wx, wy) = (
-                    (tx as f32 + 0.5) / scale - 0.5,
-                    (ty as f32 + 0.5) / scale - 0.5,
-                );
                 let flow = grid_cubic(&gullies, gw, gh, src.wrap, wx, wy).clamp(0.0, 1.0);
-                carve = flow * mountain * (local_slope * GULLY_SLOPE_GAIN + peak * GULLY_BASE);
+                carve += flow * mountain * (local_slope * GULLY_SLOPE_GAIN + peak * GULLY_BASE);
             }
             let o = ty * w + tx;
-            // 溝谷不得刻穿海平面：否則靠海的山腳會冒出水坑。
+            // 不得刻穿海平面：否則靠海的山腳與河口會冒出水坑。
             let land = base + detail;
             let carve = carve.min((land - GULLY_FLOOR).max(0.0));
             elevation[o] = land - carve;
@@ -620,7 +688,8 @@ mod tests {
             .collect();
         let slope = vec![0.01f32; src.w * src.h];
         let radius = w.geo.w as f32 / std::f32::consts::TAU;
-        let (flow, gw, gh) = carve_gullies(&src, &signed, &slope, radius);
+        let valleys = vec![0f32; src.w * GULLY_SS * src.h * GULLY_SS];
+        let (flow, gw, gh) = carve_gullies(&src, &signed, &slope, &valleys, 0.3, radius);
         assert_eq!(flow.len(), gw * gh);
         assert!(flow.iter().all(|f| (0.0..=1.0).contains(f)));
         let deep = flow.iter().filter(|&&f| f > 0.5).count();
@@ -650,6 +719,38 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// 河線在谷底：河流曲線上的高度，不高於它兩側（垂直河向各 0.8 格）高度的平均。
+    #[test]
+    fn gdd_5_3_rivers_run_along_valley_floors() {
+        let sim = small_world();
+        let w = sim.world();
+        let r = build_relief(&w.geo, &w.fine);
+        let curves = river_curves(&w.geo);
+        assert!(!curves.is_empty());
+        let (mut lower, mut total) = (0usize, 0usize);
+        for c in &curves {
+            let (a, m, b) = (c.at(0.25), c.at(0.5), c.at(0.75));
+            let (dx, dz) = (b.0 - a.0, b.1 - a.1);
+            let len = (dx * dx + dz * dz).sqrt();
+            if len < 1e-3 {
+                continue;
+            }
+            let (nx, nz) = (-dz / len * 0.8, dx / len * 0.8);
+            let centre = r.elevation_at(m.0, m.1);
+            let sides =
+                0.5 * (r.elevation_at(m.0 + nx, m.1 + nz) + r.elevation_at(m.0 - nx, m.1 - nz));
+            if centre <= 0.0 {
+                continue;
+            }
+            total += 1;
+            if centre <= sides {
+                lower += 1;
+            }
+        }
+        let ratio = lower as f32 / total.max(1) as f32;
+        assert!(ratio > 0.9, "河線低於兩側的比例 {ratio}（{lower}/{total}）");
     }
 
     #[test]

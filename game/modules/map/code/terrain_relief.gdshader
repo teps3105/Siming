@@ -70,8 +70,9 @@ void vertex() {
 	float flat_k = 1.0 - polar_weight(dir.y);
 	// 邊疆帶（UV 夾在 0／1）高度為 0。
 	float inside = step(0.0, VERTEX.z) * step(VERTEX.z, map_size.y);
-	// 網格每格只有兩個頂點，取第 3 級（8 個紋素平均）的高度；細節交給著色的浮雕暈渲。
-	float e = textureLod(elevation_tex, UV, 3.0).r;
+	// 網格每個遊戲格四個頂點（頂點間距為 2 個紋素），取第 1.5 級的高度以免取樣不足拉出尖刺；
+	// 更細的起伏交給著色的浮雕暈渲。
+	float e = textureLod(elevation_tex, UV, 1.5).r;
 	float h1 = max(e, 0.0) * map_size.x * HEIGHT_GAIN * flat_k * inside;
 	vec3 wp = vec3(VERTEX.x, h1 * height_scale, VERTEX.z);
 	if (globe_morph > 0.0) {
