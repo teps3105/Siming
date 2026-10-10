@@ -36,6 +36,11 @@ const KEY_HEIGHT := 20.0
 const KEY_TEXT_SIZE := 12
 ## 搖桿面鍵的顏色（依 Xbox 慣例的綠紅藍黃，取色票內相近的低彩度色，GDD 5.9）。
 const PAD_FACE_COLORS := {"A": Color("5E8A5A"), "B": Color("B23A2E"), "X": Color("4F8F9A"), "Y": Color("C9A246")}
+## 畫成圖標的搖桿部件（名稱由 InputHints 給）：右搖桿、十字鍵上下、十字鍵左右。
+const PAD_RIGHT_STICK := "RS"
+const PAD_DPAD_VERTICAL := "DPAD_V"
+const PAD_DPAD_HORIZONTAL := "DPAD_H"
+const PAD_ICONS: Array[String] = [PAD_RIGHT_STICK, PAD_DPAD_VERTICAL, PAD_DPAD_HORIZONTAL]
 const PAD_SHOULDERS: Array[String] = ["LB", "RB", "LT", "RT", "Start", "Select"]
 
 ## 紙紋（8.3 `paper`，存的是乘數）；由 hud 在啟動時設定。使用它的 CanvasItem 要開啟 texture_repeat。
@@ -112,9 +117,9 @@ static func plate(item: CanvasItem, rect: Rect2, active: bool, enabled := true, 
 
 
 ## 實體鍵的圖像（GDD 5.9）：A／B／X／Y 是帶色圓鈕，LB／RB／LT／RT／Start 是深色膠囊，其餘是鍵盤鍵帽。
-## pad 為真時，面鍵以外的都畫成搖桿的膠囊（搖桿、十字鍵這類寫中文名稱的）。
+## 右搖桿與十字鍵畫成圖標，不寫字。
 ## pos 為左上角，高度為 KEY_HEIGHT × unit；回傳寬度。label 為空時不畫、回傳 0。
-static func key_glyph(item: CanvasItem, pos: Vector2, label: String, unit: float, pad := false) -> float:
+static func key_glyph(item: CanvasItem, pos: Vector2, label: String, unit: float) -> float:
 	if label.is_empty():
 		return 0.0
 	var height := KEY_HEIGHT * unit
@@ -123,11 +128,30 @@ static func key_glyph(item: CanvasItem, pos: Vector2, label: String, unit: float
 	var size := font_size(KEY_TEXT_SIZE, unit)
 	var extent := text_size(label, size)
 	var at := pos + (rect.size - extent) * 0.5
-	if PAD_FACE_COLORS.has(label):
+	if label == PAD_RIGHT_STICK:
+		# 搖桿：底座圓、搖桿帽，帽上寫 R。
+		var center := rect.get_center()
+		item.draw_circle(center, height * 0.5, SILK)
+		item.draw_circle(center, height * 0.36, PAPER_LIGHT)
+		item.draw_arc(center, height * 0.36, 0.0, TAU, 32, INK, 1.0, true)
+		var letter := text_size("R", size)
+		text(item, center - letter * 0.5, "R", size, INK)
+	elif label == PAD_DPAD_VERTICAL or label == PAD_DPAD_HORIZONTAL:
+		# 十字鍵：十字形；要按的那兩臂是亮的。
+		var center := rect.get_center()
+		var arm := height * 0.5
+		var thick := height * 0.34
+		item.draw_rect(Rect2(center - Vector2(thick * 0.5, arm), Vector2(thick, arm * 2.0)), SILK, true)
+		item.draw_rect(Rect2(center - Vector2(arm, thick * 0.5), Vector2(arm * 2.0, thick)), SILK, true)
+		var lit := Vector2(0.0, 1.0) if label == PAD_DPAD_VERTICAL else Vector2(1.0, 0.0)
+		for side: float in [-1.0, 1.0]:
+			var tip := center + lit * side * (arm - thick * 0.5)
+			item.draw_rect(Rect2(tip - Vector2.ONE * thick * 0.32, Vector2.ONE * thick * 0.64), PAPER_LIGHT, true)
+	elif PAD_FACE_COLORS.has(label):
 		item.draw_circle(rect.get_center(), height * 0.5, PAD_FACE_COLORS[label])
 		item.draw_arc(rect.get_center(), height * 0.5, 0.0, TAU, 32, INK, 1.0, true)
 		text(item, at, label, size, PAPER_LIGHT)
-	elif pad or label in PAD_SHOULDERS:
+	elif label in PAD_SHOULDERS:
 		var box := StyleBoxFlat.new()
 		box.bg_color = SILK
 		box.set_corner_radius_all(int(height * 0.5))
@@ -150,7 +174,7 @@ static func key_glyph_width(label: String, unit: float) -> float:
 	if label.is_empty():
 		return 0.0
 	var height := KEY_HEIGHT * unit
-	if PAD_FACE_COLORS.has(label):
+	if PAD_FACE_COLORS.has(label) or label in PAD_ICONS:
 		return height
 	return maxf(height, text_size(label, font_size(KEY_TEXT_SIZE, unit)).x + 10.0 * unit)
 

@@ -284,10 +284,11 @@ func _draw_hover_tip() -> void:
 ## 每組是該操作的全部實體鍵圖像加動作名。
 func _draw_prompts() -> void:
 	var entries := [
-		[[Locale.t("pad_right_stick")], "prompt_cursor"],
+		[[InputHints.label(InputActions.CURSOR_LEFT, true)], "prompt_cursor"],
 		[InputHints.labels(InputActions.PAD_LEFT, true), "prompt_select"],
 		[InputHints.labels(InputActions.PAD_RIGHT, true), "prompt_rotate"],
-		[[Locale.t("pad_dpad")], "prompt_zoom"],
+		[[InputHints.label(InputActions.ZOOM_IN, true)], "prompt_zoom"],
+		[[InputHints.label(InputActions.ROTATE_LEFT, true)], "prompt_turn"],
 		[InputHints.labels(InputActions.CANCEL, true), "prompt_back"],
 	]
 	var size := Ink.font_size(Ink.SIZE_NOTE, _unit)
@@ -303,7 +304,7 @@ func _draw_prompts() -> void:
 	var cursor := slip.position.x + 10.0 * _unit
 	for entry: Array in entries:
 		for key: String in entry[0]:
-			cursor += Ink.key_glyph(self, Vector2(cursor, slip.position.y + 5.0 * _unit), key, _unit, true) + 4.0 * _unit
+			cursor += Ink.key_glyph(self, Vector2(cursor, slip.position.y + 5.0 * _unit), key, _unit) + 4.0 * _unit
 		cursor += 1.0 * _unit
 		var label := Locale.t(entry[1])
 		Ink.text(self, Vector2(cursor, slip.position.y + (slip.size.y - Ink.text_size(label, size).y) * 0.5), label, size)

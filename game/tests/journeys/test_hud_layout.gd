@@ -122,6 +122,10 @@ func test_input_hints_come_from_the_binding_table() -> void:
 	assert_eq(InputHints.label(InputActions.SPEED_CYCLE, true), "Select")
 	assert_eq(InputHints.labels(InputActions.PAD_LEFT, true), ["A", "LT"], "一個動作的全部鍵")
 	assert_eq(InputHints.label(InputActions.PAD_RIGHT, true), "RT")
+	assert_eq(InputHints.label(InputActions.CURSOR_LEFT, true), Ink.PAD_RIGHT_STICK, "右搖桿畫成圖標")
+	assert_eq(InputHints.label(InputActions.ZOOM_IN, true), Ink.PAD_DPAD_VERTICAL, "縮放是十字鍵上下")
+	assert_eq(InputHints.label(InputActions.ROTATE_RIGHT, true), Ink.PAD_DPAD_HORIZONTAL, "旋轉是十字鍵左右")
+	assert_eq(Ink.key_glyph_width(Ink.PAD_RIGHT_STICK, 1.0), Ink.KEY_HEIGHT, "圖標是方的，不隨文字變寬")
 	assert_eq(InputHints.label(InputActions.PAD_LEFT, false), "", "鍵盤沒有綁定的動作回傳空字串")
 
 

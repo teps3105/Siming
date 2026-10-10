@@ -122,7 +122,6 @@
   "place_node": "洞天福地",
   "prompt_cursor": "游標",
   "prompt_rotate": "按住旋轉",
-  "prompt_zoom": "縮放、旋轉",
-  "pad_right_stick": "右搖桿",
-  "pad_dpad": "十字鍵"
+  "prompt_zoom": "縮放",
+  "prompt_turn": "旋轉"
 }
