@@ -27,7 +27,9 @@ func setup(sim: SimHost, map: TerrainMap, camera: MapCamera) -> void:
 	_camera = camera
 	camera.province_hovered.connect(func(id: int) -> void: _overlay.set_hover(id))
 	camera.province_selected.connect(func(id: int) -> void: _card.show_province(id))
-	sim.advanced.connect(func(_months: int) -> void: _card.refresh())
+	sim.advanced.connect(func(_months: int) -> void:
+		_card.refresh()
+		_overlay.refresh_seats())
 	var paper := Image.create_from_data(512, 512, false, Image.FORMAT_RGBA8, SimWorld.paper_texture())
 	Ink.paper_texture = ImageTexture.create_from_image(paper)
 	get_viewport().size_changed.connect(_layout)

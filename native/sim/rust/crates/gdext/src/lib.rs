@@ -11,6 +11,15 @@ use siming_sim::{calendar, Command, Sim, WorldParams, WorldSize, NO_PROVINCE};
 /// 山脈標籤的路徑：沿主軸每幾格取一段（GDD 5.3「文字標籤」）。
 const RANGE_LABEL_SEGMENT: f32 = 4.0;
 
+/// 治所的全名（GDD 7.3）：兩字名加上城池等級的字（0 村 .. 4 都）。
+fn seat_name(stem: &str, city_level: u8) -> String {
+    const SUFFIX: [&str; 5] = ["村", "鎮", "縣", "城", "都"];
+    format!(
+        "{stem}{}",
+        SUFFIX[(city_level as usize).min(SUFFIX.len() - 1)]
+    )
+}
+
 struct SimingExtension;
 
 #[gdextension]
@@ -35,6 +44,8 @@ pub struct SimWorld {
     sim: Option<Sim>,
     /// 細化後的高度場（貼圖、河流、選取共用）。
     relief: Option<Relief>,
+    /// 各州郡治所的兩字名（世界生成後算一次）。
+    seat_stems: Vec<String>,
     base: Base<RefCounted>,
 }
 
@@ -53,6 +64,11 @@ impl SimWorld {
         match Sim::new(&params) {
             Ok(sim) => {
                 self.relief = Some(relief::build_relief(&sim.world().geo, &sim.world().fine));
+                self.seat_stems = siming_sim::worldgen::seat_stems(
+                    sim.world().params.seed,
+                    &sim.world().provinces,
+                    &sim.world().geo,
+                );
                 self.sim = Some(sim);
                 GString::new()
             }
@@ -240,7 +256,7 @@ impl SimWorld {
 
     /// 州郡摘要（GDD 2.3、5.8 州郡卡）：`name`、`population`、`capacity`、`aura`、`karma_qi`、
     /// `merit`、`righteous`、`devastation`、`city_level`、`faith`（道、釋、儒）、`seat`（治所格心的世界座標）、
-    /// `cells`（格數）、`terrain_mix`（各地形的格數，索引為地形代碼 0 海 .. 8 澤）。
+    /// `cells`（格數）、`seat_name`（治所名）、`terrain_mix`（各地形的格數，索引為地形代碼 0 海 .. 8 澤）。
     #[func]
     fn province_info(&self, id: i32) -> VarDictionary {
         let mut d = VarDictionary::new();
@@ -268,6 +284,18 @@ impl SimWorld {
             Vector2::new((p.seat % gw) as f32 + 0.5, (p.seat / gw) as f32 + 0.5),
         );
         d.set("cells", p.cells.len() as i32);
+        d.set(
+            "seat_name",
+            &GString::from(
+                seat_name(
+                    self.seat_stems
+                        .get(p.id as usize)
+                        .map_or("", |s| s.as_str()),
+                    p.city_level,
+                )
+                .as_str(),
+            ),
+        );
         let mix: Vec<i32> = p.terrain_mix.iter().map(|&n| n as i32).collect();
         d.set("terrain_mix", &PackedInt32Array::from(mix.as_slice()));
         d
@@ -308,7 +336,11 @@ impl SimWorld {
             push(
                 "province",
                 &p.name,
-                centre(p.seat),
+                centre(mapbake::province_label_cell(
+                    &p.cells,
+                    w.geo.w as usize,
+                    w.geo.h as usize,
+                )),
                 p.city_level as f32,
                 none(),
             );

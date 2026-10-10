@@ -131,3 +131,45 @@ func test_gdd_5_3_range_label_paths_stay_on_land() -> void:
 	assert_gt(points, 0)
 	assert_eq(on_land, points, "山脈名沿山勢排，路徑上的每一點都在陸地上")
 
+
+func test_gdd_5_3_province_names_sit_inside_their_province() -> void:
+	var world := _small_world()
+	var checked := 0
+	var away_from_seat := 0
+	var id := 0
+	for label: Dictionary in world.map_labels():
+		if label["kind"] != "province":
+			continue
+		var pos: Vector2 = label["pos"]
+		assert_eq(world.province_at(pos.x, pos.y), id, "「%s」的名字應落在自己的州郡內" % label["text"])
+		if pos.distance_to(world.province_info(id)["seat"]) > 1.0:
+			away_from_seat += 1
+		checked += 1
+		id += 1
+	assert_eq(checked, world.province_count())
+	assert_gt(away_from_seat, checked / 2, "名字放在州郡中心，多數不會剛好在治所")
+
+
+func test_gdd_7_3_seat_names_are_their_own_and_may_borrow_one_character() -> void:
+	var world := _small_world()
+	var suffixes := ["村", "鎮", "縣", "城", "都"]
+	var seen := {}
+	var borrowed := 0
+	var count := world.province_count()
+	for id in count:
+		var info := world.province_info(id)
+		var seat_name: String = info["seat_name"]
+		var province_stem: String = (info["name"] as String).left(2)
+		assert_eq(seat_name.length(), 3, "治所名是兩個字加城池等級的字：%s" % seat_name)
+		assert_eq(seat_name.right(1), suffixes[int(info["city_level"])])
+		var stem := seat_name.left(2)
+		assert_ne(stem, province_stem, "治所名不與州郡名相同")
+		assert_false(seen.has(stem), "治所不重名：%s" % stem)
+		seen[stem] = true
+		if province_stem.contains(stem[0]) or province_stem.contains(stem[1]):
+			borrowed += 1
+	assert_gt(borrowed, count / 6, "有一部分治所借了州郡名的一個字（%d／%d）" % [borrowed, count])
+	assert_lt(borrowed, count * 3 / 4, "不是每個治所都借州郡名的字（%d／%d）" % [borrowed, count])
+	var again := SimWorld.new()
+	assert_eq(again.create(SEED, "small"), "")
+	assert_eq(again.province_info(0)["seat_name"], world.province_info(0)["seat_name"], "同種子得到同樣的治所名")

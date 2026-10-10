@@ -338,6 +338,81 @@ pub fn province_color_table(provinces: &[Province]) -> Vec<u8> {
     t
 }
 
+/// 州郡名的位置（GDD 5.3「文字標籤」）：州郡內離州界最遠的那一格（東西相接）；
+/// 同樣遠的取最靠近重心者，再同則取編號最小者。`cells` 不可為空。
+pub fn province_label_cell(cells: &[u32], grid_w: usize, grid_h: usize) -> u32 {
+    use std::collections::{BTreeMap, VecDeque};
+    let index: BTreeMap<u32, usize> = cells.iter().enumerate().map(|(i, &c)| (c, i)).collect();
+    let neighbours = |c: u32| {
+        let (x, y) = (c as usize % grid_w, c as usize / grid_w);
+        let mut out = vec![
+            (y * grid_w + (x + 1) % grid_w) as u32,
+            (y * grid_w + (x + grid_w - 1) % grid_w) as u32,
+        ];
+        if y > 0 {
+            out.push(((y - 1) * grid_w + x) as u32);
+        }
+        if y + 1 < grid_h {
+            out.push(((y + 1) * grid_w + x) as u32);
+        }
+        out
+    };
+    // 由貼著州界的格往內一圈一圈推，得到每格離州界幾格。
+    let mut depth = vec![u32::MAX; cells.len()];
+    let mut queue = VecDeque::new();
+    for (i, &c) in cells.iter().enumerate() {
+        let y = c as usize / grid_w;
+        let on_edge =
+            y == 0 || y + 1 == grid_h || neighbours(c).iter().any(|n| !index.contains_key(n));
+        if on_edge {
+            depth[i] = 0;
+            queue.push_back(i);
+        }
+    }
+    while let Some(i) = queue.pop_front() {
+        for n in neighbours(cells[i]) {
+            if let Some(&j) = index.get(&n) {
+                if depth[j] == u32::MAX {
+                    depth[j] = depth[i] + 1;
+                    queue.push_back(j);
+                }
+            }
+        }
+    }
+    // 重心：x 以第一格為基準展開，避開東西接縫。
+    let x0 = (cells[0] as usize % grid_w) as f32;
+    let unwrap = |c: u32| {
+        let dx = (c as usize % grid_w) as f32 - x0;
+        let w = grid_w as f32;
+        (x0 + dx - w * (dx / w).round(), (c as usize / grid_w) as f32)
+    };
+    let n = cells.len() as f32;
+    let (mx, my) = cells.iter().fold((0.0f32, 0.0f32), |a, &c| {
+        let p = unwrap(c);
+        (a.0 + p.0 / n, a.1 + p.1 / n)
+    });
+    let deepest = depth
+        .iter()
+        .copied()
+        .filter(|&d| d != u32::MAX)
+        .max()
+        .unwrap_or(0);
+    let mut best = cells[0];
+    let mut best_d2 = f32::MAX;
+    for (i, &c) in cells.iter().enumerate() {
+        if depth[i] != deepest && !(deepest == 0 && depth[i] == u32::MAX) {
+            continue;
+        }
+        let p = unwrap(c);
+        let d2 = (p.0 - mx).powi(2) + (p.1 - my).powi(2);
+        if d2 < best_d2 || (d2 == best_d2 && c < best) {
+            best = c;
+            best_d2 = d2;
+        }
+    }
+    best
+}
+
 // ---------------------------------------------------------------- 地形網格
 
 /// 網格陣列：位置（y = 0，高度由著色器取高度貼圖）、UV（整張地圖 0..1）、索引。
@@ -649,5 +724,43 @@ mod tests {
             );
             assert!(sl[0].abs() == 1.0 && (1.0..=3.0).contains(&sl[1]));
         }
+    }
+    #[test]
+    fn province_label_sits_deep_inside_the_province() {
+        // 16×6 的格網上一個 L 形州郡：橫 5×3 加直 2×3。重心落在凹角附近，離州界最遠的格在橫條中間。
+        let (w, h) = (16usize, 6usize);
+        let mut cells = Vec::new();
+        for y in 1..4 {
+            for x in 1..6 {
+                cells.push((y * w + x) as u32);
+            }
+        }
+        let cell = province_label_cell(&cells, w, h);
+        assert_eq!(cell, (2 * w + 3) as u32, "5×3 的長方形：中心是正中那一格");
+        // 加上一條往下的細尾巴，中心不該被拉到尾巴上。
+        cells.push((4 * w + 1) as u32);
+        cells.push((5 * w + 1) as u32);
+        let cell = province_label_cell(&cells, w, h);
+        assert_eq!(cell as usize / w, 2, "中心仍在橫條的中間那一列");
+        assert!(cells.contains(&cell));
+    }
+
+    #[test]
+    fn province_label_handles_the_east_west_seam() {
+        // 跨接縫的 4×3 州郡：x 為 14、15、0、1。中心應在接縫兩側的中間列，不是地圖正中。
+        let (w, h) = (16usize, 6usize);
+        let mut cells = Vec::new();
+        for y in 1..4 {
+            for x in [14usize, 15, 0, 1] {
+                cells.push((y * w + x) as u32);
+            }
+        }
+        let cell = province_label_cell(&cells, w, h);
+        assert_eq!(cell as usize / w, 2);
+        assert!(
+            [7usize, 0].contains(&(cell as usize % w)),
+            "中心貼著接縫：{}",
+            cell as usize % w
+        );
     }
 }

@@ -20,6 +20,10 @@ const PATH_SPACING_MAX := 2.2
 ## 沿路徑排字時字級的下限；路徑短到連這個字級都排不下，就不顯示。
 const PATH_MIN_SIZE := 11
 const LABEL_OUTLINE := 4
+const CENTRED_KINDS: Array[String] = ["province", "continent"]
+## 治所：鏡頭高度低於地圖寬的這個比例才標出；字級。
+const SEAT_Z_MAX := 0.2
+const SEAT_SIZE := 13
 
 var _world: SimWorld
 var _map: TerrainMap
@@ -27,6 +31,8 @@ var _camera: MapCamera
 var _unit := 1.0
 var _labels: Array[Dictionary] = []
 var _nodes: Array[Dictionary] = []
+## 各州郡的治所：位置與治所名（治所名隨城池等級改變，由 refresh_seats 更新）。
+var _seats: Array[Dictionary] = []
 var _hover_province := -1
 var _hover_text := ""
 
@@ -42,6 +48,7 @@ func setup(world: SimWorld, map: TerrainMap, camera: MapCamera, unit: float) -> 
 	_labels.assign(world.map_labels())
 	_nodes.assign(world.ley_nodes())
 	_labels.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["rank"] > b["rank"])
+	refresh_seats()
 
 
 func set_hover(province: int) -> void:
@@ -50,6 +57,14 @@ func set_hover(province: int) -> void:
 	if province >= 0:
 		var info := _world.province_info(province)
 		_hover_text = "%s　%s %s" % [info["name"], Locale.t("card_population"), Locale.count(info["population"])]
+
+
+## 重新讀取各州郡的治所名（每年城池等級可能改變）。
+func refresh_seats() -> void:
+	_seats.clear()
+	for id in _world.province_count():
+		var info := _world.province_info(id)
+		_seats.append({"pos": info["seat"], "text": info["seat_name"]})
 
 
 func _process(_delta: float) -> void:
@@ -115,11 +130,14 @@ func _draw_labels() -> void:
 			continue
 		var point := _camera.unproject_position(_world_position(pos))
 		var extent := Ink.text_size(text, size)
-		var rect := Rect2(point - Vector2(extent.x * 0.5, extent.y + 4.0), extent)
+		# 州郡與大洲的名字以該點置中；其餘寫在該點上方。
+		var centred: bool = label["kind"] in CENTRED_KINDS
+		var rect := Rect2(point - Vector2(extent.x * 0.5, extent.y * 0.5 if centred else extent.y + 4.0), extent)
 		if not screen.encloses(rect) or _blocked(rect, taken):
 			continue
 		taken.append(rect)
 		Ink.outlined_text(self, rect.position, text, size, color, LABEL_OUTLINE)
+	_draw_seats(taken)
 
 
 func _blocked(rect: Rect2, taken: Array[Rect2]) -> bool:
@@ -193,6 +211,30 @@ func _along_path(points: PackedVector2Array, text: String, size: int, screen: Re
 			return PackedVector2Array()
 		spots.append(spot)
 	return spots
+
+
+## 治所（GDD 5.3）：一個墨點，右邊寫治所名；名字與已放的標籤重疊時只畫點。
+func _draw_seats(taken: Array[Rect2]) -> void:
+	if _camera.z > _map.map_size.x * SEAT_Z_MAX or _map.globe_morph > 0.5:
+		return
+	var screen := get_viewport_rect()
+	var size := Ink.font_size(SEAT_SIZE, _unit)
+	var radius := 3.0 * _unit
+	for seat in _seats:
+		var world_pos := _world_position(seat["pos"])
+		if _camera.is_position_behind(world_pos):
+			continue
+		var point := _camera.unproject_position(world_pos)
+		if not screen.has_point(point):
+			continue
+		draw_circle(point, radius + 1.5, Color(Ink.PAPER_LIGHT, 0.9))
+		draw_circle(point, radius, Ink.INK)
+		var extent := Ink.text_size(seat["text"], size)
+		var rect := Rect2(point + Vector2(radius + 4.0 * _unit, -extent.y * 0.5), extent)
+		if not screen.encloses(rect) or _blocked(rect, taken):
+			continue
+		taken.append(rect)
+		Ink.outlined_text(self, rect.position, seat["text"], size, Ink.INK, LABEL_OUTLINE)
 
 
 ## 靈脈模式的洞天福地：金點加青環，大小依強度（GDD 5.4）。

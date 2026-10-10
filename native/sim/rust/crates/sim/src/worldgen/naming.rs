@@ -3,7 +3,7 @@
 //! 同一世界不重名：重抽最多 20 次，仍重複則加「新」「北」「南」等前綴。
 
 use super::grid::{below, unit};
-use crate::types::Terrain;
+use crate::types::{Geography, Province, Terrain};
 use rand_chacha::ChaCha8Rng;
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
@@ -38,10 +38,92 @@ struct Places {
     node_suffix: BTreeMap<String, String>,
     world_names: Vec<String>,
     world_suffix: Vec<String>,
+    seat_prefix: Vec<String>,
+    seat_suffix_by_site: BTreeMap<String, Vec<String>>,
     continent_names: BTreeMap<String, Vec<String>>,
 }
 
 const DATA: &str = include_str!("../../data/places.zh-Hant.json");
+
+/// 借州郡名一個字的治所所佔的比例（GDD 7.3）。
+const SEAT_SHARE_PROB: u64 = 40;
+
+/// 各州郡治所的兩字名（GDD 7.3），依州郡順序。
+/// 約四成借州郡名的一個字（「臨、望」一類的前字加州郡字，或州郡字加依地勢取的後字），
+/// 其餘是獨立的名字（通用字加依地勢取的後字：海邊、水邊、山間、平地）。
+/// 不與自己州郡名的兩個字相同，同一個世界裡不重名。
+/// 不消耗世界生成的隨機流：由種子與州郡編號算出，同一個世界每次得到同一組名字。
+pub fn seat_stems(seed: u64, provinces: &[Province], geo: &Geography) -> Vec<String> {
+    let places: Places = serde_json::from_str(DATA).expect("places.zh-Hant.json");
+    let mut used = BTreeSet::new();
+    let mut out = Vec::with_capacity(provinces.len());
+    for province in provinces {
+        let stem: Vec<char> = province.name.chars().take(2).collect();
+        let province_stem: String = stem.iter().collect();
+        let suffixes = &places.seat_suffix_by_site[seat_site(province.seat, geo)];
+        let mut chosen = String::new();
+        for attempt in 0..64u64 {
+            let h = mix(seed ^ ((province.id as u64) << 20) ^ attempt);
+            let suffix = &suffixes[((h >> 8) as usize) % suffixes.len()];
+            let name = if h % 100 >= SEAT_SHARE_PROB || stem.is_empty() {
+                let first = &places.second[((h >> 24) as usize) % places.second.len()];
+                format!("{first}{suffix}")
+            } else {
+                let kept = stem[((h >> 40) as usize) % stem.len()];
+                if (h >> 41) & 1 == 0 {
+                    let prefix = &places.seat_prefix[((h >> 24) as usize) % places.seat_prefix.len()];
+                    format!("{prefix}{kept}")
+                } else {
+                    format!("{kept}{suffix}")
+                }
+            };
+            let doubled = name.chars().next() == name.chars().nth(1);
+            if name != province_stem && !doubled && !used.contains(&name) {
+                chosen = name;
+                break;
+            }
+        }
+        if chosen.is_empty() {
+            // 64 次都撞名（字庫相對州郡數太小時才會發生）：加上編號保證不重名。
+            chosen = format!("{}{}", places.seat_prefix[0], province.id);
+        }
+        used.insert(chosen.clone());
+        out.push(chosen);
+    }
+    out
+}
+
+/// 治所的地勢：鄰海為 coast，沼澤或河邊為 water，山地丘陵為 mountain，其餘為 plain。
+fn seat_site(seat: u32, geo: &Geography) -> &'static str {
+    let (w, h) = (geo.w as usize, geo.h as usize);
+    let (x, y) = (seat as usize % w, seat as usize / w);
+    let mut around = vec![y * w + (x + 1) % w, y * w + (x + w - 1) % w];
+    if y > 0 {
+        around.push((y - 1) * w + x);
+    }
+    if y + 1 < h {
+        around.push((y + 1) * w + x);
+    }
+    if around.iter().any(|&c| geo.terrain[c] == Terrain::Sea) {
+        return "coast";
+    }
+    let cell = seat as usize;
+    if geo.terrain[cell] == Terrain::Swamp || geo.river[cell] > 0 {
+        return "water";
+    }
+    if matches!(geo.terrain[cell], Terrain::Mountain | Terrain::Hills) {
+        return "mountain";
+    }
+    "plain"
+}
+
+/// SplitMix64 的混合步驟。
+fn mix(mut z: u64) -> u64 {
+    z = z.wrapping_add(0x9E37_79B9_7F4A_7C15);
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    z ^ (z >> 31)
+}
 
 /// 取名器：持有字庫與已用名稱集合（`BTreeSet`，GDD 6.5 規則 3）。
 pub struct Namer {
