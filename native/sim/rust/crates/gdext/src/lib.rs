@@ -8,6 +8,9 @@ use godot::prelude::*;
 use relief::Relief;
 use siming_sim::{calendar, Command, Sim, WorldParams, WorldSize, NO_PROVINCE};
 
+/// 山脈標籤的路徑：沿主軸每幾格取一段（GDD 5.3「文字標籤」）。
+const RANGE_LABEL_SEGMENT: f32 = 4.0;
+
 struct SimingExtension;
 
 #[gdextension]
@@ -333,7 +336,7 @@ impl SimWorld {
             }
         }
         for r in &w.geo.ranges {
-            // 山脈的走向：以最高峰為原點，取山脈格的主軸（共變異數的主方向），沿主軸兩端各延伸到最遠的格。
+            // 山脈的走向：以最高峰為原點，取山脈格的主軸（共變異數的主方向）。
             let peak = centre(r.peak);
             let rel: Vec<(f32, f32)> = r
                 .cells
@@ -363,9 +366,20 @@ impl SimWorld {
                 lo = lo.min(t);
                 hi = hi.max(t);
             }
-            let at = |t: f32| Vector2::new(peak.x + mx + ax * t, peak.y + my + ay * t);
+            // 沿主軸分段，每段取該段山脈格的重心連成折線：山脈彎曲時，折線跟著山勢走，不會落到山外。
+            let segments = ((hi - lo) / RANGE_LABEL_SEGMENT).round().clamp(3.0, 9.0) as usize;
+            let mut sums = vec![(0.0f32, 0.0f32, 0u32); segments];
+            for p in &rel {
+                let t = (p.0 - mx) * ax + (p.1 - my) * ay;
+                let i = (((t - lo) / (hi - lo).max(1e-3)) * segments as f32) as usize;
+                let cell = &mut sums[i.min(segments - 1)];
+                *cell = (cell.0 + p.0, cell.1 + p.1, cell.2 + 1);
+            }
             let path: PackedVector2Array = if hi - lo >= 1.0 {
-                [at(lo), at(0.5 * (lo + hi)), at(hi)].into_iter().collect()
+                sums.iter()
+                    .filter(|c| c.2 > 0)
+                    .map(|c| Vector2::new(peak.x + c.0 / c.2 as f32, peak.y + c.1 / c.2 as f32))
+                    .collect()
             } else {
                 none()
             };

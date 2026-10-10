@@ -112,3 +112,22 @@ func test_date_uses_the_era_form_with_arabic_numerals() -> void:
 	var expected := "開天紀元 %d年 %d月" % [months / 12 + 1, months % 12 + 1]
 	assert_eq(world.date_short(), expected)
 	assert_eq(world.date_text(), "%s（開天以來第 %d 年）" % [expected, months / 12 + 1])
+
+
+func test_gdd_5_3_range_label_paths_stay_on_land() -> void:
+	var world := _small_world()
+	var ranges := 0
+	var points := 0
+	var on_land := 0
+	for label: Dictionary in world.map_labels():
+		if label["kind"] != "range":
+			continue
+		ranges += 1
+		for point: Vector2 in label["path"]:
+			points += 1
+			if world.terrain_height_at(point.x, point.y) > 0.0:
+				on_land += 1
+	assert_gt(ranges, 0, "測試世界應有山脈")
+	assert_gt(points, 0)
+	assert_eq(on_land, points, "山脈名沿山勢排，路徑上的每一點都在陸地上")
+
