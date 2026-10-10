@@ -17,6 +17,8 @@ const KIND_COLORS := {
 ## 沿路徑排字的字距（字高的倍數）：下限與上限。
 const PATH_SPACING_MIN := 1.2
 const PATH_SPACING_MAX := 2.2
+## 沿路徑排字時字級的下限；路徑短到連這個字級都排不下，就不顯示。
+const PATH_MIN_SIZE := 11
 const LABEL_OUTLINE := 4
 
 var _world: SimWorld
@@ -86,9 +88,17 @@ func _draw_labels() -> void:
 		var color := Color(KIND_COLORS[label["kind"]] as Color, alpha)
 		var text: String = label["text"]
 		var path: PackedVector2Array = label["path"]
-		# 江河與山脈：字沿河道或山脊一個一個排開；排不下就退回單點標籤。
+		# 江河與山脈：字沿河道或山脊一個一個排開；路徑太短就縮小字級，再排不下就不顯示。
 		if path.size() >= 2 and _map.globe_morph < 0.5:
-			var spots := _along_path(path, text, size, screen)
+			var points := _path_on_screen(path)
+			# 路徑在鏡頭後方：這個標籤不畫。
+			if points.is_empty():
+				continue
+			# 依路徑在畫面上的長度決定字級；排不下最小字級就不顯示。
+			size = path_label_size(_path_length(points), text.length(), size, int(PATH_MIN_SIZE * _unit))
+			if size == 0:
+				continue
+			var spots := _along_path(points, text, size, screen)
 			if not spots.is_empty():
 				var bounds := Rect2(spots[0], Vector2.ZERO)
 				for spot in spots:
@@ -100,7 +110,7 @@ func _draw_labels() -> void:
 						var glyph := text[i]
 						var extent := Ink.text_size(glyph, size)
 						Ink.outlined_text(self, spots[i] - extent * 0.5, glyph, size, color, LABEL_OUTLINE)
-				continue
+			continue
 		if not _visible_on_map(pos):
 			continue
 		var point := _camera.unproject_position(_world_position(pos))
@@ -130,27 +140,45 @@ func _visible_on_map(pos: Vector2) -> bool:
 	return true
 
 
-## 把 text 的每個字沿 path 排開，回傳各字中心的螢幕位置；畫面上的路徑太短或不在畫面內則回傳空陣列。
-## 字距介於 PATH_SPACING_MIN 到 PATH_SPACING_MAX 個字高，整段置中於路徑；由左到右（路徑近乎垂直時由上到下）閱讀。
-func _along_path(path: PackedVector2Array, text: String, size: int, screen: Rect2) -> PackedVector2Array:
+## 沿路徑排字的字級：路徑在畫面上長 total 像素、要排 count 個字。
+## 字距不得小於 PATH_SPACING_MIN 個字高；以 base 排不下就縮小字級，縮到 min_size 還排不下則回傳 0（不顯示）。
+static func path_label_size(total: float, count: int, base: int, min_size: int) -> int:
+	if count < 2:
+		return 0
+	var fit := int(floor(total / (PATH_SPACING_MIN * (count - 1))))
+	var size := mini(base, fit)
+	return size if size >= min_size else 0
+
+
+## 路徑各點的螢幕位置，依閱讀方向排列（由左到右；近乎垂直時由上到下）。有點在鏡頭後方時回傳空陣列。
+func _path_on_screen(path: PackedVector2Array) -> PackedVector2Array:
 	var points := PackedVector2Array()
 	for p in path:
 		var world_pos := _world_position(p)
 		if _camera.is_position_behind(world_pos):
 			return PackedVector2Array()
 		points.append(_camera.unproject_position(world_pos))
-	var first := points[0]
-	var last := points[points.size() - 1]
-	var delta := last - first
+	var delta := points[points.size() - 1] - points[0]
 	if (absf(delta.x) >= absf(delta.y) and delta.x < 0.0) or (absf(delta.x) < absf(delta.y) and delta.y < 0.0):
 		points.reverse()
+	return points
+
+
+func _path_length(points: PackedVector2Array) -> float:
+	var total := 0.0
+	for i in range(1, points.size()):
+		total += points[i].distance_to(points[i - 1])
+	return total
+
+
+## 把 text 的每個字沿螢幕上的折線 points 排開，回傳各字中心的位置；有字落在畫面外則回傳空陣列。
+## 字距介於 PATH_SPACING_MIN 到 PATH_SPACING_MAX 個字高，整段置中於路徑。
+func _along_path(points: PackedVector2Array, text: String, size: int, screen: Rect2) -> PackedVector2Array:
 	var lengths := PackedFloat32Array([0.0])
 	for i in range(1, points.size()):
 		lengths.append(lengths[i - 1] + points[i].distance_to(points[i - 1]))
 	var total := lengths[lengths.size() - 1]
 	var count := text.length()
-	if count < 2 or total < size * PATH_SPACING_MIN * (count - 1):
-		return PackedVector2Array()
 	var spacing := clampf(total / (count + 1), size * PATH_SPACING_MIN, size * PATH_SPACING_MAX)
 	var start := (total - spacing * (count - 1)) * 0.5
 	var spots := PackedVector2Array()

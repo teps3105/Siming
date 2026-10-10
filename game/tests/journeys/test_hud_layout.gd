@@ -162,3 +162,14 @@ func test_clicking_the_state_text_toggles_pause() -> void:
 	await click(_hud._dial.position + slip.position + Vector2(12.0, slip.size.y * 0.5))
 	assert_false(_sim.paused, "點時速簽的狀態字放行")
 
+
+func test_path_labels_shrink_then_hide_when_the_path_is_short() -> void:
+	var gap := MapOverlay.PATH_SPACING_MIN
+	# 三個字、字級 15：兩個字距至少要 15 × gap × 2 像素。
+	assert_eq(MapOverlay.path_label_size(400.0, 3, 15, 11), 15, "路徑夠長用原字級")
+	assert_eq(MapOverlay.path_label_size(15.0 * gap * 2.0, 3, 15, 11), 15, "剛好排得下")
+	assert_eq(MapOverlay.path_label_size(13.0 * gap * 2.0 + 0.5, 3, 15, 11), 13, "排不下就縮小字級，字距仍不小於下限")
+	assert_eq(MapOverlay.path_label_size(11.0 * gap * 2.0, 3, 15, 11), 11, "縮到字級下限")
+	assert_eq(MapOverlay.path_label_size(11.0 * gap * 2.0 - 1.0, 3, 15, 11), 0, "低於字級下限就不顯示")
+	assert_eq(MapOverlay.path_label_size(400.0, 1, 15, 11), 0, "只有一個字不沿路徑排")
+
