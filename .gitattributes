@@ -1,0 +1,40 @@
+# 統一行尾為 LF。本機 core.autocrlf=true 會在 checkout 時轉成 CRLF，
+# Godot 編輯器寫回 LF 後檔案會被標成已修改但 diff 為空；以下類型一律固定 LF。
+.gitattributes text eol=lf
+.gitignore text eol=lf
+.editorconfig text eol=lf
+*.gd text eol=lf
+*.gdshader text eol=lf
+*.gdshaderinc text eol=lf
+*.tscn text eol=lf
+*.tres text eol=lf
+*.import text eol=lf
+*.godot text eol=lf
+*.cfg text eol=lf
+*.svg text eol=lf
+*.md text eol=lf
+*.py text eol=lf
+*.json text eol=lf
+*.txt text eol=lf
+*.rs text eol=lf
+*.toml text eol=lf
+*.gdextension text eol=lf
+*.uid -text
+
+# 二進位素材與製作原檔：不做行尾轉換、不產生文字 diff。
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.glb binary
+*.ogg binary
+*.wav binary
+*.mp3 binary
+*.ttf binary
+*.otf binary
+*.woff2 binary
+*.res binary
+*.scn binary
+
+# 第三方插件保持上游原樣，不做行尾轉換（覆蓋上列規則）。
+game/addons/godot_ai/** -text

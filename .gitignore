@@ -1,20 +1,40 @@
-# Rust
+# shiftblame 流程工作區（本地作業規範、路線圖、流程狀態與過程紀錄，不入庫）
+.shiftblame/
+
+# Godot 編輯器快取與匯入產物
+.godot/
+
+# godot-ai 更新程序暫存；驗證通過後整個刪除，不入庫
+game/addons/.godot_ai_update/
+
+# Rust 建置輸出
 target/
-target-*/
 perf.data
+
+# 由 tools/native_build 重製的原生程式庫
+game/modules/*/generated/*.dll
+game/modules/*/generated/*.pdb
+game/modules/*/generated/*.so
+game/modules/*/generated/*.dylib
+
+# 匯出成品
+builds/
 
 # 存檔
 saves/
 
-# 前端
-node_modules/
-web/dist/
-
-# 其他
-*.log
+# Python 快取
 __pycache__/
-.claude/
-TASK.md
+*.pyc
 
-# WASM 建置輸出
-dist/
+# Obsidian vault 設定
+.obsidian/
+
+# 本機設定與秘密
+.claude/
+.mcp.json
+.env
+.env.*
+*.key
+*.pem
+*.log

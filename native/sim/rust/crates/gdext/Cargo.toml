@@ -1,0 +1,13 @@
+[package]
+name = "siming-gdext"
+description = "GDD 6.4：Godot 橋接。把 siming-sim 以 GDExtension 類別公開給 Godot。"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+siming-sim.workspace = true
+godot = { version = "0.5.5", features = ["api-4-7"] }
