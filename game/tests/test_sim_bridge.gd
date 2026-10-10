@@ -31,9 +31,7 @@ func test_gdd_5_3_mesh_arrays_are_consistent() -> void:
 	var mesh := _small_world().terrain_mesh()
 	var count: int = (mesh["positions"] as PackedVector3Array).size()
 	assert_gt(count, 0)
-	assert_eq((mesh["normals"] as PackedVector3Array).size(), count)
 	assert_eq((mesh["uvs"] as PackedVector2Array).size(), count)
-	assert_eq((mesh["curvature"] as PackedVector2Array).size(), count)
 	assert_eq((mesh["indices"] as PackedInt32Array).size() % 3, 0)
 
 
@@ -41,14 +39,31 @@ func test_gdd_5_3_texture_sizes_follow_the_grid() -> void:
 	var world := _small_world()
 	var grid := world.grid_size()
 	var textures := world.map_textures()
-	var texels: int = textures["scale"]
-	assert_eq((textures["terrain"] as PackedByteArray).size(), grid.x * texels * grid.y * texels * 4)
-	assert_eq((textures["aura"] as PackedByteArray).size(), grid.x * texels * grid.y * texels)
-	assert_eq((textures["cls_a"] as PackedByteArray).size(), grid.x * grid.y * 4)
+	var elevation_size: Vector2i = textures["elevation_size"]
+	assert_eq((textures["elevation"] as PackedFloat32Array).size(), elevation_size.x * elevation_size.y)
+	assert_eq((textures["lake"] as PackedByteArray).size(), elevation_size.x * elevation_size.y)
+	var climate_size: Vector2i = textures["climate_size"]
+	assert_eq((textures["climate"] as PackedByteArray).size(), climate_size.x * climate_size.y * 3)
+	var aura_scale: int = textures["aura_scale"]
+	assert_eq((textures["aura"] as PackedByteArray).size(), grid.x * aura_scale * grid.y * aura_scale)
 	assert_eq((textures["province_id"] as PackedByteArray).size(), grid.x * grid.y * 2)
 	assert_eq(world.province_colors().size(), 256 * 4)
 	assert_eq(SimWorld.paper_texture().size(), 512 * 512 * 4)
-	assert_eq(SimWorld.stroke_texture().size(), 256 * 256)
+
+
+func test_gdd_5_3_coast_follows_the_elevation_sign() -> void:
+	var world := _small_world()
+	var textures := world.map_textures()
+	var elevation: PackedFloat32Array = textures["elevation"]
+	var below := 0
+	for value in elevation:
+		if value < 0.0:
+			below += 1
+	var ratio := float(below) / elevation.size()
+	assert_true(ratio > 0.3 and ratio < 0.95, "海面比例應合理：%s" % ratio)
+	for id in world.province_count():
+		var seat: Vector2 = world.province_info(id)["seat"]
+		assert_true(world.terrain_height_at(seat.x, seat.y) >= 0.0)
 
 
 func test_gdd_5_3_river_mesh_carries_side_and_level() -> void:

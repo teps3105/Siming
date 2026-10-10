@@ -5,7 +5,7 @@ extends Node3D
 
 enum Mode { SHANHE = 0, TIANXIA = 1, LINGMAI = 3 }
 
-const TERRAIN_SHADER := preload("res://modules/map/code/terrain_ink.gdshader")
+const TERRAIN_SHADER := preload("res://modules/map/code/terrain_relief.gdshader")
 const RIVER_SHADER := preload("res://modules/map/code/river_line.gdshader")
 const COPIES := 3
 ## GDD 5.3 過渡時間：平面 ↔ 球面 0.6 秒。
@@ -18,16 +18,15 @@ const INK_LIGHT := Color("6B6152")
 const WATER := Color("8DB3B6")
 const GOLD := Color("C9A246")
 const CYAN := Color("4F8F9A")
-const TERRAIN_COLORS: Array[Color] = [
-	Color("7DA4AD"), Color("A8C7C3"), Color("E8DDBC"), Color("C4A073"), Color("B5AE9C"),
-	Color("5E8A5A"), Color("F3F1EA"), Color("DDBE7E"), Color("9AA682"),
-]
+## 海岸線：深花青。
+const COAST_LINE := Color("3B5566")
+## 海深色階（淺 → 深）。
 const SEA_RAMP: Array[Color] = [
-	Color("D3E0D6"), Color("A8C7C3"), Color("7DA4AD"), Color("5A8296"), Color("3E6379"),
+	Color("C9DDD8"), Color("A3C3C4"), Color("7BA3B0"), Color("567F97"), Color("3A5F7A"),
 ]
-const MOUNTAIN_RAMP: Array[Color] = [
-	Color("BC9A68"), Color("9DAA80"), Color("7FA39A"), Color("8FA6BA"), Color("EEF0EC"),
-]
+## 高度色階：丘陵土色 → 山地岩色 → 高山灰 → 雪。
+const ROCK_RAMP: Array[Color] = [Color("C9B58C"), Color("B09C80"), Color("A49D97"), Color("F2F1EC")]
+const ICE := Color("EEF0EE")
 
 var map_size := Vector2.ZERO
 var mode: Mode = Mode.SHANHE
@@ -64,7 +63,7 @@ func build(world: SimWorld) -> void:
 	_ley_material.set_shader_parameter("level_width_px", Vector3(1.5, 2.0, 3.0))
 	_ley_material.render_priority = 2
 
-	var terrain_mesh := _mesh_from(world.terrain_mesh(), "normals", "uvs", "curvature")
+	var terrain_mesh := _mesh_from(world.terrain_mesh(), "", "uvs", "")
 	var river_mesh := _mesh_from(world.river_mesh(), "tangents", "side_level", "taper")
 	var ley_mesh := _mesh_from(_ley_arrays(world), "tangents", "side_level", "taper")
 	# 頂點著色器會把網格搬到球面上，包圍盒以整張地圖加星球為準。
@@ -190,16 +189,18 @@ func _add_copy(node_name: String, mesh: ArrayMesh, material: ShaderMaterial, bou
 
 
 func _mesh_from(data: Dictionary, normal_key: String, uv_key: String, uv2_key: String) -> ArrayMesh:
-	var arrays := []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = data["positions"]
-	arrays[Mesh.ARRAY_NORMAL] = data[normal_key]
-	arrays[Mesh.ARRAY_TEX_UV] = data[uv_key]
-	arrays[Mesh.ARRAY_TEX_UV2] = data[uv2_key]
-	arrays[Mesh.ARRAY_INDEX] = data["indices"]
 	var mesh := ArrayMesh.new()
 	if (data["positions"] as PackedVector3Array).is_empty():
 		return mesh
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = data["positions"]
+	arrays[Mesh.ARRAY_TEX_UV] = data[uv_key]
+	if not normal_key.is_empty():
+		arrays[Mesh.ARRAY_NORMAL] = data[normal_key]
+	if not uv2_key.is_empty():
+		arrays[Mesh.ARRAY_TEX_UV2] = data[uv2_key]
+	arrays[Mesh.ARRAY_INDEX] = data["indices"]
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return mesh
 
@@ -207,30 +208,40 @@ func _mesh_from(data: Dictionary, normal_key: String, uv_key: String, uv2_key: S
 func _make_terrain_material(world: SimWorld) -> ShaderMaterial:
 	var grid := world.grid_size()
 	var textures := world.map_textures()
-	var texel_scale: int = textures["scale"]
 	var material := ShaderMaterial.new()
 	material.shader = TERRAIN_SHADER
 	material.set_shader_parameter("paper", _lin(PAPER))
 	material.set_shader_parameter("ink", _lin(INK))
 	material.set_shader_parameter("ink_light", _lin(INK_LIGHT))
-	material.set_shader_parameter("water", _lin(WATER))
 	material.set_shader_parameter("gold", _lin(GOLD))
 	material.set_shader_parameter("cyan", _lin(CYAN))
-	material.set_shader_parameter("terrain_colors", _lin_array(TERRAIN_COLORS))
+	material.set_shader_parameter("coast_line", _lin(COAST_LINE))
 	material.set_shader_parameter("sea_colors", _lin_array(SEA_RAMP))
-	material.set_shader_parameter("mountain_colors", _lin_array(MOUNTAIN_RAMP))
+	material.set_shader_parameter("rock_colors", _lin_array(ROCK_RAMP))
+	material.set_shader_parameter("ice_color", _lin(ICE))
 	material.set_shader_parameter("map_size", Vector2(grid))
-	material.set_shader_parameter("max_height", world.terrain_max_height())
+	material.set_shader_parameter("sea_level", textures["sea_level"])
+	material.set_shader_parameter("max_elevation", world.terrain_max_height() / (grid.x * 0.04))
+
+	# 高度：32 位元浮點轉成 16 位元半精度（可線性取樣）。
+	var elevation_size: Vector2i = textures["elevation_size"]
+	var elevation := Image.create_from_data(
+		elevation_size.x, elevation_size.y, false, Image.FORMAT_RF, (textures["elevation"] as PackedFloat32Array).to_byte_array()
+	)
+	elevation.convert(Image.FORMAT_RH)
+	material.set_shader_parameter("elevation_tex", ImageTexture.create_from_image(elevation))
+	material.set_shader_parameter(
+		"lake_tex", _texture(elevation_size.x, elevation_size.y, Image.FORMAT_R8, textures["lake"], false)
+	)
+	var climate_size: Vector2i = textures["climate_size"]
+	material.set_shader_parameter(
+		"climate_tex", _texture(climate_size.x, climate_size.y, Image.FORMAT_RGB8, textures["climate"], false)
+	)
 	material.set_shader_parameter("paper_tex", _texture(512, 512, Image.FORMAT_RGBA8, SimWorld.paper_texture(), true))
-	material.set_shader_parameter("stroke_tex", _texture(256, 256, Image.FORMAT_R8, SimWorld.stroke_texture(), true))
+	var aura_scale: int = textures["aura_scale"]
 	material.set_shader_parameter(
-		"terrain_tex", _texture(grid.x * texel_scale, grid.y * texel_scale, Image.FORMAT_RGBA8, textures["terrain"], false)
+		"field_tex", _texture(grid.x * aura_scale, grid.y * aura_scale, Image.FORMAT_R8, textures["aura"], false)
 	)
-	material.set_shader_parameter(
-		"field_tex", _texture(grid.x * texel_scale, grid.y * texel_scale, Image.FORMAT_R8, textures["aura"], false)
-	)
-	material.set_shader_parameter("cls_a_tex", _texture(grid.x, grid.y, Image.FORMAT_RGBA8, textures["cls_a"], false))
-	material.set_shader_parameter("cls_b_tex", _texture(grid.x, grid.y, Image.FORMAT_RGBA8, textures["cls_b"], false))
 	material.set_shader_parameter("pid_tex", _texture(grid.x, grid.y, Image.FORMAT_RG8, textures["province_id"], false))
 	_province_colors = _texture(256, 1, Image.FORMAT_RGBA8, world.province_colors(), false)
 	var blank := PackedByteArray()

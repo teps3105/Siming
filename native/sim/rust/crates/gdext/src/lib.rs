@@ -2,9 +2,10 @@
 //! 本 crate 不含遊戲規則；規則一律在 siming-sim（GDD 6.1 依賴原則）。
 
 mod mapbake;
+mod relief;
 
 use godot::prelude::*;
-use mapbake::TerrainCpu;
+use relief::Relief;
 use siming_sim::{calendar, Command, Sim, WorldParams, WorldSize, NO_PROVINCE};
 
 struct SimingExtension;
@@ -29,8 +30,8 @@ fn bytes(v: &[u8]) -> PackedByteArray {
 #[class(base=RefCounted, init)]
 pub struct SimWorld {
     sim: Option<Sim>,
-    /// 地形高度場的副本（網格、河流、選取共用）。
-    cpu: Option<TerrainCpu>,
+    /// 細化後的高度場（貼圖、河流、選取共用）。
+    relief: Option<Relief>,
     base: Base<RefCounted>,
 }
 
@@ -48,7 +49,7 @@ impl SimWorld {
         };
         match Sim::new(&params) {
             Ok(sim) => {
-                self.cpu = Some(TerrainCpu::new(&sim.world().geo));
+                self.relief = Some(relief::build_relief(&sim.world().geo, &sim.world().fine));
                 self.sim = Some(sim);
                 GString::new()
             }
@@ -116,27 +117,26 @@ impl SimWorld {
     /// 陸地最高點的網格高度（高度縮放 = 1）。
     #[func]
     fn terrain_max_height(&self) -> f32 {
-        self.cpu.as_ref().map_or(0.0, |c| c.max_height)
+        self.relief.as_ref().map_or(0.0, |r| r.max_height())
     }
 
     /// 世界座標 (x, z) 的地形高度（高度縮放 = 1）。
     #[func]
     fn terrain_height_at(&self, x: f32, z: f32) -> f32 {
-        self.cpu.as_ref().map_or(0.0, |c| c.height_at(x, z))
+        self.relief.as_ref().map_or(0.0, |r| r.height_at(x, z))
     }
 
-    /// 地形網格陣列：`positions`、`normals`、`uvs`、`curvature`、`indices`。
+    /// 地形網格陣列：`positions`（平面格網，高度由著色器取高度貼圖）、`uvs`、`indices`。
     #[func]
     fn terrain_mesh(&self) -> VarDictionary {
         let mut d = VarDictionary::new();
-        let Some(cpu) = self.cpu.as_ref() else {
+        let Some(sim) = self.sim.as_ref() else {
             return d;
         };
-        let m = mapbake::build_terrain_mesh(cpu);
+        let geo = &sim.world().geo;
+        let m = mapbake::build_terrain_mesh(geo.w as usize, geo.h as usize);
         d.set("positions", &vec3s(&m.positions));
-        d.set("normals", &vec3s(&m.normals));
         d.set("uvs", &vec2s(&m.uvs));
-        d.set("curvature", &vec2s(&m.curvature));
         d.set("indices", &PackedInt32Array::from(m.indices.as_slice()));
         d
     }
@@ -145,10 +145,10 @@ impl SimWorld {
     #[func]
     fn river_mesh(&self) -> VarDictionary {
         let mut d = VarDictionary::new();
-        let (Some(sim), Some(cpu)) = (self.sim.as_ref(), self.cpu.as_ref()) else {
+        let (Some(sim), Some(relief)) = (self.sim.as_ref(), self.relief.as_ref()) else {
             return d;
         };
-        let r = mapbake::build_river_mesh(&sim.world().geo, cpu);
+        let r = mapbake::build_river_mesh(&sim.world().geo, relief);
         d.set("positions", &vec3s(&r.positions));
         d.set("tangents", &vec3s(&r.tangents));
         d.set("side_level", &vec2s(&r.side_level));
@@ -157,20 +157,33 @@ impl SimWorld {
         d
     }
 
-    /// 世界貼圖的位元組：`terrain`（RGBA8，格 × `scale`）、`aura`（R8，格 × `scale`）、
-    /// `cls_a`、`cls_b`（RGBA8，格）、`province_id`（RG8，格）；另有 `scale`。
+    /// 世界貼圖（GDD 5.3「貼圖」）：
+    /// `elevation`（相對海平面的高度，`PackedFloat32Array`）與 `elevation_size`、`lake`（R8，同尺寸）、
+    /// `climate`（RGB8）與 `climate_size`、`sea_level`、`aura`（R8，格 × `aura_scale`）、`province_id`（RG8，格）。
     #[func]
     fn map_textures(&self) -> VarDictionary {
         let mut d = VarDictionary::new();
-        let Some(sim) = self.sim.as_ref() else {
+        let (Some(sim), Some(relief)) = (self.sim.as_ref(), self.relief.as_ref()) else {
             return d;
         };
         let t = mapbake::build_world_textures(&sim.world().geo);
-        d.set("scale", mapbake::SS as i32);
-        d.set("terrain", &bytes(&t.terrain));
+        d.set(
+            "elevation",
+            &PackedFloat32Array::from(relief.elevation.as_slice()),
+        );
+        d.set(
+            "elevation_size",
+            Vector2i::new(relief.w as i32, relief.h as i32),
+        );
+        d.set("lake", &bytes(&relief.lake));
+        d.set("climate", &bytes(&relief.climate));
+        d.set(
+            "climate_size",
+            Vector2i::new(relief.climate_w as i32, relief.climate_h as i32),
+        );
+        d.set("sea_level", relief.sea_level);
+        d.set("aura_scale", mapbake::SS as i32);
         d.set("aura", &bytes(&t.aura));
-        d.set("cls_a", &bytes(&t.cls_a));
-        d.set("cls_b", &bytes(&t.cls_b));
         d.set("province_id", &bytes(&t.province_id));
         d
     }
@@ -179,12 +192,6 @@ impl SimWorld {
     #[func]
     fn paper_texture() -> PackedByteArray {
         bytes(&mapbake::gen_paper())
-    }
-
-    /// 皴法筆觸：256×256 R8（GDD 8.3）。
-    #[func]
-    fn stroke_texture() -> PackedByteArray {
-        bytes(&mapbake::gen_stroke())
     }
 
     /// 州郡 ID → 淡彩的 256×1 RGBA8 查表（天下模式，GDD 5.4）。

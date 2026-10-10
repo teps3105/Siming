@@ -25,6 +25,10 @@ debug = "line-tables-only"
 opt-level = 3
 debug = false
 
+# 地圖烘焙在世界生成後執行一次（數百萬紋素），開發建置也要全速。
+[profile.dev.package.siming-gdext]
+opt-level = 3
+
 [profile.test]
 opt-level = 2
 
