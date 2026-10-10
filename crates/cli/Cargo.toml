@@ -1,0 +1,12 @@
+[package]
+name = "siming-cli"
+description = "GDD 6.7：無頭工具。"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+siming-sim.workspace = true
+clap = { version = "4", features = ["derive"] }
+png = "0.17"
+serde_json.workspace = true

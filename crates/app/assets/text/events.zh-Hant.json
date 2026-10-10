@@ -1,0 +1,434 @@
+{
+  "events": {
+    "Born": {
+      "seal": "生",
+      "template": "{A}降生於{P}",
+      "importance": "1"
+    },
+    "ComeOfAge": {
+      "seal": "入",
+      "template": "{A}入{F}／{A}自行{X}",
+      "importance": "1"
+    },
+    "Married": {
+      "seal": "婚",
+      "template": "{A}與{B}結為{X}",
+      "importance": "2"
+    },
+    "Died": {
+      "seal": "歿",
+      "template": "{A}{X}，享年{N}",
+      "importance": "修士依境界 2–4；君主 4；其他 2"
+    },
+    "WraithBorn": {
+      "seal": "怨",
+      "template": "冤魂不散，怨氣化靈",
+      "importance": "3"
+    },
+    "Breakthrough": {
+      "seal": "進",
+      "template": "{A}突破至{X}",
+      "importance": "新境界 2–3：2；4–5：3；6+：4"
+    },
+    "Tribulation": {
+      "seal": "雷",
+      "template": "{A}渡{X}，{結果}",
+      "importance": "新境界 2–5：3；6+：4"
+    },
+    "Ascended": {
+      "seal": "升",
+      "template": "{A}渡過飛升劫，白日飛升",
+      "importance": "5"
+    },
+    "FellToDemon": {
+      "seal": "墮",
+      "template": "{A}心魔入體，墮入魔道",
+      "importance": "3"
+    },
+    "FruitAttained": {
+      "seal": "果",
+      "template": "{A}證得{X}果位",
+      "importance": "羅漢 3；菩薩 4"
+    },
+    "Vow": {
+      "seal": "願",
+      "template": "{A}發願：地獄不空，誓不成佛",
+      "importance": "4"
+    },
+    "Nirvana": {
+      "seal": "寂",
+      "template": "{A}證得佛果，入於涅槃",
+      "importance": "5"
+    },
+    "Treatise": {
+      "seal": "著",
+      "template": "{A}著《{X}》",
+      "importance": "2"
+    },
+    "GreatScholar": {
+      "seal": "儒",
+      "template": "{A}成一代大儒",
+      "importance": "3"
+    },
+    "Sage": {
+      "seal": "聖",
+      "template": "{A}立德立功立言，三不朽而成聖",
+      "importance": "5"
+    },
+    "Killed": {
+      "seal": "殺",
+      "template": "{A}殺{B}於{P}",
+      "importance": "3"
+    },
+    "Converted": {
+      "seal": "度",
+      "template": "{A}度化{B}",
+      "importance": "3"
+    },
+    "Rebirth": {
+      "seal": "輪",
+      "template": "{A}轉世為{P}{X}",
+      "importance": "有宿緣者 3；其他 1"
+    },
+    "Judged": {
+      "seal": "判",
+      "template": "{A}之魂判入{X}",
+      "importance": "1"
+    },
+    "Traveled": {
+      "seal": "遊",
+      "template": "{A}出外遊歷{P}／{A}遊歷歸來",
+      "importance": "1"
+    },
+    "TribulationOmen": {
+      "seal": "雲",
+      "template": "{A}山門上空，劫雲將聚",
+      "importance": "2"
+    },
+    "Genesis": {
+      "seal": "始",
+      "template": "天地初開，萬緣始結",
+      "importance": "1"
+    },
+    "ThreadCreated": {
+      "seal": "結",
+      "template": "{A}與{B}結下{X}",
+      "importance": "2；拜師 1；司命所牽 5"
+    },
+    "ThreadOmen": {
+      "seal": "近",
+      "template": "赤線漸近：{A}與{B}的{X}將有分曉",
+      "importance": "3"
+    },
+    "ThreadResolved": {
+      "seal": "了",
+      "template": "歷經{N}次轉世，{A}與{B}的{X}了結",
+      "importance": "4（lives ≥ 2 為 5）"
+    },
+    "FeudEscalated": {
+      "seal": "仇",
+      "template": "{A}再殺{B}，冤冤相報",
+      "importance": "4"
+    },
+    "ThreadFaded": {
+      "seal": "散",
+      "template": "{A}與{B}有緣無分",
+      "importance": "1"
+    },
+    "PowerFounded": {
+      "seal": "立",
+      "template": "{A}於{P}創立{F}",
+      "importance": "3"
+    },
+    "Succession": {
+      "seal": "繼",
+      "template": "{A}繼任{F}{X}",
+      "importance": "3"
+    },
+    "SectSplit": {
+      "seal": "分",
+      "template": "{F}內亂，{A}率眾另立{G}",
+      "importance": "3"
+    },
+    "SectWar": {
+      "seal": "鬥",
+      "template": "{F}與{G}爭奪{X}，{F}勝",
+      "importance": "4"
+    },
+    "PowerFallen": {
+      "seal": "滅",
+      "template": "{F}覆滅",
+      "importance": "4"
+    },
+    "Purge": {
+      "seal": "毀",
+      "template": "{F}下詔滅佛",
+      "importance": "4"
+    },
+    "BanTao": {
+      "seal": "禁",
+      "template": "{F}下詔禁道",
+      "importance": "4"
+    },
+    "DynastyFounded": {
+      "seal": "朝",
+      "template": "{A}建立{F}，定都{P}",
+      "importance": "4"
+    },
+    "Annexed": {
+      "seal": "拓",
+      "template": "{F}開疆，納{P}入版圖",
+      "importance": "2"
+    },
+    "WarDeclared": {
+      "seal": "戰",
+      "template": "{F}伐{G}",
+      "importance": "3"
+    },
+    "Battle": {
+      "seal": "兵",
+      "template": "{F}與{G}會戰於{P}",
+      "importance": "1（統帥陣亡 3）"
+    },
+    "CityFell": {
+      "seal": "陷",
+      "template": "{P}陷於{F}",
+      "importance": "3"
+    },
+    "Massacre": {
+      "seal": "屠",
+      "template": "{A}屠{P}",
+      "importance": "5"
+    },
+    "Rebellion": {
+      "seal": "叛",
+      "template": "{A}起兵於{P}",
+      "importance": "3"
+    },
+    "Secession": {
+      "seal": "據",
+      "template": "{A}據{P}自立為{F}",
+      "importance": "4"
+    },
+    "Usurpation": {
+      "seal": "篡",
+      "template": "{A}篡{F}之位",
+      "importance": "4"
+    },
+    "CivilWar": {
+      "seal": "內",
+      "template": "{F}內戰，一分為二",
+      "importance": "4"
+    },
+    "CapitalMoved": {
+      "seal": "遷",
+      "template": "{F}遷都{P}",
+      "importance": "3"
+    },
+    "DynastyChanged": {
+      "seal": "革",
+      "template": "{F}亡，{G}代之",
+      "importance": "5"
+    },
+    "DynastyCollapsed": {
+      "seal": "崩",
+      "template": "{F}土崩瓦解",
+      "importance": "5"
+    },
+    "Peace": {
+      "seal": "和",
+      "template": "{F}與{G}議和",
+      "importance": "2"
+    },
+    "Fengshan": {
+      "seal": "禪",
+      "template": "{A}封禪，天下太平",
+      "importance": "5"
+    },
+    "Remonstrance": {
+      "seal": "諫",
+      "template": "{A}直諫而死",
+      "importance": "4"
+    },
+    "Relief": {
+      "seal": "賑",
+      "template": "{F}賑濟{P}",
+      "importance": "2"
+    },
+    "Famine": {
+      "seal": "饑",
+      "template": "{P}大饑",
+      "importance": "3"
+    },
+    "Plague": {
+      "seal": "疫",
+      "template": "{P}大疫",
+      "importance": "3"
+    },
+    "BeastAwakened": {
+      "seal": "妖",
+      "template": "{P}有{X}開靈智",
+      "importance": "3"
+    },
+    "BeastRaid": {
+      "seal": "襲",
+      "template": "{A}肆虐{P}",
+      "importance": "2"
+    },
+    "DemonDen": {
+      "seal": "窟",
+      "template": "{P}業氣凝結成魔窟",
+      "importance": "4"
+    },
+    "CataclysmBegan": {
+      "seal": "魔",
+      "template": "魔劫起，魔氛蔽日",
+      "importance": "5"
+    },
+    "CataclysmEnded": {
+      "seal": "平",
+      "template": "魔劫平息",
+      "importance": "4"
+    },
+    "HeavenWrath": {
+      "seal": "怒",
+      "template": "天怒人怨",
+      "importance": "5"
+    },
+    "KalpaOmen": {
+      "seal": "兆",
+      "template": "天象有異，量劫將至（{N}成）",
+      "importance": "4"
+    },
+    "Kalpa": {
+      "seal": "劫",
+      "template": "量劫降臨",
+      "importance": "5"
+    },
+    "LeyDamaged": {
+      "seal": "脈",
+      "template": "{X}靈脈受損",
+      "importance": "3"
+    },
+    "KalpaSettled": {
+      "seal": "運",
+      "template": "第{N}運終，評曰「{X}」",
+      "importance": "5"
+    },
+    "Siming": {
+      "seal": "司",
+      "template": "司命{X}：{目標}",
+      "importance": "5"
+    },
+    "BookEntry": {
+      "seal": "書",
+      "template": "天書添一頁：{X}",
+      "importance": "4"
+    }
+  },
+  "book": {
+    "三世血仇": {
+      "seal": "三世",
+      "line": "一筆血債，歷三世方償"
+    },
+    "冤冤相報": {
+      "seal": "冤冤",
+      "line": "一殺再殺，冤仇不解"
+    },
+    "前世今生": {
+      "seal": "前世",
+      "line": "昔日弟子，今為人師"
+    },
+    "再續前緣": {
+      "seal": "再續",
+      "line": "隔世重逢，終成眷屬"
+    },
+    "轉世大能": {
+      "seal": "轉世",
+      "line": "宿慧未泯，再登舊境"
+    },
+    "魔佛一念": {
+      "seal": "魔佛",
+      "line": "放下屠刀，立地成佛"
+    },
+    "一門三聖": {
+      "seal": "一門",
+      "line": "一門之內，三人飛升"
+    },
+    "三教歸一": {
+      "seal": "三教",
+      "line": "道釋儒三世皆有所成"
+    },
+    "以殺證道": {
+      "seal": "以殺",
+      "line": "魔修白日飛升"
+    },
+    "菩薩不入": {
+      "seal": "菩薩",
+      "line": "地獄不空，誓不成佛"
+    },
+    "三武滅佛": {
+      "seal": "三武",
+      "line": "一朝三度滅佛"
+    },
+    "文死諫": {
+      "seal": "文死",
+      "line": "文臣死諫"
+    },
+    "封禪泰山": {
+      "seal": "封禪",
+      "line": "聖王封禪"
+    },
+    "改朝換代": {
+      "seal": "改朝",
+      "line": "揭竿而起，鼎革天下"
+    },
+    "國祚千年": {
+      "seal": "國祚",
+      "line": "一朝千年"
+    },
+    "天下歸一": {
+      "seal": "天下",
+      "line": "四海一家"
+    },
+    "魔劫": {
+      "seal": "魔劫",
+      "line": "魔氛蔽日"
+    },
+    "劫後餘生": {
+      "seal": "劫後",
+      "line": "九成量劫，人猶未絕"
+    },
+    "大治之運": {
+      "seal": "大治",
+      "line": "一運大治"
+    },
+    "天道自誤": {
+      "seal": "天道",
+      "line": "天道不仁，自取其劫"
+    },
+    "一念之差": {
+      "seal": "一念",
+      "line": "司命一線，化作屠城"
+    },
+    "無為而治": {
+      "seal": "無為",
+      "line": "司命無為，天下小康"
+    },
+    "逆天改命": {
+      "seal": "逆天",
+      "line": "地獄之魂，終得超脫"
+    }
+  },
+  "placeholders": {
+    "{A}": "人名",
+    "{B}": "人名",
+    "{P}": "州郡",
+    "{F}": "勢力",
+    "{G}": "勢力",
+    "{X}": "依事件而定",
+    "{N}": "數字",
+    "{結果}": "天劫結果",
+    "{目標}": "司命權能的目標"
+  }
+}
