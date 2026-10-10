@@ -23,7 +23,9 @@ func setup(sim: SimHost, map: TerrainMap, camera: MapCamera) -> void:
 	_map = map
 	_camera = camera
 	camera.province_hovered.connect(func(id: int) -> void: _overlay.set_hover(id))
-	camera.province_selected.connect(func(id: int) -> void: _card.show_province(id))
+	camera.province_selected.connect(func(id: int) -> void:
+		_card.show_province(id)
+		_overlay.card_open = _card.is_open())
 	sim.advanced.connect(func(_months: int) -> void: _card.refresh())
 	get_viewport().size_changed.connect(_layout)
 	_layout()
@@ -64,7 +66,9 @@ func _build() -> void:
 	add_child(_card)
 	_card.setup(_sim.world, _unit)
 	_card.center_requested.connect(func(pos: Vector2) -> void: _camera.look_at_map(pos))
-	_card.closed.connect(func() -> void: _map.set_selected(-1))
+	_card.closed.connect(func() -> void:
+		_map.set_selected(-1)
+		_overlay.card_open = false)
 	_card.show_province(selected)
 
 
@@ -94,6 +98,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		_set_mode(TerrainMap.Mode.LINGMAI)
 	elif event.is_action_pressed(InputActions.CANCEL):
 		_card.close()
+	elif event.is_action_pressed(InputActions.CARD_CENTER):
+		_card.request_center()
 	else:
 		var speeds := [InputActions.SPEED_1, InputActions.SPEED_2, InputActions.SPEED_3, InputActions.SPEED_4]
 		for i in speeds.size():

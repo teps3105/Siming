@@ -23,6 +23,8 @@ var _labels: Array[Dictionary] = []
 var _nodes: Array[Dictionary] = []
 var _hover_province := -1
 var _hover_text := ""
+## 州郡卡是否開著（按鍵提示多列一組「置中」）。
+var card_open := false
 
 
 func setup(world: SimWorld, map: TerrainMap, camera: MapCamera, unit: float) -> void:
@@ -206,6 +208,8 @@ func _draw_hover_tip() -> void:
 ## 搖桿模式的按鍵提示（GDD 5.9）：右下、印匣上方。
 func _draw_prompts() -> void:
 	var entries := [["A", "prompt_select"], ["B", "prompt_back"], ["LB RB", "prompt_mode"], [Locale.t("prompt_start"), "prompt_pause"]]
+	if card_open:
+		entries.insert(2, ["X", "act_center"])
 	var size := int(Ink.SIZE_NOTE * _unit)
 	var parts: Array[String] = []
 	for entry: Array in entries:

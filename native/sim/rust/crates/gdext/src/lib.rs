@@ -237,7 +237,7 @@ impl SimWorld {
 
     /// 州郡摘要（GDD 2.3、5.8 州郡卡）：`name`、`population`、`capacity`、`aura`、`karma_qi`、
     /// `merit`、`righteous`、`devastation`、`city_level`、`faith`（道、釋、儒）、`seat`（治所格心的世界座標）、
-    /// `cells`（格數）。
+    /// `cells`（格數）、`terrain_mix`（各地形的格數，索引為地形代碼 0 海 .. 8 澤）。
     #[func]
     fn province_info(&self, id: i32) -> VarDictionary {
         let mut d = VarDictionary::new();
@@ -265,6 +265,8 @@ impl SimWorld {
             Vector2::new((p.seat % gw) as f32 + 0.5, (p.seat / gw) as f32 + 0.5),
         );
         d.set("cells", p.cells.len() as i32);
+        let mix: Vec<i32> = p.terrain_mix.iter().map(|&n| n as i32).collect();
+        d.set("terrain_mix", &PackedInt32Array::from(mix.as_slice()));
         d
     }
 

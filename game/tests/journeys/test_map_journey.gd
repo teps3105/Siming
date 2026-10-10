@@ -152,6 +152,40 @@ func test_gamepad_crosshair_selects_and_b_closes() -> void:
 	assert_eq(_hud._card.province, -1, "B 返回")
 
 
+func test_card_center_action_moves_the_camera_to_the_seat() -> void:
+	var screen := await _aim_at_province(0)
+	await click(screen)
+	assert_eq(_hud._card.province, 0)
+	var seat: Vector2 = _sim.world.province_info(0)["seat"]
+	_camera.look_at_map(seat + Vector2(6.0, 4.0), -1.0, true)
+	await frames(2)
+	await key(KEY_C)
+	await wait(0.6)
+	assert_lt(_camera.focus.distance_to(seat), 0.5, "C 把鏡頭移到治所")
+	_camera.look_at_map(seat + Vector2(-5.0, 3.0), -1.0, true)
+	await frames(2)
+	await joy_button(JOY_BUTTON_X)
+	await wait(0.6)
+	assert_lt(_camera.focus.distance_to(seat), 0.5, "搖桿 X 把鏡頭移到治所")
+
+
+func test_switching_mode_shows_the_legend_briefly() -> void:
+	assert_eq(_hud._seals._flash, 0.0, "一開始不顯示圖例")
+	await key(KEY_F2)
+	assert_gt(_hud._seals._flash, 0.0, "切換模式後圖例出現")
+	await wait(SealBox.FLASH_SECONDS + 0.3)
+	assert_eq(_hud._seals._flash, 0.0, "過一會兒自動收起")
+
+
+func test_province_card_reports_terrain_mix() -> void:
+	var mix: PackedInt32Array = _sim.world.province_info(0)["terrain_mix"]
+	assert_eq(mix.size(), 9, "九種地形代碼")
+	var total := 0
+	for count in mix:
+		total += count
+	assert_eq(total, int(_sim.world.province_info(0)["cells"]), "各地形格數合計等於州郡格數")
+
+
 func test_zooming_all_the_way_out_turns_the_map_into_a_globe() -> void:
 	_camera.look_at_map(_map.map_size * 0.5, _map.map_size.x * 1.05, true)
 	await wait(0.9)

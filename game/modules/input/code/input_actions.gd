@@ -13,6 +13,7 @@ const ROTATE_LEFT := &"map_rotate_left"
 const ROTATE_RIGHT := &"map_rotate_right"
 const SELECT := &"map_select"
 const CANCEL := &"ui_back"
+const CARD_CENTER := &"card_center"
 const PAUSE := &"time_pause"
 const SPEED_UP := &"time_faster"
 const SPEED_DOWN := &"time_slower"
@@ -42,6 +43,7 @@ static func bindings() -> Dictionary:
 		ROTATE_RIGHT: [KEY_E, "axis:%d:1" % JOY_AXIS_RIGHT_X],
 		SELECT: ["joy:%d" % JOY_BUTTON_A],
 		CANCEL: [KEY_ESCAPE, "joy:%d" % JOY_BUTTON_B],
+		CARD_CENTER: [KEY_C, "joy:%d" % JOY_BUTTON_X],
 		PAUSE: [KEY_SPACE, "joy:%d" % JOY_BUTTON_START],
 		SPEED_UP: ["axis:%d:1" % JOY_AXIS_TRIGGER_RIGHT],
 		SPEED_DOWN: ["axis:%d:1" % JOY_AXIS_TRIGGER_LEFT],

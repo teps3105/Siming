@@ -7,6 +7,7 @@ signal mode_chosen(mode: TerrainMap.Mode)
 
 const SEAL_SIZE := 44.0
 const GAP := 6.0
+const FLASH_SECONDS := 1.6
 ## 每枚印：字串鍵（印字為 seal_<key>、例簽標題為 mode_<key>）與對應的地圖模式（-1 表示尚未開放）。
 const SEALS := [
 	{"key": "shanhe", "mode": TerrainMap.Mode.SHANHE},
@@ -24,6 +25,8 @@ const TERRAIN_LEGEND := [
 var mode: TerrainMap.Mode = TerrainMap.Mode.SHANHE
 var _unit := 1.0
 var _hover := -1
+## 切換模式後，例簽還要顯示多久（秒）。
+var _flash := 0.0
 
 
 func setup(unit: float) -> void:
@@ -35,8 +38,17 @@ func setup(unit: float) -> void:
 
 
 func set_mode(new_mode: TerrainMap.Mode) -> void:
+	if new_mode != mode:
+		_flash = FLASH_SECONDS
 	mode = new_mode
 	queue_redraw()
+
+
+func _process(delta: float) -> void:
+	if _flash > 0.0:
+		_flash = maxf(_flash - delta, 0.0)
+		if _flash == 0.0:
+			queue_redraw()
 
 
 ## 依序切到上一個或下一個已開放的模式（搖桿 LB／RB）。
@@ -60,6 +72,10 @@ func _draw() -> void:
 		Ink.seal(self, _seal_rect(i), Locale.t("seal_%s" % entry["key"]), entry["mode"] == int(mode), entry["mode"] >= 0, i == _hover)
 	if _hover >= 0:
 		_draw_legend(SEALS[_hover])
+	elif _flash > 0.0:
+		for entry: Dictionary in SEALS:
+			if entry["mode"] == int(mode):
+				_draw_legend(entry)
 
 
 func _draw_legend(entry: Dictionary) -> void:

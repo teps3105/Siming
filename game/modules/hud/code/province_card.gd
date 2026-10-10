@@ -7,9 +7,18 @@ signal center_requested(map_pos: Vector2)
 signal closed
 
 const WIDTH := 300.0
-const HEIGHT := 348.0
+const HEIGHT := 384.0
 const ROD := 12.0
 const UNROLL_SECONDS := 0.18
+## 地形代碼（0 海 .. 8 澤）對應的字串鍵與色塊（GDD 5.1）。
+const TERRAIN_KEYS: Array[String] = [
+	"terrain_water", "terrain_water", "terrain_plains", "terrain_hills", "terrain_mountain",
+	"terrain_forest", "terrain_snow", "terrain_desert", "terrain_swamp",
+]
+const TERRAIN_SWATCHES: Array[Color] = [
+	Color("7BA3B0"), Color("A3C3C4"), Color("BAC690"), Color("C9B58C"), Color("A49D97"),
+	Color("7AA06C"), Color("F1F0EA"), Color("D9C59A"), Color("8FA287"),
+]
 
 var province := -1
 
@@ -59,6 +68,12 @@ func is_open() -> bool:
 	return province >= 0
 
 
+## 頁尾動作「中」：把鏡頭移到治所（滑鼠點印、鍵盤 C、搖桿 X 共用）。
+func request_center() -> void:
+	if is_open() and not _info.is_empty():
+		center_requested.emit(_info["seat"])
+
+
 func _process(delta: float) -> void:
 	if _open == _target_open:
 		return
@@ -104,6 +119,26 @@ func _draw() -> void:
 	y += 40.0 * _unit
 	draw_line(Vector2(x, y), Vector2(size.x - x, y), Color(Ink.INK_LIGHT, 0.5), 1.0)
 	y += 10.0 * _unit
+
+	# 地形組成：佔比最高的三種陸地地形，各一個色塊加百分比。
+	var mix: PackedInt32Array = _info["terrain_mix"]
+	var land := 0
+	for code in range(2, mix.size()):
+		land += mix[code]
+	var order := range(2, mix.size())
+	order.sort_custom(func(a: int, b: int) -> bool: return mix[a] > mix[b])
+	var cursor := x
+	for i in mini(3, order.size()):
+		var code: int = order[i]
+		if land == 0 or mix[code] == 0:
+			break
+		var chip := Rect2(Vector2(cursor, y + 4.0 * _unit), Vector2(12.0, 12.0) * _unit)
+		draw_rect(chip, TERRAIN_SWATCHES[code], true)
+		draw_rect(chip, Color(Ink.INK_LIGHT, 0.5), false, 1.0)
+		var label := "%s %d%%" % [Locale.t(TERRAIN_KEYS[code]), int(round(100.0 * mix[code] / land))]
+		Ink.text(self, Vector2(cursor + 17.0 * _unit, y), label, note, Ink.INK)
+		cursor += 17.0 * _unit + Ink.text_size(label, note).x + 12.0 * _unit
+	y += 26.0 * _unit
 
 	Ink.text(self, Vector2(x, y), Locale.t("card_people"), int(Ink.SIZE_SECTION * _unit), Ink.INK_LIGHT)
 	y += 24.0 * _unit
@@ -155,7 +190,7 @@ func _gui_input(event: InputEvent) -> void:
 			"close":
 				close()
 			"center":
-				center_requested.emit(_info["seat"])
+				request_center()
 		accept_event()
 
 
