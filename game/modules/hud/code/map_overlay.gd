@@ -27,8 +27,6 @@ var _labels: Array[Dictionary] = []
 var _nodes: Array[Dictionary] = []
 var _hover_province := -1
 var _hover_text := ""
-## 州郡卡是否開著（按鍵提示多列一組「置中」）。
-var card_open := false
 
 
 func setup(world: SimWorld, map: TerrainMap, camera: MapCamera, unit: float) -> void:
@@ -212,16 +210,19 @@ func _draw_hover_tip() -> void:
 
 ## 搖桿模式的按鍵提示（GDD 5.9）：右下、印匣上方。
 func _draw_prompts() -> void:
-	var entries := [["A", "prompt_select"], ["B", "prompt_back"], ["LB RB", "prompt_mode"], [Locale.t("prompt_start"), "prompt_pause"]]
-	if card_open:
-		entries.insert(2, ["X", "act_center"])
+	# 其他操作的鍵畫在各自的器物上，這裡只列地圖本身的兩個。
+	var entries := [[InputHints.label(InputActions.SELECT, true), "prompt_select"], [InputHints.label(InputActions.CANCEL, true), "prompt_back"]]
 	var size := Ink.font_size(Ink.SIZE_NOTE, _unit)
-	var parts: Array[String] = []
+	var width := 10.0 * _unit
 	for entry: Array in entries:
-		parts.append("%s %s" % [entry[0], Locale.t(entry[1])])
-	var line := "　".join(parts)
-	var extent := Ink.text_size(line, size)
+		width += Ink.key_glyph_width(entry[0], _unit) + 5.0 * _unit + Ink.text_size(Locale.t(entry[1]), size).x + 14.0 * _unit
 	var bounds := get_viewport_rect().size
-	var slip := Rect2(Vector2(16.0 * _unit, bounds.y - extent.y - 28.0 * _unit), extent + Vector2(20.0, 12.0) * _unit)
+	var height := Ink.KEY_HEIGHT * _unit + 10.0 * _unit
+	var slip := Rect2(Vector2(15.0 * _unit, bounds.y - height - 15.0 * _unit), Vector2(width - 4.0 * _unit, height))
 	Ink.paper_slip(self, slip)
-	Ink.text(self, slip.position + Vector2(10.0, 6.0) * _unit, line, size)
+	var cursor := slip.position.x + 10.0 * _unit
+	for entry: Array in entries:
+		cursor += Ink.key_glyph(self, Vector2(cursor, slip.position.y + 5.0 * _unit), entry[0], _unit) + 5.0 * _unit
+		var label := Locale.t(entry[1])
+		Ink.text(self, Vector2(cursor, slip.position.y + (slip.size.y - Ink.text_size(label, size).y) * 0.5), label, size)
+		cursor += Ink.text_size(label, size).x + 14.0 * _unit

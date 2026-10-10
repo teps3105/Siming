@@ -1,7 +1,8 @@
-//! GDD 2.6 元會運世曆法（T4 實作）。
+//! GDD 2.6 曆法。
 //!
-//! 採邵雍《皇極經世》的元會運世：1 月 = 1 tick；12 月 = 1 年；30 年 = 1 世；
-//! 12 世 = 1 運（360 年）；30 運 = 1 會（10,800 年）；12 會 = 1 元。
+//! 顯示用紀元：「開天紀元 12年 11月」，紀元由世界裡的大事開啟，紀元內的年份重新起算。
+//! 規則用的週期沿用元會運世的長度：1 月 = 1 tick；12 月 = 1 年；30 年 = 1 世；
+//! 12 世 = 1 運（360 年）；30 運 = 1 會（10,800 年）。這些單位不出現在畫面上。
 //!
 //! 計算約定（GDD 6.3 觸發條件：tick 從 1 起算，開天後第一個月為 1）：
 //! - tick 0 是開天時刻（尚無月經過），本實作將 tick 0 與 tick 1 同樣對應到
@@ -14,8 +15,6 @@ const MONTHS_PER_YEAR: u32 = 12;
 const YEARS_PER_SHI: u32 = 30;
 const SHI_PER_YUN: u32 = 12;
 const YUN_PER_HUI: u32 = 30;
-
-const DIGITS: [&str; 10] = ["零", "一", "二", "三", "四", "五", "六", "七", "八", "九"];
 
 /// 元會運世日期（GDD 2.6）。所有欄位皆為 1 起算。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,94 +58,57 @@ pub fn date(tick: Tick) -> Date {
     }
 }
 
-/// 將 1..=9999 的整數轉為中文數字（GDD 2.6 日期顯示）。
-///
-/// 規則：10 → 十、11 → 十一、20 → 二十、101 → 一百零一、110 → 一百一十、
-/// 1000 → 一千、1203 → 一千二百零三。
-/// 超過 9999 之值為本實作的延伸（以「萬」表示），GDD 未規定。
-pub fn zh_num(n: u32) -> String {
-    if n == 0 {
-        return DIGITS[0].to_string();
-    }
-    if n >= 10_000 {
-        let high = n / 10_000;
-        let rest = n % 10_000;
-        let mut out = zh_num(high);
-        out.push('萬');
-        if rest != 0 {
-            if rest < 1000 {
-                out.push('零');
-            }
-            out.push_str(&zh_num(rest));
-        }
-        return out;
-    }
-
-    const UNITS: [&str; 4] = ["", "十", "百", "千"];
-    let digits = [n / 1000 % 10, n / 100 % 10, n / 10 % 10, n % 10];
-    let mut out = String::new();
-    let mut pending_zero = false;
-    for (i, &d) in digits.iter().enumerate() {
-        let pos = 3 - i; // 3 = 千、2 = 百、1 = 十、0 = 個
-        let d = d as usize;
-        if d == 0 {
-            if !out.is_empty() {
-                pending_zero = true;
-            }
-            continue;
-        }
-        if pending_zero {
-            out.push_str(DIGITS[0]);
-            pending_zero = false;
-        }
-        // 「十」「十X」開頭時省略前導「一」。
-        if !(d == 1 && pos == 1 && out.is_empty()) {
-            out.push_str(DIGITS[d]);
-        }
-        out.push_str(UNITS[pos]);
-    }
-    out
+/// 紀元（GDD 2.6）：世界裡的大事會開啟新的紀元，日期以「某某紀元 N年 M月」表示。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Era {
+    /// 紀元名，不含「紀元」二字。
+    pub name: String,
+    /// 這個紀元的元年是自開天起的第幾年（1 起算）。
+    pub start_year: u32,
 }
 
-/// 完整日期（GDD 2.6）：「第一會 第三運 第七世 第二十一年 三月」。
+/// 開局的第一個紀元名。
+pub const GENESIS_ERA: &str = "開天";
+
+/// 只有開局紀元的紀元表。
+pub fn genesis_eras() -> Vec<Era> {
+    vec![Era {
+        name: GENESIS_ERA.to_string(),
+        start_year: 1,
+    }]
+}
+
+/// `tick` 所在的紀元與紀元內的年份（1 起算）：取起始年不晚於當年的最後一個紀元。
+/// `eras` 須依起始年遞增排列，且第一個紀元始於第 1 年。
+pub fn era_year(tick: Tick, eras: &[Era]) -> (&Era, u32) {
+    let total = date(tick).total_year;
+    let era = eras
+        .iter()
+        .rev()
+        .find(|e| e.start_year <= total)
+        .unwrap_or(&eras[0]);
+    (era, total.saturating_sub(era.start_year) + 1)
+}
+
+/// 日期（GDD 2.6）：「開天紀元 12年 11月」。年、月用阿拉伯數字。
+pub fn era_date(tick: Tick, eras: &[Era]) -> String {
+    let (era, year) = era_year(tick, eras);
+    format!("{}紀元 {}年 {}月", era.name, year, date(tick).month)
+}
+
+/// 完整日期：紀元日期加自開天起的年份，「開天紀元 12年 11月（開天以來第 12 年）」。
 pub fn full(tick: Tick) -> String {
-    let d = date(tick);
     format!(
-        "第{}會 第{}運 第{}世 第{}年 {}月",
-        zh_num(d.hui),
-        zh_num(d.yun),
-        zh_num(d.shi),
-        zh_num(d.year),
-        zh_num(d.month),
+        "{}（{}以來第 {} 年）",
+        short(tick),
+        GENESIS_ERA,
+        date(tick).total_year
     )
 }
 
-/// 簡短日期，供頂欄使用（GDD 2.6）：「三運七世 廿一年 三月」。
-///
-/// 年份數字於 20–29 用「廿」，30 用「卅」；其餘數字（運、世、月）一律用一般寫法。
+/// 簡短日期，供題簽使用：「開天紀元 12年 11月」。換紀元的大事接上之前，紀元表只有開局紀元。
 pub fn short(tick: Tick) -> String {
-    let d = date(tick);
-    format!(
-        "{}運{}世 {}年 {}月",
-        zh_num(d.yun),
-        zh_num(d.shi),
-        short_year(d.year),
-        zh_num(d.month),
-    )
-}
-
-fn short_year(n: u32) -> String {
-    match n {
-        20..=29 => {
-            let mut s = String::from("廿");
-            if !n.is_multiple_of(10) {
-                s.push_str(DIGITS[(n % 10) as usize]);
-            }
-            s
-        }
-        30 => "卅".to_string(),
-        _ => zh_num(n),
-    }
+    era_date(tick, &genesis_eras())
 }
 
 /// 天書與卡片中的年份標記：「第 N 年」（自開天起，Arabic 數字；GDD 2.6）。
@@ -224,54 +186,30 @@ mod tests {
     }
 
     #[test]
-    fn zh_num_cases() {
-        let cases = [
-            (1, "一"),
-            (9, "九"),
-            (10, "十"),
-            (11, "十一"),
-            (20, "二十"),
-            (21, "二十一"),
-            (99, "九十九"),
-            (100, "一百"),
-            (101, "一百零一"),
-            (110, "一百一十"),
-            (1000, "一千"),
-            (1010, "一千零一十"),
-            (1203, "一千二百零三"),
-            (9999, "九千九百九十九"),
-        ];
-        for (n, s) in cases {
-            assert_eq!(zh_num(n), s, "zh_num({n})");
-        }
+    fn short_form_is_era_with_arabic_year_and_month() {
+        assert_eq!(short(0), "開天紀元 1年 1月");
+        assert_eq!(short(12 * 11 + 11), "開天紀元 12年 11月");
+        // 年份不在 30 年或 360 年處歸零。
+        assert_eq!(short(12 * 360 + 1), "開天紀元 361年 1月");
     }
 
     #[test]
-    fn short_form_uses_nian_and_sa_for_year() {
-        // 年 21 → 廿一，年 30 → 卅。
-        let t21 = 12 * 20 + 3; // 第 21 年、三月（年 idx 20）
-        assert_eq!(short(t21), "一運一世 廿一年 三月");
-        let t30 = 12 * 29 + 1; // 年 30、一月
-        assert_eq!(short(t30), "一運一世 卅年 一月");
-        let t25 = 12 * 24 + 1;
-        assert_eq!(short_year(25), "廿五");
-        assert_eq!(date(t25).year, 25);
-        assert_eq!(short_year(20), "廿");
+    fn full_form_adds_the_year_since_genesis() {
+        assert_eq!(full(12 * 11 + 11), "開天紀元 12年 11月（開天以來第 12 年）");
     }
 
     #[test]
-    fn short_form_example_three_yun_seven_shi() {
-        // 三運七世 廿一年 三月：yun 3 (idx 2), shi 7 (idx 6), year 21, month 3。
-        let elapsed = 2 * 4320 + 6 * 360 + 20 * 12 + 2;
-        let tick = elapsed + 1;
-        assert_eq!(short(tick), "三運七世 廿一年 三月");
-    }
-
-    #[test]
-    fn full_form_example() {
-        let elapsed = 2 * 4320 + 6 * 360 + 20 * 12 + 2;
-        let tick = elapsed + 1;
-        assert_eq!(full(tick), "第一會 第三運 第七世 第二十一年 三月");
+    fn a_new_era_restarts_the_year_count() {
+        let mut eras = genesis_eras();
+        eras.push(Era {
+            name: "封神".to_string(),
+            start_year: 361,
+        });
+        // 第 360 年還在舊紀元；第 361 年是新紀元元年。
+        assert_eq!(era_date(12 * 359 + 12, &eras), "開天紀元 360年 12月");
+        assert_eq!(era_date(12 * 360 + 1, &eras), "封神紀元 1年 1月");
+        assert_eq!(era_date(12 * 371 + 3, &eras), "封神紀元 12年 3月");
+        assert_eq!(era_year(12 * 371 + 3, &eras).0.name, "封神");
     }
 
     #[test]

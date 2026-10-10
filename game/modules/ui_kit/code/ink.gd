@@ -1,6 +1,6 @@
 class_name Ink
 extends RefCounted
-## GDD 5.7「司命案頭」的器物繪製：裱框紙簽、印章、圓印、墨條、墨劃。所有介面元件以這些函式在 _draw 中畫出，
+## GDD 5.7「司命案頭」的器物繪製：裱框紙簽、按鈕底、圓鈕、實體鍵圖像、墨條、墨劃。所有介面元件以這些函式在 _draw 中畫出，
 ## 不使用 Godot 預設主題的外觀。色票見 GDD 5.1。
 ## 邊框語言只有一種——絹本裱框：直邊紙面、外圈綾邊、內緣一道金線、底下一層柔影。
 
@@ -28,8 +28,13 @@ const DECK_MIN_SIZE := 16
 ## 綾邊寬：紙簽 3、命簿 6（GDD 5.8）。
 const SLIP_BAND := 3.0
 const CARD_BAND := 6.0
-## 尚未開放的印，印字的不透明度。
+## 尚未開放的按鈕，圖示與文字的不透明度。
 const DISABLED_GLYPH_ALPHA := 0.75
+## 實體鍵圖像的高度。
+const KEY_HEIGHT := 18.0
+## 搖桿面鍵的顏色（依 Xbox 慣例的綠紅藍黃，取色票內相近的低彩度色，GDD 5.9）。
+const PAD_FACE_COLORS := {"A": Color("5E8A5A"), "B": Color("B23A2E"), "X": Color("4F8F9A"), "Y": Color("C9A246")}
+const PAD_SHOULDERS: Array[String] = ["LB", "RB", "LT", "RT", "Start"]
 
 ## 紙紋（8.3 `paper`，存的是乘數）；由 hud 在啟動時設定。使用它的 CanvasItem 要開啟 texture_repeat。
 static var paper_texture: Texture2D
@@ -82,33 +87,75 @@ static func _paper(item: CanvasItem, rect: Rect2) -> void:
 		item.draw_texture_rect_region(paper_texture, rect, Rect2(rect.position, rect.size), PAPER_LIGHT)
 
 
-## 方印：實心朱底反白字（啟用中）、紙底綾框墨字（可選）、紙底虛框淡墨字（尚未開放）。
-static func seal(item: CanvasItem, rect: Rect2, glyph: String, active: bool, enabled := true, hover := false) -> void:
+## 按鈕的底：實心朱底（啟用中）、紙底綾框（可選）、紙底虛線框（尚未開放）。
+## 回傳畫在上面的圖示與文字該用的顏色。
+static func plate(item: CanvasItem, rect: Rect2, active: bool, enabled := true, hover := false) -> Color:
 	var inner := rect.grow(-1.0)
 	if active:
 		item.draw_rect(inner, SEAL_RED, true)
 		item.draw_rect(inner.grow(-3.0), Color(PAPER_LIGHT, 0.85), false, 1.0)
-		_centered_glyph(item, rect, glyph, PAPER_LIGHT)
-	elif enabled:
+		return PAPER_LIGHT
+	if enabled:
 		item.draw_rect(inner, PAPER_LIGHT, true)
 		item.draw_rect(inner, INK if hover else SILK, false, 2.0)
-		_centered_glyph(item, rect, glyph, INK)
+		return INK
+	item.draw_rect(inner, Color(PAPER_LIGHT, 0.82), true)
+	var corners := [inner.position, Vector2(inner.end.x, inner.position.y), inner.end, Vector2(inner.position.x, inner.end.y)]
+	for side in 4:
+		item.draw_dashed_line(corners[side], corners[(side + 1) % 4], Color(INK_LIGHT, 0.8), 1.0, 4.0)
+	return Color(INK_LIGHT, DISABLED_GLYPH_ALPHA)
+
+
+## 實體鍵的圖像（GDD 5.9）：A／B／X／Y 是帶色圓鈕，LB／RB／LT／RT／Start 是深色膠囊，其餘是鍵盤鍵帽。
+## pos 為左上角，高度為 KEY_HEIGHT × unit；回傳寬度。label 為空時不畫、回傳 0。
+static func key_glyph(item: CanvasItem, pos: Vector2, label: String, unit: float) -> float:
+	if label.is_empty():
+		return 0.0
+	var height := KEY_HEIGHT * unit
+	var width := key_glyph_width(label, unit)
+	var rect := Rect2(pos, Vector2(width, height))
+	var size := maxi(int(round(11.0 * unit)), 11)
+	var extent := text_size(label, size)
+	var at := pos + (rect.size - extent) * 0.5
+	if PAD_FACE_COLORS.has(label):
+		item.draw_circle(rect.get_center(), height * 0.5, PAD_FACE_COLORS[label])
+		item.draw_arc(rect.get_center(), height * 0.5, 0.0, TAU, 32, INK, 1.0, true)
+		text(item, at, label, size, PAPER_LIGHT)
+	elif label in PAD_SHOULDERS:
+		var box := StyleBoxFlat.new()
+		box.bg_color = SILK
+		box.set_corner_radius_all(int(height * 0.5))
+		item.draw_style_box(box, rect)
+		text(item, at, label, size, PAPER_LIGHT)
 	else:
-		item.draw_rect(inner, Color(PAPER_LIGHT, 0.82), true)
-		var corners := [inner.position, Vector2(inner.end.x, inner.position.y), inner.end, Vector2(inner.position.x, inner.end.y)]
-		for side in 4:
-			item.draw_dashed_line(corners[side], corners[(side + 1) % 4], Color(INK_LIGHT, 0.8), 1.0, 4.0)
-		_centered_glyph(item, rect, glyph, Color(INK_LIGHT, DISABLED_GLYPH_ALPHA))
+		# 鍵帽：紙底墨框，下緣加厚像是有高度的鍵。
+		var cap := StyleBoxFlat.new()
+		cap.bg_color = PAPER_LIGHT
+		cap.border_color = INK
+		cap.set_border_width_all(1)
+		cap.border_width_bottom = 3
+		cap.set_corner_radius_all(3)
+		item.draw_style_box(cap, rect)
+		text(item, at - Vector2(0.0, 1.0), label, size, INK)
+	return width
 
 
-## 圓印：朱底反白字（red），或紙底朱圈朱字。
-static func round_seal(item: CanvasItem, center: Vector2, radius: float, glyph: String, red: bool, hover := false) -> void:
+static func key_glyph_width(label: String, unit: float) -> float:
+	if label.is_empty():
+		return 0.0
+	var height := KEY_HEIGHT * unit
+	if PAD_FACE_COLORS.has(label):
+		return height
+	return maxf(height, text_size(label, maxi(int(round(11.0 * unit)), 11)).x + 10.0 * unit)
+
+
+## 圓鈕：朱底（red）或紙底朱圈，中間一個圖示。回傳圖示該用的顏色。
+static func round_button(item: CanvasItem, center: Vector2, radius: float, icon: StringName, red: bool, hover := false) -> void:
 	if hover:
 		item.draw_circle(center, radius + 3.0, Color(INK, 0.16))
 	item.draw_circle(center, radius, SEAL_RED if red else PAPER_LIGHT)
 	item.draw_arc(center, radius, 0.0, TAU, 48, SEAL_RED if not red else Color(PAPER_LIGHT, 0.8), 1.5, true)
-	var rect := Rect2(center - Vector2.ONE * radius, Vector2.ONE * radius * 2.0)
-	_centered_glyph(item, rect, glyph, PAPER_LIGHT if red else SEAL_RED)
+	InkIcons.draw(item, icon, center, radius * 0.55, PAPER_LIGHT if red else SEAL_RED)
 
 
 ## 墨劃：兩端收細的一筆。
@@ -155,8 +202,3 @@ static func text(item: CanvasItem, pos: Vector2, content: String, size: int, col
 static func text_size(content: String, size: int) -> Vector2:
 	return FONT.get_string_size(content, HORIZONTAL_ALIGNMENT_LEFT, -1.0, size)
 
-
-static func _centered_glyph(item: CanvasItem, rect: Rect2, glyph: String, color: Color) -> void:
-	var size := int(rect.size.y * 0.62)
-	var extent := text_size(glyph, size)
-	text(item, rect.position + (rect.size - extent) * 0.5, glyph, size, color)

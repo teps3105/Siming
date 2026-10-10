@@ -26,9 +26,7 @@ func setup(sim: SimHost, map: TerrainMap, camera: MapCamera) -> void:
 	_map = map
 	_camera = camera
 	camera.province_hovered.connect(func(id: int) -> void: _overlay.set_hover(id))
-	camera.province_selected.connect(func(id: int) -> void:
-		_card.show_province(id)
-		_overlay.card_open = _card.is_open())
+	camera.province_selected.connect(func(id: int) -> void: _card.show_province(id))
 	sim.advanced.connect(func(_months: int) -> void: _card.refresh())
 	var paper := Image.create_from_data(512, 512, false, Image.FORMAT_RGBA8, SimWorld.paper_texture())
 	Ink.paper_texture = ImageTexture.create_from_image(paper)
@@ -73,10 +71,21 @@ func _build() -> void:
 	add_child(_card)
 	_card.setup(_sim.world, _unit, _card_width)
 	_card.center_requested.connect(func(pos: Vector2) -> void: _camera.look_at_map(pos))
-	_card.closed.connect(func() -> void:
-		_map.set_selected(-1)
-		_overlay.card_open = false)
+	_card.closed.connect(func() -> void: _map.set_selected(-1))
 	_card.show_province(selected)
+	_apply_device()
+
+
+## 輸入裝置換了（鍵鼠↔搖桿），器物上的實體鍵圖像跟著換。
+func _process(_delta: float) -> void:
+	if _camera != null and _dial != null and _camera.use_crosshair != _dial.gamepad:
+		_apply_device()
+
+
+func _apply_device() -> void:
+	_dial.gamepad = _camera.use_crosshair
+	_seals.gamepad = _camera.use_crosshair
+	_card.gamepad = _camera.use_crosshair
 
 
 func _set_mode(mode: TerrainMap.Mode) -> void:

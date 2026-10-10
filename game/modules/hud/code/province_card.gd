@@ -1,7 +1,7 @@
 class_name ProvinceCard
 extends Control
 ## GDD 5.8 州郡卡（命簿）：卷軸式卡片——上下兩根軸頭，軸間是綾邊裱著的紙面。顯示選取州郡的名稱、
-## 地形組成、民生、氣場墨條與三教教化；頁尾動作印「中」把鏡頭移到治所，右上「閉」印收卷。
+## 地形組成、民生、氣場墨條與三教教化；頁尾的置中鈕把鏡頭移到治所，右上的關閉鈕收卷——兩個鈕都是圖示加文字加實體鍵圖像。
 ## 值為零的墨條與沒有教化時的教化環不畫，卡片高度跟著內容走。
 
 signal center_requested(map_pos: Vector2)
@@ -25,6 +25,11 @@ const BARS := [
 const FAITHS := [["faith_dao", Ink.CYAN], ["faith_shi", Ink.GOLD], ["faith_ru", Ink.INK]]
 
 var province := -1
+## 目前的輸入裝置是否為搖桿（決定畫哪一種實體鍵圖像）。
+var gamepad := false:
+	set(value):
+		gamepad = value
+		queue_redraw()
 
 var _world: SimWorld
 var _unit := 1.0
@@ -78,7 +83,7 @@ func is_open() -> bool:
 	return province >= 0
 
 
-## 頁尾動作「中」：把鏡頭移到治所（滑鼠點印、鍵盤 C、搖桿 X 共用）。
+## 頁尾動作「置中」：把鏡頭移到治所（滑鼠點鈕、鍵盤 C、搖桿 X 共用）。
 func request_center() -> void:
 	if is_open() and not _info.is_empty():
 		center_requested.emit(_info["seat"])
@@ -120,14 +125,22 @@ func _paper_rect(height: float) -> Rect2:
 	return Rect2(Vector2(inset, ROD * _unit + Ink.CARD_BAND), Vector2(size.x - inset * 2.0, height - Ink.CARD_BAND * 2.0))
 
 
-## 「閉」圓印的外接方框。
+func _close_key() -> String:
+	return InputHints.label(InputActions.CANCEL, gamepad)
+
+
+func _center_key() -> String:
+	return InputHints.label(InputActions.CARD_CENTER, gamepad)
+
+
+## 關閉鈕的外接方框。
 func _close_rect() -> Rect2:
 	var paper := _paper_rect(_content_height())
 	var diameter := CLOSE_RADIUS * 2.0 * _unit
 	return Rect2(Vector2(paper.end.x - 12.0 * _unit - diameter, paper.position.y + 12.0 * _unit), Vector2(diameter, diameter))
 
 
-## 「中」圓印的外接方框。
+## 置中鈕的外接方框。
 func _center_rect() -> Rect2:
 	var paper := _paper_rect(_content_height())
 	var diameter := ACTION_RADIUS * 2.0 * _unit
@@ -163,7 +176,13 @@ func _draw() -> void:
 	var title_width := Ink.text_size(_info["name"], title).x
 	Ink.text(self, Vector2(x + title_width + 10.0 * _unit, y + (title - note) * 0.8), Locale.t("city_level_%d" % int(_info["city_level"])), note, Ink.INK_LIGHT)
 	var close := _close_rect()
-	Ink.round_seal(self, close.get_center(), close.size.x * 0.5, Locale.t("card_close_seal"), true, _hover == "close")
+	Ink.round_button(self, close.get_center(), close.size.x * 0.5, &"close", true, _hover == "close")
+	# 關閉鈕左邊：文字與實體鍵圖像。
+	var close_label := Locale.t("card_close")
+	var close_x := close.position.x - 6.0 * _unit - Ink.text_size(close_label, note).x
+	Ink.text(self, Vector2(close_x, close.position.y + (close.size.y - Ink.text_size(close_label, note).y) * 0.5), close_label, note, Ink.INK_LIGHT)
+	var close_key := _close_key()
+	Ink.key_glyph(self, Vector2(close_x - 6.0 * _unit - Ink.key_glyph_width(close_key, _unit), close.position.y + (close.size.y - Ink.KEY_HEIGHT * _unit) * 0.5), close_key, _unit)
 	y += 34.0 * _unit
 	Ink.stroke(self, Vector2(x, y), Vector2(right, y), 2.0 * _unit, Color(Ink.INK, 0.7))
 	y += 12.0 * _unit
@@ -235,7 +254,11 @@ func _draw() -> void:
 
 	# 頁尾動作印。
 	var action := _center_rect()
-	Ink.round_seal(self, action.get_center(), action.size.x * 0.5, Locale.t("act_center_seal"), false, _hover == "center")
+	Ink.round_button(self, action.get_center(), action.size.x * 0.5, &"center", false, _hover == "center")
+	var action_label := Locale.t("act_center")
+	var action_x := action.end.x + 8.0 * _unit
+	Ink.text(self, Vector2(action_x, action.position.y + (action.size.y - Ink.text_size(action_label, body).y) * 0.5), action_label, body)
+	Ink.key_glyph(self, Vector2(action_x + Ink.text_size(action_label, body).x + 8.0 * _unit, action.position.y + (action.size.y - Ink.KEY_HEIGHT * _unit) * 0.5), _center_key(), _unit)
 
 
 ## 軸頭：墨色圓柱，兩端略粗。

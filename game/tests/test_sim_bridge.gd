@@ -101,3 +101,14 @@ func test_gdd_6_5_same_seed_gives_same_hash() -> void:
 	world.step(12)
 	other.step(12)
 	assert_eq(other.hash_hex(), world.hash_hex(), "各推進 12 個月後仍相同")
+
+
+func test_date_uses_the_era_form_with_arabic_numerals() -> void:
+	var world := SimWorld.new()
+	assert_eq(world.create(20261011, "small"), "", "世界應能生成")
+	world.step(22)
+	# 世界生成後已預跑一段時間；預期值由 tick 換算（tick 1 是 1年 1月）。
+	var months := world.tick() - 1
+	var expected := "開天紀元 %d年 %d月" % [months / 12 + 1, months % 12 + 1]
+	assert_eq(world.date_short(), expected)
+	assert_eq(world.date_text(), "%s（開天以來第 %d 年）" % [expected, months / 12 + 1])
