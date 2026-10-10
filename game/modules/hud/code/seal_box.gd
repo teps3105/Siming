@@ -42,6 +42,8 @@ var gamepad := false:
 		queue_redraw()
 var _unit := 1.0
 var _hover := -1
+## 正按住的鈕（按下的回饋）。
+var _pressed := -1
 ## 切換模式後，例簽還要顯示多久（秒）。
 var _flash := 0.0
 
@@ -121,7 +123,7 @@ func _draw() -> void:
 	for i in SEALS.size():
 		var entry: Dictionary = SEALS[i]
 		var rect := _seal_rect(i)
-		var ink := Ink.plate(self, rect, entry["mode"] == int(mode), entry["mode"] >= 0, i == _hover)
+		var ink := Ink.plate(self, rect, entry["mode"] == int(mode), entry["mode"] >= 0, i == _hover, i == _pressed)
 		var icon_center := Vector2(rect.position.x + (INNER_PAD + ICON_RADIUS) * _unit, rect.get_center().y)
 		InkIcons.draw(self, entry["key"], icon_center, ICON_RADIUS * _unit, ink)
 		var label := _button_label(i)
@@ -211,13 +213,19 @@ func _gui_input(event: InputEvent) -> void:
 		var index: int = _seal_at((event as InputEventMouseButton).position)
 		if index >= 0:
 			accept_event()
+			_pressed = index
+			queue_redraw()
 			if SEALS[index]["mode"] >= 0:
 				mode_chosen.emit(SEALS[index]["mode"] as TerrainMap.Mode)
+	elif event is InputEventMouseButton and not event.pressed and _pressed >= 0:
+		_pressed = -1
+		queue_redraw()
 
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_MOUSE_EXIT and _hover >= 0:
+	if what == NOTIFICATION_MOUSE_EXIT and (_hover >= 0 or _pressed >= 0):
 		_hover = -1
+		_pressed = -1
 		queue_redraw()
 
 

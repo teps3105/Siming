@@ -184,3 +184,21 @@ func test_each_kind_of_place_name_has_its_own_colour() -> void:
 		assert_true(MapOverlay.KIND_COLORS.has(kind), "例簽列的「%s」在地圖上有對應的顏色" % kind)
 	assert_eq(SealBox.PLACE_LEGEND.size(), MapOverlay.KIND_COLORS.size(), "例簽列出全部地名種類")
 
+
+func test_buttons_show_a_pressed_state_while_held() -> void:
+	await _boot(FLOW_VIEW)
+	var at: Vector2 = _hud._seals.position + _hud._seals._seal_rect(1).get_center()
+	Input.parse_input_event(_mouse_button(MOUSE_BUTTON_LEFT, true, at))
+	await frames(2)
+	assert_eq(_hud._seals._pressed, 1, "按住模式鈕時顯示按下的樣子")
+	Input.parse_input_event(_mouse_button(MOUSE_BUTTON_LEFT, false, at))
+	await frames(2)
+	assert_eq(_hud._seals._pressed, -1, "放開後恢復")
+	at = _hud._dial.position + _hud._dial._disc_center()
+	Input.parse_input_event(_mouse_button(MOUSE_BUTTON_LEFT, true, at))
+	await frames(2)
+	assert_eq(_hud._dial._pressed, TimeDial.PRESSED_PAUSE, "按住行止鈕時顯示按下的樣子")
+	Input.parse_input_event(_mouse_button(MOUSE_BUTTON_LEFT, false, at))
+	await frames(2)
+	assert_eq(_hud._dial._pressed, -1)
+

@@ -38,6 +38,8 @@ var _info: Dictionary = {}
 var _open := 0.0
 var _target_open := 0.0
 var _hover := ""
+## 正按住的鈕（按下的回饋）。
+var _pressed := ""
 
 
 ## width 為卡片寬度（像素）；不指定時為 380 乘版面倍率。
@@ -176,7 +178,7 @@ func _draw() -> void:
 	var title_width := Ink.text_size(_info["name"], title).x
 	Ink.text(self, Vector2(x + title_width + 10.0 * _unit, y + (title - note) * 0.8), Locale.t("city_level_%d" % int(_info["city_level"])), note, Ink.INK_LIGHT)
 	var close := _close_rect()
-	Ink.round_button(self, close.get_center(), close.size.x * 0.5, &"close", true, _hover == "close")
+	Ink.round_button(self, close.get_center(), close.size.x * 0.5, &"close", true, _hover == "close", _pressed == "close")
 	# 關閉鈕左邊：文字與實體鍵圖像。
 	var close_label := Locale.t("card_close")
 	var close_x := close.position.x - 6.0 * _unit - Ink.text_size(close_label, note).x
@@ -254,7 +256,7 @@ func _draw() -> void:
 
 	# 頁尾動作印。
 	var action := _center_rect()
-	Ink.round_button(self, action.get_center(), action.size.x * 0.5, &"center", false, _hover == "center")
+	Ink.round_button(self, action.get_center(), action.size.x * 0.5, &"center", false, _hover == "center", _pressed == "center")
 	var action_label := Locale.t("act_center")
 	var action_x := action.end.x + 8.0 * _unit
 	Ink.text(self, Vector2(action_x, action.position.y + (action.size.y - Ink.text_size(action_label, body).y) * 0.5), action_label, body)
@@ -279,12 +281,17 @@ func _gui_input(event: InputEvent) -> void:
 			_hover = hover
 			queue_redraw()
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		match _target_at((event as InputEventMouseButton).position):
+		_pressed = _target_at((event as InputEventMouseButton).position)
+		queue_redraw()
+		match _pressed:
 			"close":
 				close()
 			"center":
 				request_center()
 		accept_event()
+	elif event is InputEventMouseButton and not event.pressed and not _pressed.is_empty():
+		_pressed = ""
+		queue_redraw()
 
 
 func _target_at(pos: Vector2) -> String:

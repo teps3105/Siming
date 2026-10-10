@@ -15,6 +15,7 @@ const STROKE_BASE := 9.0
 const STROKE_STEP := 3.0
 const STROKE_GAP := 4.0
 const PAD := 8.0
+const PRESSED_PAUSE := 100
 ## 兩個調速鍵之間的間距。
 const KEY_GAP := 10.0
 
@@ -28,6 +29,8 @@ var _sim: SimHost
 var _unit := 1.0
 var _hover_stroke := -1
 var _hover_seal := false
+## 正按住的地方（按下的回饋）：-1 沒有、0–3 疾徐的某一筆、PRESSED_PAUSE 行止鈕。
+var _pressed := -1
 
 
 func setup(sim: SimHost, unit: float) -> void:
@@ -129,7 +132,7 @@ func _draw() -> void:
 		draw_line(center + dir * (face - (6.0 if long else 4.0) * _unit), center + dir * (face - 1.5 * _unit), Ink.INK if long else Ink.INK_LIGHT, 1.5 if long else 1.0, true)
 	# 盤心行止鈕：暫停中是朱底的暫停圖示，運行中是紙底的播放圖示。
 	var stopped := _sim.paused
-	Ink.round_button(self, center, SEAL_RADIUS * _unit, &"pause" if stopped else &"play", stopped, _hover_seal)
+	Ink.round_button(self, center, SEAL_RADIUS * _unit, &"pause" if stopped else &"play", stopped, _hover_seal, _pressed == PRESSED_PAUSE)
 	# 朱針指向本月。
 	var month_index := int((maxi(_sim.world.tick(), 1) - 1) % 12)
 	var needle := Vector2.UP.rotated(TAU * month_index / 12.0)
@@ -159,6 +162,8 @@ func _draw() -> void:
 		var color := Ink.INK if on else Color(Ink.INK_LIGHT, 0.5)
 		if i == _hover_stroke:
 			color = Ink.SEAL_RED
+		if i == _pressed:
+			draw_rect(rect.grow(2.0), Color(Ink.INK, 0.18), true)
 		var y := rect.get_center().y
 		Ink.stroke(self, Vector2(rect.position.x, y + 1.5 * _unit), Vector2(rect.end.x, y - 1.5 * _unit), 3.5 * _unit, color)
 	Ink.text(self, Vector2(columns["speed"], text_y), _speed_label(), note)
@@ -187,14 +192,21 @@ func _gui_input(event: InputEvent) -> void:
 		if stroke >= 0:
 			_sim.set_speed(stroke)
 			_sim.set_paused(false)
+			_pressed = stroke
 			accept_event()
 		elif _on_pause((event as InputEventMouseButton).position):
 			_sim.toggle_paused()
+			_pressed = PRESSED_PAUSE
 			accept_event()
+		queue_redraw()
+	elif event is InputEventMouseButton and not event.pressed and _pressed >= 0:
+		_pressed = -1
+		queue_redraw()
 
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_MOUSE_EXIT and (_hover_seal or _hover_stroke >= 0):
+	if what == NOTIFICATION_MOUSE_EXIT and (_hover_seal or _hover_stroke >= 0 or _pressed >= 0):
+		_pressed = -1
 		_hover_seal = false
 		_hover_stroke = -1
 		queue_redraw()

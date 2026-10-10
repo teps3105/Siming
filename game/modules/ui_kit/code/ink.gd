@@ -89,8 +89,11 @@ static func _paper(item: CanvasItem, rect: Rect2) -> void:
 
 ## 按鈕的底：實心朱底（啟用中）、紙底綾框（可選）、紙底虛線框（尚未開放）。
 ## 回傳畫在上面的圖示與文字該用的顏色。
-static func plate(item: CanvasItem, rect: Rect2, active: bool, enabled := true, hover := false) -> Color:
-	var inner := rect.grow(-1.0)
+## pressed：按住時整塊往內縮一圈並壓上一層淡墨，像把印按下去。
+static func plate(item: CanvasItem, rect: Rect2, active: bool, enabled := true, hover := false, pressed := false) -> Color:
+	var inner := rect.grow(-2.5 if pressed and enabled else -1.0)
+	if pressed and enabled:
+		item.draw_rect(rect.grow(-1.0), Color(INK, 0.22), true)
 	if active:
 		item.draw_rect(inner, SEAL_RED, true)
 		item.draw_rect(inner.grow(-3.0), Color(PAPER_LIGHT, 0.85), false, 1.0)
@@ -150,9 +153,11 @@ static func key_glyph_width(label: String, unit: float) -> float:
 
 
 ## 圓鈕：朱底（red）或紙底朱圈，中間一個圖示。回傳圖示該用的顏色。
-static func round_button(item: CanvasItem, center: Vector2, radius: float, icon: StringName, red: bool, hover := false) -> void:
-	if hover:
-		item.draw_circle(center, radius + 3.0, Color(INK, 0.16))
+static func round_button(item: CanvasItem, center: Vector2, radius: float, icon: StringName, red: bool, hover := false, pressed := false) -> void:
+	if hover or pressed:
+		item.draw_circle(center, radius + 3.0, Color(INK, 0.3 if pressed else 0.16))
+	if pressed:
+		radius *= 0.9
 	item.draw_circle(center, radius, SEAL_RED if red else PAPER_LIGHT)
 	item.draw_arc(center, radius, 0.0, TAU, 48, SEAL_RED if not red else Color(PAPER_LIGHT, 0.8), 1.5, true)
 	InkIcons.draw(item, icon, center, radius * 0.55, PAPER_LIGHT if red else SEAL_RED)
