@@ -7,13 +7,17 @@ extends Control
 const LABEL_RULES := {
 	"continent": {"z_max": 2.0, "z_min": 0.25, "size": 26},
 	"province": {"z_max": 0.3, "z_min": 0.0, "size": 16},
-	"river": {"z_max": 0.5, "z_min": 0.0, "size": 14},
-	"range": {"z_max": 0.5, "z_min": 0.0, "size": 14},
-	"node": {"z_max": 0.4, "z_min": 0.0, "size": 14},
+	"river": {"z_max": 0.5, "z_min": 0.0, "size": 15},
+	"range": {"z_max": 0.5, "z_min": 0.0, "size": 15},
+	"node": {"z_max": 0.4, "z_min": 0.0, "size": 15},
 }
 const KIND_COLORS := {
-	"continent": Ink.INK, "province": Ink.INK, "river": Color("3E6379"), "range": Ink.INK_LIGHT, "node": Ink.CYAN,
+	"continent": Ink.INK, "province": Ink.INK, "river": Color("3B5566"), "range": Ink.INK, "node": Ink.INK,
 }
+## 沿路徑排字的字距（字高的倍數）：下限與上限。
+const PATH_SPACING_MIN := 1.2
+const PATH_SPACING_MAX := 2.2
+const LABEL_OUTLINE := 4
 
 var _world: SimWorld
 var _map: TerrainMap
@@ -97,7 +101,7 @@ func _draw_labels() -> void:
 					for i in spots.size():
 						var glyph := text[i]
 						var extent := Ink.text_size(glyph, size)
-						Ink.outlined_text(self, spots[i] - extent * 0.5, glyph, size, color)
+						Ink.outlined_text(self, spots[i] - extent * 0.5, glyph, size, color, LABEL_OUTLINE)
 				continue
 		if not _visible_on_map(pos):
 			continue
@@ -107,7 +111,7 @@ func _draw_labels() -> void:
 		if not screen.encloses(rect) or _blocked(rect, taken):
 			continue
 		taken.append(rect)
-		Ink.outlined_text(self, rect.position, text, size, color)
+		Ink.outlined_text(self, rect.position, text, size, color, LABEL_OUTLINE)
 
 
 func _blocked(rect: Rect2, taken: Array[Rect2]) -> bool:
@@ -129,7 +133,7 @@ func _visible_on_map(pos: Vector2) -> bool:
 
 
 ## 把 text 的每個字沿 path 排開，回傳各字中心的螢幕位置；畫面上的路徑太短或不在畫面內則回傳空陣列。
-## 字距介於 1.5 到 4 個字高，整段置中於路徑；由左到右（路徑近乎垂直時由上到下）閱讀。
+## 字距介於 PATH_SPACING_MIN 到 PATH_SPACING_MAX 個字高，整段置中於路徑；由左到右（路徑近乎垂直時由上到下）閱讀。
 func _along_path(path: PackedVector2Array, text: String, size: int, screen: Rect2) -> PackedVector2Array:
 	var points := PackedVector2Array()
 	for p in path:
@@ -147,9 +151,9 @@ func _along_path(path: PackedVector2Array, text: String, size: int, screen: Rect
 		lengths.append(lengths[i - 1] + points[i].distance_to(points[i - 1]))
 	var total := lengths[lengths.size() - 1]
 	var count := text.length()
-	if count < 2 or total < size * 1.5 * (count - 1):
+	if count < 2 or total < size * PATH_SPACING_MIN * (count - 1):
 		return PackedVector2Array()
-	var spacing := minf(total / (count + 1), size * 4.0)
+	var spacing := clampf(total / (count + 1), size * PATH_SPACING_MIN, size * PATH_SPACING_MAX)
 	var start := (total - spacing * (count - 1)) * 0.5
 	var spots := PackedVector2Array()
 	var segment := 1
