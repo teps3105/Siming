@@ -771,8 +771,8 @@ fn gdd_2_2_terrain_composition_targets() {
             c.coast_ratio.iter().map(|r| (r * 100.0).round() / 100.0).collect::<Vec<_>>(),
             c.small_islands, c.forest_ns, c.desert_ns
         );
-        for i in 0..Terrain::COUNT {
-            avg[i] += c.share[i] / SEEDS as f32;
+        for (total, share) in avg.iter_mut().zip(c.share.iter()) {
+            *total += share / SEEDS as f32;
         }
     }
     for (i, c) in comps.iter().enumerate() {
