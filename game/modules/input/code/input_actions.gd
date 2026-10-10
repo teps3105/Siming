@@ -11,12 +11,18 @@ const ZOOM_IN := &"map_zoom_in"
 const ZOOM_OUT := &"map_zoom_out"
 const ROTATE_LEFT := &"map_rotate_left"
 const ROTATE_RIGHT := &"map_rotate_right"
-const SELECT := &"map_select"
+## 搖桿當滑鼠用：左鍵（A、LT）與右鍵（RT），作用在游標的位置；右搖桿移動游標。
+const PAD_LEFT := &"pad_mouse_left"
+const PAD_RIGHT := &"pad_mouse_right"
+const CURSOR_LEFT := &"pad_cursor_left"
+const CURSOR_RIGHT := &"pad_cursor_right"
+const CURSOR_UP := &"pad_cursor_up"
+const CURSOR_DOWN := &"pad_cursor_down"
 const CANCEL := &"ui_back"
 const CARD_CENTER := &"card_center"
 const PAUSE := &"time_pause"
-const SPEED_UP := &"time_faster"
-const SPEED_DOWN := &"time_slower"
+## 搖桿的 Select：切到下一檔速度，到最快再回到最慢。
+const SPEED_CYCLE := &"time_speed_cycle"
 const SPEED_1 := &"time_speed_1"
 const SPEED_2 := &"time_speed_2"
 const SPEED_3 := &"time_speed_3"
@@ -37,16 +43,20 @@ static func bindings() -> Dictionary:
 		PAN_RIGHT: [KEY_D, KEY_RIGHT, "axis:%d:1" % JOY_AXIS_LEFT_X],
 		PAN_UP: [KEY_W, KEY_UP, "axis:%d:-1" % JOY_AXIS_LEFT_Y],
 		PAN_DOWN: [KEY_S, KEY_DOWN, "axis:%d:1" % JOY_AXIS_LEFT_Y],
-		ZOOM_IN: [KEY_EQUAL, "axis:%d:-1" % JOY_AXIS_RIGHT_Y],
-		ZOOM_OUT: [KEY_MINUS, "axis:%d:1" % JOY_AXIS_RIGHT_Y],
-		ROTATE_LEFT: [KEY_Q, "axis:%d:-1" % JOY_AXIS_RIGHT_X],
-		ROTATE_RIGHT: [KEY_E, "axis:%d:1" % JOY_AXIS_RIGHT_X],
-		SELECT: ["joy:%d" % JOY_BUTTON_A],
+		ZOOM_IN: [KEY_EQUAL, "joy:%d" % JOY_BUTTON_DPAD_UP],
+		ZOOM_OUT: [KEY_MINUS, "joy:%d" % JOY_BUTTON_DPAD_DOWN],
+		ROTATE_LEFT: [KEY_Q, "joy:%d" % JOY_BUTTON_DPAD_LEFT],
+		ROTATE_RIGHT: [KEY_E, "joy:%d" % JOY_BUTTON_DPAD_RIGHT],
+		CURSOR_LEFT: ["axis:%d:-1" % JOY_AXIS_RIGHT_X],
+		CURSOR_RIGHT: ["axis:%d:1" % JOY_AXIS_RIGHT_X],
+		CURSOR_UP: ["axis:%d:-1" % JOY_AXIS_RIGHT_Y],
+		CURSOR_DOWN: ["axis:%d:1" % JOY_AXIS_RIGHT_Y],
+		PAD_LEFT: ["joy:%d" % JOY_BUTTON_A, "axis:%d:1" % JOY_AXIS_TRIGGER_LEFT],
+		PAD_RIGHT: ["axis:%d:1" % JOY_AXIS_TRIGGER_RIGHT],
 		CANCEL: [KEY_ESCAPE, "joy:%d" % JOY_BUTTON_B],
 		CARD_CENTER: [KEY_C, "joy:%d" % JOY_BUTTON_X],
 		PAUSE: [KEY_SPACE, "joy:%d" % JOY_BUTTON_START],
-		SPEED_UP: ["axis:%d:1" % JOY_AXIS_TRIGGER_RIGHT],
-		SPEED_DOWN: ["axis:%d:1" % JOY_AXIS_TRIGGER_LEFT],
+		SPEED_CYCLE: ["joy:%d" % JOY_BUTTON_BACK],
 		SPEED_1: [KEY_1],
 		SPEED_2: [KEY_2],
 		SPEED_3: [KEY_3],

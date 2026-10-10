@@ -118,9 +118,10 @@ func test_input_hints_come_from_the_binding_table() -> void:
 	assert_eq(InputHints.label(InputActions.CANCEL, false), "Esc")
 	assert_eq(InputHints.label(InputActions.CANCEL, true), "B")
 	assert_eq(InputHints.label(InputActions.MODE_LINGMAI, false), "F4")
-	assert_eq(InputHints.label(InputActions.SPEED_UP, true), "RT")
-	assert_eq(InputHints.label(InputActions.SELECT, true), "A")
-	assert_eq(InputHints.label(InputActions.SELECT, false), "", "鍵盤沒有綁定的動作回傳空字串")
+	assert_eq(InputHints.label(InputActions.SPEED_CYCLE, true), "Select")
+	assert_eq(InputHints.labels(InputActions.PAD_LEFT, true), ["A", "LT"], "一個動作的全部鍵")
+	assert_eq(InputHints.label(InputActions.PAD_RIGHT, true), "RT")
+	assert_eq(InputHints.label(InputActions.PAD_LEFT, false), "", "鍵盤沒有綁定的動作回傳空字串")
 
 
 func test_every_control_has_text_and_a_key_image() -> void:
@@ -145,7 +146,7 @@ func test_key_images_follow_the_input_device() -> void:
 	await joy_button(JOY_BUTTON_Y)
 	await frames(2)
 	assert_eq(_hud._dial._pause_key(), "Start", "搖桿模式畫搖桿的鍵")
-	assert_eq(_hud._dial._speed_keys(), ["LT", "RT"])
+	assert_eq(_hud._dial._speed_keys(), ["Select"])
 	assert_eq(_hud._seals._key_label(0), "", "搖桿模式不掛鍵帽")
 	assert_eq(_hud._seals._cycle_keys(), ["LB", "RB"])
 	assert_eq(_hud._card._close_key(), "B")
@@ -201,4 +202,18 @@ func test_buttons_show_a_pressed_state_while_held() -> void:
 	Input.parse_input_event(_mouse_button(MOUSE_BUTTON_LEFT, false, at))
 	await frames(2)
 	assert_eq(_hud._dial._pressed, -1)
+
+
+func test_a_path_half_a_map_away_is_not_split_across_the_screen() -> void:
+	await _boot(FLOW_VIEW)
+	var camera: MapCamera = _game.get_node("MapCamera")
+	var map: TerrainMap = _game.get_node("TerrainMap")
+	camera.look_at_map(map.map_size * 0.5, map.map_size.x * 0.16, true)
+	await frames(2)
+	# 一條短路徑，正好跨在離鏡頭半個地圖寬的地方：兩端各自最近的副本一東一西。
+	var far_x := camera.focus.x + map.map_size.x * 0.5
+	var path := PackedVector2Array([Vector2(far_x - 1.0, camera.focus.y), Vector2(far_x + 1.0, camera.focus.y)])
+	var points: PackedVector2Array = _hud._overlay._path_on_screen(path)
+	assert_eq(points.size(), 2)
+	assert_lt(points[0].distance_to(points[1]), 400.0, "相鄰兩格在畫面上應該相鄰，不是分在畫面兩側")
 

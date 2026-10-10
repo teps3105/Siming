@@ -1,7 +1,9 @@
 class_name MapCamera
 extends Camera3D
 ## GDD 5.2 鏡頭：透視 30°，以焦點、離地高度 z 與方位角描述；俯角隨高度內插。
-## 讀 InputMap 動作、滑鼠（拖曳平移、滾輪縮放、右鍵旋轉）與觸控（GDD 5.9），並每幀把鏡頭狀態交給地圖。
+## 讀 InputMap 動作、滑鼠（拖曳平移、滾輪縮放、右鍵旋轉）、觸控與搖桿（GDD 5.9），並每幀把鏡頭狀態交給地圖。
+## 搖桿當滑鼠用：右搖桿移動游標，A、LT 是左鍵，RT 是右鍵；這裡把它們轉成滑鼠事件送回輸入分派，
+## 地圖與介面因此都以同一條滑鼠路徑回應。
 ## 單指的點與拖由引擎轉成滑鼠事件（專案設定 emulate_mouse_from_touch），這裡只另外處理雙指與長按。
 
 signal province_hovered(province: int)
@@ -24,11 +26,15 @@ const CLICK_SLOP := 6.0
 const OPENING_SECONDS := 3.5
 ## 手指按住不動超過這個秒數算長按：提示照常出現，放開不選取（GDD 5.9）。
 const LONG_PRESS_SECONDS := 0.5
+## 搖桿游標推滿時每秒移動的距離（以 1080 高的畫面計，其他解析度等比）；實際速度再乘輸入量。
+const CURSOR_SPEED := 1100.0
+## 由搖桿轉出的滑鼠事件以這個裝置編號標記，收到時不把輸入裝置切回鍵鼠。
+const PAD_DEVICE := 77
 
 var focus := Vector2.ZERO
 var z := 100.0
 var yaw := 0.0
-## 搖桿準星選取：為真時以畫面中心取代滑鼠位置。
+## 最後一次輸入來自搖桿：為真時以搖桿游標取代滑鼠位置。
 var use_crosshair := false
 
 var _map: TerrainMap
@@ -41,6 +47,8 @@ var _press_position := Vector2.ZERO
 var _hover_timer := 0.0
 var _hover_province := -1
 var _last_pointer := Vector2.ZERO
+## 搖桿游標在畫面上的位置；(-1, -1) 表示還沒用過，第一次用時放到畫面中央。
+var _cursor := Vector2(-1.0, -1.0)
 var _press_msec := 0
 ## 螢幕上的手指：index → 位置。
 var _touches := {}
@@ -106,8 +114,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		_on_mouse_motion(event)
 	elif event is InputEventJoypadButton or event is InputEventJoypadMotion:
 		use_crosshair = true
-	if event.is_action_pressed(InputActions.SELECT):
-		_select_at(_pointer())
 
 
 static func _is_press(event: InputEvent) -> bool:
@@ -149,8 +155,60 @@ func _on_touch_drag(event: InputEventScreenDrag) -> void:
 	_target_yaw = clampf(_target_yaw + angle_difference(before.angle(), after.angle()), -limit, limit)
 
 
+## 搖桿游標的位置（畫面座標）。
+func cursor_position() -> Vector2:
+	var bounds := get_viewport().get_visible_rect().size
+	if _cursor.x < 0.0:
+		_cursor = bounds * 0.5
+	_cursor = _cursor.clamp(Vector2.ZERO, bounds)
+	return _cursor
+
+
+## 把搖桿游標直接放到畫面上的某一點。
+func set_cursor_position(screen: Vector2) -> void:
+	_cursor = screen
+	_send_pad_motion(Vector2.ZERO)
+
+
+## 搖桿當滑鼠：右搖桿移動游標，A、LT、RT 的按下與放開轉成滑鼠鍵事件。
+func _update_pad_mouse(delta: float) -> void:
+	var push := Input.get_vector(InputActions.CURSOR_LEFT, InputActions.CURSOR_RIGHT, InputActions.CURSOR_UP, InputActions.CURSOR_DOWN)
+	if push != Vector2.ZERO:
+		use_crosshair = true
+		var before := cursor_position()
+		var speed := CURSOR_SPEED * get_viewport().get_visible_rect().size.y / 1080.0
+		# 輸入量取平方，輕推時移得慢、好對準。
+		_cursor = before + push * push.length() * speed * delta
+		_send_pad_motion(cursor_position() - before)
+	for pair: Array in [[InputActions.PAD_LEFT, MOUSE_BUTTON_LEFT], [InputActions.PAD_RIGHT, MOUSE_BUTTON_RIGHT]]:
+		if Input.is_action_just_pressed(pair[0]) or Input.is_action_just_released(pair[0]):
+			use_crosshair = true
+			var button := InputEventMouseButton.new()
+			button.device = PAD_DEVICE
+			button.button_index = pair[1]
+			button.pressed = Input.is_action_pressed(pair[0])
+			button.position = cursor_position()
+			button.global_position = button.position
+			# 直接送進視窗並註明是視窗內座標：畫面有縮放時，走全域輸入會把座標再換算一次。
+			get_viewport().push_input(button, true)
+
+
+func _send_pad_motion(relative: Vector2) -> void:
+	var motion := InputEventMouseMotion.new()
+	motion.device = PAD_DEVICE
+	motion.position = cursor_position()
+	motion.global_position = motion.position
+	motion.relative = relative
+	if Input.is_action_pressed(InputActions.PAD_LEFT):
+		motion.button_mask |= MOUSE_BUTTON_MASK_LEFT
+	if Input.is_action_pressed(InputActions.PAD_RIGHT):
+		motion.button_mask |= MOUSE_BUTTON_MASK_RIGHT
+	get_viewport().push_input(motion, true)
+
+
 func _on_mouse_button(event: InputEventMouseButton) -> void:
-	use_crosshair = false
+	if event.device != PAD_DEVICE:
+		use_crosshair = false
 	match event.button_index:
 		MOUSE_BUTTON_WHEEL_UP:
 			_zoom_about(event.position, WHEEL_ZOOM)
@@ -174,7 +232,8 @@ func _on_mouse_button(event: InputEventMouseButton) -> void:
 
 
 func _on_mouse_motion(event: InputEventMouseMotion) -> void:
-	use_crosshair = false
+	if event.device != PAD_DEVICE:
+		use_crosshair = false
 	_hover_timer = 0.0
 	if _dragging and event.position.distance_to(_press_position) > CLICK_SLOP:
 		var per_pixel := _ground_width() / get_viewport().get_visible_rect().size.x
@@ -186,6 +245,7 @@ func _on_mouse_motion(event: InputEventMouseMotion) -> void:
 func _process(delta: float) -> void:
 	if _map == null:
 		return
+	_update_pad_mouse(delta)
 	var pan := Input.get_vector(InputActions.PAN_LEFT, InputActions.PAN_RIGHT, InputActions.PAN_UP, InputActions.PAN_DOWN)
 	if pan != Vector2.ZERO:
 		_target_focus += pan.rotated(-yaw) * _ground_width() * PAN_PER_SECOND * delta
@@ -247,7 +307,7 @@ func _ground_width() -> float:
 
 func _pointer() -> Vector2:
 	if use_crosshair:
-		return get_viewport().get_visible_rect().size * 0.5
+		return cursor_position()
 	return get_viewport().get_mouse_position()
 
 
@@ -262,9 +322,13 @@ func _select_at(screen: Vector2) -> void:
 
 
 func _update_hover(delta: float) -> void:
+	# 指標停在介面器物上時，不顯示地圖上的停留提示。
+	if get_viewport().gui_get_hovered_control() != null:
+		_set_hover(-1)
+		return
 	var pointer := _pointer()
 	if use_crosshair:
-		# 準星即時跟隨。
+		# 搖桿游標下的州郡即時跟隨。
 		_set_hover(_province_under(pointer))
 		return
 	if pointer != _last_pointer:

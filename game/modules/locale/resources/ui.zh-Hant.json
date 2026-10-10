@@ -17,7 +17,7 @@
   "city_level_2": "縣",
   "city_level_3": "州",
   "city_level_4": "都",
-  "prompt_select": "選取",
+  "prompt_select": "點選",
   "prompt_back": "返回",
   "prompt_confirm": "確認",
   "prompt_mode": "地圖模式",
@@ -119,5 +119,10 @@
   "place_seat": "治所",
   "place_river": "江河",
   "place_range": "山脈",
-  "place_node": "洞天福地"
+  "place_node": "洞天福地",
+  "prompt_cursor": "游標",
+  "prompt_rotate": "按住旋轉",
+  "prompt_zoom": "縮放、旋轉",
+  "pad_right_stick": "右搖桿",
+  "pad_dpad": "十字鍵"
 }

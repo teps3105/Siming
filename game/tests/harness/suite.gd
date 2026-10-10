@@ -120,6 +120,18 @@ func joy_button(button: JoyButton) -> void:
 		await frames(2)
 
 
+## 按住搖桿的鍵 seconds 秒再放開。
+func joy_hold(button: JoyButton, seconds: float) -> void:
+	for pressed: bool in [true, false]:
+		var event := InputEventJoypadButton.new()
+		event.button_index = button
+		event.pressed = pressed
+		Input.parse_input_event(event)
+		if pressed:
+			await wait(seconds)
+	await frames(2)
+
+
 ## 把搖桿的軸推到 value 並維持 seconds 秒，再放回中間。
 func joy_axis(axis: JoyAxis, value: float, seconds: float) -> void:
 	for target: float in [value, 0.0]:

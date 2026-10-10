@@ -75,6 +75,11 @@ func _build() -> void:
 	_card.center_requested.connect(func(pos: Vector2) -> void: _camera.look_at_map(pos))
 	_card.closed.connect(func() -> void: _map.set_selected(-1))
 	_card.show_province(selected)
+
+	# 搖桿游標畫在所有器物之上。
+	var cursor := PadCursor.new()
+	add_child(cursor)
+	cursor.setup(_camera, _unit)
 	_apply_device()
 
 
@@ -100,10 +105,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event.is_action_pressed(InputActions.PAUSE):
 		_sim.toggle_paused()
-	elif event.is_action_pressed(InputActions.SPEED_UP):
-		_sim.set_speed(_sim.speed_index + 1)
-	elif event.is_action_pressed(InputActions.SPEED_DOWN):
-		_sim.set_speed(_sim.speed_index - 1)
+	elif event.is_action_pressed(InputActions.SPEED_CYCLE):
+		_sim.set_speed((_sim.speed_index + 1) % SimHost.SPEED_MULTIPLIERS.size())
+		_sim.set_paused(false)
 	elif event.is_action_pressed(InputActions.MODE_NEXT):
 		_seals.cycle(1)
 	elif event.is_action_pressed(InputActions.MODE_PREV):

@@ -124,16 +124,18 @@ func test_gamepad_drives_camera_time_and_modes() -> void:
 	var z_before := _camera.z
 	var yaw_before := _camera.yaw
 	await joy_axis(JOY_AXIS_LEFT_X, 1.0, 0.4)
-	await joy_axis(JOY_AXIS_RIGHT_Y, -1.0, 0.4)
-	await joy_axis(JOY_AXIS_RIGHT_X, 1.0, 0.4)
+	await joy_hold(JOY_BUTTON_DPAD_UP, 0.4)
+	await joy_hold(JOY_BUTTON_DPAD_RIGHT, 0.4)
 	await wait(0.3)
 	assert_gt(_camera.focus.x, focus_before.x, "左搖桿平移")
-	assert_lt(_camera.z, z_before, "右搖桿上推拉近")
-	assert_ne(_camera.yaw, yaw_before, "右搖桿左右旋轉")
-	await joy_axis(JOY_AXIS_TRIGGER_RIGHT, 1.0, 0.05)
-	assert_eq(_sim.speed_index, 1, "RT 加速一級")
-	await joy_axis(JOY_AXIS_TRIGGER_LEFT, 1.0, 0.05)
-	assert_eq(_sim.speed_index, 0, "LT 減速一級")
+	assert_lt(_camera.z, z_before, "十字鍵上拉近")
+	assert_ne(_camera.yaw, yaw_before, "十字鍵左右旋轉")
+	await joy_button(JOY_BUTTON_BACK)
+	assert_eq(_sim.speed_index, 1, "Select 切到下一檔速度")
+	assert_false(_sim.paused, "切速度即放行")
+	for i in 3:
+		await joy_button(JOY_BUTTON_BACK)
+	assert_eq(_sim.speed_index, 0, "最快之後回到最慢")
 	var was_paused := _sim.paused
 	await joy_button(JOY_BUTTON_START)
 	assert_ne(_sim.paused, was_paused, "Start 切換暫停")
@@ -147,7 +149,7 @@ func test_gamepad_crosshair_selects_and_b_closes() -> void:
 	_camera.look_at_map(seat, _map.map_size.x * 0.2, true)
 	await frames(2)
 	await joy_button(JOY_BUTTON_A)
-	assert_eq(_hud._card.province, 0, "A 選取準星下的州郡")
+	assert_eq(_hud._card.province, 0, "A 在游標處按左鍵：選取游標下的州郡")
 	await joy_button(JOY_BUTTON_B)
 	assert_eq(_hud._card.province, -1, "B 返回")
 
@@ -254,3 +256,64 @@ func test_long_press_shows_the_hint_without_selecting() -> void:
 	await touch(0, screen, false)
 	await frames(2)
 	assert_eq(_hud._card.province, -1, "長按放開不算點選")
+
+
+func test_right_stick_moves_the_cursor_and_triggers_are_mouse_buttons() -> void:
+	var screen := await _aim_at_province(0)
+	await joy_button(JOY_BUTTON_LEFT_SHOULDER)
+	await joy_button(JOY_BUTTON_RIGHT_SHOULDER)
+	var centre := Vector2(tree.root.get_visible_rect().size) * 0.5
+	assert_lt(_camera.cursor_position().distance_to(centre), 1.0, "游標一開始在畫面中央")
+	await joy_axis(JOY_AXIS_RIGHT_X, 1.0, 0.3)
+	assert_gt(_camera.cursor_position().x, centre.x + 100.0, "右搖桿往右推，游標往右移")
+	var z_before := _camera.z
+	assert_eq(_camera.z, z_before, "右搖桿不再縮放")
+	_camera.set_cursor_position(screen)
+	await frames(2)
+	var speed := _sim.speed_index
+	await joy_axis(JOY_AXIS_TRIGGER_LEFT, 1.0, 0.05)
+	assert_eq(_hud._card.province, 0, "LT 是滑鼠左鍵：選取游標下的州郡")
+	assert_eq(_sim.speed_index, speed, "扳機不再調速")
+	assert_true(_camera.use_crosshair, "搖桿轉出的滑鼠事件不會把裝置切回鍵鼠")
+
+
+func test_pad_cursor_can_click_interface_buttons() -> void:
+	await joy_button(JOY_BUTTON_Y)
+	_camera.set_cursor_position(_hud._seals.position + _hud._seals._seal_rect(1).get_center())
+	await frames(2)
+	await joy_axis(JOY_AXIS_TRIGGER_LEFT, 1.0, 0.05)
+	assert_eq(_map.mode, TerrainMap.Mode.TIANXIA, "游標移到模式鈕上按 LT 就切換模式")
+	assert_eq(_hud._card.province, -1, "點介面不會選到地圖")
+	var was_paused := _sim.paused
+	_camera.set_cursor_position(_hud._dial.position + _hud._dial._disc_center())
+	await frames(2)
+	await joy_button(JOY_BUTTON_A)
+	assert_ne(_sim.paused, was_paused, "游標移到行止鈕上按 A 就切換行止")
+
+
+func test_right_trigger_held_rotates_with_the_cursor() -> void:
+	await joy_button(JOY_BUTTON_Y)
+	var yaw_before := _camera.yaw
+	var hold := InputEventJoypadMotion.new()
+	hold.axis = JOY_AXIS_TRIGGER_RIGHT
+	hold.axis_value = 1.0
+	Input.parse_input_event(hold)
+	await frames(2)
+	await joy_axis(JOY_AXIS_RIGHT_X, 1.0, 0.3)
+	hold = InputEventJoypadMotion.new()
+	hold.axis = JOY_AXIS_TRIGGER_RIGHT
+	hold.axis_value = 0.0
+	Input.parse_input_event(hold)
+	await wait(0.3)
+	assert_ne(_camera.yaw, yaw_before, "按住 RT（右鍵）移動游標，地圖跟著旋轉")
+
+
+func test_no_map_hint_while_the_pointer_is_on_an_instrument() -> void:
+	await _aim_at_province(0)
+	await joy_button(JOY_BUTTON_Y)
+	await frames(2)
+	assert_eq(_camera._hover_province, 0, "游標在地圖上：顯示游標下的州郡")
+	_camera.set_cursor_position(_hud._seals.position + _hud._seals._seal_rect(0).get_center())
+	await frames(3)
+	assert_eq(_camera._hover_province, -1, "游標在模式鈕上：不顯示地圖的停留提示")
+

@@ -34,7 +34,7 @@ const DISABLED_GLYPH_ALPHA := 0.75
 const KEY_HEIGHT := 18.0
 ## 搖桿面鍵的顏色（依 Xbox 慣例的綠紅藍黃，取色票內相近的低彩度色，GDD 5.9）。
 const PAD_FACE_COLORS := {"A": Color("5E8A5A"), "B": Color("B23A2E"), "X": Color("4F8F9A"), "Y": Color("C9A246")}
-const PAD_SHOULDERS: Array[String] = ["LB", "RB", "LT", "RT", "Start"]
+const PAD_SHOULDERS: Array[String] = ["LB", "RB", "LT", "RT", "Start", "Select"]
 
 ## 紙紋（8.3 `paper`，存的是乘數）；由 hud 在啟動時設定。使用它的 CanvasItem 要開啟 texture_repeat。
 static var paper_texture: Texture2D
@@ -110,8 +110,9 @@ static func plate(item: CanvasItem, rect: Rect2, active: bool, enabled := true, 
 
 
 ## 實體鍵的圖像（GDD 5.9）：A／B／X／Y 是帶色圓鈕，LB／RB／LT／RT／Start 是深色膠囊，其餘是鍵盤鍵帽。
+## pad 為真時，面鍵以外的都畫成搖桿的膠囊（搖桿、十字鍵這類寫中文名稱的）。
 ## pos 為左上角，高度為 KEY_HEIGHT × unit；回傳寬度。label 為空時不畫、回傳 0。
-static func key_glyph(item: CanvasItem, pos: Vector2, label: String, unit: float) -> float:
+static func key_glyph(item: CanvasItem, pos: Vector2, label: String, unit: float, pad := false) -> float:
 	if label.is_empty():
 		return 0.0
 	var height := KEY_HEIGHT * unit
@@ -124,7 +125,7 @@ static func key_glyph(item: CanvasItem, pos: Vector2, label: String, unit: float
 		item.draw_circle(rect.get_center(), height * 0.5, PAD_FACE_COLORS[label])
 		item.draw_arc(rect.get_center(), height * 0.5, 0.0, TAU, 32, INK, 1.0, true)
 		text(item, at, label, size, PAPER_LIGHT)
-	elif label in PAD_SHOULDERS:
+	elif pad or label in PAD_SHOULDERS:
 		var box := StyleBoxFlat.new()
 		box.bg_color = SILK
 		box.set_corner_radius_all(int(height * 0.5))

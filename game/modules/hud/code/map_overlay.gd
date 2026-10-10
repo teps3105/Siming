@@ -84,7 +84,6 @@ func _draw() -> void:
 		_draw_ley_nodes()
 	_draw_labels()
 	if _camera.use_crosshair:
-		_draw_crosshair()
 		_draw_prompts()
 	if not _hover_text.is_empty():
 		_draw_hover_tip()
@@ -177,8 +176,11 @@ static func path_label_size(total: float, count: int, base: int, min_size: int) 
 ## 路徑各點的螢幕位置，依閱讀方向排列（由左到右；近乎垂直時由上到下）。有點在鏡頭後方時回傳空陣列。
 func _path_on_screen(path: PackedVector2Array) -> PackedVector2Array:
 	var points := PackedVector2Array()
+	# 整條路徑用同一個東西副本（跟著第一個點選）：逐點各自選最近的副本時，
+	# 離鏡頭約半個地圖寬的路徑會被拆到兩邊，折線就橫跨整個畫面。
+	var shift := MapView.nearest_copy_x(path[0].x, _camera.focus.x, _map.map_size.x) - path[0].x
 	for p in path:
-		var world_pos := _world_position(p)
+		var world_pos := Vector3(p.x + shift, _map.surface_height(p.x, p.y), p.y)
 		if _camera.is_position_behind(world_pos):
 			return PackedVector2Array()
 		points.append(_camera.unproject_position(world_pos))
@@ -264,18 +266,10 @@ func _world_position(pos: Vector2) -> Vector3:
 	return Vector3(x, _map.surface_height(pos.x, pos.y), pos.y)
 
 
-func _draw_crosshair() -> void:
-	var center := get_viewport_rect().size * 0.5
-	var radius := 9.0 * _unit
-	draw_arc(center, radius, 0.0, TAU, 32, Color(Ink.PAPER_LIGHT, 0.9), 3.5, true)
-	draw_arc(center, radius, 0.0, TAU, 32, Ink.SEAL_RED, 1.5, true)
-	draw_circle(center, 1.5 * _unit, Ink.SEAL_RED)
-
-
 func _draw_hover_tip() -> void:
 	var size := Ink.font_size(Ink.SIZE_NOTE, _unit)
 	var extent := Ink.text_size(_hover_text, size)
-	var anchor := get_viewport_rect().size * 0.5 if _camera.use_crosshair else get_local_mouse_position()
+	var anchor := _camera.cursor_position() if _camera.use_crosshair else get_local_mouse_position()
 	var slip := Rect2(anchor + Vector2(16.0, 18.0) * _unit, extent + Vector2(20.0, 12.0) * _unit)
 	var bounds := get_viewport_rect().size
 	slip.position.x = minf(slip.position.x, bounds.x - slip.size.x - 8.0)
@@ -284,21 +278,31 @@ func _draw_hover_tip() -> void:
 	Ink.text(self, slip.position + Vector2(10.0, 6.0) * _unit, _hover_text, size)
 
 
-## 搖桿模式的按鍵提示（GDD 5.9）：右下、印匣上方。
+## 搖桿模式的按鍵提示（GDD 5.9）：左下。只列地圖本身的操作，其他操作的鍵畫在各自的器物上。
+## 每組是該操作的全部實體鍵圖像加動作名。
 func _draw_prompts() -> void:
-	# 其他操作的鍵畫在各自的器物上，這裡只列地圖本身的兩個。
-	var entries := [[InputHints.label(InputActions.SELECT, true), "prompt_select"], [InputHints.label(InputActions.CANCEL, true), "prompt_back"]]
+	var entries := [
+		[[Locale.t("pad_right_stick")], "prompt_cursor"],
+		[InputHints.labels(InputActions.PAD_LEFT, true), "prompt_select"],
+		[InputHints.labels(InputActions.PAD_RIGHT, true), "prompt_rotate"],
+		[[Locale.t("pad_dpad")], "prompt_zoom"],
+		[InputHints.labels(InputActions.CANCEL, true), "prompt_back"],
+	]
 	var size := Ink.font_size(Ink.SIZE_NOTE, _unit)
 	var width := 10.0 * _unit
 	for entry: Array in entries:
-		width += Ink.key_glyph_width(entry[0], _unit) + 5.0 * _unit + Ink.text_size(Locale.t(entry[1]), size).x + 14.0 * _unit
+		for key: String in entry[0]:
+			width += Ink.key_glyph_width(key, _unit) + 4.0 * _unit
+		width += 1.0 * _unit + Ink.text_size(Locale.t(entry[1]), size).x + 14.0 * _unit
 	var bounds := get_viewport_rect().size
 	var height := Ink.KEY_HEIGHT * _unit + 10.0 * _unit
 	var slip := Rect2(Vector2(15.0 * _unit, bounds.y - height - 15.0 * _unit), Vector2(width - 4.0 * _unit, height))
 	Ink.paper_slip(self, slip)
 	var cursor := slip.position.x + 10.0 * _unit
 	for entry: Array in entries:
-		cursor += Ink.key_glyph(self, Vector2(cursor, slip.position.y + 5.0 * _unit), entry[0], _unit) + 5.0 * _unit
+		for key: String in entry[0]:
+			cursor += Ink.key_glyph(self, Vector2(cursor, slip.position.y + 5.0 * _unit), key, _unit, true) + 4.0 * _unit
+		cursor += 1.0 * _unit
 		var label := Locale.t(entry[1])
 		Ink.text(self, Vector2(cursor, slip.position.y + (slip.size.y - Ink.text_size(label, size).y) * 0.5), label, size)
 		cursor += Ink.text_size(label, size).x + 14.0 * _unit
