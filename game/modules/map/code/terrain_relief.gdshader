@@ -272,12 +272,12 @@ void fragment() {
 	float mountain = smoothstep(0.10, 0.50, alt);
 	float relief = map_size.x * HEIGHT_GAIN * mix(1.0, 0.5, flatten) * flat_k * emboss_strength;
 	vec3 ldir = normalize(light_dir);
-	float fine_gain = relief * mix(0.35, 1.0, mountain);
+	float fine_gain = relief * mix(0.35, 1.5, mountain);
 	float wide_gain = relief * mix(1.3, 2.2, mountain);
 	vec3 nrm_fine = normalize(vec3(-grad.x * fine_gain, 1.0, -grad.y * fine_gain));
 	vec3 nrm_wide = normalize(vec3(-grad_wide.x * wide_gain, 1.0, -grad_wide.y * wide_gain));
-	float shade = (dot(nrm_wide, ldir) - ldir.y) * 1.25 + (dot(nrm_fine, ldir) - ldir.y) * mix(0.30, 0.55, mountain);
-	float crease = clamp(curvature * relief * 0.22, -1.0, 1.0) * mountain; // 正為谷、負為稜
+	float shade = (dot(nrm_wide, ldir) - ldir.y) * 1.25 + (dot(nrm_fine, ldir) - ldir.y) * mix(0.30, 0.95, mountain);
+	float crease = clamp(curvature * relief * 0.4, -1.0, 1.0) * mountain; // 正為谷、負為稜
 	land = mix(land, land * shadow_tint, clamp(-shade * 1.5, 0.0, 0.82));
 	land = mix(land, min(land * light_tint + vec3(0.04), vec3(1.0)), clamp(shade * 1.2, 0.0, 0.65));
 	land = mix(land, land * shadow_tint, clamp(crease, 0.0, 1.0) * 0.35);

@@ -14,14 +14,18 @@ const SHORE_EPS: f32 = 0.002;
 const DETAIL_WAVELENGTHS: [f32; 3] = [1.6, 0.8, 0.4];
 /// 細節振幅 = 坡度 × 波長 × 此係數；海岸的橫向曲折約為波長的這個比例。
 const DETAIL_SLOPE_GAIN: f32 = 0.42;
-/// 山區稜線狀細節各倍頻的波長（遊戲格）。稜線狀雜訊在零交會處成脊，暈渲後山體有浮雕般的稜與谷。
-const RIDGE_WAVELENGTHS: [f32; 2] = [5.0, 2.5];
-/// 稜線細節振幅 = (坡度 × 此係數 + 最高點高度 × `RIDGE_BASE`) × 波長 × 山區權重。
-const RIDGE_SLOPE_GAIN: f32 = 0.16;
-const RIDGE_BASE: f32 = 0.004;
+/// 溝谷刻蝕的工作格相對來源格的倍率（中尺寸為每遊戲格 4 格）。
+const GULLY_SS: usize = 2;
+/// 匯流面積（工作格數）達此值時，溝谷刻到最深。
+const GULLY_ACC_FULL: f32 = 90.0;
+/// 溝谷深度 = (坡度 × `GULLY_SLOPE_GAIN` + 最高點高度 × `GULLY_BASE`) × 山區權重 × 匯流程度。
+const GULLY_SLOPE_GAIN: f32 = 2.6;
+const GULLY_BASE: f32 = 0.03;
+/// 溝谷谷底離海平面至少這麼高（著色器的微細節與取樣內插不會把它壓到海平面以下）。
+const GULLY_FLOOR: f32 = 0.012;
 /// 山區權重：相對高度占最高點的比例由此區間漸入。
-const RIDGE_ALT_START: f32 = 0.16;
-const RIDGE_ALT_FULL: f32 = 0.50;
+const MOUNTAIN_ALT_START: f32 = 0.14;
+const MOUNTAIN_ALT_FULL: f32 = 0.45;
 /// 山區短波起伏的減弱比例。
 const MOUNTAIN_CALM: f32 = 0.75;
 /// 平地上的最小細節振幅（遠小於 `SHORE_EPS`，不會憑空生出島或湖）。
@@ -126,46 +130,165 @@ impl Source {
     }
 
     fn at(&self, grid: &[f32], x: i32, y: i32) -> f32 {
-        let cy = y.clamp(0, self.h as i32 - 1) as usize;
-        let cx = if self.wrap {
-            x.rem_euclid(self.w as i32)
-        } else {
-            x.clamp(0, self.w as i32 - 1)
-        } as usize;
-        grid[cy * self.w + cx]
+        grid_at(grid, self.w, self.h, self.wrap, x, y)
     }
 
-    /// 3×3 二項式模糊。
     fn blur(&self, grid: &[f32]) -> Vec<f32> {
-        let k = [1.0f32, 2.0, 1.0];
-        let mut out = vec![0f32; self.w * self.h];
-        for y in 0..self.h as i32 {
-            for x in 0..self.w as i32 {
-                let mut sum = 0.0;
-                for (j, ky) in k.iter().enumerate() {
-                    for (i, kx) in k.iter().enumerate() {
-                        sum += self.at(grid, x + i as i32 - 1, y + j as i32 - 1) * ky * kx;
-                    }
-                }
-                out[y as usize * self.w + x as usize] = sum / 16.0;
-            }
-        }
-        out
+        grid_blur(grid, self.w, self.h, self.wrap)
     }
 
     /// 三次 B 樣條取樣（格中心在整數座標）：C2 連續，放大後沒有格點階梯。
     fn cubic(&self, grid: &[f32], x: f32, y: f32) -> f32 {
-        let (x0, y0) = (x.floor(), y.floor());
-        let (wx, wy) = (bspline3(x - x0), bspline3(y - y0));
-        let mut sum = 0.0;
-        for (j, wyj) in wy.iter().enumerate() {
-            for (i, wxi) in wx.iter().enumerate() {
-                sum +=
-                    self.at(grid, x0 as i32 + i as i32 - 1, y0 as i32 + j as i32 - 1) * wxi * wyj;
+        grid_cubic(grid, self.w, self.h, self.wrap, x, y)
+    }
+}
+
+fn grid_at(grid: &[f32], w: usize, h: usize, wrap: bool, x: i32, y: i32) -> f32 {
+    let cy = y.clamp(0, h as i32 - 1) as usize;
+    let cx = if wrap {
+        x.rem_euclid(w as i32)
+    } else {
+        x.clamp(0, w as i32 - 1)
+    } as usize;
+    grid[cy * w + cx]
+}
+
+/// 3×3 二項式模糊。
+fn grid_blur(grid: &[f32], w: usize, h: usize, wrap: bool) -> Vec<f32> {
+    let k = [1.0f32, 2.0, 1.0];
+    let mut out = vec![0f32; w * h];
+    for y in 0..h as i32 {
+        for x in 0..w as i32 {
+            let mut sum = 0.0;
+            for (j, ky) in k.iter().enumerate() {
+                for (i, kx) in k.iter().enumerate() {
+                    sum += grid_at(grid, w, h, wrap, x + i as i32 - 1, y + j as i32 - 1) * ky * kx;
+                }
+            }
+            out[y as usize * w + x as usize] = sum / 16.0;
+        }
+    }
+    out
+}
+
+/// 三次 B 樣條取樣（格中心在整數座標）。
+fn grid_cubic(grid: &[f32], w: usize, h: usize, wrap: bool, x: f32, y: f32) -> f32 {
+    let (x0, y0) = (x.floor(), y.floor());
+    let (wx, wy) = (bspline3(x - x0), bspline3(y - y0));
+    let mut sum = 0.0;
+    for (j, wyj) in wy.iter().enumerate() {
+        for (i, wxi) in wx.iter().enumerate() {
+            sum += grid_at(
+                grid,
+                w,
+                h,
+                wrap,
+                x0 as i32 + i as i32 - 1,
+                y0 as i32 + j as i32 - 1,
+            ) * wxi
+                * wyj;
+        }
+    }
+    sum
+}
+
+/// 溝谷的匯流程度（0 稜線 .. 1 谷底）。
+///
+/// 在工作格上讓每個陸格的水流向最陡的鄰格（D8），由高到低累加匯流面積；面積取對數後模糊一次。
+/// 均勻的山坡上水平行而下，刻出的溝谷彼此平行、沿坡向延伸，谷與谷之間的山脊因此有方向。
+/// 回傳（匯流程度、寬、高）。
+fn carve_gullies(
+    src: &Source,
+    signed: &[f32],
+    slope: &[f32],
+    radius: f32,
+) -> (Vec<f32>, usize, usize) {
+    let (gw, gh) = (src.w * GULLY_SS, src.h * GULLY_SS);
+    let n = gw * gh;
+    // 工作格的高度：放大後的高度加第一個倍頻的起伏（與成品一致），再加極小的擾動打破平地的並列。
+    let mut height = vec![0f32; n];
+    let wavelength = DETAIL_WAVELENGTHS[0];
+    for y in 0..gh {
+        let lat = (0.5 - (y as f32 + 0.5) / gh as f32) * std::f32::consts::PI;
+        let (sin_lat, cos_lat) = lat.sin_cos();
+        let gy = (y as f32 + 0.5) / GULLY_SS as f32 - 0.5;
+        for x in 0..gw {
+            let lon = (x as f32 + 0.5) / gw as f32 * std::f32::consts::TAU;
+            let gx = (x as f32 + 0.5) / GULLY_SS as f32 - 0.5;
+            let p = [
+                radius * cos_lat * lon.cos(),
+                radius * sin_lat,
+                -radius * cos_lat * lon.sin(),
+            ];
+            let local_slope = src.cubic(slope, gx, gy).max(0.0);
+            let f = 1.0 / wavelength;
+            let noise = gradient_noise([p[0] * f, p[1] * f, p[2] * f]);
+            let jitter = (hash3(x as i32, y as i32, 77) & 0xffff) as f32 / 65535.0 * 2e-6;
+            height[y * gw + x] = src.cubic(signed, gx, gy)
+                + noise * (local_slope * wavelength * DETAIL_SLOPE_GAIN + DETAIL_FLOOR)
+                + jitter;
+        }
+    }
+    let mut order: Vec<u32> = (0..n as u32)
+        .filter(|&i| height[i as usize] > 0.0)
+        .collect();
+    order.sort_unstable_by(|&a, &b| height[b as usize].total_cmp(&height[a as usize]));
+    let mut area = vec![0f32; n];
+    for &i in &order {
+        area[i as usize] = 1.0;
+    }
+    for &i in &order {
+        let i = i as usize;
+        let (x, y) = ((i % gw) as i32, (i / gw) as i32);
+        let mut best: Option<(usize, f32)> = None;
+        for dy in -1..=1i32 {
+            for dx in -1..=1i32 {
+                if dx == 0 && dy == 0 {
+                    continue;
+                }
+                let ny = y + dy;
+                if ny < 0 || ny >= gh as i32 {
+                    continue;
+                }
+                let nx = if src.wrap {
+                    (x + dx).rem_euclid(gw as i32)
+                } else {
+                    x + dx
+                };
+                if nx < 0 || nx >= gw as i32 {
+                    continue;
+                }
+                let j = ny as usize * gw + nx as usize;
+                let drop = (height[i] - height[j])
+                    / if dx != 0 && dy != 0 {
+                        std::f32::consts::SQRT_2
+                    } else {
+                        1.0
+                    };
+                if drop > 0.0 && best.is_none_or(|b| drop > b.1) {
+                    best = Some((j, drop));
+                }
             }
         }
-        sum
+        if let Some((j, _)) = best {
+            if height[j] > 0.0 {
+                area[j] += area[i];
+            }
+        }
     }
+    let full = GULLY_ACC_FULL.ln();
+    let flow: Vec<f32> = area
+        .iter()
+        .map(|&a| {
+            if a > 1.0 {
+                (a.ln() / full).min(1.0)
+            } else {
+                0.0
+            }
+        })
+        .collect();
+    let flow = grid_blur(&flow, gw, gh, src.wrap);
+    (flow, gw, gh)
 }
 
 /// 均勻三次 B 樣條在小數位置 t 的四個權重（對應格 −1、0、1、2）。
@@ -333,6 +456,7 @@ pub fn build_relief(geo: &Geography, fine: &FineGeography) -> Relief {
 
     let peak = signed.iter().cloned().fold(0.0, f32::max).max(1e-4);
     let radius = grid_w as f32 / std::f32::consts::TAU;
+    let (gullies, gw, gh) = carve_gullies(&src, &signed, &slope, radius);
     let mut elevation = vec![0f32; w * h];
     let mut lake = vec![0u8; w * h];
     for ty in 0..h {
@@ -352,7 +476,7 @@ pub fn build_relief(geo: &Geography, fine: &FineGeography) -> Relief {
                 radius * sin_lat,
                 -radius * cos_lat * lon.sin(),
             ];
-            let mountain = smoothstep(RIDGE_ALT_START, RIDGE_ALT_FULL, base / peak);
+            let mountain = smoothstep(MOUNTAIN_ALT_START, MOUNTAIN_ALT_FULL, base / peak);
             let mut detail = 0.0;
             for (k, wavelength) in DETAIL_WAVELENGTHS.iter().enumerate() {
                 let f = 1.0 / wavelength;
@@ -366,21 +490,22 @@ pub fn build_relief(geo: &Geography, fine: &FineGeography) -> Relief {
                 };
                 detail += n * calm * (local_slope * wavelength * DETAIL_SLOPE_GAIN + DETAIL_FLOOR);
             }
-            // 山區：稜線狀細節（1 − |雜訊|，脊尖谷圓），越高越明顯。
+            // 山區：刻入順坡而下的溝谷；谷與谷之間就是沿坡向延伸的山脊（稜線高度不變）。
+            let mut carve = 0.0;
             if mountain > 0.0 {
-                for (k, wavelength) in RIDGE_WAVELENGTHS.iter().enumerate() {
-                    let f = 1.0 / wavelength;
-                    let o = 91.7 + k as f32 * 23.1;
-                    let n = gradient_noise([p[0] * f - o, p[1] * f + o, p[2] * f + 0.5 * o]);
-                    let ridge = 1.0 - (n * 1.6).abs().min(1.0);
-                    detail += (ridge * ridge - 0.38)
-                        * mountain
-                        * wavelength
-                        * (local_slope * RIDGE_SLOPE_GAIN + peak * RIDGE_BASE);
-                }
+                let scale = (RELIEF_SS / GULLY_SS) as f32;
+                let (wx, wy) = (
+                    (tx as f32 + 0.5) / scale - 0.5,
+                    (ty as f32 + 0.5) / scale - 0.5,
+                );
+                let flow = grid_cubic(&gullies, gw, gh, src.wrap, wx, wy).clamp(0.0, 1.0);
+                carve = flow * mountain * (local_slope * GULLY_SLOPE_GAIN + peak * GULLY_BASE);
             }
             let o = ty * w + tx;
-            elevation[o] = base + detail;
+            // 溝谷不得刻穿海平面：否則靠海的山腳會冒出水坑。
+            let land = base + detail;
+            let carve = carve.min((land - GULLY_FLOOR).max(0.0));
+            elevation[o] = land - carve;
             lake[o] = (src.cubic(&lake_mask, gx, gy).clamp(0.0, 1.0) * 255.0).round() as u8;
         }
     }
@@ -482,6 +607,49 @@ mod tests {
         let seam = mean(r.w - 1, 0);
         let inner = mean(r.w / 2, r.w / 2 + 1);
         assert!(seam < inner * 3.0 + 1e-4, "接縫差 {seam}，內部差 {inner}");
+    }
+
+    /// 溝谷：匯流程度落在 0..1，海上為 0，山區確實有刻下去的谷。
+    #[test]
+    fn gdd_5_3_gullies_follow_the_drainage() {
+        let sim = small_world();
+        let w = sim.world();
+        let src = Source::new(&w.geo, &w.fine);
+        let signed: Vec<f32> = (0..src.w * src.h)
+            .map(|i| src.height[i] - src.sea_level)
+            .collect();
+        let slope = vec![0.01f32; src.w * src.h];
+        let radius = w.geo.w as f32 / std::f32::consts::TAU;
+        let (flow, gw, gh) = carve_gullies(&src, &signed, &slope, radius);
+        assert_eq!(flow.len(), gw * gh);
+        assert!(flow.iter().all(|f| (0.0..=1.0).contains(f)));
+        let deep = flow.iter().filter(|&&f| f > 0.5).count();
+        assert!(deep > 0, "應有匯流明顯的谷");
+        assert!(deep < flow.len() / 4, "谷不應佔滿地面：{deep}");
+    }
+
+    /// 溝谷不刻穿海平面：最高的一成陸地（山區）沒有任何紋素低於海平面。
+    #[test]
+    fn gdd_5_3_gullies_never_cut_below_sea_level() {
+        let sim = small_world();
+        let w = sim.world();
+        let r = build_relief(&w.geo, &w.fine);
+        let peak = r.elevation.iter().cloned().fold(0.0, f32::max);
+        let (sw, sh) = (w.fine.w as usize, w.fine.h as usize);
+        for y in 0..sh {
+            for x in 0..sw {
+                let cell = w.fine.height[y * sw + x] as f32 / 65535.0 - w.fine.sea_level;
+                if cell < peak * 0.5 {
+                    continue;
+                }
+                for ty in 0..RELIEF_SS {
+                    for tx in 0..RELIEF_SS {
+                        let e = r.elevation[(y * RELIEF_SS + ty) * r.w + x * RELIEF_SS + tx];
+                        assert!(e > 0.0, "山區紋素低於海平面：({x}, {y}) = {e}");
+                    }
+                }
+            }
+        }
     }
 
     #[test]
