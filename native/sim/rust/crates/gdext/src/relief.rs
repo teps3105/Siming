@@ -14,6 +14,16 @@ const SHORE_EPS: f32 = 0.002;
 const DETAIL_WAVELENGTHS: [f32; 3] = [1.6, 0.8, 0.4];
 /// 細節振幅 = 坡度 × 波長 × 此係數；海岸的橫向曲折約為波長的這個比例。
 const DETAIL_SLOPE_GAIN: f32 = 0.42;
+/// 山區稜線狀細節各倍頻的波長（遊戲格）。稜線狀雜訊在零交會處成脊，暈渲後山體有浮雕般的稜與谷。
+const RIDGE_WAVELENGTHS: [f32; 2] = [5.0, 2.5];
+/// 稜線細節振幅 = (坡度 × 此係數 + 最高點高度 × `RIDGE_BASE`) × 波長 × 山區權重。
+const RIDGE_SLOPE_GAIN: f32 = 0.16;
+const RIDGE_BASE: f32 = 0.004;
+/// 山區權重：相對高度占最高點的比例由此區間漸入。
+const RIDGE_ALT_START: f32 = 0.16;
+const RIDGE_ALT_FULL: f32 = 0.50;
+/// 山區短波起伏的減弱比例。
+const MOUNTAIN_CALM: f32 = 0.75;
 /// 平地上的最小細節振幅（遠小於 `SHORE_EPS`，不會憑空生出島或湖）。
 const DETAIL_FLOOR: f32 = 0.0002;
 
@@ -321,6 +331,7 @@ pub fn build_relief(geo: &Geography, fine: &FineGeography) -> Relief {
         .collect();
     let lake_mask = src.blur(&lake_mask);
 
+    let peak = signed.iter().cloned().fold(0.0, f32::max).max(1e-4);
     let radius = grid_w as f32 / std::f32::consts::TAU;
     let mut elevation = vec![0f32; w * h];
     let mut lake = vec![0u8; w * h];
@@ -341,12 +352,32 @@ pub fn build_relief(geo: &Geography, fine: &FineGeography) -> Relief {
                 radius * sin_lat,
                 -radius * cos_lat * lon.sin(),
             ];
+            let mountain = smoothstep(RIDGE_ALT_START, RIDGE_ALT_FULL, base / peak);
             let mut detail = 0.0;
             for (k, wavelength) in DETAIL_WAVELENGTHS.iter().enumerate() {
                 let f = 1.0 / wavelength;
                 let o = k as f32 * 17.3;
                 let n = gradient_noise([p[0] * f + o, p[1] * f - o, p[2] * f + 2.0 * o]);
-                detail += n * (local_slope * wavelength * DETAIL_SLOPE_GAIN + DETAIL_FLOOR);
+                // 山區的短波起伏減弱（紋理過密），由大尺度的稜線承擔山形；海岸附近不受影響。
+                let calm = if k == 0 {
+                    1.0
+                } else {
+                    1.0 - MOUNTAIN_CALM * mountain
+                };
+                detail += n * calm * (local_slope * wavelength * DETAIL_SLOPE_GAIN + DETAIL_FLOOR);
+            }
+            // 山區：稜線狀細節（1 − |雜訊|，脊尖谷圓），越高越明顯。
+            if mountain > 0.0 {
+                for (k, wavelength) in RIDGE_WAVELENGTHS.iter().enumerate() {
+                    let f = 1.0 / wavelength;
+                    let o = 91.7 + k as f32 * 23.1;
+                    let n = gradient_noise([p[0] * f - o, p[1] * f + o, p[2] * f + 0.5 * o]);
+                    let ridge = 1.0 - (n * 1.6).abs().min(1.0);
+                    detail += (ridge * ridge - 0.38)
+                        * mountain
+                        * wavelength
+                        * (local_slope * RIDGE_SLOPE_GAIN + peak * RIDGE_BASE);
+                }
             }
             let o = ty * w + tx;
             elevation[o] = base + detail;

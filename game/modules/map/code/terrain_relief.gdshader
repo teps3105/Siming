@@ -37,11 +37,11 @@ uniform float globe_radius = 1.0;
 uniform float globe_relief = 2.0;
 uniform mat4 globe_xform;
 uniform vec3 light_dir = vec3(-0.50, 0.62, -0.60); // 指向光源（西北上方）
-uniform float shade_strength = 1.0;
+uniform float emboss_strength = 1.0;     // 浮雕暈渲的強度
 instance uniform float copy_offset = 0.0;
 
-uniform sampler2D elevation_tex : repeat_enable, filter_linear;
-uniform sampler2D lake_tex : repeat_enable, filter_linear;
+uniform sampler2D elevation_tex : repeat_enable, filter_linear_mipmap;
+uniform sampler2D lake_tex : repeat_enable, filter_linear_mipmap;
 uniform sampler2D climate_tex : repeat_enable, filter_linear, source_color;
 uniform sampler2D paper_tex : repeat_enable, filter_linear_mipmap;
 uniform sampler2D field_tex : repeat_enable, filter_linear;
@@ -70,7 +70,8 @@ void vertex() {
 	float flat_k = 1.0 - polar_weight(dir.y);
 	// 邊疆帶（UV 夾在 0／1）高度為 0。
 	float inside = step(0.0, VERTEX.z) * step(VERTEX.z, map_size.y);
-	float e = textureLod(elevation_tex, UV, 0.0).r;
+	// 網格每格只有兩個頂點，取第 3 級（8 個紋素平均）的高度；細節交給著色的浮雕暈渲。
+	float e = textureLod(elevation_tex, UV, 3.0).r;
 	float h1 = max(e, 0.0) * map_size.x * HEIGHT_GAIN * flat_k * inside;
 	vec3 wp = vec3(VERTEX.x, h1 * height_scale, VERTEX.z);
 	if (globe_morph > 0.0) {
@@ -100,8 +101,8 @@ vec4 bicubic(sampler2D tex, vec2 uv) {
 	vec2 g1 = w2 + w3;
 	vec2 h0 = (base - 0.5 + w1 / g0) / size;
 	vec2 h1 = (base + 1.5 + w3 / g1) / size;
-	return (texture(tex, vec2(h0.x, h0.y)) * g0.x + texture(tex, vec2(h1.x, h0.y)) * g1.x) * g0.y
-		+ (texture(tex, vec2(h0.x, h1.y)) * g0.x + texture(tex, vec2(h1.x, h1.y)) * g1.x) * g1.y;
+	return (textureLod(tex, vec2(h0.x, h0.y), 0.0) * g0.x + textureLod(tex, vec2(h1.x, h0.y), 0.0) * g1.x) * g0.y
+		+ (textureLod(tex, vec2(h0.x, h1.y), 0.0) * g0.x + textureLod(tex, vec2(h1.x, h1.y), 0.0) * g1.x) * g1.y;
 }
 
 // 三維梯度雜訊（球面座標求值，接縫與極點連續）。只用於紋素以下的微細節。
@@ -201,7 +202,7 @@ float px_line(float d, float fw, float w) {
 vec3 ramp5(vec3 colors[5], float t) {
 	float x = clamp(t, 0.0, 1.0) * 4.0;
 	int i = min(int(floor(x)), 3);
-	return mix(colors[i], colors[i + 1], smoothstep(0.0, 1.0, x - float(i)));
+	return mix(colors[i], colors[i + 1], x - float(i));
 }
 
 vec3 field_ramp(float t) {
@@ -227,9 +228,19 @@ void fragment() {
 	vec2 texel = 1.0 / vec2(textureSize(elevation_tex, 0));
 	float cells_per_texel = map_size.x * texel.x;
 	float e_c = bicubic(elevation_tex, uv).r;
-	float e_x = bicubic(elevation_tex, uv + vec2(texel.x, 0.0)).r;
-	float e_y = bicubic(elevation_tex, uv + vec2(0.0, texel.y)).r;
-	vec2 grad = vec2(e_x - e_c, e_y - e_c) / cells_per_texel; // 每遊戲格的高度變化
+	float e_xp = bicubic(elevation_tex, uv + vec2(texel.x, 0.0)).r;
+	float e_xm = bicubic(elevation_tex, uv - vec2(texel.x, 0.0)).r;
+	float e_yp = bicubic(elevation_tex, uv + vec2(0.0, texel.y)).r;
+	float e_ym = bicubic(elevation_tex, uv - vec2(0.0, texel.y)).r;
+	// 細坡向（稜線、谷線）與曲率：每遊戲格的高度變化。
+	vec2 grad = vec2(e_xp - e_xm, e_yp - e_ym) / (2.0 * cells_per_texel);
+	float curvature = (e_xp + e_xm + e_yp + e_ym - 4.0 * e_c) / (cells_per_texel * cells_per_texel);
+	// 粗坡向（整座山的受光面與背光面）：跨 6 個紋素取差。
+	vec2 wide = texel * 6.0;
+	vec2 grad_wide = vec2(
+		textureLod(elevation_tex, uv + vec2(wide.x, 0.0), 2.0).r - textureLod(elevation_tex, uv - vec2(wide.x, 0.0), 2.0).r,
+		textureLod(elevation_tex, uv + vec2(0.0, wide.y), 2.0).r - textureLod(elevation_tex, uv - vec2(0.0, wide.y), 2.0).r
+	) / (12.0 * cells_per_texel);
 	float slope = length(grad);
 	vec3 p3 = d * (map_size.x / TAU);
 	float micro_fade = 1.0 - smoothstep(0.04, 0.16, pxw);
@@ -255,21 +266,30 @@ void fragment() {
 	// 陡坡露岩：坡度大的地方植被少。
 	land = mix(land, rock_colors[1], smoothstep(0.010, 0.035, slope) * 0.35 * (1.0 - smoothstep(0.72, 0.90, alt)));
 
-	// 2 暈渲：以高度場的坡向對西北光取明暗。古地圖化時地形壓平，但暈渲保留一半，仍看得出山勢。
-	float relief = map_size.x * HEIGHT_GAIN * mix(1.0, 0.5, flatten) * flat_k;
-	vec3 nrm = normalize(vec3(-grad.x * relief, 1.0, -grad.y * relief));
+	// 2 浮雕暈渲：粗坡向給整座山受光面與背光面，細坡向刻出稜與谷；山越高立體感越強，
+	// 平原只留粗坡向，不出現細碎紋理。稜線提亮、谷線壓暗（曲率），像壓印出來的地形。
+	// 古地圖化時保留一半，仍看得出山勢。
+	float mountain = smoothstep(0.10, 0.50, alt);
+	float relief = map_size.x * HEIGHT_GAIN * mix(1.0, 0.5, flatten) * flat_k * emboss_strength;
 	vec3 ldir = normalize(light_dir);
-	float lit = dot(nrm, ldir) - ldir.y;
-	float shade = lit * shade_strength * 1.25;
-	land = mix(land, land * shadow_tint, clamp(-shade * 1.6, 0.0, 0.75));
-	land = mix(land, min(land * light_tint, vec3(1.0)), clamp(shade * 1.3, 0.0, 0.6));
+	float fine_gain = relief * mix(0.35, 1.0, mountain);
+	float wide_gain = relief * mix(1.3, 2.2, mountain);
+	vec3 nrm_fine = normalize(vec3(-grad.x * fine_gain, 1.0, -grad.y * fine_gain));
+	vec3 nrm_wide = normalize(vec3(-grad_wide.x * wide_gain, 1.0, -grad_wide.y * wide_gain));
+	float shade = (dot(nrm_wide, ldir) - ldir.y) * 1.25 + (dot(nrm_fine, ldir) - ldir.y) * mix(0.30, 0.55, mountain);
+	float crease = clamp(curvature * relief * 0.22, -1.0, 1.0) * mountain; // 正為谷、負為稜
+	land = mix(land, land * shadow_tint, clamp(-shade * 1.5, 0.0, 0.82));
+	land = mix(land, min(land * light_tint + vec3(0.04), vec3(1.0)), clamp(shade * 1.2, 0.0, 0.65));
+	land = mix(land, land * shadow_tint, clamp(crease, 0.0, 1.0) * 0.35);
+	land = mix(land, min(land * light_tint + vec3(0.08), vec3(1.0)), clamp(-crease, 0.0, 1.0) * 0.30);
 
-	// 3 水：海深色階（淺棚 → 深淵），岸邊最淺；湖取淺水色。8 位元以外仍加極小的抖動防色帶。
-	float depth = clamp(-e / max(sea_level, 1e-3), 0.0, 1.0);
+	// 3 水：水深取平滑後的高度（第 5 級，約 4 個遊戲格的平均），海色隨水深連續變化，沒有分段。
+	// 岸邊由實際高度接手，海岸線兩側的深淺才連續。
+	float e_smooth = textureLod(elevation_tex, uv, 5.0).r;
+	float e_water = mix(e, min(e_smooth, e), smoothstep(0.0, 0.012, -e));
+	float depth = clamp(-e_water / max(sea_level, 1e-3), 0.0, 1.0);
 	float dither = (fract(sin(dot(FRAGCOORD.xy, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) / 255.0;
-	vec3 sea = ramp5(sea_colors, 0.94 * pow(depth, 0.5) + dither);
-	// 海底暈渲極淡，讓海脊與海溝隱約可見。
-	sea *= 1.0 + clamp(shade, -1.0, 1.0) * 0.06;
+	vec3 sea = ramp5(sea_colors, 1.0 - exp(-depth * 3.2) + dither);
 	vec3 lake = mix(sea_colors[0], sea_colors[1], 0.6);
 	vec3 water = mix(sea, lake, lake_mask * (1.0 - sea_mask));
 

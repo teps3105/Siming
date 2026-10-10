@@ -5,8 +5,8 @@ extends RefCounted
 const FOV_DEG := 30.0
 const Z_MIN_FRAC := 0.04
 const Z_MAX_FRAC := 1.1
-const PITCH_MIN_DEG := 50.0
-const PITCH_MAX_DEG := 85.0
+const PITCH_MIN_DEG := 68.0
+const PITCH_MAX_DEG := 88.0
 const FLATTEN_START_FRAC := 0.6
 const GLOBE_Z_FRAC := 0.9
 const FOCUS_MAX_LAT_DEG := 75.0
@@ -21,7 +21,7 @@ static func z_range(map_w: float) -> Vector2:
 	return Vector2(map_w * Z_MIN_FRAC, map_w * Z_MAX_FRAC)
 
 
-## 俯角（弧度）：z_min 時 50°，z_max 時 85°。
+## 俯角（弧度）：z_min 時 68°，z_max 時 88°。
 static func pitch(z: float, map_w: float) -> float:
 	var r := z_range(map_w)
 	var t := clampf((z - r.x) / (r.y - r.x), 0.0, 1.0)

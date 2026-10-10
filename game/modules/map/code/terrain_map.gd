@@ -229,6 +229,8 @@ func _make_terrain_material(world: SimWorld) -> ShaderMaterial:
 		elevation_size.x, elevation_size.y, false, Image.FORMAT_RF, (textures["elevation"] as PackedFloat32Array).to_byte_array()
 	)
 	elevation.convert(Image.FORMAT_RH)
+	# 多級縮圖：頂點高度與水深取平滑後的級別。
+	elevation.generate_mipmaps()
 	material.set_shader_parameter("elevation_tex", ImageTexture.create_from_image(elevation))
 	material.set_shader_parameter(
 		"lake_tex", _texture(elevation_size.x, elevation_size.y, Image.FORMAT_R8, textures["lake"], false)

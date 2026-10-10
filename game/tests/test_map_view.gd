@@ -10,10 +10,10 @@ func suite_name() -> String:
 	return "map_view"
 
 
-func test_gdd_5_2_pitch_runs_from_50_to_85_degrees() -> void:
+func test_gdd_5_2_pitch_runs_from_68_to_88_degrees() -> void:
 	var limits := MapView.z_range(MAP_W)
-	assert_true(is_equal_approx(rad_to_deg(MapView.pitch(limits.x, MAP_W)), 50.0))
-	assert_true(is_equal_approx(rad_to_deg(MapView.pitch(limits.y, MAP_W)), 85.0))
+	assert_true(is_equal_approx(rad_to_deg(MapView.pitch(limits.x, MAP_W)), 68.0))
+	assert_true(is_equal_approx(rad_to_deg(MapView.pitch(limits.y, MAP_W)), 88.0))
 
 
 func test_gdd_5_2_flatten_starts_above_sixty_percent_of_map_width() -> void:
