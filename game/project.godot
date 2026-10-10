@@ -21,3 +21,7 @@ _mcp_game_helper="*res://addons/godot_ai/runtime/game_helper.gd"
 [editor_plugins]
 
 enabled=PackedStringArray("res://addons/godot_ai/plugin.cfg")
+
+[rendering]
+
+environment/defaults/default_clear_color=Color(0.929412, 0.894118, 0.811765, 1)

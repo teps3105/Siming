@@ -2,35 +2,18 @@
 
 [ext_resource type="Script" uid="uid://dvacgvsuphbn2" path="res://app/code/bootstrap.gd" id="1_y1w63"]
 [ext_resource type="Script" uid="uid://bho1nfnlgwdgh" path="res://modules/sim/code/sim_host.gd" id="2_a78tf"]
-[ext_resource type="FontFile" uid="uid://cxtwrewmrgrc6" path="res://modules/ui_kit/assets/fonts/wenkai_tc_subset.ttf" id="3_bu7yx"]
+[ext_resource type="Script" uid="uid://buhwme4h8mx2h" path="res://modules/map/code/terrain_map.gd" id="3_a78tf"]
+[ext_resource type="Script" uid="uid://bwi3bn04voat0" path="res://modules/input/code/map_camera.gd" id="4_bu7yx"]
 
-[node name="Bootstrap" type="Control" unique_id=1265512688]
-layout_mode = 3
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
+[node name="Bootstrap" type="Node" unique_id=1432952675]
 script = ExtResource("1_y1w63")
 
-[node name="SimHost" type="Node" parent="." unique_id=2088313167]
+[node name="SimHost" type="Node" parent="." unique_id=386270024]
 script = ExtResource("2_a78tf")
 
-[node name="Map" type="TextureRect" parent="." unique_id=1857396518]
-layout_mode = 0
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_bottom = -48.0
-expand_mode = 1
-stretch_mode = 5
+[node name="TerrainMap" type="Node3D" parent="." unique_id=1650143323]
+script = ExtResource("3_a78tf")
 
-[node name="Status" type="Label" parent="." unique_id=1959242627]
-layout_mode = 0
-anchor_top = 1.0
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_top = -44.0
-offset_bottom = -8.0
-theme_override_fonts/font = ExtResource("3_bu7yx")
-theme_override_font_sizes/font_size = 20
-horizontal_alignment = 1
+[node name="MapCamera" type="Camera3D" parent="." unique_id=742446819]
+current = true
+script = ExtResource("4_bu7yx")
