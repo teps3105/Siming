@@ -27,7 +27,9 @@ const TERRAIN_LEGEND: Array[String] = [
 	"terrain_plains", "terrain_hills", "terrain_mountain", "terrain_forest",
 	"terrain_desert", "terrain_snow", "terrain_swamp", "terrain_water",
 ]
-const LEGEND_SPACE := 160.0
+## 例簽列出的地名種類（顏色見 MapOverlay.KIND_COLORS）。
+const PLACE_LEGEND: Array[String] = ["continent", "province", "seat", "river", "range", "node"]
+const LEGEND_SPACE := 210.0
 
 var mode: TerrainMap.Mode = TerrainMap.Mode.SHANHE
 ## 目前的輸入裝置是否為搖桿（決定畫哪一種實體鍵圖像）。
@@ -143,6 +145,9 @@ func _draw_legend(entry: Dictionary) -> void:
 		TerrainMap.Mode.SHANHE:
 			for key in TERRAIN_LEGEND:
 				lines.append([key, "terrain"])
+			# 地名的顏色：每種地名用它在地圖上的顏色寫出來。
+			for kind in PLACE_LEGEND:
+				lines.append(["place_%s" % kind, "place", kind])
 		TerrainMap.Mode.TIANXIA:
 			lines = [["legend_tianxia", ""]]
 		TerrainMap.Mode.LINGMAI:
@@ -176,7 +181,11 @@ func _draw_legend(entry: Dictionary) -> void:
 		elif swatch == "terrain":
 			TerrainSwatches.chip(self, Rect2(pos + Vector2(0.0, (note_size - 12.0 * _unit) * 0.5 + 2.0), Vector2(13.0, 12.0) * _unit), lines[i][0])
 			text_x = 19.0 * _unit
-		Ink.text(self, pos + Vector2(text_x, 0.0), Locale.t(lines[i][0]), note_size, Ink.INK)
+		var ink := Ink.INK
+		if swatch == "place":
+			ink = MapOverlay.KIND_COLORS[lines[i][2]]
+			text_x = 19.0 * _unit
+		Ink.text(self, pos + Vector2(text_x, 0.0), Locale.t(lines[i][0]), note_size, ink)
 
 
 func _gui_input(event: InputEvent) -> void:

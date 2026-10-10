@@ -48,6 +48,8 @@ INK = {"墨": "2B2620"}
 
 
 TEXT_ON_PAPER = {"墨": "2B2620", "淡墨": "6B6152"}
+# 地名的文字色（GDD 5.1「地名設色」）：描邊是紙色，所以也對 paper-light 量對比。
+PLACE_NAMES = {"大洲": "3C4A52", "州郡": "2B2620", "治所": "8C2A1C", "江河": "3E6379", "山脈": "3F5A45", "洞天福地": "5B3A6B"}
 PAPER_LIGHT = "F3EBD8"
 
 
@@ -109,7 +111,7 @@ def main() -> int:
     text = GDD.read_text(encoding="utf-8").upper()
     missing = [
         f"{name} #{value}"
-        for group in (VEGETATION, ROCK, SEA, COAST, LINES, PAPER, INK)
+        for group in (VEGETATION, ROCK, SEA, COAST, LINES, PAPER, INK, PLACE_NAMES)
         for name, value in group.items()
         if f"#{value}" not in text
     ]
@@ -132,7 +134,7 @@ def main() -> int:
     # 紙面上的字只用墨與淡墨；對 paper-light 的 WCAG 對比須達 4.5（GDD 5.1「介面母題」）。
     failed = False
     print("紙面文字對 paper-light 的 WCAG 對比（門檻 4.5）")
-    for name, value in TEXT_ON_PAPER.items():
+    for name, value in {**TEXT_ON_PAPER, **{f"地名·{k}": v for k, v in PLACE_NAMES.items()}}.items():
         ratio = contrast(value, PAPER_LIGHT)
         print(f"  {name} #{value}：{ratio:.1f}")
         failed = failed or ratio < 4.5

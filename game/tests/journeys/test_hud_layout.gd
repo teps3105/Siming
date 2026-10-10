@@ -173,3 +173,14 @@ func test_path_labels_shrink_then_hide_when_the_path_is_short() -> void:
 	assert_eq(MapOverlay.path_label_size(11.0 * gap * 2.0 - 1.0, 3, 15, 11), 0, "低於字級下限就不顯示")
 	assert_eq(MapOverlay.path_label_size(400.0, 1, 15, 11), 0, "只有一個字不沿路徑排")
 
+
+func test_each_kind_of_place_name_has_its_own_colour() -> void:
+	var seen := {}
+	for kind: String in MapOverlay.KIND_COLORS:
+		var colour: Color = MapOverlay.KIND_COLORS[kind]
+		assert_false(seen.has(colour.to_html()), "「%s」的顏色與別種地名相同" % kind)
+		seen[colour.to_html()] = true
+	for kind in SealBox.PLACE_LEGEND:
+		assert_true(MapOverlay.KIND_COLORS.has(kind), "例簽列的「%s」在地圖上有對應的顏色" % kind)
+	assert_eq(SealBox.PLACE_LEGEND.size(), MapOverlay.KIND_COLORS.size(), "例簽列出全部地名種類")
+

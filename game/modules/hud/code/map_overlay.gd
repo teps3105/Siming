@@ -11,8 +11,14 @@ const LABEL_RULES := {
 	"range": {"z_max": 0.5, "z_min": 0.0, "size": 15},
 	"node": {"z_max": 0.4, "z_min": 0.0, "size": 15},
 }
+## 地名依性質分色（GDD 5.1「地名設色」）；例簽用同一張表。
 const KIND_COLORS := {
-	"continent": Ink.INK, "province": Ink.INK, "river": Color("3B5566"), "range": Ink.INK, "node": Ink.INK,
+	"continent": Color("3C4A52"),
+	"province": Color("2B2620"),
+	"seat": Color("8C2A1C"),
+	"river": Color("3E6379"),
+	"range": Color("3F5A45"),
+	"node": Color("5B3A6B"),
 }
 ## 沿路徑排字的字距（字高的倍數）：下限與上限。
 const PATH_SPACING_MIN := 1.2
@@ -228,13 +234,13 @@ func _draw_seats(taken: Array[Rect2]) -> void:
 		if not screen.has_point(point):
 			continue
 		draw_circle(point, radius + 1.5, Color(Ink.PAPER_LIGHT, 0.9))
-		draw_circle(point, radius, Ink.INK)
+		draw_circle(point, radius, KIND_COLORS["seat"])
 		var extent := Ink.text_size(seat["text"], size)
 		var rect := Rect2(point + Vector2(radius + 4.0 * _unit, -extent.y * 0.5), extent)
 		if not screen.encloses(rect) or _blocked(rect, taken):
 			continue
 		taken.append(rect)
-		Ink.outlined_text(self, rect.position, seat["text"], size, Ink.INK, LABEL_OUTLINE)
+		Ink.outlined_text(self, rect.position, seat["text"], size, KIND_COLORS["seat"], LABEL_OUTLINE)
 
 
 ## 靈脈模式的洞天福地：金點加青環，大小依強度（GDD 5.4）。
