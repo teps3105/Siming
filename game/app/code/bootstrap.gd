@@ -5,6 +5,8 @@ extends Node
 ## 開局的種子與星球尺寸（"small"、"medium"、"large"）；測試會在加入場景樹前改成小尺寸。
 @export var start_seed := 20261011
 @export var start_size := "medium"
+## 開場運鏡（GDD 5.2）：先看到星球，鏡頭再落到開場位置；測試預設關掉。
+@export var opening_flight := true
 ## 開場鏡頭高度（地圖寬的比例）。
 const START_Z_FRAC := 0.3
 
@@ -20,7 +22,12 @@ func _ready() -> void:
 		push_error("世界生成失敗：%s" % error)
 		return
 	_map.build(_sim.world)
-	_camera.attach(_map, _start_focus(), _map.map_size.x * START_Z_FRAC)
+	var start_z := _map.map_size.x * START_Z_FRAC
+	if opening_flight:
+		_camera.attach(_map, _start_focus(), _map.map_size.x * MapView.Z_MAX_FRAC)
+		_camera.descend_to(start_z, MapCamera.OPENING_SECONDS)
+	else:
+		_camera.attach(_map, _start_focus(), start_z)
 	if has_node("Hud"):
 		$Hud.setup(_sim, _map, _camera)
 

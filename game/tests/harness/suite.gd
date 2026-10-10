@@ -1,7 +1,7 @@
 extends RefCounted
 ## 測試套件的基類（GDD 6.7）。test_ 開頭的方法就是案例，可以是協程；執行程式（run.gd）一律等待它跑完。
 ## 規則測試只用斷言；流程測試另外用 boot() 開起遊戲，再以 key()、joy_button()、joy_axis()、
-## click()、wheel()、drag() 送輸入——全部走引擎的輸入分派，與玩家按下去的路徑相同。
+## click()、wheel()、drag()、tap()、touch()、touch_move()、two_fingers() 送輸入——全部走引擎的輸入分派，與玩家按下去的路徑相同。
 ## 判決在 run.gd：斷言失敗、案例期間出現沒有事先宣告的錯誤、或一個斷言都沒有，都算失敗。
 
 const BOOTSTRAP := "res://app/scenes/bootstrap.tscn"
@@ -72,12 +72,14 @@ func assert_lt(actual: Variant, threshold: Variant, msg: String = "") -> void:
 
 
 ## 開起整個遊戲（入口場景，小尺寸世界），回傳入口節點；案例結束時自動關掉。時間先暫停，由案例自己放行。
-func boot() -> Node:
+## opening_flight 為真時保留開場運鏡，否則鏡頭直接落在開場位置。
+func boot(opening_flight := false) -> Node:
 	# 無視窗模式的畫面預設只有 64×64，器物會蓋住整個畫面；固定成 1920×1080。
 	tree.root.size = FLOW_VIEW
 	var game: Node = (load(BOOTSTRAP) as PackedScene).instantiate()
 	game.start_seed = TEST_SEED
 	game.start_size = TEST_SIZE
+	game.opening_flight = opening_flight
 	track(game)
 	tree.root.add_child(game)
 	await frames(2)
@@ -158,6 +160,54 @@ func drag(from: Vector2, to: Vector2) -> void:
 		await frames(1)
 	Input.parse_input_event(_mouse_button(MOUSE_BUTTON_LEFT, false, to))
 	await frames(2)
+
+
+## 手指 index 在螢幕位置 pos 按下或放開。
+func touch(index: int, pos: Vector2, pressed: bool) -> void:
+	var event := InputEventScreenTouch.new()
+	event.index = index
+	event.position = pos
+	event.pressed = pressed
+	Input.parse_input_event(event)
+	await frames(1)
+
+
+## 已按下的手指 index 從 from 滑到 to。
+func touch_move(index: int, from: Vector2, to: Vector2) -> void:
+	var steps := 8
+	for i in steps:
+		_touch_step(index, from, to, i, steps)
+		await frames(1)
+
+
+## 手指在螢幕位置 pos 點一下。
+func tap(pos: Vector2) -> void:
+	await touch(0, pos, true)
+	await frames(1)
+	await touch(0, pos, false)
+	await frames(1)
+
+
+## 兩指同時按下，各自從起點滑到終點，再一起放開。
+func two_fingers(a_from: Vector2, a_to: Vector2, b_from: Vector2, b_to: Vector2) -> void:
+	await touch(0, a_from, true)
+	await touch(1, b_from, true)
+	var steps := 8
+	for i in steps:
+		_touch_step(0, a_from, a_to, i, steps)
+		_touch_step(1, b_from, b_to, i, steps)
+		await frames(1)
+	await touch(1, b_to, false)
+	await touch(0, a_to, false)
+	await frames(1)
+
+
+func _touch_step(index: int, from: Vector2, to: Vector2, step: int, steps: int) -> void:
+	var event := InputEventScreenDrag.new()
+	event.index = index
+	event.position = from.lerp(to, float(step + 1) / steps)
+	event.relative = (to - from) / steps
+	Input.parse_input_event(event)
 
 
 func _mouse_button(button: MouseButton, pressed: bool, pos: Vector2) -> InputEventMouseButton:

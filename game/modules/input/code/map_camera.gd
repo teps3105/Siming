@@ -1,7 +1,8 @@
 class_name MapCamera
 extends Camera3D
 ## GDD 5.2 鏡頭：透視 30°，以焦點、離地高度 z 與方位角描述；俯角隨高度內插。
-## 讀 InputMap 動作與滑鼠（拖曳平移、滾輪縮放、右鍵旋轉），並每幀把鏡頭狀態交給地圖。
+## 讀 InputMap 動作、滑鼠（拖曳平移、滾輪縮放、右鍵旋轉）與觸控（GDD 5.9），並每幀把鏡頭狀態交給地圖。
+## 單指的點與拖由引擎轉成滑鼠事件（專案設定 emulate_mouse_from_touch），這裡只另外處理雙指與長按。
 
 signal province_hovered(province: int)
 signal province_selected(province: int)
@@ -19,6 +20,10 @@ const YAW_PER_SECOND_DEG := 60.0
 const HOVER_DELAY := 0.3
 ## 拖曳超過這個像素數就不算點擊。
 const CLICK_SLOP := 6.0
+## 開場運鏡的秒數（GDD 5.2）。
+const OPENING_SECONDS := 3.5
+## 手指按住不動超過這個秒數算長按：提示照常出現，放開不選取（GDD 5.9）。
+const LONG_PRESS_SECONDS := 0.5
 
 var focus := Vector2.ZERO
 var z := 100.0
@@ -36,6 +41,15 @@ var _press_position := Vector2.ZERO
 var _hover_timer := 0.0
 var _hover_province := -1
 var _last_pointer := Vector2.ZERO
+var _press_msec := 0
+## 螢幕上的手指：index → 位置。
+var _touches := {}
+## 這次按下期間出現過第二指；到手指全部放開為止，放開都不算點選。
+var _two_finger_gesture := false
+var _flight_from_z := 0.0
+var _flight_to_z := 0.0
+var _flight_seconds := 0.0
+var _flight_progress := 0.0
 
 
 ## 綁定地圖並把鏡頭放到指定焦點與高度。
@@ -63,10 +77,30 @@ func look_at_map(target_focus: Vector2, target_z := -1.0, instant := false) -> v
 		_apply(0.0)
 
 
+## 開場運鏡（GDD 5.2）：在 seconds 秒內把高度降到 target_z，焦點不動；期間按下任何鍵或螢幕就直接到位。
+func descend_to(target_z: float, seconds: float) -> void:
+	_flight_from_z = _target_z
+	_flight_to_z = target_z
+	_flight_seconds = seconds
+	_flight_progress = 0.0
+
+
+## 開場運鏡是否進行中。
+func is_flying() -> bool:
+	return _flight_seconds > 0.0
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if _map == null:
 		return
-	if event is InputEventMouseButton:
+	if is_flying() and _is_press(event):
+		_flight_seconds = 0.0
+		_target_z = _flight_to_z
+	if event is InputEventScreenTouch:
+		_on_touch(event)
+	elif event is InputEventScreenDrag:
+		_on_touch_drag(event)
+	elif event is InputEventMouseButton:
 		_on_mouse_button(event)
 	elif event is InputEventMouseMotion:
 		_on_mouse_motion(event)
@@ -74,6 +108,45 @@ func _unhandled_input(event: InputEvent) -> void:
 		use_crosshair = true
 	if event.is_action_pressed(InputActions.SELECT):
 		_select_at(_pointer())
+
+
+static func _is_press(event: InputEvent) -> bool:
+	var is_button := (
+		event is InputEventKey or event is InputEventMouseButton or event is InputEventJoypadButton or event is InputEventScreenTouch
+	)
+	return is_button and event.is_pressed() and not event.is_echo()
+
+
+func _on_touch(event: InputEventScreenTouch) -> void:
+	if event.pressed:
+		_touches[event.index] = event.position
+		if _touches.size() >= 2:
+			_two_finger_gesture = true
+			_dragging = false
+	else:
+		_touches.erase(event.index)
+		if _touches.is_empty():
+			_two_finger_gesture = false
+
+
+## 雙指：兩指距離的變化是縮放（以兩指中點為中心），連線方向的變化是旋轉。
+func _on_touch_drag(event: InputEventScreenDrag) -> void:
+	if not _touches.has(event.index):
+		return
+	if _touches.size() != 2:
+		_touches[event.index] = event.position
+		return
+	var ids := _touches.keys()
+	var before: Vector2 = _touches[ids[1]] - _touches[ids[0]]
+	_touches[event.index] = event.position
+	var a: Vector2 = _touches[ids[0]]
+	var b: Vector2 = _touches[ids[1]]
+	var after := b - a
+	if before.length() < 1.0 or after.length() < 1.0:
+		return
+	_zoom_about((a + b) * 0.5, before.length() / after.length())
+	var limit := deg_to_rad(YAW_LIMIT_DEG)
+	_target_yaw = clampf(_target_yaw + angle_difference(before.angle(), after.angle()), -limit, limit)
 
 
 func _on_mouse_button(event: InputEventMouseButton) -> void:
@@ -87,9 +160,14 @@ func _on_mouse_button(event: InputEventMouseButton) -> void:
 			if event.pressed:
 				_dragging = true
 				_press_position = event.position
+				_press_msec = Time.get_ticks_msec()
 			else:
 				_dragging = false
-				if event.position.distance_to(_press_position) <= CLICK_SLOP:
+				# 由觸控轉來的滑鼠事件：長按與雙指手勢放開時不選取。
+				var from_touch := event.device == InputEvent.DEVICE_ID_EMULATION
+				var long_press := from_touch and Time.get_ticks_msec() - _press_msec >= int(LONG_PRESS_SECONDS * 1000.0)
+				var is_click := event.position.distance_to(_press_position) <= CLICK_SLOP
+				if is_click and not long_press and not _two_finger_gesture:
 					_select_at(event.position)
 		MOUSE_BUTTON_RIGHT:
 			_rotating = event.pressed
@@ -119,6 +197,12 @@ func _process(delta: float) -> void:
 		_target_yaw = clampf(
 			_target_yaw + deg_to_rad(YAW_PER_SECOND_DEG) * turn * delta, -deg_to_rad(YAW_LIMIT_DEG), deg_to_rad(YAW_LIMIT_DEG)
 		)
+	if is_flying():
+		# 高度取對數內插，畫面縮放的速度才均勻；兩端緩起緩停。
+		_flight_progress = minf(_flight_progress + delta / _flight_seconds, 1.0)
+		_target_z = _flight_from_z * pow(_flight_to_z / _flight_from_z, smoothstep(0.0, 1.0, _flight_progress))
+		if _flight_progress >= 1.0:
+			_flight_seconds = 0.0
 	_apply(delta)
 	_update_hover(delta)
 

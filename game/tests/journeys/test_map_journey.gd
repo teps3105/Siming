@@ -196,3 +196,61 @@ func test_zooming_all_the_way_out_turns_the_map_into_a_globe() -> void:
 	_camera.look_at_map(_map.map_size * 0.5, _map.map_size.x * 0.3, true)
 	await wait(0.9)
 	assert_eq(_map.globe_morph, 0.0, "推回去變回平面")
+
+
+func test_touch_tap_selects_and_one_finger_drag_pans() -> void:
+	var screen := await _aim_at_province(0)
+	await tap(screen)
+	assert_eq(_hud._card.province, 0, "手指點治所開啟該州郡的卡")
+	await key(KEY_ESCAPE)
+	var centre := tree.root.get_visible_rect().size * 0.5
+	var before := _camera.focus
+	await touch(0, centre, true)
+	await touch_move(0, centre, centre + Vector2(160.0, 0.0))
+	await touch(0, centre + Vector2(160.0, 0.0), false)
+	await wait(0.4)
+	assert_lt(_camera.focus.x, before.x, "單指往右拖，地圖跟著手走")
+	assert_eq(_hud._card.province, -1, "拖曳不算點選")
+
+
+func test_two_finger_pinch_zooms_without_panning_or_selecting() -> void:
+	await _aim_at_province(0)
+	var centre := tree.root.get_visible_rect().size * 0.5
+	var z_before := _camera.z
+	var focus_before := _camera.focus
+	var near := Vector2(60.0, 0.0)
+	var far := Vector2(220.0, 0.0)
+	await two_fingers(centre - near, centre - far, centre + near, centre + far)
+	await wait(0.4)
+	assert_lt(_camera.z, z_before * 0.6, "兩指張開拉近")
+	assert_lt(_camera.focus.distance_to(focus_before), _map.map_size.x * 0.002, "以兩指中點為中心縮放，畫面不平移")
+	assert_eq(_hud._card.province, -1, "兩指手勢不算點選")
+	var z_near := _camera.z
+	await two_fingers(centre - far, centre - near, centre + far, centre + near)
+	await wait(0.4)
+	assert_gt(_camera.z, z_near * 1.5, "兩指捏合拉遠")
+
+
+func test_two_finger_twist_turns_the_map_with_the_fingers() -> void:
+	await _aim_at_province(0)
+	var centre := tree.root.get_visible_rect().size * 0.5
+	var east := _camera.focus + Vector2(_camera.z * 0.2, 0.0)
+	var east_3d := Vector3(east.x, 0.0, east.y)
+	var before := (_camera.unproject_position(east_3d) - centre).angle()
+	var arm := Vector2(180.0, 0.0)
+	var turned := arm.rotated(deg_to_rad(25.0))
+	await two_fingers(centre - arm, centre - turned, centre + arm, centre + turned)
+	await wait(0.4)
+	var after := (_camera.unproject_position(east_3d) - centre).angle()
+	assert_gt(rad_to_deg(after - before), 15.0, "地圖跟著兩指轉同一個方向")
+	assert_eq(_hud._card.province, -1, "兩指手勢不算點選")
+
+
+func test_long_press_shows_the_hint_without_selecting() -> void:
+	var screen := await _aim_at_province(0)
+	await touch(0, screen, true)
+	await wait(0.7)
+	assert_eq(_camera._hover_province, 0, "長按顯示該州郡的提示")
+	await touch(0, screen, false)
+	await frames(2)
+	assert_eq(_hud._card.province, -1, "長按放開不算點選")
