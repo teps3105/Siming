@@ -77,9 +77,9 @@ static func focus_row_limits(map_size: Vector2, z: float) -> Vector2:
 	return Vector2(lo2, hi2)
 
 
-## 把 x 搬到離 reference 最近的東西副本。
-static func nearest_copy_x(x: float, reference: float, map_w: float) -> float:
-	return x + map_w * roundf((reference - x) / map_w)
+## 把 x 搬到離 near_x 最近的東西副本。
+static func nearest_copy_x(x: float, near_x: float, map_w: float) -> float:
+	return x + map_w * roundf((near_x - x) / map_w)
 
 
 static func globe_radius(map_w: float) -> float:

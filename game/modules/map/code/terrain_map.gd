@@ -39,6 +39,8 @@ var _terrain_material: ShaderMaterial
 var _river_material: ShaderMaterial
 var _terrain_copies: Array[MeshInstance3D] = []
 var _river_copies: Array[MeshInstance3D] = []
+var _ley_material: ShaderMaterial
+var _ley_copies: Array[MeshInstance3D] = []
 var _province_colors: ImageTexture
 var _blank_colors: ImageTexture
 var _height_scale := 1.0
@@ -47,24 +49,31 @@ var _height_scale := 1.0
 ## 以世界資料建立地圖。世界改變地形後再呼叫一次即可重建。
 func build(world: SimWorld) -> void:
 	_world = world
-	for copy in _terrain_copies + _river_copies:
+	for copy in _terrain_copies + _river_copies + _ley_copies:
 		copy.queue_free()
 	_terrain_copies.clear()
 	_river_copies.clear()
+	_ley_copies.clear()
 
 	var grid := world.grid_size()
 	map_size = Vector2(grid)
 	_terrain_material = _make_terrain_material(world)
-	_river_material = _make_river_material()
+	_river_material = _make_line_material()
+	_ley_material = _make_line_material()
+	_ley_material.set_shader_parameter("line_color", _lin(CYAN))
+	_ley_material.set_shader_parameter("level_width_px", Vector3(1.5, 2.0, 3.0))
+	_ley_material.render_priority = 2
 
 	var terrain_mesh := _mesh_from(world.terrain_mesh(), "normals", "uvs", "curvature")
 	var river_mesh := _mesh_from(world.river_mesh(), "tangents", "side_level", "taper")
+	var ley_mesh := _mesh_from(_ley_arrays(world), "tangents", "side_level", "taper")
 	# 頂點著色器會把網格搬到球面上，包圍盒以整張地圖加星球為準。
 	var reach := map_size.x * 2.0
 	var bounds := AABB(Vector3(-reach, -reach, -reach), Vector3.ONE * reach * 2.0 + Vector3(map_size.x, 0.0, map_size.y))
 	for i in COPIES:
 		_terrain_copies.append(_add_copy("Terrain%d" % i, terrain_mesh, _terrain_material, bounds))
 		_river_copies.append(_add_copy("River%d" % i, river_mesh, _river_material, bounds))
+		_ley_copies.append(_add_copy("Ley%d" % i, ley_mesh, _ley_material, bounds))
 	recenter(map_size.x * 0.5)
 	set_mode(mode)
 
@@ -74,7 +83,7 @@ func recenter(focus_x: float) -> void:
 	var base := floorf(focus_x / map_size.x)
 	for i in COPIES:
 		var offset := (base + float(i - 1)) * map_size.x
-		for copy: MeshInstance3D in [_terrain_copies[i], _river_copies[i]]:
+		for copy: MeshInstance3D in [_terrain_copies[i], _river_copies[i], _ley_copies[i]]:
 			copy.position.x = offset
 			copy.set_instance_shader_parameter("copy_offset", offset)
 
@@ -85,8 +94,10 @@ func set_mode(new_mode: Mode) -> void:
 	_terrain_material.set_shader_parameter("tint_opacity", 0.45 if mode == Mode.TIANXIA else 0.0)
 	_terrain_material.set_shader_parameter("pcol_tex", _province_colors if mode == Mode.TIANXIA else _blank_colors)
 	# GDD 5.3「河流」設色：山河、天下用 water 色；靈脈等以場為主的模式改用 ink-light。
-	var line := WATER if mode != Mode.LINGMAI else INK_LIGHT
-	_river_material.set_shader_parameter("line_color", _lin(line.darkened(0.25)))
+	var line := WATER.darkened(0.25) if mode != Mode.LINGMAI else INK_LIGHT
+	_river_material.set_shader_parameter("line_color", _lin(line))
+	for copy in _ley_copies:
+		copy.visible = mode == Mode.LINGMAI
 
 
 func set_hover(province: int) -> void:
@@ -105,7 +116,7 @@ func update_view(z: float, focus: Vector2, camera_basis: Basis, delta: float) ->
 	globe_xform = MapView.globe_frame(focus, map_size, camera_basis)
 	_height_scale = MapView.height_scale(z, map_size.x)
 	var radius := MapView.globe_radius(map_size.x)
-	for material: ShaderMaterial in [_terrain_material, _river_material]:
+	for material: ShaderMaterial in [_terrain_material, _river_material, _ley_material]:
 		material.set_shader_parameter("height_scale", _height_scale)
 		material.set_shader_parameter("globe_morph", eased)
 		material.set_shader_parameter("globe_radius", radius)
@@ -196,7 +207,7 @@ func _mesh_from(data: Dictionary, normal_key: String, uv_key: String, uv2_key: S
 func _make_terrain_material(world: SimWorld) -> ShaderMaterial:
 	var grid := world.grid_size()
 	var textures := world.map_textures()
-	var scale: int = textures["scale"]
+	var texel_scale: int = textures["scale"]
 	var material := ShaderMaterial.new()
 	material.shader = TERRAIN_SHADER
 	material.set_shader_parameter("paper", _lin(PAPER))
@@ -213,10 +224,10 @@ func _make_terrain_material(world: SimWorld) -> ShaderMaterial:
 	material.set_shader_parameter("paper_tex", _texture(512, 512, Image.FORMAT_RGBA8, SimWorld.paper_texture(), true))
 	material.set_shader_parameter("stroke_tex", _texture(256, 256, Image.FORMAT_R8, SimWorld.stroke_texture(), true))
 	material.set_shader_parameter(
-		"terrain_tex", _texture(grid.x * scale, grid.y * scale, Image.FORMAT_RGBA8, textures["terrain"], false)
+		"terrain_tex", _texture(grid.x * texel_scale, grid.y * texel_scale, Image.FORMAT_RGBA8, textures["terrain"], false)
 	)
 	material.set_shader_parameter(
-		"field_tex", _texture(grid.x * scale, grid.y * scale, Image.FORMAT_R8, textures["aura"], false)
+		"field_tex", _texture(grid.x * texel_scale, grid.y * texel_scale, Image.FORMAT_R8, textures["aura"], false)
 	)
 	material.set_shader_parameter("cls_a_tex", _texture(grid.x, grid.y, Image.FORMAT_RGBA8, textures["cls_a"], false))
 	material.set_shader_parameter("cls_b_tex", _texture(grid.x, grid.y, Image.FORMAT_RGBA8, textures["cls_b"], false))
@@ -228,12 +239,44 @@ func _make_terrain_material(world: SimWorld) -> ShaderMaterial:
 	return material
 
 
-func _make_river_material() -> ShaderMaterial:
+func _make_line_material() -> ShaderMaterial:
 	var material := ShaderMaterial.new()
 	material.shader = RIVER_SHADER
 	material.set_shader_parameter("map_size", map_size)
 	material.render_priority = 1
 	return material
+
+
+## 靈脈線（GDD 5.4 靈脈模式）：沿路徑建立與河流相同格式的帶狀網格，等級依強度（福地 1、洞天 2、大洞天 3）。
+func _ley_arrays(world: SimWorld) -> Dictionary:
+	var positions := PackedVector3Array()
+	var tangents := PackedVector3Array()
+	var side_level := PackedVector2Array()
+	var taper := PackedVector2Array()
+	var indices := PackedInt32Array()
+	for line: Dictionary in world.ley_lines():
+		var path: PackedVector2Array = line["path"]
+		if path.size() < 2:
+			continue
+		var level := clampf(roundf((line["strength"] as float) * 4.0 - 1.0), 1.0, 3.0)
+		var points := PackedVector3Array()
+		var x := path[0].x
+		for p in path:
+			# 路徑跨過東西接縫時接到最近的副本，避免橫越整張地圖。
+			x = MapView.nearest_copy_x(p.x, x, map_size.x)
+			points.append(Vector3(x, world.terrain_height_at(p.x, p.y), p.y))
+		var base := positions.size()
+		for i in points.size():
+			var tangent := (points[mini(i + 1, points.size() - 1)] - points[maxi(i - 1, 0)]).normalized()
+			for side: float in [-1.0, 1.0]:
+				positions.append(points[i])
+				tangents.append(tangent)
+				side_level.append(Vector2(side, level))
+				taper.append(Vector2(1.0, 0.0))
+		for i in points.size() - 1:
+			var a := base + i * 2
+			indices.append_array([a, a + 1, a + 2, a + 1, a + 3, a + 2])
+	return {"positions": positions, "tangents": tangents, "side_level": side_level, "taper": taper, "indices": indices}
 
 
 static func _texture(width: int, height: int, format: Image.Format, data: PackedByteArray, mipmaps: bool) -> ImageTexture:

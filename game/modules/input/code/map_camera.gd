@@ -99,8 +99,8 @@ func _on_mouse_motion(event: InputEventMouseMotion) -> void:
 	use_crosshair = false
 	_hover_timer = 0.0
 	if _dragging and event.position.distance_to(_press_position) > CLICK_SLOP:
-		var scale := _ground_width() / get_viewport().get_visible_rect().size.x
-		_target_focus -= Vector2(event.relative.x, event.relative.y / sin(MapView.pitch(z, _map.map_size.x))).rotated(-yaw) * scale
+		var per_pixel := _ground_width() / get_viewport().get_visible_rect().size.x
+		_target_focus -= Vector2(event.relative.x, event.relative.y / sin(MapView.pitch(z, _map.map_size.x))).rotated(-yaw) * per_pixel
 	if _rotating:
 		_target_yaw = clampf(_target_yaw - event.relative.x * 0.005, -deg_to_rad(YAW_LIMIT_DEG), deg_to_rad(YAW_LIMIT_DEG))
 
@@ -125,8 +125,8 @@ func _process(delta: float) -> void:
 
 func _apply(delta: float) -> void:
 	var map_size := _map.map_size
-	var range := MapView.z_range(map_size.x)
-	_target_z = clampf(_target_z, range.x, range.y)
+	var limits := MapView.z_range(map_size.x)
+	_target_z = clampf(_target_z, limits.x, limits.y)
 	var rows := MapView.focus_row_limits(map_size, _target_z)
 	_target_focus.y = clampf(_target_focus.y, rows.x, rows.y)
 
@@ -146,8 +146,8 @@ func _apply(delta: float) -> void:
 ## 以指定螢幕位置為中心縮放：縮放後該位置下的地面點不動。
 func _zoom_about(screen: Vector2, factor: float) -> void:
 	var before := _map.pick(project_ray_origin(screen), project_ray_normal(screen))
-	var range := MapView.z_range(_map.map_size.x)
-	var new_z := clampf(_target_z * factor, range.x, range.y)
+	var limits := MapView.z_range(_map.map_size.x)
+	var new_z := clampf(_target_z * factor, limits.x, limits.y)
 	if before != Vector2.INF and _map.globe_morph < 0.5:
 		var ratio := new_z / _target_z
 		_target_focus = before + (_target_focus - before) * ratio
@@ -156,9 +156,9 @@ func _zoom_about(screen: Vector2, factor: float) -> void:
 
 ## 畫面中心橫向可見的地面寬度。
 func _ground_width() -> float:
-	var size := get_viewport().get_visible_rect().size
+	var view := get_viewport().get_visible_rect().size
 	var distance := z / sin(MapView.pitch(z, _map.map_size.x))
-	return 2.0 * distance * tan(deg_to_rad(fov) * 0.5) * size.x / size.y
+	return 2.0 * distance * tan(deg_to_rad(fov) * 0.5) * view.x / view.y
 
 
 func _pointer() -> Vector2:

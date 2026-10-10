@@ -4,6 +4,7 @@
 [ext_resource type="Script" uid="uid://bho1nfnlgwdgh" path="res://modules/sim/code/sim_host.gd" id="2_a78tf"]
 [ext_resource type="Script" uid="uid://buhwme4h8mx2h" path="res://modules/map/code/terrain_map.gd" id="3_a78tf"]
 [ext_resource type="Script" uid="uid://bwi3bn04voat0" path="res://modules/input/code/map_camera.gd" id="4_bu7yx"]
+[ext_resource type="PackedScene" uid="uid://d3bjy88130ghv" path="res://modules/hud/scenes/hud.tscn" id="5_bu7yx"]
 
 [node name="Bootstrap" type="Node" unique_id=1432952675]
 script = ExtResource("1_y1w63")
@@ -17,3 +18,5 @@ script = ExtResource("3_a78tf")
 [node name="MapCamera" type="Camera3D" parent="." unique_id=742446819]
 current = true
 script = ExtResource("4_bu7yx")
+
+[node name="Hud" parent="." unique_id=546557000 instance=ExtResource("5_bu7yx")]
