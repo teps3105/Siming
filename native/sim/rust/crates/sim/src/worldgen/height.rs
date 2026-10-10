@@ -655,7 +655,7 @@ pub fn seabed(hh: &mut [f32], sea: f32, info: &SeabedInfo, area: &[f32], w: usiz
             3 => {
                 let bank = band(b, WG_BAND_ARC) * info.arc_gate[c];
                 if bank > 0.3 {
-                    depth = depth.min(WG_ARC_BANK_DEPTH + 0.02 * (1.0 - bank));
+                    depth = depth.min(WG_ARC_BANK_DEPTH);
                 }
             }
             _ => {}
