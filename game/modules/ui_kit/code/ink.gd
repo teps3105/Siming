@@ -1,7 +1,8 @@
 class_name Ink
 extends RefCounted
-## GDD 5.7「司命案頭」的器物繪製：紙簽、印章、圓印、橫條。所有介面元件以這些函式在 _draw 中畫出，
+## GDD 5.7「司命案頭」的器物繪製：裱框紙簽、印章、圓印、墨條、墨劃。所有介面元件以這些函式在 _draw 中畫出，
 ## 不使用 Godot 預設主題的外觀。色票見 GDD 5.1。
+## 邊框語言只有一種——絹本裱框：直邊紙面、外圈綾邊、內緣一道金線、底下一層柔影。
 
 const FONT: FontFile = preload("res://modules/ui_kit/assets/fonts/wenkai_tc_subset.ttf")
 
@@ -17,53 +18,126 @@ const SILK := Color("3C4A52")
 const KARMA := Color("8C2A1C")
 
 ## 字級（GDD 5.7 檢查表第 5 項）。
-const SIZE_TITLE := 22
+const SIZE_TITLE := 20
 const SIZE_SECTION := 15
 const SIZE_BODY := 16
 const SIZE_NOTE := 13
+## Steam Deck 版面的最小字級（GDD 5.9）。
+const DECK_MIN_SIZE := 16
+
+## 綾邊寬：紙簽 3、命簿 6（GDD 5.8）。
+const SLIP_BAND := 3.0
+const CARD_BAND := 6.0
+## 尚未開放的印，印字的不透明度。
+const DISABLED_GLYPH_ALPHA := 0.75
+
+## 紙紋（8.3 `paper`，存的是乘數）；由 hud 在啟動時設定。使用它的 CanvasItem 要開啟 texture_repeat。
+static var paper_texture: Texture2D
+static var _frame_box: StyleBoxFlat
+static var _disc_box: StyleBoxFlat
 
 
-## 毛邊紙簽：柔影、紙面、淡墨細邊。邊緣以固定種子的微小起伏做出手撕感。
-static func paper_slip(item: CanvasItem, rect: Rect2, lift := 0.0, seed_value := 1) -> void:
+## 依版面倍率換算字級；放大的版面（Steam Deck）另有下限。
+static func font_size(base: int, unit: float) -> int:
+	if unit <= 1.0:
+		return base
+	return maxi(int(round(base * unit)), DECK_MIN_SIZE)
+
+
+## 裱框紙簽：柔影、綾邊（寬 band）、紙面與紙紋、內緣金線。rect 是紙面的範圍，綾邊畫在它外面。
+static func paper_slip(item: CanvasItem, rect: Rect2, band := SLIP_BAND) -> void:
 	if rect.size.x < 4.0 or rect.size.y < 4.0:
 		return
-	for i in 4:
-		var grow := float(4 - i) * 1.5
-		item.draw_rect(rect.grow(grow).grow_individual(0, 0, 0, 2.0 + lift), Color(INK, 0.035), true)
-	var points := _torn_outline(rect, seed_value)
-	item.draw_colored_polygon(points, PAPER_LIGHT)
-	points.append(points[0])
-	item.draw_polyline(points, Color(INK_LIGHT, 0.55), 1.0, true)
+	if _frame_box == null:
+		_frame_box = StyleBoxFlat.new()
+		_frame_box.bg_color = SILK
+		_frame_box.shadow_color = Color(INK, 0.28)
+		_frame_box.shadow_size = 7
+		_frame_box.shadow_offset = Vector2(0.0, 2.0)
+		_frame_box.anti_aliasing = false
+	item.draw_style_box(_frame_box, rect.grow(band))
+	_paper(item, rect)
+	item.draw_rect(rect.grow(-0.5), Color(GOLD, 0.75), false, 1.0)
 
 
-## 方形朱印：實心朱底反白字（啟用）、淡墨框墨字（未啟用）、淡紙底淡字（不可用）。
+## 圓形的裱框紙面（天時儀）：radius 含綾邊。
+static func paper_disc(item: CanvasItem, center: Vector2, radius: float, band := SLIP_BAND) -> void:
+	if _disc_box == null:
+		_disc_box = StyleBoxFlat.new()
+		_disc_box.bg_color = SILK
+		_disc_box.shadow_color = Color(INK, 0.28)
+		_disc_box.shadow_size = 7
+		_disc_box.shadow_offset = Vector2(0.0, 2.0)
+		_disc_box.corner_detail = 16
+	_disc_box.set_corner_radius_all(int(ceil(radius)))
+	item.draw_style_box(_disc_box, Rect2(center - Vector2.ONE * radius, Vector2.ONE * radius * 2.0))
+	item.draw_circle(center, radius - band, PAPER_LIGHT)
+	item.draw_arc(center, radius - band - 0.5, 0.0, TAU, 64, Color(GOLD, 0.75), 1.0, true)
+
+
+static func _paper(item: CanvasItem, rect: Rect2) -> void:
+	if paper_texture == null:
+		item.draw_rect(rect, PAPER_LIGHT, true)
+	else:
+		item.draw_texture_rect_region(paper_texture, rect, Rect2(rect.position, rect.size), PAPER_LIGHT)
+
+
+## 方印：實心朱底反白字（啟用中）、紙底綾框墨字（可選）、紙底虛框淡墨字（尚未開放）。
 static func seal(item: CanvasItem, rect: Rect2, glyph: String, active: bool, enabled := true, hover := false) -> void:
 	var inner := rect.grow(-1.0)
 	if active:
 		item.draw_rect(inner, SEAL_RED, true)
 		item.draw_rect(inner.grow(-3.0), Color(PAPER_LIGHT, 0.85), false, 1.0)
 		_centered_glyph(item, rect, glyph, PAPER_LIGHT)
+	elif enabled:
+		item.draw_rect(inner, PAPER_LIGHT, true)
+		item.draw_rect(inner, INK if hover else SILK, false, 2.0)
+		_centered_glyph(item, rect, glyph, INK)
 	else:
-		item.draw_rect(inner, Color(PAPER_LIGHT, 0.92 if enabled else 0.6), true)
-		var edge := INK if hover and enabled else INK_LIGHT
-		item.draw_rect(inner, Color(edge, 1.0 if enabled else 0.35), false, 1.5 if hover and enabled else 1.0)
-		_centered_glyph(item, rect, glyph, Color(INK, 1.0 if enabled else 0.3))
+		item.draw_rect(inner, Color(PAPER_LIGHT, 0.82), true)
+		var corners := [inner.position, Vector2(inner.end.x, inner.position.y), inner.end, Vector2(inner.position.x, inner.end.y)]
+		for side in 4:
+			item.draw_dashed_line(corners[side], corners[(side + 1) % 4], Color(INK_LIGHT, 0.8), 1.0, 4.0)
+		_centered_glyph(item, rect, glyph, Color(INK_LIGHT, DISABLED_GLYPH_ALPHA))
 
 
-## 圓印（天時儀盤心）。
-static func round_seal(item: CanvasItem, center: Vector2, radius: float, glyph: String, red: bool) -> void:
+## 圓印：朱底反白字（red），或紙底朱圈朱字。
+static func round_seal(item: CanvasItem, center: Vector2, radius: float, glyph: String, red: bool, hover := false) -> void:
+	if hover:
+		item.draw_circle(center, radius + 3.0, Color(INK, 0.16))
 	item.draw_circle(center, radius, SEAL_RED if red else PAPER_LIGHT)
 	item.draw_arc(center, radius, 0.0, TAU, 48, SEAL_RED if not red else Color(PAPER_LIGHT, 0.8), 1.5, true)
 	var rect := Rect2(center - Vector2.ONE * radius, Vector2.ONE * radius * 2.0)
 	_centered_glyph(item, rect, glyph, PAPER_LIGHT if red else SEAL_RED)
 
 
-## 0..1 的小橫條：淡墨底線加一筆有色墨。
-static func bar(item: CanvasItem, rect: Rect2, value: float, color: Color) -> void:
-	item.draw_rect(rect, Color(INK_LIGHT, 0.18), true)
-	var fill := rect
-	fill.size.x = rect.size.x * clampf(value, 0.0, 1.0)
-	item.draw_rect(fill, color, true)
+## 墨劃：兩端收細的一筆。
+static func stroke(item: CanvasItem, from: Vector2, to: Vector2, width: float, color: Color) -> void:
+	var side := (to - from).normalized().orthogonal() * width * 0.5
+	var a := from.lerp(to, 0.18)
+	var b := from.lerp(to, 0.82)
+	item.draw_colored_polygon(PackedVector2Array([from, a + side, b + side, to, b - side, a - side]), color)
+	item.draw_polyline(PackedVector2Array([from, a + side, b + side, to, b - side, a - side, from]), color, 1.0, true)
+
+
+## 墨條（GDD 5.8）：淡墨細線為底，0..1 的值畫成一筆墨劃。
+static func ink_bar(item: CanvasItem, rect: Rect2, value: float, color: Color) -> void:
+	var y := rect.get_center().y
+	item.draw_line(Vector2(rect.position.x, y), Vector2(rect.end.x, y), Color(INK_LIGHT, 0.35), 1.0)
+	var length := rect.size.x * clampf(value, 0.0, 1.0)
+	if length >= 2.0:
+		stroke(item, Vector2(rect.position.x, y), Vector2(rect.position.x + length, y), rect.size.y, color)
+
+
+## 分節：小墨點加節名（GDD 5.8）。pos 為左上角。
+static func section(item: CanvasItem, pos: Vector2, title: String, size: int) -> void:
+	var half := size * 0.24
+	var center := pos + Vector2(half, size * 0.62)
+	item.draw_colored_polygon(
+		PackedVector2Array([center + Vector2(0.0, -half), center + Vector2(half, 0.0), center + Vector2(0.0, half), center + Vector2(-half, 0.0)]),
+		INK_LIGHT
+	)
+	text(item, pos + Vector2(half * 2.0 + size * 0.4, 0.0), title, size, INK_LIGHT)
 
 
 ## 帶紙色描邊的文字（地圖標籤與紙面外的字）。pos 為文字左上角。
@@ -86,19 +160,3 @@ static func _centered_glyph(item: CanvasItem, rect: Rect2, glyph: String, color:
 	var size := int(rect.size.y * 0.62)
 	var extent := text_size(glyph, size)
 	text(item, rect.position + (rect.size - extent) * 0.5, glyph, size, color)
-
-
-static func _torn_outline(rect: Rect2, seed_value: int) -> PackedVector2Array:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = seed_value
-	var points := PackedVector2Array()
-	var corners := [rect.position, Vector2(rect.end.x, rect.position.y), rect.end, Vector2(rect.position.x, rect.end.y)]
-	for side in 4:
-		var from: Vector2 = corners[side]
-		var to: Vector2 = corners[(side + 1) % 4]
-		var normal := (to - from).normalized().orthogonal()
-		var steps := maxi(int(from.distance_to(to) / 14.0), 1)
-		for i in steps:
-			var jitter := 0.0 if i == 0 else rng.randf_range(-0.9, 0.9)
-			points.append(from.lerp(to, float(i) / steps) + normal * jitter)
-	return points

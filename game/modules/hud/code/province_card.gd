@@ -1,41 +1,49 @@
 class_name ProvinceCard
 extends Control
-## GDD 5.8 州郡卡（命簿）：右側卷軸式卡片，顯示選取州郡的名稱、民生、四條氣場橫條與三教教化；
-## 頁尾動作印「中」把鏡頭移到治所，右上「閉」印收卷。開關以展卷動畫呈現。
+## GDD 5.8 州郡卡（命簿）：卷軸式卡片——上下兩根軸頭，軸間是綾邊裱著的紙面。顯示選取州郡的名稱、
+## 地形組成、民生、氣場墨條與三教教化；頁尾動作印「中」把鏡頭移到治所，右上「閉」印收卷。
+## 值為零的墨條與沒有教化時的教化環不畫，卡片高度跟著內容走。
 
 signal center_requested(map_pos: Vector2)
 signal closed
 
-const WIDTH := 300.0
-const HEIGHT := 384.0
+const WIDTH := 380.0
+## 軸頭的高度。
 const ROD := 12.0
-const UNROLL_SECONDS := 0.18
-## 地形代碼（0 海 .. 8 澤）對應的字串鍵與色塊（GDD 5.1）。
-const TERRAIN_KEYS: Array[String] = [
-	"terrain_water", "terrain_water", "terrain_plains", "terrain_hills", "terrain_mountain",
-	"terrain_forest", "terrain_snow", "terrain_desert", "terrain_swamp",
+const UNROLL_SECONDS := 0.25
+const ROLL_UP_SECONDS := 0.18
+const CLOSE_RADIUS := 13.0
+const ACTION_RADIUS := 17.0
+## 低於這個值的氣場視為零，不畫墨條。
+const BAR_EPSILON := 0.005
+const BARS := [
+	["card_aura", "aura", Ink.CYAN],
+	["card_karma_qi", "karma_qi", Ink.KARMA],
+	["card_merit", "merit", Ink.GOLD],
+	["card_righteous", "righteous", Ink.INK],
 ]
-const TERRAIN_SWATCHES: Array[Color] = [
-	Color("7BA3B0"), Color("A3C3C4"), Color("BAC690"), Color("C9B58C"), Color("A49D97"),
-	Color("7AA06C"), Color("F1F0EA"), Color("D9C59A"), Color("8FA287"),
-]
+const FAITHS := [["faith_dao", Ink.CYAN], ["faith_shi", Ink.GOLD], ["faith_ru", Ink.INK]]
 
 var province := -1
 
 var _world: SimWorld
 var _unit := 1.0
+var _width := WIDTH
 var _info: Dictionary = {}
 var _open := 0.0
 var _target_open := 0.0
 var _hover := ""
 
 
-func setup(world: SimWorld, unit: float) -> void:
+## width 為卡片寬度（像素）；不指定時為 380 乘版面倍率。
+func setup(world: SimWorld, unit: float, width := -1.0) -> void:
 	_world = world
 	_unit = unit
-	custom_minimum_size = Vector2(WIDTH, HEIGHT) * unit
+	_width = width if width > 0.0 else WIDTH * unit
+	custom_minimum_size = Vector2(_width, ROD * 2.0 * unit)
 	size = custom_minimum_size
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 	visible = false
 
 
@@ -61,6 +69,8 @@ func close() -> void:
 func refresh() -> void:
 	if province >= 0:
 		_info = _world.province_info(province)
+		custom_minimum_size.y = _content_height() + ROD * 2.0 * _unit
+		size = custom_minimum_size
 		queue_redraw()
 
 
@@ -77,48 +87,86 @@ func request_center() -> void:
 func _process(delta: float) -> void:
 	if _open == _target_open:
 		return
-	_open = move_toward(_open, _target_open, delta / UNROLL_SECONDS)
+	_open = move_toward(_open, _target_open, delta / (UNROLL_SECONDS if _target_open > _open else ROLL_UP_SECONDS))
 	if _open <= 0.0:
 		visible = false
 	queue_redraw()
 
 
+## 要畫的墨條（字串鍵）：靈氣一律顯示，其餘只在值不為零時顯示。
+func _bar_keys() -> Array[String]:
+	var keys: Array[String] = []
+	for entry: Array in BARS:
+		if entry[0] == "card_aura" or float(_info[entry[1]]) >= BAR_EPSILON:
+			keys.append(entry[0])
+	return keys
+
+
+func _shows_faith_ring() -> bool:
+	var faith: Vector3 = _info["faith"]
+	return faith.x + faith.y + faith.z >= BAR_EPSILON
+
+
+## 兩根軸頭之間的高度。
+func _content_height() -> float:
+	var rows := 14.0 + 34.0 + 12.0 + 28.0 + 26.0 + 32.0 + 26.0 * _bar_keys().size() + 8.0 + 26.0
+	if _shows_faith_ring():
+		rows += 34.0
+	return (rows + 12.0 + ACTION_RADIUS * 2.0 + 14.0) * _unit + Ink.CARD_BAND * 2.0
+
+
+func _paper_rect(height: float) -> Rect2:
+	var inset := Ink.CARD_BAND + 4.0 * _unit
+	return Rect2(Vector2(inset, ROD * _unit + Ink.CARD_BAND), Vector2(size.x - inset * 2.0, height - Ink.CARD_BAND * 2.0))
+
+
+## 「閉」圓印的外接方框。
 func _close_rect() -> Rect2:
-	return Rect2(Vector2(size.x - 44.0 * _unit, (ROD + 10.0) * _unit), Vector2(28.0, 28.0) * _unit)
+	var paper := _paper_rect(_content_height())
+	var diameter := CLOSE_RADIUS * 2.0 * _unit
+	return Rect2(Vector2(paper.end.x - 12.0 * _unit - diameter, paper.position.y + 12.0 * _unit), Vector2(diameter, diameter))
 
 
+## 「中」圓印的外接方框。
 func _center_rect() -> Rect2:
-	return Rect2(Vector2(20.0 * _unit, size.y - (ROD + 46.0) * _unit), Vector2(32.0, 32.0) * _unit)
+	var paper := _paper_rect(_content_height())
+	var diameter := ACTION_RADIUS * 2.0 * _unit
+	return Rect2(Vector2(paper.position.x + 16.0 * _unit, paper.end.y - 14.0 * _unit - diameter), Vector2(diameter, diameter))
 
 
 func _draw() -> void:
 	if _info.is_empty():
 		return
 	var eased := smoothstep(0.0, 1.0, _open)
-	var body_height := (size.y - ROD * 2.0 * _unit) * eased
+	var full := _content_height()
+	var body_height := full * eased
 	var rod := ROD * _unit
-	# 上下軸頭（裱綾色）與紙面；展卷時紙面由上往下拉開。
-	var paper := Rect2(Vector2(6.0 * _unit, rod), Vector2(size.x - 12.0 * _unit, body_height))
-	Ink.paper_slip(self, paper, 2.0, 23)
-	for y in [0.0, rod + body_height]:
-		var bar := Rect2(Vector2(0.0, y), Vector2(size.x, rod))
-		draw_rect(bar, Ink.SILK, true)
-		draw_rect(Rect2(bar.position + Vector2(0.0, rod * 0.5 - 1.0), Vector2(size.x, 2.0)), Color(Ink.GOLD, 0.6), true)
+	# 紙面由上軸頭往下拉開；下軸頭跟著紙的下緣走。
+	if body_height > Ink.CARD_BAND * 2.0 + 4.0:
+		Ink.paper_slip(self, _paper_rect(body_height), Ink.CARD_BAND)
+	_draw_rod(0.0)
+	_draw_rod(rod + body_height)
 	if eased < 0.98:
 		return
 
-	var x := 22.0 * _unit
-	var y := rod + 14.0 * _unit
-	var note := int(Ink.SIZE_NOTE * _unit)
-	var body := int(Ink.SIZE_BODY * _unit)
-	Ink.text(self, Vector2(x, y), _info["name"], int(Ink.SIZE_TITLE * _unit))
-	var city := Locale.t("city_level_%d" % int(_info["city_level"]))
-	var title_width := Ink.text_size(_info["name"], int(Ink.SIZE_TITLE * _unit)).x
-	Ink.text(self, Vector2(x + title_width + 10.0 * _unit, y + 8.0 * _unit), city, note, Ink.INK_LIGHT)
-	Ink.seal(self, _close_rect(), Locale.t("card_close_seal"), false, true, _hover == "close")
-	y += 40.0 * _unit
-	draw_line(Vector2(x, y), Vector2(size.x - x, y), Color(Ink.INK_LIGHT, 0.5), 1.0)
-	y += 10.0 * _unit
+	var paper := _paper_rect(full)
+	var x := paper.position.x + 16.0 * _unit
+	var right := paper.end.x - 16.0 * _unit
+	var y := paper.position.y + 14.0 * _unit
+	var note := Ink.font_size(Ink.SIZE_NOTE, _unit)
+	var body := Ink.font_size(Ink.SIZE_BODY, _unit)
+	var section := Ink.font_size(Ink.SIZE_SECTION, _unit)
+	var title := Ink.font_size(Ink.SIZE_TITLE, _unit)
+
+	# 標題與副題，下方一道墨劃。
+	Ink.text(self, Vector2(x, y), _info["name"], title)
+	var title_width := Ink.text_size(_info["name"], title).x
+	Ink.text(self, Vector2(x + title_width + 10.0 * _unit, y + (title - note) * 0.8), Locale.t("city_level_%d" % int(_info["city_level"])), note, Ink.INK_LIGHT)
+	var close := _close_rect()
+	Ink.round_seal(self, close.get_center(), close.size.x * 0.5, Locale.t("card_close_seal"), true, _hover == "close")
+	y += 34.0 * _unit
+	Ink.stroke(self, Vector2(x, y), Vector2(right, y), 2.0 * _unit, Color(Ink.INK, 0.7))
+	y += 12.0 * _unit
 
 	# 地形組成：佔比最高的三種陸地地形，各一個色塊加百分比。
 	var mix: PackedInt32Array = _info["terrain_mix"]
@@ -132,51 +180,73 @@ func _draw() -> void:
 		var code: int = order[i]
 		if land == 0 or mix[code] == 0:
 			break
-		var chip := Rect2(Vector2(cursor, y + 4.0 * _unit), Vector2(12.0, 12.0) * _unit)
-		draw_rect(chip, TERRAIN_SWATCHES[code], true)
-		draw_rect(chip, Color(Ink.INK_LIGHT, 0.5), false, 1.0)
-		var label := "%s %d%%" % [Locale.t(TERRAIN_KEYS[code]), int(round(100.0 * mix[code] / land))]
-		Ink.text(self, Vector2(cursor + 17.0 * _unit, y), label, note, Ink.INK)
-		cursor += 17.0 * _unit + Ink.text_size(label, note).x + 12.0 * _unit
-	y += 26.0 * _unit
+		var key := TerrainSwatches.KEYS[code]
+		TerrainSwatches.chip(self, Rect2(Vector2(cursor, y + (note - 12.0 * _unit) * 0.5 + 2.0), Vector2(12.0, 12.0) * _unit), key)
+		var label := "%s %d%%" % [Locale.t(key), int(round(100.0 * mix[code] / land))]
+		Ink.text(self, Vector2(cursor + 17.0 * _unit, y), label, note)
+		cursor += 17.0 * _unit + Ink.text_size(label, note).x + 14.0 * _unit
+	y += 28.0 * _unit
 
-	Ink.text(self, Vector2(x, y), Locale.t("card_people"), int(Ink.SIZE_SECTION * _unit), Ink.INK_LIGHT)
-	y += 24.0 * _unit
+	Ink.section(self, Vector2(x, y), Locale.t("card_people"), section)
+	y += 26.0 * _unit
 	Ink.text(self, Vector2(x, y), "%s %s" % [Locale.t("card_population"), Locale.count(_info["population"])], body)
-	Ink.text(self, Vector2(x + 140.0 * _unit, y), "%s %s" % [Locale.t("card_capacity"), Locale.count(_info["capacity"])], body)
+	Ink.text(self, Vector2(x + (right - x) * 0.5, y), "%s %s" % [Locale.t("card_capacity"), Locale.count(_info["capacity"])], body)
 	y += 32.0 * _unit
 
-	var bars := [
-		["card_aura", _info["aura"], Ink.CYAN],
-		["card_karma_qi", _info["karma_qi"], Ink.KARMA],
-		["card_merit", _info["merit"], Ink.GOLD],
-		["card_righteous", _info["righteous"], Ink.INK],
-	]
-	for entry: Array in bars:
+	# 氣場墨條：數字寫在條的右端。
+	var shown := _bar_keys()
+	var label_width := 56.0 * _unit
+	var number_width := Ink.text_size("100%", note).x + 8.0 * _unit
+	for entry: Array in BARS:
+		if not shown.has(entry[0]):
+			continue
+		var value := float(_info[entry[1]])
 		Ink.text(self, Vector2(x, y), Locale.t(entry[0]), body)
-		Ink.bar(self, Rect2(Vector2(x + 52.0 * _unit, y + 8.0 * _unit), Vector2(size.x - x * 2.0 - 52.0 * _unit, 6.0 * _unit)), entry[1], entry[2])
+		var bar := Rect2(Vector2(x + label_width, y + body * 0.5 - 1.0), Vector2(right - x - label_width - number_width, 6.0 * _unit))
+		Ink.ink_bar(self, bar, value, entry[2])
+		var number := "%d%%" % int(round(clampf(value, 0.0, 1.0) * 100.0))
+		Ink.text(self, Vector2(right - Ink.text_size(number, note).x, y + (body - note) * 0.6), number, note, Ink.INK_LIGHT)
 		y += 26.0 * _unit
-	y += 6.0 * _unit
+	y += 8.0 * _unit
 
-	# 教化：道、釋、儒三段弧。
-	Ink.text(self, Vector2(x, y), Locale.t("card_faith"), int(Ink.SIZE_SECTION * _unit), Ink.INK_LIGHT)
-	var faith: Vector3 = _info["faith"]
-	var total := maxf(faith.x + faith.y + faith.z, 1e-4)
-	var ring_center := Vector2(size.x - 60.0 * _unit, y + 26.0 * _unit)
-	var start := -PI * 0.5
-	var colors := [Ink.CYAN, Ink.GOLD, Ink.INK]
-	var names := ["faith_dao", "faith_shi", "faith_ru"]
-	draw_arc(ring_center, 20.0 * _unit, 0.0, TAU, 48, Color(Ink.INK_LIGHT, 0.2), 7.0 * _unit, true)
-	for i in 3:
-		var sweep: float = TAU * faith[i] / total
-		if sweep > 0.01:
-			draw_arc(ring_center, 20.0 * _unit, start, start + sweep, 32, colors[i], 7.0 * _unit, true)
-		start += sweep
-		Ink.text(self, Vector2(x + i * 56.0 * _unit, y + 22.0 * _unit), "%s %d%%" % [Locale.t(names[i]), int(round(100.0 * faith[i] / total))], note, colors[i])
+	# 教化：道、釋、儒三段弧；字用墨色，顏色只在色塊與弧上。
+	Ink.section(self, Vector2(x, y), Locale.t("card_faith"), section)
+	if _shows_faith_ring():
+		var faith: Vector3 = _info["faith"]
+		var total := faith.x + faith.y + faith.z
+		var ring_radius := 18.0 * _unit
+		var ring_center := Vector2(right - ring_radius - 4.0 * _unit, y + 30.0 * _unit)
+		var start := -PI * 0.5
+		draw_arc(ring_center, ring_radius, 0.0, TAU, 48, Color(Ink.INK_LIGHT, 0.2), 6.0 * _unit, true)
+		cursor = x
+		y += 28.0 * _unit
+		for i in 3:
+			var sweep: float = TAU * faith[i] / total
+			if sweep > 0.01:
+				draw_arc(ring_center, ring_radius, start, start + sweep, 32, FAITHS[i][1], 6.0 * _unit, true)
+			start += sweep
+			draw_rect(Rect2(Vector2(cursor, y + (note - 10.0 * _unit) * 0.5 + 2.0), Vector2(10.0, 10.0) * _unit), FAITHS[i][1], true)
+			var label := "%s %d%%" % [Locale.t(FAITHS[i][0]), int(round(100.0 * faith[i] / total))]
+			Ink.text(self, Vector2(cursor + 15.0 * _unit, y), label, note)
+			cursor += 15.0 * _unit + Ink.text_size(label, note).x + 14.0 * _unit
+	else:
+		var heading := Ink.text_size(Locale.t("card_faith"), section).x + section * 1.1
+		Ink.text(self, Vector2(x + heading + 10.0 * _unit, y + (section - note) * 0.6), Locale.t("card_faith_none"), note, Ink.INK_LIGHT)
 
 	# 頁尾動作印。
-	Ink.seal(self, _center_rect(), Locale.t("act_center_seal"), false, true, _hover == "center")
-	Ink.text(self, _center_rect().position + Vector2(40.0 * _unit, 8.0 * _unit), Locale.t("act_center"), note, Ink.INK_LIGHT)
+	var action := _center_rect()
+	Ink.round_seal(self, action.get_center(), action.size.x * 0.5, Locale.t("act_center_seal"), false, _hover == "center")
+
+
+## 軸頭：墨色圓柱，兩端略粗。
+func _draw_rod(y: float) -> void:
+	var rod := ROD * _unit
+	var cap := 10.0 * _unit
+	draw_rect(Rect2(Vector2(cap * 0.5, y + rod * 0.2), Vector2(size.x - cap, rod * 0.6)), Ink.INK, true)
+	draw_rect(Rect2(Vector2(cap * 0.5, y + rod * 0.3), Vector2(size.x - cap, 1.0)), Color(Ink.INK_LIGHT, 0.9), true)
+	for cap_x: float in [0.0, size.x - cap]:
+		draw_rect(Rect2(Vector2(cap_x, y), Vector2(cap, rod)), Ink.INK, true)
+		draw_rect(Rect2(Vector2(cap_x, y + rod * 0.5 - 1.0), Vector2(cap, 2.0)), Color(Ink.GOLD, 0.8), true)
 
 
 func _gui_input(event: InputEvent) -> void:
@@ -195,8 +265,10 @@ func _gui_input(event: InputEvent) -> void:
 
 
 func _target_at(pos: Vector2) -> String:
-	if _close_rect().has_point(pos):
+	var close := _close_rect()
+	if pos.distance_to(close.get_center()) <= close.size.x * 0.5:
 		return "close"
-	if _center_rect().has_point(pos):
+	var action := _center_rect()
+	if pos.distance_to(action.get_center()) <= action.size.x * 0.5:
 		return "center"
 	return ""

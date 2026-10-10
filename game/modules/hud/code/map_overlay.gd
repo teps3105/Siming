@@ -33,6 +33,7 @@ func setup(world: SimWorld, map: TerrainMap, camera: MapCamera, unit: float) -> 
 	_camera = camera
 	_unit = unit
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	_labels.assign(world.map_labels())
 	_nodes.assign(world.ley_nodes())
@@ -194,14 +195,14 @@ func _draw_crosshair() -> void:
 
 
 func _draw_hover_tip() -> void:
-	var size := int(Ink.SIZE_NOTE * _unit)
+	var size := Ink.font_size(Ink.SIZE_NOTE, _unit)
 	var extent := Ink.text_size(_hover_text, size)
 	var anchor := get_viewport_rect().size * 0.5 if _camera.use_crosshair else get_local_mouse_position()
 	var slip := Rect2(anchor + Vector2(16.0, 18.0) * _unit, extent + Vector2(20.0, 12.0) * _unit)
 	var bounds := get_viewport_rect().size
 	slip.position.x = minf(slip.position.x, bounds.x - slip.size.x - 8.0)
 	slip.position.y = minf(slip.position.y, bounds.y - slip.size.y - 8.0)
-	Ink.paper_slip(self, slip, 0.0, 31)
+	Ink.paper_slip(self, slip)
 	Ink.text(self, slip.position + Vector2(10.0, 6.0) * _unit, _hover_text, size)
 
 
@@ -210,7 +211,7 @@ func _draw_prompts() -> void:
 	var entries := [["A", "prompt_select"], ["B", "prompt_back"], ["LB RB", "prompt_mode"], [Locale.t("prompt_start"), "prompt_pause"]]
 	if card_open:
 		entries.insert(2, ["X", "act_center"])
-	var size := int(Ink.SIZE_NOTE * _unit)
+	var size := Ink.font_size(Ink.SIZE_NOTE, _unit)
 	var parts: Array[String] = []
 	for entry: Array in entries:
 		parts.append("%s %s" % [entry[0], Locale.t(entry[1])])
@@ -218,5 +219,5 @@ func _draw_prompts() -> void:
 	var extent := Ink.text_size(line, size)
 	var bounds := get_viewport_rect().size
 	var slip := Rect2(Vector2(16.0 * _unit, bounds.y - extent.y - 28.0 * _unit), extent + Vector2(20.0, 12.0) * _unit)
-	Ink.paper_slip(self, slip, 0.0, 41)
+	Ink.paper_slip(self, slip)
 	Ink.text(self, slip.position + Vector2(10.0, 6.0) * _unit, line, size)

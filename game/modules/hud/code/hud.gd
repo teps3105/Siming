@@ -3,15 +3,18 @@ extends CanvasLayer
 ## GDD 5.7 介面佈局：把案頭器物放到畫面上並接到模擬、地圖與鏡頭。
 ## 常駐器物只有天時儀＋題簽（左上）與印匣（右下）；州郡卡與停留提示隨選取、停留出現。
 
-const MARGIN := 16.0
+const MARGIN := 12.0
 ## Steam Deck 版面（高度 ≤ 800）器物放大不改形（GDD 5.9）。
 const DECK_HEIGHT := 800.0
-const DECK_UNIT := 1.25
+const DECK_UNIT := 8.0 / 7.0
+## Steam Deck 版面的命簿是右側抽屜，寬度佔畫面的比例（GDD 5.8）。
+const DECK_CARD_WIDTH_FRAC := 0.45
 
 var _sim: SimHost
 var _map: TerrainMap
 var _camera: MapCamera
 var _unit := 1.0
+var _card_width := -1.0
 var _overlay: MapOverlay
 var _dial: TimeDial
 var _seals: SealBox
@@ -27,6 +30,8 @@ func setup(sim: SimHost, map: TerrainMap, camera: MapCamera) -> void:
 		_card.show_province(id)
 		_overlay.card_open = _card.is_open())
 	sim.advanced.connect(func(_months: int) -> void: _card.refresh())
+	var paper := Image.create_from_data(512, 512, false, Image.FORMAT_RGBA8, SimWorld.paper_texture())
+	Ink.paper_texture = ImageTexture.create_from_image(paper)
 	get_viewport().size_changed.connect(_layout)
 	_layout()
 
@@ -35,11 +40,13 @@ func setup(sim: SimHost, map: TerrainMap, camera: MapCamera) -> void:
 func _layout() -> void:
 	var bounds := get_viewport().get_visible_rect().size
 	var unit := DECK_UNIT if bounds.y <= DECK_HEIGHT else 1.0
-	if _dial == null or unit != _unit:
+	var card_width := bounds.x * DECK_CARD_WIDTH_FRAC if unit > 1.0 else -1.0
+	if _dial == null or unit != _unit or card_width != _card_width:
 		_unit = unit
+		_card_width = card_width
 		_build()
 	_seals.position = bounds - _seals.size - Vector2(MARGIN, MARGIN)
-	_card.position = Vector2(bounds.x - _card.size.x - MARGIN, MARGIN + 8.0)
+	_card.position = Vector2(bounds.x - _card.size.x - MARGIN, MARGIN)
 
 
 func _build() -> void:
@@ -64,7 +71,7 @@ func _build() -> void:
 
 	_card = ProvinceCard.new()
 	add_child(_card)
-	_card.setup(_sim.world, _unit)
+	_card.setup(_sim.world, _unit, _card_width)
 	_card.center_requested.connect(func(pos: Vector2) -> void: _camera.look_at_map(pos))
 	_card.closed.connect(func() -> void:
 		_map.set_selected(-1)

@@ -120,5 +120,6 @@
   "terrain_snow": "雪原",
   "terrain_swamp": "沼澤",
   "terrain_water": "水",
-  "prompt_start": "Start"
+  "prompt_start": "Start",
+  "card_faith_none": "尚無"
 }

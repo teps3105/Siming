@@ -47,6 +47,16 @@ PAPER = {"紙": "EDE4CF"}
 INK = {"墨": "2B2620"}
 
 
+TEXT_ON_PAPER = {"墨": "2B2620", "淡墨": "6B6152"}
+PAPER_LIGHT = "F3EBD8"
+
+
+def contrast(a: str, b: str) -> float:
+    """WCAG 2 的對比值：相對亮度較高者加 0.05，除以較低者加 0.05。"""
+    la, lb = (0.2126 * r + 0.7152 * g + 0.0722 * bl for r, g, bl in (linear(a), linear(b)))
+    return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
+
+
 def linear(hex_color: str) -> tuple[float, float, float]:
     out = []
     for i in (0, 2, 4):
@@ -119,6 +129,16 @@ def main() -> int:
         ("因果線色對紙", between(LINES, PAPER), delta),
         ("墨對紙（明度差）", between(INK, PAPER), lightness_gap),
     ]
+    # 紙面上的字只用墨與淡墨；對 paper-light 的 WCAG 對比須達 4.5（GDD 5.1「介面母題」）。
+    failed = False
+    print("紙面文字對 paper-light 的 WCAG 對比（門檻 4.5）")
+    for name, value in TEXT_ON_PAPER.items():
+        ratio = contrast(value, PAPER_LIGHT)
+        print(f"  {name} #{value}：{ratio:.1f}")
+        failed = failed or ratio < 4.5
+    if failed:
+        print("有文字色的對比不足")
+        return 1
     for title, pairs, measure in rows:
         print(title)
         for vision, matrix in VISIONS.items():
