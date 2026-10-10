@@ -269,7 +269,7 @@ impl SimWorld {
     }
 
     /// 地圖標籤（GDD 5.3「文字標籤」）：每筆有 `kind`（`province`、`river`、`range`、`node`、`continent`）、
-    /// `text`、`pos`（世界座標 x、z）與 `rank`（越大越重要）。
+    /// `text`、`pos`（世界座標 x、z）、`rank`（越大越重要）與 `path`（江河的幹流、山脈的主軸；其餘為空）。
     #[func]
     fn map_labels(&self) -> Array<VarDictionary> {
         let mut out = Array::new();
@@ -277,42 +277,106 @@ impl SimWorld {
             return out;
         };
         let w = s.world();
-        let gw = w.geo.w as u32;
+        let (gw, gwf) = (w.geo.w as u32, w.geo.w as f32);
         let centre = |cell: u32| Vector2::new((cell % gw) as f32 + 0.5, (cell / gw) as f32 + 0.5);
-        let mut push = |kind: &str, text: &str, pos: Vector2, rank: f32| {
-            let mut d = VarDictionary::new();
-            d.set("kind", &GString::from(kind));
-            d.set("text", &GString::from(text));
-            d.set("pos", pos);
-            d.set("rank", rank);
-            out.push(&d);
-        };
+        let mut push =
+            |kind: &str, text: &str, pos: Vector2, rank: f32, path: PackedVector2Array| {
+                let mut d = VarDictionary::new();
+                d.set("kind", &GString::from(kind));
+                d.set("text", &GString::from(text));
+                d.set("pos", pos);
+                d.set("rank", rank);
+                d.set("path", &path);
+                out.push(&d);
+            };
+        let none = PackedVector2Array::new;
         for c in &w.geo.continents {
-            push("continent", &c.name, centre(c.centroid), 100.0 + c.area);
+            push(
+                "continent",
+                &c.name,
+                centre(c.centroid),
+                100.0 + c.area,
+                none(),
+            );
         }
         for p in &w.provinces {
-            push("province", &p.name, centre(p.seat), p.city_level as f32);
+            push(
+                "province",
+                &p.name,
+                centre(p.seat),
+                p.city_level as f32,
+                none(),
+            );
         }
         for r in &w.geo.rivers {
             if let Some(&mid) = r.cells.get(r.cells.len() / 2) {
+                // 幹流的格心，由源頭到出海口；跨東西接縫時接到最近的副本，折線才連續。
+                let mut x_prev = centre(r.cells[0]).x;
+                let path: PackedVector2Array = r
+                    .cells
+                    .iter()
+                    .map(|&c| {
+                        let p = centre(c);
+                        x_prev = p.x + gwf * ((x_prev - p.x) / gwf).round();
+                        Vector2::new(x_prev, p.y)
+                    })
+                    .collect();
                 push(
                     "river",
                     &r.name,
                     centre(mid),
                     r.level as f32 * 10.0 + r.cells.len() as f32 * 0.01,
+                    path,
                 );
             }
         }
         for r in &w.geo.ranges {
+            // 山脈的走向：以最高峰為原點，取山脈格的主軸（共變異數的主方向），沿主軸兩端各延伸到最遠的格。
+            let peak = centre(r.peak);
+            let rel: Vec<(f32, f32)> = r
+                .cells
+                .iter()
+                .map(|&c| {
+                    let p = centre(c);
+                    let dx = p.x - peak.x;
+                    (dx - gwf * (dx / gwf).round(), p.y - peak.y)
+                })
+                .collect();
+            let n = rel.len().max(1) as f32;
+            let (mx, my) = rel
+                .iter()
+                .fold((0.0, 0.0), |a, p| (a.0 + p.0 / n, a.1 + p.1 / n));
+            let (mut sxx, mut sxy, mut syy) = (0.0f32, 0.0f32, 0.0f32);
+            for p in &rel {
+                let (dx, dy) = (p.0 - mx, p.1 - my);
+                sxx += dx * dx;
+                sxy += dx * dy;
+                syy += dy * dy;
+            }
+            let angle = 0.5 * (2.0 * sxy).atan2(sxx - syy);
+            let (ax, ay) = (angle.cos(), angle.sin());
+            let (mut lo, mut hi) = (0.0f32, 0.0f32);
+            for p in &rel {
+                let t = (p.0 - mx) * ax + (p.1 - my) * ay;
+                lo = lo.min(t);
+                hi = hi.max(t);
+            }
+            let at = |t: f32| Vector2::new(peak.x + mx + ax * t, peak.y + my + ay * t);
+            let path: PackedVector2Array = if hi - lo >= 1.0 {
+                [at(lo), at(0.5 * (lo + hi)), at(hi)].into_iter().collect()
+            } else {
+                none()
+            };
             push(
                 "range",
                 &r.name,
-                centre(r.peak),
+                peak,
                 10.0 + r.cells.len() as f32 * 0.01,
+                path,
             );
         }
         for n in &w.geo.nodes {
-            push("node", &n.name, centre(n.cell), n.strength * 20.0);
+            push("node", &n.name, centre(n.cell), n.strength * 20.0, none());
         }
         out
     }

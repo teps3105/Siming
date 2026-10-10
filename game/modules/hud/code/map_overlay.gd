@@ -72,39 +72,102 @@ func _draw_labels() -> void:
 		if z_frac > rule["z_max"] or z_frac < rule["z_min"]:
 			continue
 		var pos: Vector2 = label["pos"]
-		# 極區與墨線同步淡出（|緯度| 62°–78°）。
+		# 極區與州界同步淡出（|緯度| 62°–78°）。
 		var latitude := absf(90.0 - 180.0 * pos.y / _map.map_size.y)
 		var alpha := 1.0 - smoothstep(62.0, 78.0, latitude)
 		if alpha < 0.08:
 			continue
-		var world_pos := _world_position(pos)
-		if _camera.is_position_behind(world_pos):
-			continue
-		var point := _camera.unproject_position(world_pos)
 		var size := int(rule["size"] * _unit)
-		var extent := Ink.text_size(label["text"], size)
-		var rect := Rect2(point - Vector2(extent.x * 0.5, extent.y + 4.0), extent)
-		if not screen.encloses(rect):
+		var color := Color(KIND_COLORS[label["kind"]] as Color, alpha)
+		var text: String = label["text"]
+		var path: PackedVector2Array = label["path"]
+		# 江河與山脈：字沿河道或山脊一個一個排開；排不下就退回單點標籤。
+		if path.size() >= 2 and _map.globe_morph < 0.5:
+			var spots := _along_path(path, text, size, screen)
+			if not spots.is_empty():
+				var bounds := Rect2(spots[0], Vector2.ZERO)
+				for spot in spots:
+					bounds = bounds.expand(spot)
+				bounds = bounds.grow(size * 0.6)
+				if not _blocked(bounds, taken):
+					taken.append(bounds)
+					for i in spots.size():
+						var glyph := text[i]
+						var extent := Ink.text_size(glyph, size)
+						Ink.outlined_text(self, spots[i] - extent * 0.5, glyph, size, color)
+				continue
+		if not _visible_on_map(pos):
 			continue
-		var blocked := false
-		for other in taken:
-			if other.intersects(rect.grow(4.0)):
-				blocked = true
-				break
-		if blocked:
+		var point := _camera.unproject_position(_world_position(pos))
+		var extent := Ink.text_size(text, size)
+		var rect := Rect2(point - Vector2(extent.x * 0.5, extent.y + 4.0), extent)
+		if not screen.encloses(rect) or _blocked(rect, taken):
 			continue
 		taken.append(rect)
-		var color: Color = KIND_COLORS[label["kind"]]
-		Ink.outlined_text(self, rect.position, label["text"], size, Color(color, alpha))
+		Ink.outlined_text(self, rect.position, text, size, color)
+
+
+func _blocked(rect: Rect2, taken: Array[Rect2]) -> bool:
+	for other in taken:
+		if other.intersects(rect.grow(4.0)):
+			return true
+	return false
+
+
+## 該地圖座標在畫面上是否看得到：在鏡頭前方，且星球視角時位於朝向鏡頭的半球。
+func _visible_on_map(pos: Vector2) -> bool:
+	var world_pos := _world_position(pos)
+	if _camera.is_position_behind(world_pos):
+		return false
+	if _map.globe_morph > 0.5:
+		var outward := (world_pos - _map.globe_xform.origin).normalized()
+		return outward.dot((_camera.global_position - world_pos).normalized()) > 0.25
+	return true
+
+
+## 把 text 的每個字沿 path 排開，回傳各字中心的螢幕位置；畫面上的路徑太短或不在畫面內則回傳空陣列。
+## 字距介於 1.5 到 4 個字高，整段置中於路徑；由左到右（路徑近乎垂直時由上到下）閱讀。
+func _along_path(path: PackedVector2Array, text: String, size: int, screen: Rect2) -> PackedVector2Array:
+	var points := PackedVector2Array()
+	for p in path:
+		var world_pos := _world_position(p)
+		if _camera.is_position_behind(world_pos):
+			return PackedVector2Array()
+		points.append(_camera.unproject_position(world_pos))
+	var first := points[0]
+	var last := points[points.size() - 1]
+	var delta := last - first
+	if (absf(delta.x) >= absf(delta.y) and delta.x < 0.0) or (absf(delta.x) < absf(delta.y) and delta.y < 0.0):
+		points.reverse()
+	var lengths := PackedFloat32Array([0.0])
+	for i in range(1, points.size()):
+		lengths.append(lengths[i - 1] + points[i].distance_to(points[i - 1]))
+	var total := lengths[lengths.size() - 1]
+	var count := text.length()
+	if count < 2 or total < size * 1.5 * (count - 1):
+		return PackedVector2Array()
+	var spacing := minf(total / (count + 1), size * 4.0)
+	var start := (total - spacing * (count - 1)) * 0.5
+	var spots := PackedVector2Array()
+	var segment := 1
+	for i in count:
+		var target := start + spacing * i
+		while segment < lengths.size() - 1 and lengths[segment] < target:
+			segment += 1
+		var span := maxf(lengths[segment] - lengths[segment - 1], 1e-4)
+		var spot := points[segment - 1].lerp(points[segment], (target - lengths[segment - 1]) / span)
+		if not screen.has_point(spot):
+			return PackedVector2Array()
+		spots.append(spot)
+	return spots
 
 
 ## 靈脈模式的洞天福地：金點加青環，大小依強度（GDD 5.4）。
 func _draw_ley_nodes() -> void:
 	for node in _nodes:
-		var world_pos := _world_position(node["pos"])
-		if _camera.is_position_behind(world_pos):
+		if not _visible_on_map(node["pos"]):
 			continue
-		var point := _camera.unproject_position(world_pos)
+		var point := _camera.unproject_position(_world_position(node["pos"]))
 		var radius := (3.0 + 4.0 * (node["strength"] as float)) * _unit
 		draw_circle(point, radius, Ink.GOLD)
 		draw_arc(point, radius + 2.0 * _unit, 0.0, TAU, 24, Ink.CYAN, 1.5, true)
