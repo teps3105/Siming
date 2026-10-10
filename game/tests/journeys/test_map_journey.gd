@@ -130,15 +130,20 @@ func test_gamepad_drives_camera_time_and_modes() -> void:
 	assert_gt(_camera.focus.x, focus_before.x, "左搖桿平移")
 	assert_lt(_camera.z, z_before, "十字鍵上拉近")
 	assert_ne(_camera.yaw, yaw_before, "十字鍵左右旋轉")
-	await joy_button(JOY_BUTTON_BACK)
-	assert_eq(_sim.speed_index, 1, "Select 切到下一檔速度")
+	await joy_button(JOY_BUTTON_Y)
+	assert_eq(_sim.speed_index, 1, "Y 切到下一檔速度")
 	assert_false(_sim.paused, "切速度即放行")
 	for i in 3:
-		await joy_button(JOY_BUTTON_BACK)
+		await joy_button(JOY_BUTTON_Y)
 	assert_eq(_sim.speed_index, 0, "最快之後回到最慢")
 	var was_paused := _sim.paused
+	await joy_button(JOY_BUTTON_BACK)
+	assert_ne(_sim.paused, was_paused, "Select 切換暫停")
+	was_paused = _sim.paused
+	var speed := _sim.speed_index
 	await joy_button(JOY_BUTTON_START)
-	assert_ne(_sim.paused, was_paused, "Start 切換暫停")
+	assert_eq(_sim.paused, was_paused, "Start 留給選單，不暫停")
+	assert_eq(_sim.speed_index, speed, "Start 不調速")
 
 
 func test_gamepad_crosshair_selects_and_b_closes() -> void:
@@ -149,7 +154,7 @@ func test_gamepad_crosshair_selects_and_b_closes() -> void:
 	_camera.look_at_map(seat, _map.map_size.x * 0.2, true)
 	await frames(2)
 	await joy_button(JOY_BUTTON_A)
-	assert_eq(_hud._card.province, 0, "A 在游標處按左鍵：選取游標下的州郡")
+	assert_eq(_hud._card.province, 0, "A 鎖定離游標最近的治所並選取該州郡")
 	await joy_button(JOY_BUTTON_B)
 	assert_eq(_hud._card.province, -1, "B 返回")
 
@@ -278,7 +283,7 @@ func test_right_stick_moves_the_cursor_and_triggers_are_mouse_buttons() -> void:
 
 
 func test_pad_cursor_can_click_interface_buttons() -> void:
-	await joy_button(JOY_BUTTON_Y)
+	await joy_button(JOY_BUTTON_LEFT_STICK)
 	_camera.set_cursor_position(_hud._seals.position + _hud._seals._seal_rect(1).get_center())
 	await frames(2)
 	await joy_axis(JOY_AXIS_TRIGGER_LEFT, 1.0, 0.05)
@@ -287,12 +292,15 @@ func test_pad_cursor_can_click_interface_buttons() -> void:
 	var was_paused := _sim.paused
 	_camera.set_cursor_position(_hud._dial.position + _hud._dial._disc_center())
 	await frames(2)
+	await joy_axis(JOY_AXIS_TRIGGER_LEFT, 1.0, 0.05)
+	assert_ne(_sim.paused, was_paused, "游標移到行止鈕上按 LT 就切換行止")
+	was_paused = _sim.paused
 	await joy_button(JOY_BUTTON_A)
-	assert_ne(_sim.paused, was_paused, "游標移到行止鈕上按 A 就切換行止")
+	assert_eq(_sim.paused, was_paused, "A 不是滑鼠左鍵，不會按到游標下的介面按鈕")
 
 
 func test_right_trigger_held_rotates_with_the_cursor() -> void:
-	await joy_button(JOY_BUTTON_Y)
+	await joy_button(JOY_BUTTON_LEFT_STICK)
 	var yaw_before := _camera.yaw
 	var hold := InputEventJoypadMotion.new()
 	hold.axis = JOY_AXIS_TRIGGER_RIGHT
@@ -310,10 +318,32 @@ func test_right_trigger_held_rotates_with_the_cursor() -> void:
 
 func test_no_map_hint_while_the_pointer_is_on_an_instrument() -> void:
 	await _aim_at_province(0)
-	await joy_button(JOY_BUTTON_Y)
+	await joy_button(JOY_BUTTON_LEFT_STICK)
 	await frames(2)
 	assert_eq(_camera._hover_province, 0, "游標在地圖上：顯示游標下的州郡")
 	_camera.set_cursor_position(_hud._seals.position + _hud._seals._seal_rect(0).get_center())
 	await frames(3)
 	assert_eq(_camera._hover_province, -1, "游標在模式鈕上：不顯示地圖的停留提示")
+
+
+func test_a_locks_on_to_the_nearest_target_and_cycles() -> void:
+	await _aim_at_province(0)
+	await joy_button(JOY_BUTTON_LEFT_STICK)
+	# 把游標放在離治所有一段距離的地方：不必對準，A 會自己吸過去。
+	var seat: Vector2 = _sim.world.province_info(0)["seat"]
+	var seat_screen := _camera.unproject_position(Vector3(seat.x, _map.surface_height(seat.x, seat.y), seat.y))
+	_camera.set_cursor_position(seat_screen + Vector2(70.0, 40.0))
+	await frames(2)
+	await joy_button(JOY_BUTTON_A)
+	assert_eq(_hud._card.province, 0, "A 鎖定離游標最近的治所所在的州郡")
+	assert_lt(_camera.cursor_position().distance_to(seat_screen), 2.0, "游標吸到治所上")
+	await joy_button(JOY_BUTTON_A)
+	var second: int = _hud._card.province
+	assert_ne(second, 0, "再按一次換下一個最近的目標")
+	assert_gt(second, -1)
+	await joy_axis(JOY_AXIS_RIGHT_X, 1.0, 0.05)
+	_camera.set_cursor_position(seat_screen + Vector2(10.0, 10.0))
+	await frames(2)
+	await joy_button(JOY_BUTTON_A)
+	assert_eq(_hud._card.province, 0, "動過右搖桿後重新從最近的算起")
 

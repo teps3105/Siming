@@ -123,5 +123,6 @@
   "prompt_cursor": "游標",
   "prompt_rotate": "按住旋轉",
   "prompt_zoom": "縮放",
-  "prompt_turn": "旋轉"
+  "prompt_turn": "旋轉",
+  "prompt_lock": "鎖定"
 }

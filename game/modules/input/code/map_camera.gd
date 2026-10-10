@@ -2,7 +2,7 @@ class_name MapCamera
 extends Camera3D
 ## GDD 5.2 鏡頭：透視 30°，以焦點、離地高度 z 與方位角描述；俯角隨高度內插。
 ## 讀 InputMap 動作、滑鼠（拖曳平移、滾輪縮放、右鍵旋轉）、觸控與搖桿（GDD 5.9），並每幀把鏡頭狀態交給地圖。
-## 搖桿當滑鼠用：右搖桿移動游標，A、LT 是左鍵，RT 是右鍵；這裡把它們轉成滑鼠事件送回輸入分派，
+## 搖桿當滑鼠用：右搖桿移動游標，LT 是左鍵，RT 是右鍵；這裡把它們轉成滑鼠事件送回輸入分派，
 ## 地圖與介面因此都以同一條滑鼠路徑回應。
 ## 單指的點與拖由引擎轉成滑鼠事件（專案設定 emulate_mouse_from_touch），這裡只另外處理雙指與長按。
 
@@ -49,6 +49,8 @@ var _hover_province := -1
 var _last_pointer := Vector2.ZERO
 ## 搖桿游標在畫面上的位置；(-1, -1) 表示還沒用過，第一次用時放到畫面中央。
 var _cursor := Vector2(-1.0, -1.0)
+## 自動鎖定：這一輪已經鎖過的目標（索引）；游標或鏡頭被玩家移動後清空，重新從最近的算起。
+var _locked: Array[int] = []
 var _press_msec := 0
 ## 螢幕上的手指：index → 位置。
 var _touches := {}
@@ -114,6 +116,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		_on_mouse_motion(event)
 	elif event is InputEventJoypadButton or event is InputEventJoypadMotion:
 		use_crosshair = true
+	if event.is_action_pressed(InputActions.LOCK_ON):
+		_lock_on()
 
 
 static func _is_press(event: InputEvent) -> bool:
@@ -170,11 +174,44 @@ func set_cursor_position(screen: Vector2) -> void:
 	_send_pad_motion(Vector2.ZERO)
 
 
-## 搖桿當滑鼠：右搖桿移動游標，A、LT、RT 的按下與放開轉成滑鼠鍵事件。
+## 自動鎖定（GDD 5.9）：游標吸到畫面上離它最近、這一輪還沒鎖過的目標並選取；都鎖過了就從頭再來。
+func _lock_on() -> void:
+	if _map.globe_morph > 0.5:
+		return
+	var bounds := Rect2(Vector2.ZERO, get_viewport().get_visible_rect().size)
+	var from := cursor_position()
+	var targets := _map.lock_targets()
+	var on_screen := {}
+	for i in targets.size():
+		var x := MapView.nearest_copy_x(targets[i].x, focus.x, _map.map_size.x)
+		var world_pos := Vector3(x, _map.surface_height(targets[i].x, targets[i].y), targets[i].y)
+		if is_position_behind(world_pos):
+			continue
+		var screen := unproject_position(world_pos)
+		if bounds.has_point(screen):
+			on_screen[i] = screen
+	if on_screen.is_empty():
+		return
+	var fresh := on_screen.keys().filter(func(i: int) -> bool: return not _locked.has(i))
+	if fresh.is_empty():
+		_locked.clear()
+		fresh = on_screen.keys()
+	var best: int = fresh[0]
+	for i: int in fresh:
+		if (on_screen[i] as Vector2).distance_squared_to(from) < (on_screen[best] as Vector2).distance_squared_to(from):
+			best = i
+	_locked.append(best)
+	_cursor = on_screen[best]
+	_send_pad_motion(Vector2.ZERO)
+	_select_at(_cursor)
+
+
+## 搖桿當滑鼠：右搖桿移動游標，LT、RT 的按下與放開轉成滑鼠鍵事件。
 func _update_pad_mouse(delta: float) -> void:
 	var push := Input.get_vector(InputActions.CURSOR_LEFT, InputActions.CURSOR_RIGHT, InputActions.CURSOR_UP, InputActions.CURSOR_DOWN)
 	if push != Vector2.ZERO:
 		use_crosshair = true
+		_locked.clear()
 		var before := cursor_position()
 		var speed := CURSOR_SPEED * get_viewport().get_visible_rect().size.y / 1080.0
 		# 輸入量取平方，輕推時移得慢、好對準。
@@ -248,6 +285,7 @@ func _process(delta: float) -> void:
 	_update_pad_mouse(delta)
 	var pan := Input.get_vector(InputActions.PAN_LEFT, InputActions.PAN_RIGHT, InputActions.PAN_UP, InputActions.PAN_DOWN)
 	if pan != Vector2.ZERO:
+		_locked.clear()
 		_target_focus += pan.rotated(-yaw) * _ground_width() * PAN_PER_SECOND * delta
 	var zoom := Input.get_axis(InputActions.ZOOM_IN, InputActions.ZOOM_OUT)
 	if zoom != 0.0:

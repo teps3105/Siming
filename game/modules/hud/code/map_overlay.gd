@@ -285,6 +285,7 @@ func _draw_hover_tip() -> void:
 func _draw_prompts() -> void:
 	var entries := [
 		[[InputHints.label(InputActions.CURSOR_LEFT, true)], "prompt_cursor"],
+		[InputHints.labels(InputActions.LOCK_ON, true), "prompt_lock"],
 		[InputHints.labels(InputActions.PAD_LEFT, true), "prompt_select"],
 		[InputHints.labels(InputActions.PAD_RIGHT, true), "prompt_rotate"],
 		[[InputHints.label(InputActions.ZOOM_IN, true)], "prompt_zoom"],

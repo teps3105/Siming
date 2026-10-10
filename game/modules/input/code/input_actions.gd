@@ -11,9 +11,11 @@ const ZOOM_IN := &"map_zoom_in"
 const ZOOM_OUT := &"map_zoom_out"
 const ROTATE_LEFT := &"map_rotate_left"
 const ROTATE_RIGHT := &"map_rotate_right"
-## 搖桿當滑鼠用：左鍵（A、LT）與右鍵（RT），作用在游標的位置；右搖桿移動游標。
+## 搖桿當滑鼠用：左鍵（LT）與右鍵（RT），作用在游標的位置；右搖桿移動游標。
 const PAD_LEFT := &"pad_mouse_left"
 const PAD_RIGHT := &"pad_mouse_right"
+## 搖桿的 A：自動鎖定離游標最近的目標並選取；連按換下一個。
+const LOCK_ON := &"pad_lock_on"
 const CURSOR_LEFT := &"pad_cursor_left"
 const CURSOR_RIGHT := &"pad_cursor_right"
 const CURSOR_UP := &"pad_cursor_up"
@@ -21,8 +23,10 @@ const CURSOR_DOWN := &"pad_cursor_down"
 const CANCEL := &"ui_back"
 const CARD_CENTER := &"card_center"
 const PAUSE := &"time_pause"
-## 搖桿的 Select：切到下一檔速度，到最快再回到最慢。
+## 搖桿的 Y：切到下一檔速度，到最快再回到最慢。
 const SPEED_CYCLE := &"time_speed_cycle"
+## 搖桿的 Start：開總覽選單。
+const MENU := &"menu_open"
 const SPEED_1 := &"time_speed_1"
 const SPEED_2 := &"time_speed_2"
 const SPEED_3 := &"time_speed_3"
@@ -51,12 +55,15 @@ static func bindings() -> Dictionary:
 		CURSOR_RIGHT: ["axis:%d:1" % JOY_AXIS_RIGHT_X],
 		CURSOR_UP: ["axis:%d:-1" % JOY_AXIS_RIGHT_Y],
 		CURSOR_DOWN: ["axis:%d:1" % JOY_AXIS_RIGHT_Y],
-		PAD_LEFT: ["joy:%d" % JOY_BUTTON_A, "axis:%d:1" % JOY_AXIS_TRIGGER_LEFT],
+		PAD_LEFT: ["axis:%d:1" % JOY_AXIS_TRIGGER_LEFT],
+		LOCK_ON: ["joy:%d" % JOY_BUTTON_A],
 		PAD_RIGHT: ["axis:%d:1" % JOY_AXIS_TRIGGER_RIGHT],
 		CANCEL: [KEY_ESCAPE, "joy:%d" % JOY_BUTTON_B],
 		CARD_CENTER: [KEY_C, "joy:%d" % JOY_BUTTON_X],
-		PAUSE: [KEY_SPACE, "joy:%d" % JOY_BUTTON_START],
-		SPEED_CYCLE: ["joy:%d" % JOY_BUTTON_BACK],
+		PAUSE: [KEY_SPACE, "joy:%d" % JOY_BUTTON_BACK],
+		SPEED_CYCLE: ["joy:%d" % JOY_BUTTON_Y],
+		# 總覽選單（M2 才有內容）：先把鍵留給它。
+		MENU: ["joy:%d" % JOY_BUTTON_START],
 		SPEED_1: [KEY_1],
 		SPEED_2: [KEY_2],
 		SPEED_3: [KEY_3],

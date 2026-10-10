@@ -64,7 +64,7 @@ func _pause_key() -> String:
 	return InputHints.label(InputActions.PAUSE, gamepad)
 
 
-## 調速的鍵：鍵盤是第一速與第四速的數字鍵（表示 1 到 4），搖桿是切到下一檔的 Select。
+## 調速的鍵：鍵盤是第一速與第四速的數字鍵（表示 1 到 4），搖桿是切到下一檔的 Y。
 func _speed_keys() -> Array[String]:
 	if gamepad:
 		return [InputHints.label(InputActions.SPEED_CYCLE, true)]

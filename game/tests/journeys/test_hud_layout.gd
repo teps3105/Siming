@@ -115,12 +115,14 @@ func test_speed_strokes_sit_on_their_own_slip() -> void:
 
 func test_input_hints_come_from_the_binding_table() -> void:
 	assert_eq(InputHints.label(InputActions.PAUSE, false), "Space")
-	assert_eq(InputHints.label(InputActions.PAUSE, true), "Start")
+	assert_eq(InputHints.label(InputActions.PAUSE, true), "Select")
+	assert_eq(InputHints.label(InputActions.MENU, true), "Start")
 	assert_eq(InputHints.label(InputActions.CANCEL, false), "Esc")
 	assert_eq(InputHints.label(InputActions.CANCEL, true), "B")
 	assert_eq(InputHints.label(InputActions.MODE_LINGMAI, false), "F4")
-	assert_eq(InputHints.label(InputActions.SPEED_CYCLE, true), "Select")
-	assert_eq(InputHints.labels(InputActions.PAD_LEFT, true), ["A", "LT"], "一個動作的全部鍵")
+	assert_eq(InputHints.label(InputActions.SPEED_CYCLE, true), "Y")
+	assert_eq(InputHints.labels(InputActions.PAD_LEFT, true), ["LT"], "A 不兼作滑鼠左鍵")
+	assert_eq(InputHints.label(InputActions.LOCK_ON, true), "A")
 	assert_eq(InputHints.label(InputActions.PAD_RIGHT, true), "RT")
 	assert_eq(InputHints.label(InputActions.CURSOR_LEFT, true), Ink.PAD_RIGHT_STICK, "右搖桿畫成圖標")
 	assert_eq(InputHints.label(InputActions.ZOOM_IN, true), Ink.PAD_DPAD_VERTICAL, "縮放是十字鍵上下")
@@ -148,10 +150,10 @@ func test_every_control_has_text_and_a_key_image() -> void:
 
 func test_key_images_follow_the_input_device() -> void:
 	await _boot(FLOW_VIEW)
-	await joy_button(JOY_BUTTON_Y)
+	await joy_button(JOY_BUTTON_LEFT_STICK)
 	await frames(2)
-	assert_eq(_hud._dial._pause_key(), "Start", "搖桿模式畫搖桿的鍵")
-	assert_eq(_hud._dial._speed_keys(), ["Select"])
+	assert_eq(_hud._dial._pause_key(), "Select", "搖桿模式畫搖桿的鍵")
+	assert_eq(_hud._dial._speed_keys(), ["Y"])
 	assert_eq(_hud._seals._key_label(0), "", "搖桿模式不掛鍵帽")
 	assert_eq(_hud._seals._cycle_keys(), ["LB", "RB"])
 	assert_eq(_hud._card._close_key(), "B")

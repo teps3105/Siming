@@ -171,6 +171,14 @@ func pick(origin: Vector3, dir: Vector3) -> Vector2:
 
 
 ## 地圖座標所在的州郡 ID；水域或圖外為 -1。
+## 可以鎖定的目標（地圖座標）：各州郡的治所。M2 起加入人物與建築。
+func lock_targets() -> PackedVector2Array:
+	var out := PackedVector2Array()
+	for id in _world.province_count():
+		out.append(_world.province_info(id)["seat"])
+	return out
+
+
 func province_at(map_pos: Vector2) -> int:
 	if map_pos == Vector2.INF:
 		return -1
