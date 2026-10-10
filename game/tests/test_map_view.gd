@@ -1,5 +1,4 @@
-@tool
-extends McpTestSuite
+extends "res://tests/harness/suite.gd"
 ## GDD 5.2、5.3 鏡頭高度決定的畫面參數（MapView 純函式）。
 
 const MAP_W := 384.0

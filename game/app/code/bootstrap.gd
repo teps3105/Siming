@@ -2,8 +2,9 @@ extends Node
 ## 遊戲入口：裝配模擬、地圖、鏡頭與介面（GDD 6.4）。
 ## 開局設定畫面完成前，以固定種子開一個中尺寸世界。
 
-const START_SEED := 20261011
-const START_SIZE := "medium"
+## 開局的種子與星球尺寸（"small"、"medium"、"large"）；測試會在加入場景樹前改成小尺寸。
+@export var start_seed := 20261011
+@export var start_size := "medium"
 ## 開場鏡頭高度（地圖寬的比例）。
 const START_Z_FRAC := 0.3
 
@@ -14,7 +15,7 @@ const START_Z_FRAC := 0.3
 
 func _ready() -> void:
 	InputActions.register()
-	var error := _sim.create_world(START_SEED, START_SIZE)
+	var error := _sim.create_world(start_seed, start_size)
 	if not error.is_empty():
 		push_error("世界生成失敗：%s" % error)
 		return

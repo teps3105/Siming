@@ -16,6 +16,7 @@ game/modules/*/generated/*.dll
 game/modules/*/generated/*.pdb
 game/modules/*/generated/*.so
 game/modules/*/generated/*.dylib
+game/modules/*/generated/~*
 
 # 匯出成品
 builds/

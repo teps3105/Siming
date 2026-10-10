@@ -1,5 +1,4 @@
-@tool
-extends McpTestSuite
+extends "res://tests/harness/suite.gd"
 ## GDD 6.4 橋接：SimWorld 各方法回傳的型別與尺寸，以及同種子的確定性。
 
 const SEED := 20261011
