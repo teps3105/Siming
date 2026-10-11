@@ -5,6 +5,7 @@
 //! 坡緩處海岸曲折、坡陡處海岸平直，與實際地形相同。只做顯示用的換算，不進世界雜湊（GDD 6.1）。
 
 use crate::mapbake::{river_curves, RiverCurve};
+use siming_sim::params::{WG_DESERT_Q, WG_DESERT_T, WG_SNOW_T};
 use siming_sim::{FineGeography, Geography, Terrain};
 
 /// 高度貼圖相對來源格（細格）的放大倍率。
@@ -27,6 +28,10 @@ const GULLY_FLOOR: f32 = 0.012;
 /// 山區權重：相對高度占最高點的比例由此區間漸入。
 const MOUNTAIN_ALT_START: f32 = 0.14;
 const MOUNTAIN_ALT_FULL: f32 = 0.45;
+/// 冰雪覆蓋在雪原溫度門檻（`WG_SNOW_T`）上下這個溫度範圍內由滿退到無（GDD 5.3）。
+const SNOW_FADE: f32 = 0.05;
+/// 沙土覆蓋在沙漠濕度門檻（`WG_DESERT_Q`）上下這個濕度範圍內由滿退到無（GDD 5.3）。
+const SAND_FADE: f32 = 0.05;
 /// 河谷的半寬（遊戲格）：河線兩側在這個距離內往河心漸降。
 const RIVER_VALLEY_RADIUS: f32 = 1.1;
 /// 河谷深度 = (坡度 × `RIVER_SLOPE_GAIN` + 最高點高度 × `RIVER_BASE`) × 等級係數 × 河谷剖面。
@@ -50,6 +55,8 @@ pub struct Relief {
     pub climate: Vec<u8>,
     pub climate_w: usize,
     pub climate_h: usize,
+    /// 地表覆蓋（RG8，尺寸同 `climate`）：R 冰雪、G 沙土，0 無 .. 255 全覆蓋。
+    pub cover: Vec<u8>,
     pub sea_level: f32,
     /// 遊戲格尺寸（世界座標的單位）。
     pub grid_w: usize,
@@ -468,6 +475,27 @@ fn climate_color(temperature: f32, moisture: f32) -> [f32; 3] {
     mix3(SNOW, land, smoothstep(0.04, 0.14, temperature))
 }
 
+/// 冰雪覆蓋（0..1）：雪原與一樣冷的山地、丘陵終年積雪，邊緣隨溫度漸退；水域為 0。
+/// `snow_mask` 是模糊後的雪原類別遮罩，讓覆蓋的邊界跟著模擬的分類走。
+fn snow_cover(temperature: f32, snow_mask: f32, terrain: Terrain) -> f32 {
+    if matches!(terrain, Terrain::Sea | Terrain::Lake) {
+        return 0.0;
+    }
+    let cold = 1.0 - smoothstep(WG_SNOW_T - SNOW_FADE, WG_SNOW_T + SNOW_FADE, temperature);
+    cold.max(smoothstep(0.35, 0.75, snow_mask))
+}
+
+/// 沙土覆蓋（0..1）：沙漠與一樣乾熱的丘陵、山地是裸露的沙土，邊緣隨濕度漸退；水域為 0。
+/// 寒冷的乾地不算（那是冰原或凍原），所以溫度低於沙漠門檻（`WG_DESERT_T`）時為 0。
+fn sand_cover(temperature: f32, moisture: f32, sand_mask: f32, terrain: Terrain) -> f32 {
+    if matches!(terrain, Terrain::Sea | Terrain::Lake) {
+        return 0.0;
+    }
+    let dry = 1.0 - smoothstep(WG_DESERT_Q - SAND_FADE, WG_DESERT_Q + SAND_FADE, moisture);
+    let warm = smoothstep(WG_DESERT_T - SAND_FADE, WG_DESERT_T + SAND_FADE, temperature);
+    (dry * warm).max(smoothstep(0.35, 0.75, sand_mask))
+}
+
 /// 模擬的地形類別對應的底色；`None` 表示該類別不指定顏色（交給氣候與高度）。
 fn class_color(t: Terrain) -> Option<[f32; 3]> {
     match t {
@@ -579,7 +607,21 @@ pub fn build_relief(geo: &Geography, fine: &FineGeography) -> Relief {
     }
 
     // 植被底色：以氣候連續取色，再向模擬的地形類別靠 45%（類別遮罩先模糊，邊界柔和）。
+    // 地表覆蓋：冰雪與沙土各一個通道，由氣候與地形類別（遮罩先模糊）算出，邊緣漸退。
     let mut climate = vec![0u8; sw * sh * 3];
+    let mut cover = vec![0u8; sw * sh * 2];
+    let sand_mask: Vec<f32> = src
+        .terrain
+        .iter()
+        .map(|&t| if t == Terrain::Desert { 1.0 } else { 0.0 })
+        .collect();
+    let sand_mask = src.blur(&sand_mask);
+    let snow_mask: Vec<f32> = src
+        .terrain
+        .iter()
+        .map(|&t| if t == Terrain::Snow { 1.0 } else { 0.0 })
+        .collect();
+    let snow_mask = src.blur(&snow_mask);
     let class_weight: Vec<f32> = src
         .terrain
         .iter()
@@ -594,6 +636,10 @@ pub fn build_relief(geo: &Geography, fine: &FineGeography) -> Relief {
         for k in 0..3 {
             climate[i * 3 + k] = (c[k].clamp(0.0, 1.0) * 255.0).round() as u8;
         }
+        let frost = snow_cover(src.temperature[i], snow_mask[i], src.terrain[i]);
+        let sand = sand_cover(src.temperature[i], src.moisture[i], sand_mask[i], src.terrain[i]);
+        cover[i * 2] = (frost * 255.0).round() as u8;
+        cover[i * 2 + 1] = (sand * (1.0 - frost) * 255.0).round() as u8;
     }
 
     Relief {
@@ -602,6 +648,7 @@ pub fn build_relief(geo: &Geography, fine: &FineGeography) -> Relief {
         elevation,
         lake,
         climate,
+        cover,
         climate_w: sw,
         climate_h: sh,
         sea_level: src.sea_level,
@@ -634,6 +681,7 @@ mod tests {
         assert_eq!(r.elevation.len(), r.w * r.h);
         assert_eq!(r.lake.len(), r.w * r.h);
         assert_eq!(r.climate.len(), r.climate_w * r.climate_h * 3);
+        assert_eq!(r.cover.len(), r.climate_w * r.climate_h * 2);
         assert!(r.elevation.iter().all(|e| e.is_finite()));
     }
 

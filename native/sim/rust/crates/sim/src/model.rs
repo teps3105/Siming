@@ -372,6 +372,8 @@ pub enum EventKind {
     PowerFallen,
     Famine,
     BookEntry,
+    /// GDD 2.8 世界大事：大寒、大暖、末法、靈氣復甦的開始或結束。
+    WorldChanged,
 }
 
 /// GDD 3.5 天劫結果。
@@ -396,6 +398,8 @@ pub enum EventArgs {
     Book { entry: BookEntryKind },
     Sect { node: Option<NodeId> },
     Famine { deaths: u32 },
+    /// GDD 2.8：`new_era` 為真表示這件大事開啟了新紀元（年表的最後一筆）。
+    World { change: crate::evolution::WorldChange, new_era: bool },
 }
 
 /// GDD 3.3 因果帳中的一筆事件。文字不存在模擬中（由介面依 7.2 模板產生）。

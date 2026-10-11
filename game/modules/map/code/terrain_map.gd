@@ -24,9 +24,10 @@ const COAST_LINE := Color("3B5566")
 const SEA_RAMP: Array[Color] = [
 	Color("C9DDD8"), Color("A3C3C4"), Color("7BA3B0"), Color("567F97"), Color("3A5F7A"),
 ]
+## 沙土覆蓋的顏色（GDD 5.1 的沙漠色）。
+const SAND := Color("D9C59A")
 ## 高度色階：丘陵土色 → 山地岩色 → 高山灰 → 雪。
 const ROCK_RAMP: Array[Color] = [Color("C9B58C"), Color("B09C80"), Color("A49D97"), Color("F2F1EC")]
-const ICE := Color("EEF0EE")
 
 var map_size := Vector2.ZERO
 var mode: Mode = Mode.SHANHE
@@ -225,8 +226,8 @@ func _make_terrain_material(world: SimWorld) -> ShaderMaterial:
 	material.set_shader_parameter("cyan", _lin(CYAN))
 	material.set_shader_parameter("coast_line", _lin(COAST_LINE))
 	material.set_shader_parameter("sea_colors", _lin_array(SEA_RAMP))
+	material.set_shader_parameter("sand_color", _lin(SAND))
 	material.set_shader_parameter("rock_colors", _lin_array(ROCK_RAMP))
-	material.set_shader_parameter("ice_color", _lin(ICE))
 	material.set_shader_parameter("map_size", Vector2(grid))
 	material.set_shader_parameter("sea_level", textures["sea_level"])
 	material.set_shader_parameter("max_elevation", world.terrain_max_height() / (grid.x * 0.04))
@@ -246,6 +247,9 @@ func _make_terrain_material(world: SimWorld) -> ShaderMaterial:
 	var climate_size: Vector2i = textures["climate_size"]
 	material.set_shader_parameter(
 		"climate_tex", _texture(climate_size.x, climate_size.y, Image.FORMAT_RGB8, textures["climate"], false)
+	)
+	material.set_shader_parameter(
+		"cover_tex", _texture(climate_size.x, climate_size.y, Image.FORMAT_RG8, textures["cover"], false)
 	)
 	material.set_shader_parameter("paper_tex", _texture(512, 512, Image.FORMAT_RGBA8, SimWorld.paper_texture(), true))
 	var aura_scale: int = textures["aura_scale"]

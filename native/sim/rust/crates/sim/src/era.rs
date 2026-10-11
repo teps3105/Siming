@@ -7,7 +7,7 @@
 use serde::Deserialize;
 use std::collections::BTreeMap;
 
-/// 開啟紀元的世界大事的性質（GDD 2.8「世界大事與紀元」）。
+/// 開啟紀元的世界大事的性質（GDD 2.8「世界大事與紀元」）。變體的順序進世界雜湊，只在末尾追加。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum EraKind {
     /// 開天之初。

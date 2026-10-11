@@ -15,9 +15,9 @@ pub struct World {
     /// GDD 2.2 地理解析度的細格資料（渲染用；決策 #35）。
     pub fine: FineGeography,
     pub provinces: Vec<Province>,
-    /// GDD 2.6 紀元年表：依元年遞增；第一筆是開局的紀元。世界大事（2.8）接上後由它們追加。
+    /// GDD 2.6 紀元年表：依元年遞增；第一筆是開天的紀元，開局前的歷史已有數筆，之後由世界大事（2.8）追加。
     pub eras: Vec<crate::calendar::Era>,
-    /// GDD 2.8 天地的慢變量：寒暖、海平面偏移、靈潮；每世結算一次。
+    /// GDD 2.8 天地的慢變量（寒暖、海平面偏移、靈潮）、所在的時期與開局前的歷史年數；每世結算一次。
     pub evolution: crate::evolution::Evolution,
     pub souls: Vec<Soul>,
     pub persons: Vec<Person>,
@@ -41,18 +41,14 @@ impl World {
     /// 只有世界生成結果、尚未開天的世界（測試與 `Sim::from_parts` 用）。
     pub fn empty(params: WorldParams, geo: Geography, provinces: Vec<Province>) -> Self {
         let rng = RngStreams::new(params.seed);
-        let first_era = crate::calendar::Era {
-            name: crate::era::Lexicon::builtin().name(params.seed, 0, crate::era::EraKind::Genesis, &[]),
-            start_year: 1,
-        };
-        let evolution = crate::evolution::Evolution::new(params.seed, params.era);
+        let (evolution, eras) = crate::evolution::genesis(params.seed, params.era);
         Self {
             params,
             tick: 0,
             geo,
             fine: FineGeography::default(),
             provinces,
-            eras: vec![first_era],
+            eras,
             evolution,
             souls: Vec::new(),
             persons: Vec::new(),

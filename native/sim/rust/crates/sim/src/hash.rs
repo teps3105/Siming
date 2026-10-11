@@ -160,6 +160,7 @@ pub fn world_hash(world: &World) -> u64 {
     for era in &world.eras {
         str(&mut h, &era.name);
         h.write_u32(era.start_year);
+        h.write_u8(era.kind as u8);
     }
     feed(&mut h, &world.evolution);
     // M2 新欄位：魂、有名之人、勢力、宿緣、因果帳（含修剪／輸出游標）、天書、殺業對、關注、預跑旗標。

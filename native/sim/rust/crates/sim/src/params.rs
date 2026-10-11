@@ -540,14 +540,14 @@ pub const AURA_ERA_MIDDLE: f32 = 1.0;
 /// 7.1 `AURA_ERA` 末法時代倍率 0.6（GDD 2.4 格點靈氣；4.6 開局時代）。
 pub const AURA_ERA_DECLINE: f32 = 0.6;
 
-/// 7.1 `EVO_WARMTH_P1` 寒暖第一週期的長度下限 480 年（GDD 2.8 慢變量）。
-pub const EVO_WARMTH_P1_MIN: u32 = 480;
-/// 7.1 `EVO_WARMTH_P1` 寒暖第一週期的長度上限 720 年（GDD 2.8 慢變量）。
-pub const EVO_WARMTH_P1_MAX: u32 = 720;
-/// 7.1 `EVO_WARMTH_P2` 寒暖第二週期的長度下限 1,200 年（GDD 2.8 慢變量）。
-pub const EVO_WARMTH_P2_MIN: u32 = 1200;
-/// 7.1 `EVO_WARMTH_P2` 寒暖第二週期的長度上限 1,800 年（GDD 2.8 慢變量）。
-pub const EVO_WARMTH_P2_MAX: u32 = 1800;
+/// 7.1 `EVO_WARMTH_P1` 寒暖第一週期的長度下限 600 年（GDD 2.8 慢變量）。
+pub const EVO_WARMTH_P1_MIN: u32 = 600;
+/// 7.1 `EVO_WARMTH_P1` 寒暖第一週期的長度上限 900 年（GDD 2.8 慢變量）。
+pub const EVO_WARMTH_P1_MAX: u32 = 900;
+/// 7.1 `EVO_WARMTH_P2` 寒暖第二週期的長度下限 1,500 年（GDD 2.8 慢變量）。
+pub const EVO_WARMTH_P2_MIN: u32 = 1500;
+/// 7.1 `EVO_WARMTH_P2` 寒暖第二週期的長度上限 2,250 年（GDD 2.8 慢變量）。
+pub const EVO_WARMTH_P2_MAX: u32 = 2250;
 /// 7.1 `EVO_WARMTH_WEIGHT` 寒暖第一週期的權重 0.6（GDD 2.8 慢變量）。
 pub const EVO_WARMTH_W1: f32 = 0.6;
 /// 7.1 `EVO_WARMTH_WEIGHT` 寒暖第二週期的權重 0.4（GDD 2.8 慢變量）。
@@ -556,24 +556,44 @@ pub const EVO_WARMTH_W2: f32 = 0.4;
 pub const EVO_SEA_RANGE: f32 = 0.03;
 /// 7.1 `EVO_SEA_APPROACH` 海平面每世向目標靠近的比例 0.5（GDD 2.8 慢變量）。
 pub const EVO_SEA_APPROACH: f32 = 0.5;
-/// 7.1 `EVO_TIDE_PERIOD` 靈潮週期的長度下限 700 年（GDD 2.8 慢變量）。
-pub const EVO_TIDE_PERIOD_MIN: u32 = 700;
-/// 7.1 `EVO_TIDE_PERIOD` 靈潮週期的長度上限 1,100 年（GDD 2.8 慢變量）。
-pub const EVO_TIDE_PERIOD_MAX: u32 = 1100;
-/// 7.1 `EVO_TIDE_AMPLITUDE` 靈潮週期值在 1 上下的振幅 0.3（GDD 2.8 慢變量）。
-pub const EVO_TIDE_AMPLITUDE: f32 = 0.3;
-/// 7.1 `EVO_TIDE_APPROACH` 靈潮每世向週期值靠近的比例 0.2（GDD 2.8 慢變量）。
-pub const EVO_TIDE_APPROACH: f32 = 0.2;
+/// 7.1 `EVO_TIDE_PERIOD` 靈潮週期的長度下限 900 年（GDD 2.8 慢變量）。
+pub const EVO_TIDE_PERIOD_MIN: u32 = 900;
+/// 7.1 `EVO_TIDE_PERIOD` 靈潮週期的長度上限 1,400 年（GDD 2.8 慢變量）。
+pub const EVO_TIDE_PERIOD_MAX: u32 = 1400;
+/// 7.1 `EVO_TIDE_AMPLITUDE` 靈潮在 1 上下的振幅 0.4（GDD 2.8 慢變量）。
+pub const EVO_TIDE_AMPLITUDE: f32 = 0.4;
 /// 7.1 `EVO_TIDE_RANGE` 靈潮的下限 0.5（GDD 2.8 慢變量）。
 pub const EVO_TIDE_MIN: f32 = 0.5;
 /// 7.1 `EVO_TIDE_RANGE` 靈潮的上限 1.4（GDD 2.8 慢變量）。
 pub const EVO_TIDE_MAX: f32 = 1.4;
-/// 7.1 `EVO_TIDE_PHASE` 上古開局：靈潮週期在高點（相位 0.25 圈；GDD 2.8、4.6）。
-pub const EVO_TIDE_PHASE_PEAK: f32 = 0.25;
-/// 7.1 `EVO_TIDE_PHASE` 中古開局：靈潮週期在中點且正在退（相位 0.5 圈；GDD 2.8、4.6）。
-pub const EVO_TIDE_PHASE_FALLING: f32 = 0.5;
-/// 7.1 `EVO_TIDE_PHASE` 末法開局：靈潮週期在低點（相位 0.75 圈；GDD 2.8、4.6）。
-pub const EVO_TIDE_PHASE_TROUGH: f32 = 0.75;
+/// 7.1 `EVO_TIDE_TURN` 上古開局時靈潮在週期裡的位置 0.365 圈：過了高點、退到 1.3（GDD 2.8、4.6）。
+pub const EVO_TIDE_TURN_ANCIENT: f32 = 0.365;
+/// 7.1 `EVO_TIDE_TURN` 中古開局時靈潮在週期裡的位置 0.5 圈：退到 1.0（GDD 2.8、4.6）。
+pub const EVO_TIDE_TURN_MIDDLE: f32 = 0.5;
+/// 7.1 `EVO_TIDE_TURN` 末法開局時靈潮在週期裡的位置 0.75 圈：谷底 0.6（GDD 2.8、4.6）。
+pub const EVO_TIDE_TURN_DECLINE: f32 = 0.75;
+/// 7.1 `EVO_HISTORY` 上古開局前的歷史 600–1,200 年（GDD 2.8 開局前的歷史）。
+pub const EVO_HISTORY_ANCIENT: (u32, u32) = (600, 1200);
+/// 7.1 `EVO_HISTORY` 中古開局前的歷史 1,800–3,000 年（GDD 2.8 開局前的歷史）。
+pub const EVO_HISTORY_MIDDLE: (u32, u32) = (1800, 3000);
+/// 7.1 `EVO_HISTORY` 末法開局前的歷史 3,600–5,400 年（GDD 2.8 開局前的歷史）。
+pub const EVO_HISTORY_DECLINE: (u32, u32) = (3600, 5400);
+/// 7.1 `EVO_WARMTH_GATE` 大寒、大暖的進入門檻：寒暖的絕對值達 0.6（GDD 2.8 世界大事）。
+pub const EVO_WARMTH_ENTER: f32 = 0.6;
+/// 7.1 `EVO_WARMTH_GATE` 大寒、大暖的結束門檻：寒暖的絕對值回到 0.3（GDD 2.8 世界大事）。
+pub const EVO_WARMTH_LEAVE: f32 = 0.3;
+/// 7.1 `EVO_DECLINE_GATE` 末法的進入門檻：靈潮降到 0.7（GDD 2.8 世界大事）。
+pub const EVO_DECLINE_ENTER: f32 = 0.7;
+/// 7.1 `EVO_DECLINE_GATE` 末法的結束門檻：靈潮回到 0.9（GDD 2.8 世界大事）。
+pub const EVO_DECLINE_LEAVE: f32 = 0.9;
+/// 7.1 `EVO_REVIVAL_GATE` 靈氣復甦的進入門檻：靈潮漲到 1.3（GDD 2.8 世界大事）。
+pub const EVO_REVIVAL_ENTER: f32 = 1.3;
+/// 7.1 `EVO_REVIVAL_GATE` 靈氣復甦的結束門檻：靈潮退到 1.2（GDD 2.8 世界大事）。
+pub const EVO_REVIVAL_LEAVE: f32 = 1.2;
+/// 7.1 `EVO_ERA_MIN_YEARS` 兩次改元至少相隔 60 年（GDD 2.8 世界大事）。
+pub const EVO_ERA_MIN_YEARS: u32 = 60;
+/// 7.1 `EVO_EVENT_IMPORTANCE` 世界大事的事件重要度 5（GDD 2.8、7.2）。
+pub const EVO_EVENT_IMPORTANCE: u8 = 5;
 
 /// 7.1 `AURA_CELL_MAX` 格點靈氣上限 2（GDD 2.4 格點靈氣，截斷 0..2）。
 pub const AURA_CELL_MAX: f32 = 2.0;

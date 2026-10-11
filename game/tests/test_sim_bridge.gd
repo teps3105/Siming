@@ -43,6 +43,7 @@ func test_gdd_5_3_texture_sizes_follow_the_grid() -> void:
 	assert_eq((textures["lake"] as PackedByteArray).size(), elevation_size.x * elevation_size.y)
 	var climate_size: Vector2i = textures["climate_size"]
 	assert_eq((textures["climate"] as PackedByteArray).size(), climate_size.x * climate_size.y * 3)
+	assert_eq((textures["cover"] as PackedByteArray).size(), climate_size.x * climate_size.y * 2)
 	var aura_scale: int = textures["aura_scale"]
 	assert_eq((textures["aura"] as PackedByteArray).size(), grid.x * aura_scale * grid.y * aura_scale)
 	assert_eq((textures["province_id"] as PackedByteArray).size(), grid.x * grid.y * 2)
@@ -107,15 +108,18 @@ func test_date_uses_the_era_form_with_arabic_numerals() -> void:
 	var world := SimWorld.new()
 	assert_eq(world.create(20261011, "small"), "", "世界應能生成")
 	world.step(22)
-	# 世界生成後已預跑一段時間；預期值由 tick 換算（tick 1 是 1年 1月）。
+	# 世界生成後已預跑一段時間；月份由 tick 換算（tick 1 是 1月）。
 	var months := world.tick() - 1
 	var date := world.date_short()
 	var parts := date.split(" ")
 	assert_eq(parts.size(), 3, "日期是「某某紀元 N年 M月」：%s" % date)
 	assert_true(parts[0].ends_with("紀元") and parts[0].length() == 4, "紀元名是兩個字加「紀元」：%s" % parts[0])
-	assert_eq(parts[1], "%d年" % (months / 12 + 1))
+	assert_true(parts[1].ends_with("年") and parts[1].trim_suffix("年").is_valid_int(), "年是阿拉伯數字：%s" % parts[1])
 	assert_eq(parts[2], "%d月" % (months % 12 + 1))
-	assert_eq(world.date_text(), "%s（開天以來第 %d 年）" % [date, months / 12 + 1])
+	# 開局不是開天第一年：開局前的世界已有一段歷史（GDD 2.8）。
+	var history := world.history_years()
+	assert_gt(history, 0, "開局前已有歷史")
+	assert_eq(world.date_text(), "%s（開天以來第 %d 年）" % [date, history + months / 12 + 1])
 
 
 func test_gdd_5_3_range_label_paths_stay_on_land() -> void:

@@ -104,7 +104,7 @@ impl SimWorld {
     #[func]
     fn date_text(&self) -> GString {
         match self.sim.as_ref() {
-            Some(s) => GString::from(calendar::full(s.world().tick, &s.world().eras).as_str()),
+            Some(s) => GString::from(calendar::full(s.world().tick, s.world().evolution.history_years, &s.world().eras).as_str()),
             None => GString::new(),
         }
     }
@@ -113,9 +113,15 @@ impl SimWorld {
     #[func]
     fn date_short(&self) -> GString {
         match self.sim.as_ref() {
-            Some(s) => GString::from(calendar::era_date(s.world().tick, &s.world().eras).as_str()),
+            Some(s) => GString::from(calendar::era_date(s.world().tick, s.world().evolution.history_years, &s.world().eras).as_str()),
             None => GString::new(),
         }
+    }
+
+    /// GDD 2.8 開局前已過的年數：開天以來的年數 = 這個數 + 開局後的年數。
+    #[func]
+    fn history_years(&self) -> i64 {
+        self.sim.as_ref().map_or(0, |s| i64::from(s.world().evolution.history_years))
     }
 
     /// GDD 6.5 世界雜湊，十六進位 16 字元。
@@ -182,7 +188,7 @@ impl SimWorld {
 
     /// 世界貼圖（GDD 5.3「貼圖」）：
     /// `elevation`（相對海平面的高度，`PackedFloat32Array`）與 `elevation_size`、`lake`（R8，同尺寸）、
-    /// `climate`（RGB8）與 `climate_size`、`sea_level`、`aura`（R8，格 × `aura_scale`）、`province_id`（RG8，格）。
+    /// `climate`（RGB8）、`cover`（RG8，尺寸同 `climate`：R 冰雪、G 沙土）與 `climate_size`、`sea_level`、`aura`（R8，格 × `aura_scale`）、`province_id`（RG8，格）。
     #[func]
     fn map_textures(&self) -> VarDictionary {
         let mut d = VarDictionary::new();
@@ -200,6 +206,7 @@ impl SimWorld {
         );
         d.set("lake", &bytes(&relief.lake));
         d.set("climate", &bytes(&relief.climate));
+        d.set("cover", &bytes(&relief.cover));
         d.set(
             "climate_size",
             Vector2i::new(relief.climate_w as i32, relief.climate_h as i32),

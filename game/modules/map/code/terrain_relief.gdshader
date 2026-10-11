@@ -3,7 +3,7 @@
 // 一切只依高度貼圖（相對海平面的高度，陸正海負）：
 //   海岸線 = 高度為 0 的等值線；暈渲 = 高度場的逐像素坡向；設色 = 植被底色依高度漸入岩色與雪。
 // 合成順序：1 陸地設色 → 2 暈渲 → 3 水（海深、湖）→ 4 海岸線 → 5 地圖模式疊色 → 6 州界
-//           → 7 停留／選取 → 8 極冰 → 9 紙紋與霧 → 10 古地圖化。
+//           → 7 停留／選取 → 8 紙紋與霧 → 9 古地圖化。
 // 河流不在此著色，見 river_line.gdshader。
 shader_type spatial;
 render_mode unshaded, cull_disabled, world_vertex_coords;
@@ -15,8 +15,8 @@ uniform vec3 gold;
 uniform vec3 cyan;
 uniform vec3 coast_line;         // 海岸線色
 uniform vec3 sea_colors[5];      // 海深色階（淺 → 深）
+uniform vec3 sand_color;         // 沙土覆蓋的顏色
 uniform vec3 rock_colors[4];     // 高度色階：丘陵土色 → 山地岩色 → 高山灰 → 雪
-uniform vec3 ice_color;
 uniform vec3 shadow_tint = vec3(0.52, 0.58, 0.70); // 陰面乘色（偏花青）
 uniform vec3 light_tint = vec3(1.10, 1.07, 0.98);  // 陽面乘色（偏暖）
 
@@ -43,15 +43,13 @@ instance uniform float copy_offset = 0.0;
 uniform sampler2D elevation_tex : repeat_enable, filter_linear_mipmap;
 uniform sampler2D lake_tex : repeat_enable, filter_linear_mipmap;
 uniform sampler2D climate_tex : repeat_enable, filter_linear, source_color;
+uniform sampler2D cover_tex : repeat_enable, filter_linear;
 uniform sampler2D paper_tex : repeat_enable, filter_linear_mipmap;
 uniform sampler2D field_tex : repeat_enable, filter_linear;
 uniform sampler2D pid_tex : filter_nearest;   // RG8：州郡 ID 低、高位元組
 uniform sampler2D pcol_tex : filter_nearest;  // 256×1：州郡 ID → 淡彩（sRGB）
 
 const float NO_PROVINCE = 65535.0;
-// 極區：|緯度| 自 72° 起漸變為極冰，84° 起完全是極冰；高度同步壓平。
-const float POL_SIN0 = 0.95105652;
-const float POL_SIN1 = 0.99452190;
 // 地形高度：相對高度 × 地圖寬 × 此係數（GDD 5.3）。
 const float HEIGHT_GAIN = 0.04;
 
@@ -59,21 +57,16 @@ varying vec3 v_wpos;
 varying vec2 v_lpos;
 varying vec3 v_sdir;
 
-float polar_weight(float sin_lat) {
-	return smoothstep(POL_SIN0, POL_SIN1, abs(sin_lat));
-}
-
 void vertex() {
 	float lon = UV.x * TAU;
 	float lat = (0.5 - UV.y) * PI;
 	vec3 dir = vec3(cos(lat) * cos(lon), sin(lat), -cos(lat) * sin(lon));
-	float flat_k = 1.0 - polar_weight(dir.y);
 	// 邊疆帶（UV 夾在 0／1）高度為 0。
 	float inside = step(0.0, VERTEX.z) * step(VERTEX.z, map_size.y);
 	// 網格每個遊戲格四個頂點（頂點間距為 2 個紋素），取第 1.5 級的高度以免取樣不足拉出尖刺；
 	// 更細的起伏交給著色的浮雕暈渲。
 	float e = textureLod(elevation_tex, UV, 1.5).r;
-	float h1 = max(e, 0.0) * map_size.x * HEIGHT_GAIN * flat_k * inside;
+	float h1 = max(e, 0.0) * map_size.x * HEIGHT_GAIN * inside;
 	vec3 wp = vec3(VERTEX.x, h1 * height_scale, VERTEX.z);
 	if (globe_morph > 0.0) {
 		float r = globe_radius + h1 * height_scale * globe_relief;
@@ -215,8 +208,6 @@ void fragment() {
 	vec2 wp = v_lpos;
 	vec2 uv = vec2(wp.x / map_size.x, clamp(wp.y / map_size.y, 0.0, 1.0));
 	vec3 d = normalize(v_sdir);
-	float pol = polar_weight(d.y);
-	float flat_k = 1.0 - pol;
 
 	// 每像素涵蓋幾個遊戲格（東西接縫兩側差一整圈，取週期內最短差）。
 	vec2 dwx = dFdx(wp);
@@ -256,14 +247,19 @@ void fragment() {
 	float lake_mask = smoothstep(0.5 - 0.5 * fw_l, 0.5 + 0.5 * fw_l, lake_v);
 	float wmask = max(sea_mask, lake_mask);
 
-	// 1 陸地設色：植被底色依高度漸入土色、岩色與雪；雪線隨緯度降低。
+	// 1 陸地設色：植被底色依高度漸入土色、岩色與雪；雪線隨緯度降低；終年積雪處為冰原，乾熱裸地為沙漠。
 	vec3 veg = texture(climate_tex, uv).rgb;
+	// 地表覆蓋：R 冰雪、G 沙土。沙土蓋在植被底色上（高處照常漸入岩色），冰雪蓋在高度色階上。
+	vec2 cover = texture(cover_tex, uv).rg;
+	veg = mix(veg, sand_color, cover.g * 0.9);
 	float alt = clamp(max(e, 0.0) / max(max_elevation, 1e-4) + 0.28 * d.y * d.y, 0.0, 1.0);
 	vec3 land = veg;
 	land = mix(land, rock_colors[0], smoothstep(0.10, 0.34, alt) * 0.55);
 	land = mix(land, rock_colors[1], smoothstep(0.30, 0.55, alt) * 0.8);
 	land = mix(land, rock_colors[2], smoothstep(0.52, 0.74, alt) * 0.9);
 	land = mix(land, rock_colors[3], smoothstep(0.72, 0.90, alt));
+	// 冰原：終年積雪的地方（雪原與同樣寒冷的山地）不分高低都覆上雪色，起伏交給暈渲。
+	land = mix(land, rock_colors[3], cover.r * 0.92);
 	// 陡坡露岩：坡度大的地方植被少。
 	land = mix(land, rock_colors[1], smoothstep(0.010, 0.035, slope) * 0.35 * (1.0 - smoothstep(0.72, 0.90, alt)));
 
@@ -271,7 +267,7 @@ void fragment() {
 	// 平原只留粗坡向，不出現細碎紋理。稜線提亮、谷線壓暗（曲率），像壓印出來的地形。
 	// 古地圖化時保留一半，仍看得出山勢。
 	float mountain = smoothstep(0.10, 0.50, alt);
-	float relief = map_size.x * HEIGHT_GAIN * mix(1.0, 0.5, flatten) * flat_k * emboss_strength;
+	float relief = map_size.x * HEIGHT_GAIN * mix(1.0, 0.5, flatten) * emboss_strength;
 	vec3 ldir = normalize(light_dir);
 	float fine_gain = relief * mix(0.35, 1.5, mountain);
 	float wide_gain = relief * mix(1.3, 2.2, mountain);
@@ -346,16 +342,13 @@ void fragment() {
 		col = mix(col, gold, 0.95 * hot_cov * land_f);
 	}
 
-	// 8 極冰
-	col = mix(col, ice_color, pol);
-
-	// 9 紙紋（極淡，只給印在紙上的質感）與距離霧
+	// 8 紙紋（極淡，只給印在紙上的質感）與距離霧
 	vec3 pap = texture(paper_tex, wp / 22.0).rgb / 0.96;
 	col *= mix(vec3(1.0), pap, 0.35 + 0.35 * flatten);
 	float dist = length(CAMERA_POSITION_WORLD - v_wpos);
 	col = mix(col, paper, smoothstep(fog_start, fog_end, dist) * 0.85);
 
-	// 10 古地圖化：整體向紙色靠攏；南北緣之外的邊疆帶淡成紙色。
+	// 9 古地圖化：整體向紙色靠攏；南北緣之外的邊疆帶淡成紙色。
 	col = mix(col, mix(col, paper, 0.22), flatten);
 	float out_y = max(-wp.y, wp.y - map_size.y);
 	float fade_y = smoothstep(-2.0, 0.05 * map_size.x, out_y) * (1.0 - globe_morph);

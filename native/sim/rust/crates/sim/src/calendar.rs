@@ -65,15 +65,22 @@ pub struct Era {
     pub name: String,
     /// 這個紀元的元年是自開天起的第幾年（1 起算）。
     pub start_year: u32,
+    /// 開啟這個紀元的世界大事的性質。
+    pub kind: crate::era::EraKind,
 }
 
 /// 開局那件世界大事的名稱；自它起算的年份寫作「開天以來第 N 年」。
 pub const GENESIS: &str = "開天";
 
+/// 自開天起的第幾年（1 起算）：`history` 是開局前已過的年數（GDD 2.8）。
+pub fn total_year(tick: Tick, history: u32) -> u32 {
+    history + date(tick).total_year
+}
+
 /// `tick` 所在的紀元與紀元內的年份（1 起算）：取起始年不晚於當年的最後一個紀元。
 /// `eras` 須依起始年遞增排列，且第一個紀元始於第 1 年。
-pub fn era_year(tick: Tick, eras: &[Era]) -> (&Era, u32) {
-    let total = date(tick).total_year;
+pub fn era_year(tick: Tick, history: u32, eras: &[Era]) -> (&Era, u32) {
+    let total = total_year(tick, history);
     let era = eras
         .iter()
         .rev()
@@ -83,24 +90,24 @@ pub fn era_year(tick: Tick, eras: &[Era]) -> (&Era, u32) {
 }
 
 /// 日期（GDD 2.6）：「鴻蒙紀元 12年 11月」，供題簽使用。年、月用阿拉伯數字。
-pub fn era_date(tick: Tick, eras: &[Era]) -> String {
-    let (era, year) = era_year(tick, eras);
+pub fn era_date(tick: Tick, history: u32, eras: &[Era]) -> String {
+    let (era, year) = era_year(tick, history, eras);
     format!("{}紀元 {}年 {}月", era.name, year, date(tick).month)
 }
 
 /// 完整日期：紀元日期加自開天起的年份，「鴻蒙紀元 12年 11月（開天以來第 12 年）」。
-pub fn full(tick: Tick, eras: &[Era]) -> String {
+pub fn full(tick: Tick, history: u32, eras: &[Era]) -> String {
     format!(
         "{}（{}以來第 {} 年）",
-        era_date(tick, eras),
+        era_date(tick, history, eras),
         GENESIS,
-        date(tick).total_year
+        total_year(tick, history)
     )
 }
 
 /// 天書與卡片中的年份標記：「第 N 年」（自開天起，Arabic 數字；GDD 2.6）。
-pub fn year_label(tick: Tick) -> String {
-    format!("第 {} 年", date(tick).total_year)
+pub fn year_label(tick: Tick, history: u32) -> String {
+    format!("第 {} 年", total_year(tick, history))
 }
 
 #[cfg(test)]
@@ -176,22 +183,23 @@ mod tests {
         vec![Era {
             name: "鴻蒙".to_string(),
             start_year: 1,
+            kind: crate::era::EraKind::Genesis,
         }]
     }
 
     #[test]
     fn date_is_era_with_arabic_year_and_month() {
         let eras = chronicle();
-        assert_eq!(era_date(0, &eras), "鴻蒙紀元 1年 1月");
-        assert_eq!(era_date(12 * 11 + 11, &eras), "鴻蒙紀元 12年 11月");
+        assert_eq!(era_date(0, 0, &eras), "鴻蒙紀元 1年 1月");
+        assert_eq!(era_date(12 * 11 + 11, 0, &eras), "鴻蒙紀元 12年 11月");
         // 年份不在 30 年或 360 年處歸零。
-        assert_eq!(era_date(12 * 360 + 1, &eras), "鴻蒙紀元 361年 1月");
+        assert_eq!(era_date(12 * 360 + 1, 0, &eras), "鴻蒙紀元 361年 1月");
     }
 
     #[test]
     fn full_form_adds_the_year_since_genesis() {
         assert_eq!(
-            full(12 * 11 + 11, &chronicle()),
+            full(12 * 11 + 11, 0, &chronicle()),
             "鴻蒙紀元 12年 11月（開天以來第 12 年）"
         );
     }
@@ -202,18 +210,33 @@ mod tests {
         eras.push(Era {
             name: "玄冥".to_string(),
             start_year: 361,
+            kind: crate::era::EraKind::Cold,
         });
         // 第 360 年還在舊紀元；第 361 年是新紀元元年。
-        assert_eq!(era_date(12 * 359 + 12, &eras), "鴻蒙紀元 360年 12月");
-        assert_eq!(era_date(12 * 360 + 1, &eras), "玄冥紀元 1年 1月");
-        assert_eq!(era_date(12 * 371 + 3, &eras), "玄冥紀元 12年 3月");
-        assert_eq!(era_year(12 * 371 + 3, &eras).0.name, "玄冥");
+        assert_eq!(era_date(12 * 359 + 12, 0, &eras), "鴻蒙紀元 360年 12月");
+        assert_eq!(era_date(12 * 360 + 1, 0, &eras), "玄冥紀元 1年 1月");
+        assert_eq!(era_date(12 * 371 + 3, 0, &eras), "玄冥紀元 12年 3月");
+        assert_eq!(era_year(12 * 371 + 3, 0, &eras).0.name, "玄冥");
+    }
+
+    #[test]
+    fn history_before_the_opening_counts_into_the_year() {
+        // 開局前已過 1,800 年，目前的紀元始於第 1,741 年：開局第 1 年是該紀元的第 61 年。
+        let mut eras = chronicle();
+        eras.push(Era {
+            name: "玄冥".to_string(),
+            start_year: 1741,
+            kind: crate::era::EraKind::Cold,
+        });
+        assert_eq!(era_date(1, 1800, &eras), "玄冥紀元 61年 1月");
+        assert_eq!(full(13, 1800, &eras), "玄冥紀元 62年 1月（開天以來第 1802 年）");
     }
 
     #[test]
     fn year_label_is_total_year() {
-        assert_eq!(year_label(0), "第 1 年");
-        assert_eq!(year_label(13), "第 2 年");
-        assert_eq!(year_label(361), "第 31 年");
+        assert_eq!(year_label(0, 0), "第 1 年");
+        assert_eq!(year_label(13, 0), "第 2 年");
+        assert_eq!(year_label(361, 0), "第 31 年");
+        assert_eq!(year_label(361, 1800), "第 1831 年");
     }
 }

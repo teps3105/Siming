@@ -167,7 +167,7 @@ fn row(sim: &Sim) -> serde_json::Value {
     }
     json!({
         "tick": w.tick,
-        "date": calendar::era_date(w.tick, &w.eras),
+        "date": calendar::era_date(w.tick, w.evolution.history_years, &w.eras),
         "population": pop,
         "provinces": w.provinces.len(),
         "city_levels": lv,
@@ -254,74 +254,122 @@ fn era_of(era: EraArg) -> Era {
     }
 }
 
-/// GDD 2.8：多個種子的慢變量極值分佈（只算慢變量；世界生成重試換種子的情況不在內）。
+/// GDD 2.8：多個種子的統計（只算慢變量與紀元年表；世界生成重試換種子的情況不在內）。
 fn evolve_survey(seed: u64, yun: u32, era: EraArg, seeds: u32) -> Result<(), String> {
-    let shi = yun * MONTHS_PER_YUN / MONTHS_PER_SHI;
+    use siming_sim::era::{EraKind, Lexicon};
+    use siming_sim::evolution;
+    let lexicon = Lexicon::builtin();
+    let span = yun * MONTHS_PER_YUN / 12;
     // 各種子的：寒暖最高、寒暖最低、靈潮最高、靈潮最低。
     let mut extremes: [Vec<f32>; 4] = Default::default();
+    let (mut changes, mut lengths, mut opening_year, mut before) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    let mut kinds = std::collections::BTreeMap::<&str, u32>::new();
+    let mut opening_kinds = std::collections::BTreeMap::<&str, u32>::new();
     for i in 0..seeds {
-        let mut e = siming_sim::evolution::Evolution::new(seed + u64::from(i), era_of(era));
+        let s = seed + u64::from(i);
+        let (mut e, mut eras) = evolution::genesis(s, era_of(era));
+        let opening = e.history_years + 1;
+        let current = eras.last().expect("年表不空");
+        *opening_kinds.entry(current.kind.key()).or_default() += 1;
+        opening_year.push(opening - current.start_year + 1);
+        before.push(eras.len() as u32);
+        let known = eras.len();
         let (mut warm, mut cold, mut high, mut low) = (e.warmth, e.warmth, e.tide, e.tide);
-        for k in 1..=shi {
-            e.settle(k * 30);
+        let mut year = e.history_years + 30;
+        while year <= e.history_years + span {
+            let c = e.settle(year);
+            evolution::open_era(&e, &c, year, s, &lexicon, &mut eras);
             warm = warm.max(e.warmth);
             cold = cold.min(e.warmth);
             high = high.max(e.tide);
             low = low.min(e.tide);
+            year += 30;
         }
         for (list, v) in extremes.iter_mut().zip([warm, cold, high, low]) {
             list.push(v);
         }
+        changes.push((eras.len() - known) as u32);
+        for pair in eras[known - 1..].windows(2) {
+            lengths.push(pair[1].start_year - pair[0].start_year);
+        }
+        for x in &eras[known..] {
+            *kinds.entry(x.kind.key()).or_default() += 1;
+        }
+        let _ = EraKind::ALL;
     }
     println!("{seeds} 個種子（自 {seed} 起）　開局時代 {:?}　{yun} 運", era_of(era));
-    println!("{:<10} {:>7} {:>7} {:>7}", "", "最小", "中位", "最大");
+    println!("{:<12} {:>7} {:>7} {:>7}", "", "最小", "中位", "最大");
     for (label, list) in ["寒暖最高", "寒暖最低", "靈潮最高", "靈潮最低"].iter().zip(extremes.iter_mut()) {
         list.sort_by(|a, b| a.total_cmp(b));
-        println!("{:<10} {:>7.3} {:>7.3} {:>7.3}", label, list[0], list[list.len() / 2], list[list.len() - 1]);
+        println!("{:<12} {:>7.3} {:>7.3} {:>7.3}", label, list[0], list[list.len() / 2], list[list.len() - 1]);
     }
-    let share = |list: &[f32], hit: &dyn Fn(f32) -> bool| 100 * list.iter().filter(|v| hit(**v)).count() / list.len();
-    println!(
-        "到過門檻的種子比例　大暖（寒暖 ≥ 0.6）{}%　大寒（≤ −0.6）{}%　靈潮 ≥ 1.2：{}%　靈潮 ≤ 0.7：{}%",
-        share(&extremes[0], &|v| v >= 0.6),
-        share(&extremes[1], &|v| v <= -0.6),
-        share(&extremes[2], &|v| v >= 1.2),
-        share(&extremes[3], &|v| v <= 0.7),
-    );
+    for (label, list) in [
+        ("開局後改元次數", &mut changes),
+        ("紀元長度（年）", &mut lengths),
+        ("開局是紀元第幾年", &mut opening_year),
+        ("開局前紀元數", &mut before),
+    ] {
+        list.sort_unstable();
+        if list.is_empty() {
+            continue;
+        }
+        println!("{:<12} {:>7} {:>7} {:>7}", label, list[0], list[list.len() / 2], list[list.len() - 1]);
+    }
+    let within = changes.iter().filter(|c| (2..=6).contains(*c)).count() * 100 / changes.len();
+    println!("開局後改元 2–6 次的種子：{within}%");
+    let share = |m: &std::collections::BTreeMap<&str, u32>| {
+        let total: u32 = m.values().sum();
+        m.iter().map(|(k, v)| format!("{k} {}%", v * 100 / total.max(1))).collect::<Vec<_>>().join("　")
+    };
+    println!("開局所在的紀元：{}", share(&opening_kinds));
+    println!("開局後開啟的紀元：{}", share(&kinds));
     Ok(())
 }
 
-/// GDD 2.8：跑完整的推演，每世結算後印一行慢變量，最後印各變量的範圍。
+/// GDD 2.8：跑完整的推演，印開局前的紀元年表、每世的慢變量與開局後的改元。
 fn evolve(seed: u64, yun: u32, era: EraArg) -> Result<(), String> {
     let mut params = WorldParams::new(seed);
     params.era = era_of(era);
     let mut s = Sim::new(&params).map_err(|e| e.to_string())?;
     let e = s.world().evolution.clone();
     println!(
-        "最終種子 {}　開局時代 {:?}　寒暖週期 {} 年與 {} 年　靈潮週期 {} 年",
+        "最終種子 {}　開局時代 {:?}　開局前的歷史 {} 年　寒暖週期 {} 年與 {} 年　靈潮週期 {} 年",
         s.world().params.seed,
         s.world().params.era,
+        e.history_years,
         e.warmth_periods[0],
         e.warmth_periods[1],
         e.tide_period
     );
-    println!("{:>6} {:>8} {:>10} {:>7}", "年", "寒暖", "海平面", "靈潮");
-    println!("{:>6} {:>8.3} {:>10.4} {:>7.3}", 0, e.warmth, e.sea_shift, e.tide);
-    let mut range = [(e.warmth, e.warmth), (e.sea_shift, e.sea_shift), (e.tide, e.tide)];
+    println!("開局前的紀元年表：");
+    for x in &s.world().eras {
+        println!("  第 {:>5} 年起　{}紀元（{}）", x.start_year, x.name, x.kind.key());
+    }
+    println!("開局日期：{}", calendar::full(s.world().tick, e.history_years, &s.world().eras));
+    println!("{:>6} {:>8} {:>10} {:>7}  {}", "年", "寒暖", "海平面", "靈潮", "紀元");
+    let line = |s: &Sim| {
+        let w = s.world();
+        let e = &w.evolution;
+        let year = calendar::total_year(w.tick, e.history_years);
+        let (era, n) = calendar::era_year(w.tick, e.history_years, &w.eras);
+        println!("{:>6} {:>8.3} {:>10.4} {:>7.3}  {}紀元 {}年", year, e.warmth, e.sea_shift, e.tide, era.name, n);
+    };
+    line(&s);
+    let known = s.world().eras.len();
     while s.world().tick < yun * MONTHS_PER_YUN {
         s.step();
-        if s.world().tick % MONTHS_PER_SHI != 0 {
-            continue;
-        }
-        let e = &s.world().evolution;
-        println!("{:>6} {:>8.3} {:>10.4} {:>7.3}", s.world().tick / 12, e.warmth, e.sea_shift, e.tide);
-        for (r, v) in range.iter_mut().zip([e.warmth, e.sea_shift, e.tide]) {
-            *r = (r.0.min(v), r.1.max(v));
+        if s.world().tick % MONTHS_PER_SHI == 1 {
+            // 結算在每世最後一個月；下一個月印，新紀元已是元年。
+            line(&s);
         }
     }
-    println!(
-        "範圍　寒暖 {:.3}..{:.3}　海平面 {:.4}..{:.4}　靈潮 {:.3}..{:.3}",
-        range[0].0, range[0].1, range[1].0, range[1].1, range[2].0, range[2].1
-    );
+    let after = &s.world().eras[known..];
+    println!("開局後改元 {} 次：", after.len());
+    for x in after {
+        println!("  第 {:>5} 年起　{}紀元（{}）", x.start_year, x.name, x.kind.key());
+    }
+    let events = s.world().ledger.events.iter().filter(|e| e.kind == siming_sim::EventKind::WorldChanged).count();
+    println!("因果帳裡的世界大事 {events} 筆");
     Ok(())
 }
 
