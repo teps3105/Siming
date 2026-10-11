@@ -10,6 +10,9 @@ const LABEL_RULES := {
 	"river": {"z_max": 0.5, "z_min": 0.0, "size": 15},
 	"range": {"z_max": 0.5, "z_min": 0.0, "size": 15},
 	"node": {"z_max": 0.4, "z_min": 0.0, "size": 15},
+	"ocean": {"z_max": 2.0, "z_min": 0.12, "size": 22},
+	"sea": {"z_max": 0.6, "z_min": 0.0, "size": 18},
+	"lake": {"z_max": 0.3, "z_min": 0.0, "size": 14},
 }
 ## 地名依性質分色（GDD 5.1「地名設色」）；例簽用同一張表。
 const KIND_COLORS := {
@@ -19,14 +22,17 @@ const KIND_COLORS := {
 	"river": Color("3E6379"),
 	"range": Color("3F5A45"),
 	"node": Color("5B3A6B"),
+	"water": Color("2E5D62"),
 }
+## 共用一種顏色的標籤種類：洋、海、湖都算水域。
+const KIND_TONES := {"ocean": "water", "sea": "water", "lake": "water"}
 ## 沿路徑排字的字距（字高的倍數）：下限與上限。
 const PATH_SPACING_MIN := 1.2
 const PATH_SPACING_MAX := 2.2
 ## 沿路徑排字時字級的下限；路徑短到連這個字級都排不下，就不顯示。
 const PATH_MIN_SIZE := 11
 const LABEL_OUTLINE := 4
-const CENTRED_KINDS: Array[String] = ["province", "continent"]
+const CENTRED_KINDS: Array[String] = ["province", "continent", "ocean", "sea", "lake"]
 ## 治所：鏡頭高度低於地圖寬的這個比例才標出；字級。
 const SEAT_Z_MAX := 0.2
 const SEAT_SIZE := 13
@@ -107,7 +113,7 @@ func _draw_labels() -> void:
 		if alpha < 0.08:
 			continue
 		var size := int(rule["size"] * _unit)
-		var color := Color(KIND_COLORS[label["kind"]] as Color, alpha)
+		var color := Color(KIND_COLORS[KIND_TONES.get(label["kind"], label["kind"])] as Color, alpha)
 		var text: String = label["text"]
 		var path: PackedVector2Array = label["path"]
 		# 江河與山脈：字沿河道或山脊一個一個排開；路徑太短就縮小字級，再排不下就不顯示。

@@ -173,3 +173,39 @@ func test_gdd_7_3_seat_names_are_their_own_and_may_borrow_one_character() -> voi
 	var again := SimWorld.new()
 	assert_eq(again.create(SEED, "small"), "")
 	assert_eq(again.province_info(0)["seat_name"], world.province_info(0)["seat_name"], "同種子得到同樣的治所名")
+
+
+func test_gdd_7_3_seas_and_lakes_are_named() -> void:
+	var world := _small_world()
+	var names := {}
+	var seas := 0
+	var oceans := 0
+	for label: Dictionary in world.map_labels():
+		var kind: String = label["kind"]
+		if not kind in ["ocean", "sea", "lake"]:
+			continue
+		var text: String = label["text"]
+		var pos: Vector2 = label["pos"]
+		assert_false(names.has(text), "水域不重名：%s" % text)
+		names[text] = true
+		assert_eq(world.province_at(pos.x, pos.y), -1, "「%s」標在水上，不在任何州郡內" % text)
+		match kind:
+			"ocean":
+				oceans += 1
+				assert_true(text.ends_with("洋"), text)
+			"sea":
+				seas += 1
+				assert_true(text.ends_with("海"), text)
+			_:
+				assert_true(text.right(1) in ["澤", "湖", "池"], text)
+	assert_gt(oceans + seas, 1, "海分成不只一個海區")
+	assert_gt(oceans, 0, "至少有一個洋")
+	var again := SimWorld.new()
+	assert_eq(again.create(SEED, "small"), "")
+	var first := ""
+	for label: Dictionary in again.map_labels():
+		if label["kind"] in ["ocean", "sea", "lake"]:
+			first = label["text"]
+			break
+	assert_true(names.has(first), "同種子得到同樣的水域名")
+

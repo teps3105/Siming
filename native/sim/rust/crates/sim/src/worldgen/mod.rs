@@ -16,6 +16,8 @@ mod hydrology;
 mod ley;
 mod naming;
 pub use naming::seat_stems;
+mod waters;
+pub use waters::{name_waters, NamedWater, WaterKind};
 mod noise;
 mod provinces;
 pub(crate) mod quality;

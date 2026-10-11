@@ -46,6 +46,8 @@ pub struct SimWorld {
     relief: Option<Relief>,
     /// 各州郡治所的兩字名（世界生成後算一次）。
     seat_stems: Vec<String>,
+    /// 有名字的海區與湖泊（世界生成後算一次）。
+    waters: Vec<siming_sim::worldgen::NamedWater>,
     base: Base<RefCounted>,
 }
 
@@ -64,6 +66,8 @@ impl SimWorld {
         match Sim::new(&params) {
             Ok(sim) => {
                 self.relief = Some(relief::build_relief(&sim.world().geo, &sim.world().fine));
+                self.waters =
+                    siming_sim::worldgen::name_waters(sim.world().params.seed, &sim.world().geo);
                 self.seat_stems = siming_sim::worldgen::seat_stems(
                     sim.world().params.seed,
                     &sim.world().provinces,
@@ -301,7 +305,7 @@ impl SimWorld {
         d
     }
 
-    /// 地圖標籤（GDD 5.3「文字標籤」）：每筆有 `kind`（`province`、`river`、`range`、`node`、`continent`）、
+    /// 地圖標籤（GDD 5.3「文字標籤」）：每筆有 `kind`（`province`、`river`、`range`、`node`、`continent`、`ocean`、`sea`、`lake`）、
     /// `text`、`pos`（世界座標 x、z）、`rank`（越大越重要）與 `path`（江河的幹流、山脈的主軸；其餘為空）。
     #[func]
     fn map_labels(&self) -> Array<VarDictionary> {
@@ -344,6 +348,15 @@ impl SimWorld {
                 p.city_level as f32,
                 none(),
             );
+        }
+        for water in &self.waters {
+            use siming_sim::worldgen::WaterKind;
+            let (kind, rank) = match water.kind {
+                WaterKind::Ocean => ("ocean", 60.0 + water.area as f32 * 0.001),
+                WaterKind::Sea => ("sea", 30.0 + water.area as f32 * 0.001),
+                WaterKind::Lake => ("lake", 8.0 + water.area as f32 * 0.01),
+            };
+            push(kind, &water.name, centre(water.cell), rank, none());
         }
         for r in &w.geo.rivers {
             if let Some(&mid) = r.cells.get(r.cells.len() / 2) {

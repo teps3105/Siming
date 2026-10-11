@@ -28,7 +28,7 @@ const TERRAIN_LEGEND: Array[String] = [
 	"terrain_desert", "terrain_snow", "terrain_swamp", "terrain_water",
 ]
 ## 例簽列出的地名種類（顏色見 MapOverlay.KIND_COLORS）。
-const PLACE_LEGEND: Array[String] = ["continent", "province", "seat", "river", "range", "node"]
+const PLACE_LEGEND: Array[String] = ["continent", "province", "seat", "water", "river", "range", "node"]
 ## 地名欄組排幾欄；地形欄組佔例簽內寬的比例。
 const PLACE_COLUMNS := 2
 const LEGEND_SPLIT := 0.5
