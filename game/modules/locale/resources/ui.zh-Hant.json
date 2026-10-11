@@ -113,7 +113,7 @@
   "card_faith_none": "尚無",
   "dial_paused": "已暫停",
   "dial_running": "運行中",
-  "dial_speed_unit": "倍速",
+  "dial_speed_unit": "x",
   "place_continent": "大洲",
   "place_province": "州郡",
   "place_seat": "治所",
@@ -127,7 +127,5 @@
   "prompt_lock": "鎖定",
   "card_seat": "治所",
   "place_water": "海與湖",
-  "date_year": "年",
-  "date_month": "月",
   "date_era_sample": "天地紀元"
 }

@@ -1,7 +1,7 @@
 class_name TimeDial
 extends Control
 ## GDD 5.7 天時儀：左上圓盤（十二月刻度、朱針、盤心的行止鈕），盤右是寫著日期的題簽，
-## 題簽下是時速簽——「運行中／已暫停」加暫停鍵、疾徐四筆加「幾倍速」與調速鍵。
+## 題簽下是時速簽——「運行中／已暫停」加暫停鍵、疾徐四筆加倍率（1x、5x…）與調速鍵。
 ## 每個可操作的地方都有圖像、文字與實體鍵圖像（5.7 原則 7）。支援的決定：現在該停還是該快。
 
 ## 圓盤半徑含綾邊（直徑 56）；盤心鈕直徑 30。
@@ -15,12 +15,11 @@ const STROKE_BASE := 9.0
 const STROKE_STEP := 3.0
 const STROKE_GAP := 4.0
 const PAD := 8.0
-## 日期的年留幾位數的寬度、月留幾位數；倍速留幾位數。數字靠右對齊，欄寬固定，容器才不會跟著跳。
+## 題簽的寬度按年幾位數、月幾位數的最寬日期預留；倍速的數字留幾位數的欄寬並靠右對齊。容器因此不隨內容變寬。
 const YEAR_DIGITS := 4
 const MONTH_DIGITS := 2
 const SPEED_DIGITS := 3
 const DATE_PAD := 12.0
-const DATE_GAP := 6.0
 const PRESSED_PAUSE := 100
 ## 兩個調速鍵之間的間距。
 const KEY_GAP := 10.0
@@ -63,7 +62,7 @@ func _state_label() -> String:
 
 
 func _speed_label() -> String:
-	return "%d %s" % [_sim.speed_multiplier(), Locale.t("dial_speed_unit")]
+	return "%d%s" % [_sim.speed_multiplier(), Locale.t("dial_speed_unit")]
 
 
 func _pause_key() -> String:
@@ -87,12 +86,7 @@ func _slip_left() -> float:
 
 ## 兩張簽共用的寬度：取日期與時速內容中較寬者，與目前的日期、倍速、輸入裝置無關。
 func _slip_width() -> float:
-	return maxf(_date_columns()["end"], _columns()["end"]) - _slip_left()
-
-
-## 日期整段往右移多少才在題簽裡置中。
-func _date_shift() -> float:
-	return (_slip_width() - (_date_columns()["end"] - _slip_left())) * 0.5
+	return maxf(_date_max_width() + DATE_PAD * 2.0 * _unit, _columns()["end"] - _slip_left())
 
 
 ## 一個數字佔的寬度（取 0–9 中最寬者）。
@@ -103,30 +97,18 @@ static func _digit_width(size: int) -> float:
 	return widest
 
 
-## 日期拆成紀元名、年、月三段：「鴻明紀元 12年 2月」→ ["鴻明紀元", "12", "2"]。
-func _date_parts() -> PackedStringArray:
-	var parts := _sim.world.date_short().split(" ")
-	if parts.size() != 3:
-		return PackedStringArray([_sim.world.date_short(), "", ""])
-	return PackedStringArray([parts[0], parts[1].trim_suffix(Locale.t("date_year")), parts[2].trim_suffix(Locale.t("date_month"))])
-
-
-## 題簽各段的 x 座標：紀元名、年的數字欄右緣、「年」字、月的數字欄右緣、「月」字、右緣。
-## 紀元名固定四個字寬（兩字的名加「紀元」）。
-func _date_columns() -> Dictionary:
+## 最寬的日期佔多寬：紀元名四個字、年四位數、月兩位數。題簽的寬度以它為準，不隨當下的日期變。
+func _date_max_width() -> float:
 	var size := Ink.font_size(Ink.SIZE_BODY, _unit)
-	var digit := _digit_width(size)
-	var x := _slip_left() + DATE_PAD * _unit
-	var out := {"era": x}
-	x += Ink.text_size(Locale.t("date_era_sample"), size).x + DATE_GAP * _unit + digit * YEAR_DIGITS
-	out["year_end"] = x
-	out["year_mark"] = x
-	x += Ink.text_size(Locale.t("date_year"), size).x + DATE_GAP * _unit + digit * MONTH_DIGITS
-	out["month_end"] = x
-	out["month_mark"] = x
-	x += Ink.text_size(Locale.t("date_month"), size).x + DATE_PAD * _unit
-	out["end"] = x
-	return out
+	var sample := "%s 年 月" % Locale.t("date_era_sample")
+	return Ink.text_size(sample, size).x + _digit_width(size) * (YEAR_DIGITS + MONTH_DIGITS)
+
+
+## 日期文字畫在哪裡：整串在題簽裡置中。
+func _date_rect() -> Rect2:
+	var title := _title_rect()
+	var extent := Ink.text_size(_sim.world.date_short(), Ink.font_size(Ink.SIZE_BODY, _unit))
+	return Rect2(title.position + (title.size - extent) * 0.5, extent)
 
 
 func _strokes_width() -> float:
@@ -149,7 +131,7 @@ func _columns() -> Dictionary:
 	out["speed"] = x
 	x += _digit_width(note) * SPEED_DIGITS
 	out["speed_end"] = x
-	x += 3.0 * _unit + Ink.text_size(Locale.t("dial_speed_unit"), note).x + 6.0 * _unit
+	x += Ink.text_size(Locale.t("dial_speed_unit"), note).x + 8.0 * _unit
 	out["speed_keys"] = x
 	x += _widest_key(InputActions.SPEED_CYCLE) + PAD * _unit
 	out["end"] = x
@@ -199,16 +181,8 @@ func _draw() -> void:
 	var date_size := Ink.font_size(Ink.SIZE_BODY, _unit)
 	var title := _title_rect()
 	Ink.paper_slip(self, title)
-	# 紀元名與日期整段在題簽裡置中；年與月的數字各在固定寬的欄位裡靠右對齊，數字變多變少時其他字不動。
-	var date := _date_parts()
-	var date_at := _date_columns()
-	var shift := _date_shift()
-	var date_y := title.position.y + (title.size.y - Ink.text_size(date[0], date_size).y) * 0.5
-	Ink.text(self, Vector2(date_at["era"] + shift, date_y), date[0], date_size)
-	Ink.text(self, Vector2(date_at["year_end"] + shift - Ink.text_size(date[1], date_size).x, date_y), date[1], date_size)
-	Ink.text(self, Vector2(date_at["year_mark"] + shift, date_y), Locale.t("date_year"), date_size)
-	Ink.text(self, Vector2(date_at["month_end"] + shift - Ink.text_size(date[2], date_size).x, date_y), date[2], date_size)
-	Ink.text(self, Vector2(date_at["month_mark"] + shift, date_y), Locale.t("date_month"), date_size)
+	# 整串日期在題簽裡置中。
+	Ink.text(self, _date_rect().position, _sim.world.date_short(), date_size)
 
 	# 時速簽：狀態與暫停鍵；四筆由短到長，已達速度者濃墨；倍速與調速鍵。
 	var slip := _speed_rect()
@@ -234,7 +208,7 @@ func _draw() -> void:
 	# 倍速的數字在固定寬的欄位裡靠右對齊。
 	var multiplier := str(_sim.speed_multiplier())
 	Ink.text(self, Vector2(columns["speed_end"] - Ink.text_size(multiplier, note).x, text_y), multiplier, note)
-	Ink.text(self, Vector2(columns["speed_end"] + 3.0 * _unit, text_y), Locale.t("dial_speed_unit"), note)
+	Ink.text(self, Vector2(columns["speed_end"], text_y), Locale.t("dial_speed_unit"), note)
 	var keys := _speed_keys()
 	Ink.key_glyph(self, Vector2(columns["speed_keys"], key_y), keys[0], _unit)
 

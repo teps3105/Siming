@@ -139,12 +139,12 @@ func test_every_control_has_text_and_a_key_image() -> void:
 	assert_eq(_hud._seals._key_label(3), "F4")
 	assert_eq(_hud._dial._state_label(), Locale.t("dial_paused"), "時速簽寫出行止狀態")
 	assert_eq(_hud._dial._pause_key(), "Space")
-	assert_eq(_hud._dial._speed_label(), "1 %s" % Locale.t("dial_speed_unit"), "時速簽寫出倍速")
+	assert_eq(_hud._dial._speed_label(), "1x", "時速簽寫出倍率")
 	assert_eq(_hud._dial._speed_keys(), ["Tab"])
 	await key(KEY_TAB)
 	await key(KEY_TAB)
 	assert_eq(_hud._dial._state_label(), Locale.t("dial_running"))
-	assert_eq(_hud._dial._speed_label(), "20 %s" % Locale.t("dial_speed_unit"))
+	assert_eq(_hud._dial._speed_label(), "20x")
 	var badge_owner: Rect2 = _hud._seals._seal_rect(0)
 	assert_lt(_hud._seals._badge_position(0).x, badge_owner.get_center().x, "模式鈕的鍵帽掛在左上角")
 	assert_eq(_hud._card._close_key(), "Esc")
@@ -292,7 +292,7 @@ func test_time_slips_keep_one_fixed_width() -> void:
 		_sim.world.step(1)
 		_hud._dial.queue_redraw()
 		assert_eq(_hud._dial._title_rect().size.x, title_width, "日期變了，題簽寬度不變：%s" % _sim.world.date_short())
-		if _hud._dial._date_parts()[2].length() == 2:
+		if _sim.world.date_short().ends_with("11月"):
 			seen_two_digit_month = true
 	assert_true(seen_two_digit_month, "測試涵蓋到兩位數的月份")
 	# 切到每一檔速度，寬度都不變。
@@ -310,10 +310,9 @@ func test_time_slips_keep_one_fixed_width() -> void:
 
 func test_date_is_centred_in_the_title_slip() -> void:
 	await _boot(FLOW_VIEW)
-	var title: Rect2 = _hud._dial._title_rect()
-	var columns: Dictionary = _hud._dial._date_columns()
-	var shift: float = _hud._dial._date_shift()
-	var left: float = columns["era"] + shift - title.position.x
-	var right: float = title.end.x - (columns["end"] + shift - TimeDial.DATE_PAD)
-	assert_lt(absf(left - right), 1.0, "紀元名與日期整段左右留白相等：左 %s、右 %s" % [left, right])
-
+	for i in 3:
+		var title: Rect2 = _hud._dial._title_rect()
+		var date: Rect2 = _hud._dial._date_rect()
+		assert_lt(absf(date.get_center().x - title.get_center().x), 0.5, "整串日期在題簽裡置中：%s" % _sim.world.date_short())
+		assert_true(title.encloses(date), "日期不超出題簽")
+		_sim.world.step(700)
