@@ -42,6 +42,8 @@ var _unit := 1.0
 var _title := ""
 var _rows: Array[Dictionary] = []
 var _focus := -1
+## 這一頁有沒有可操作的列。
+var _has_controls := false
 var _first := 0
 ## 目前畫出來的列：列索引 → 範圍。
 var _rects := {}
@@ -117,6 +119,8 @@ func open(title: String, rows: Array[Dictionary], focus_id := &"") -> void:
 	_pressed_row = -1
 	_sliding = false
 	_focus = -1
+	_has_controls = _rows.any(func(row: Dictionary) -> bool:
+		return row["kind"] != &"line" and row["kind"] in FOCUSABLE and row.get("enabled", true))
 	for i in _rows.size():
 		if _can_focus(i) and (_focus < 0 or (focus_id != &"" and _rows[i]["id"] == focus_id)):
 			_focus = i
@@ -171,8 +175,11 @@ func row_rect(id: StringName) -> Rect2:
 	return Rect2()
 
 
+## 說明文字只有在整頁沒有可操作的列時才停得上去（讓長文能捲動）。
 func _can_focus(index: int) -> bool:
 	var row := _rows[index]
+	if row["kind"] == &"line" and _has_controls:
+		return false
 	return row["kind"] in FOCUSABLE and row.get("enabled", true)
 
 

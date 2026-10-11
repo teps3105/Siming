@@ -359,8 +359,8 @@ func _on_chosen(id: StringName) -> void:
 			GameSettings.set_value("tutorial_done", false)
 			GameSettings.set_value("tutorial_step", 0)
 			guide_reset.emit()
-			_panel.set_note(&"set.tutorial", Locale.t("set_tutorial_note"))
 			_show(&"settings", &"set.tutorial")
+			_panel.set_note(&"set.tutorial", Locale.t("set_tutorial_note"))
 		&"share.copy":
 			clipboard_set.call(SaveStore.share_code(world.save_text()))
 			_panel.set_note(&"share.copy", Locale.t("share_copied"))

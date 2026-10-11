@@ -96,6 +96,7 @@ func test_guide_progress_survives_a_restart_and_can_be_replayed() -> void:
 	assert_eq(deck.panel().focused_id(), &"set.tutorial")
 	await key(KEY_ENTER)
 	assert_false(GameSettings.flag("tutorial_done"))
+	assert_eq(deck.panel()._rows[deck.panel()._focus]["note"], Locale.t("set_tutorial_note"), "列上寫著已重來")
 	await key(KEY_ESCAPE)
 	await key(KEY_ESCAPE)
 	await frames(2)

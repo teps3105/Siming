@@ -199,8 +199,7 @@ func test_share_code_copies_and_pastes_through_the_clipboard() -> void:
 		await key(KEY_DOWN)
 	assert_eq(deck.panel().focused_id(), &"share")
 	await key(KEY_ENTER)
-	await key(KEY_DOWN)
-	assert_eq(deck.panel().focused_id(), &"share.copy")
+	assert_eq(deck.panel().focused_id(), &"share.copy", "一進來就停在第一個能按的列，不停在說明文字上")
 	await key(KEY_ENTER)
 	assert_true(board[0].begins_with(SaveStore.SHARE_PREFIX), "分享碼進了剪貼簿")
 	# 剪貼簿裡不是分享碼：告知，不換世界。
