@@ -32,6 +32,11 @@ const PATH_SPACING_MAX := 2.2
 ## 沿路徑排字時字級的下限；路徑短到連這個字級都排不下，就不顯示。
 const PATH_MIN_SIZE := 11
 const LABEL_OUTLINE := 4
+## 水域名與岸邊之間至少留這麼多像素；檢查外框的這八個點（四角與四邊中點）。
+const WATER_MARGIN := 4.0
+const WATER_SAMPLES: Array[Vector2] = [
+	Vector2(-1, -1), Vector2(0, -1), Vector2(1, -1), Vector2(-1, 0), Vector2(1, 0), Vector2(-1, 1), Vector2(0, 1), Vector2(1, 1),
+]
 const CENTRED_KINDS: Array[String] = ["province", "continent", "ocean", "sea", "lake"]
 ## 治所：鏡頭高度低於地圖寬的這個比例才標出；字級。
 const SEAT_Z_MAX := 0.2
@@ -141,7 +146,13 @@ func _draw_labels() -> void:
 			continue
 		if not _visible_on_map(pos):
 			continue
-		var point := _camera.unproject_position(_world_position(pos))
+		var world_pos := _world_position(pos)
+		var point := _camera.unproject_position(world_pos)
+		# 水域名要整個落在水面上：放不進去就縮小字級，縮到下限仍放不下就不顯示。
+		if KIND_TONES.has(label["kind"]) and _map.globe_morph < 0.5:
+			size = _fit_on_water(point, world_pos.y, text, size)
+			if size == 0:
+				continue
 		var extent := Ink.text_size(text, size)
 		# 州郡與大洲的名字以該點置中；其餘寫在該點上方。
 		var centred: bool = label["kind"] in CENTRED_KINDS
@@ -227,6 +238,36 @@ func _along_path(points: PackedVector2Array, text: String, size: int, screen: Re
 			return PackedVector2Array()
 		spots.append(spot)
 	return spots
+
+
+## 水域名的字級：由 base 往下試到字級下限，取第一個讓名字的外框（四角與四邊中點，外加留白）
+## 全部落在水面上的字級；都不行回傳 0。plane_y 是水面的高度。
+func _fit_on_water(point: Vector2, plane_y: float, text: String, base: int) -> int:
+	var floor_size := int(PATH_MIN_SIZE * _unit)
+	var size := base
+	while size >= floor_size:
+		var half := Ink.text_size(text, size) * 0.5 + Vector2(WATER_MARGIN, WATER_MARGIN) * _unit
+		var fits := true
+		for offset: Vector2 in WATER_SAMPLES:
+			if not _is_water_at(point + offset * half, plane_y):
+				fits = false
+				break
+		if fits:
+			return size
+		size -= 2
+	return 0
+
+
+## 螢幕上的一點對到水面（高度 plane_y 的平面）後，是不是水：不屬於任何州郡的格就是水。
+func _is_water_at(screen: Vector2, plane_y: float) -> bool:
+	var origin := _camera.project_ray_origin(screen)
+	var dir := _camera.project_ray_normal(screen)
+	if absf(dir.y) < 1e-5:
+		return false
+	var hit := origin + dir * ((plane_y - origin.y) / dir.y)
+	if hit.z < 0.0 or hit.z >= _map.map_size.y:
+		return false
+	return _map.province_at(Vector2(fposmod(hit.x, _map.map_size.x), hit.z)) < 0
 
 
 ## 治所（GDD 5.3）：一個墨點，右邊寫治所名；名字與已放的標籤重疊時只畫點。

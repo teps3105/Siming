@@ -250,3 +250,30 @@ func test_card_title_is_written_vertically_on_a_side_strip() -> void:
 	assert_gt(strip.size.y, needed + 14.0, "題簽放得下直書的州郡名")
 	assert_gt(_hud._card._center_rect().position.x, strip.end.x, "內容與動作鈕在題簽右邊")
 
+
+func test_water_names_stay_on_the_water() -> void:
+	await _boot(FLOW_VIEW)
+	var camera: MapCamera = _game.get_node("MapCamera")
+	var map: TerrainMap = _game.get_node("TerrainMap")
+	var overlay: MapOverlay = _hud._overlay
+	var lakes := 0
+	var hidden_or_shrunk := 0
+	for label: Dictionary in _sim.world.map_labels():
+		if label["kind"] != "lake":
+			continue
+		lakes += 1
+		var pos: Vector2 = label["pos"]
+		camera.look_at_map(pos, map.map_size.x * 0.25, true)
+		await frames(1)
+		var world_pos := Vector3(pos.x, map.surface_height(pos.x, pos.y), pos.y)
+		var point := camera.unproject_position(world_pos)
+		var size := overlay._fit_on_water(point, world_pos.y, label["text"], 14)
+		if size < 14:
+			hidden_or_shrunk += 1
+		if size > 0:
+			var half := Ink.text_size(label["text"], size) * 0.5
+			for corner: Vector2 in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
+				assert_true(overlay._is_water_at(point + corner * half, world_pos.y), "「%s」的四角都在水面上" % label["text"])
+	assert_gt(lakes, 0, "測試世界應有湖")
+	assert_gt(hidden_or_shrunk, 0, "拉遠時，小湖放不下原字級的名字：要嘛縮小、要嘛不顯示")
+
