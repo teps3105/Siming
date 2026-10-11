@@ -614,6 +614,10 @@ pub const EVO_CLEAR_SHARE: f32 = 0.05;
 pub const EVO_REGROW_BELOW: f32 = 0.3;
 /// 7.1 `EVO_REGROW_SHARE` 每世 5% 的已墾格長回森林、5% 的沙化格回復（GDD 2.8 草木）。
 pub const EVO_REGROW_SHARE: f32 = 0.05;
+/// 7.1 `EVO_GROVE_AURA` 格點靈氣達 0.6 的森林墾不動，已墾的格達 0.6 就長回森林（GDD 2.8 草木）。
+pub const EVO_GROVE_AURA: f32 = 0.6;
+/// 7.1 `EVO_GROVE_SHARE` 每世 10% 靈氣達門檻的已墾格長回森林（GDD 2.8 草木）。
+pub const EVO_GROVE_SHARE: f32 = 0.1;
 /// 7.1 `EVO_SAND_ABOVE` 墾殖度高於 0.8 的乾燥州沙化（GDD 2.8 草木）。
 pub const EVO_SAND_ABOVE: f32 = 0.8;
 /// 7.1 `EVO_SAND_MOISTURE` 州的有效濕度低於 0.25 才沙化（GDD 2.8 草木）。

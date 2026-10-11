@@ -85,7 +85,11 @@ fn gdd_2_8_crowded_provinces_clear_the_forest_nearest_the_seat() {
     let shift = shi(w);
     assert!(shift.cleared > 100 && shift.regrown == 0, "墾了 {} 格", shift.cleared);
     for (p, old) in w.provinces.iter().zip(&before.provinces) {
-        let forest: Vec<u32> = old.cells.iter().copied().filter(|&c| before.geo.terrain[c as usize] == Terrain::Forest).collect();
+        let standing = |c: &u32| before.geo.terrain[*c as usize] == Terrain::Forest;
+        // 靈氣達門檻的森林墾不動。
+        let guarded: Vec<u32> = old.cells.iter().copied().filter(|c| standing(c) && before.geo.aura_cell[*c as usize] >= 0.6).collect();
+        assert!(guarded.iter().all(|&c| !w.flora.cleared[c as usize]), "{}：靈氣護著的森林被墾了", p.name);
+        let forest: Vec<u32> = old.cells.iter().copied().filter(|c| standing(c) && !guarded.contains(c)).collect();
         let cleared: Vec<u32> = forest.iter().copied().filter(|&c| w.flora.cleared[c as usize]).collect();
         let expect = if forest.is_empty() { 0 } else { ((forest.len() as f32 * 0.05).ceil() as usize).max(1) };
         assert_eq!(cleared.len(), expect, "{}：森林 {} 格", p.name, forest.len());
@@ -157,6 +161,46 @@ fn gdd_2_8_forest_grows_back_when_people_leave_and_the_map_returns() {
         assert_eq!(p.terrain_mix, old.terrain_mix);
         assert!((p.habitability - old.habitability).abs() < 1e-6);
     }
+}
+
+#[test]
+fn gdd_2_8_aura_brings_the_forest_back_whatever_the_crowd() {
+    let mut sim = sim();
+    let w = sim.world_mut();
+    let origin = w.clone();
+    press(w, 0.9);
+    for _ in 0..4 {
+        shi(w);
+    }
+    let cleared = flags(&w.flora.cleared);
+    assert!(cleared > 400);
+    // 靈氣漲到處處都過門檻：人口照舊擁擠，森林不再被墾，已墾的每世長回一成，靈氣高的先長。
+    let aura: Vec<f32> = (0..w.geo.aura_cell.len()).map(|c| 0.6 + (c % 7) as f32 * 0.1).collect();
+    w.geo.aura_cell = aura.clone();
+    let before = w.flora.cleared.clone();
+    let shift = shi(w);
+    assert_eq!(shift.cleared, 0, "靈氣護著，墾不動");
+    assert!(shift.revived > 0 && shift.revived == shift.regrown);
+    for p in &w.provinces {
+        let was: Vec<u32> = p.cells.iter().copied().filter(|&c| before[c as usize]).collect();
+        let back: Vec<u32> = was.iter().copied().filter(|&c| !w.flora.cleared[c as usize]).collect();
+        let expect = if was.is_empty() { 0 } else { ((was.len() as f32 * 0.1).ceil() as usize).max(1) };
+        assert_eq!(back.len(), expect, "{}：已墾 {} 格", p.name, was.len());
+        let weakest_back = back.iter().map(|&c| aura[c as usize]).fold(f32::NAN, f32::min);
+        let strongest_left = was.iter().filter(|c| !back.contains(c)).map(|&c| aura[c as usize]).fold(f32::NAN, f32::max);
+        assert!(!(weakest_back < strongest_left), "{}：靈氣低的先長回來了", p.name);
+    }
+    let mut shis = 0;
+    while flags(&w.flora.cleared) > 0 {
+        assert_eq!(shi(w).cleared, 0);
+        shis += 1;
+        assert!(shis < 200, "200 世還沒長回來");
+    }
+    assert!(w.geo.terrain.iter().zip(&origin.geo.terrain).all(|(a, b)| (*a == Terrain::Forest) == (*b == Terrain::Forest)), "森林沒有復原");
+    // 靈氣不到門檻的已墾格不會自己長回來。
+    w.geo.aura_cell = origin.geo.aura_cell.clone();
+    let shift = shi(w);
+    assert!(shift.cleared > 0 && shift.revived == 0);
 }
 
 #[test]

@@ -3,6 +3,9 @@
 //! 每州有一個墾殖度，每世向「人口 ÷ 開局時的承載」靠近；墾出來的新承載不算進分母，人口隨承平與
 //! 災荒起伏，墾殖度才有上有下。墾殖與沙化記在遊戲格的旗標上，由 [`crate::landform`] 疊到氣候判出的
 //! 目標地形上：氣候要它是森林而已墾，就是平原；要它是平原而已沙化，就是沙漠。
+//!
+//! 靈氣是反向的力：格點靈氣夠高的森林墾不動，已墾的格靈氣夠高就自己長回來，不看人口多寡。
+//! 森林的基礎靈氣比平原高（GDD 2.4），同一個門檻因此有遲滯；靈潮漲落時，守得住的林子跟著進退。
 
 use serde::{Deserialize, Serialize};
 
@@ -31,6 +34,8 @@ pub struct FloraShift {
     pub touched: Vec<u32>,
     pub cleared: u32,
     pub regrown: u32,
+    /// 其中靠靈氣長回來的格數。
+    pub revived: u32,
     pub sanded: u32,
     pub healed: u32,
     /// 這一世把森林墾盡的州。
@@ -91,6 +96,9 @@ pub fn settle(w: &mut World) -> FloraShift {
     }
     let gw = w.geo.w as usize;
     let terrain = &w.geo.terrain;
+    // 用的是上一世結算後的格點靈氣（這一世的靈氣要等地形改完才重算）。
+    let aura = &w.geo.aura_cell;
+    let lush = |c: u32| aura.get(c as usize).is_some_and(|&a| a >= EVO_GROVE_AURA);
     let fine = &w.fine;
     let wet = 1.0 + EVO_WARMTH_MOISTURE * w.evolution.warmth_delta();
     let flora = &mut w.flora;
@@ -104,10 +112,24 @@ pub fn settle(w: &mut World) -> FloraShift {
         let seat = p.seat as usize;
         let near = |c: u32| cheb(gw, seat, c as usize);
 
-        // 墾殖：離治所近的森林先墾。復林：離治所遠的先長回來。
+        // 靈氣復林：已墾的格靈氣達門檻就長回森林，靈氣高的先長。
+        let mut reviving: Vec<u32> = p.cells.iter().copied().filter(|&c| flora.cleared[c as usize] && lush(c)).collect();
+        if !reviving.is_empty() {
+            reviving.sort_by(|&a, &b| aura[b as usize].total_cmp(&aura[a as usize]).then(a.cmp(&b)));
+            let k = share(reviving.len(), EVO_GROVE_SHARE);
+            for &c in &reviving[..k] {
+                flora.cleared[c as usize] = false;
+                shift.touched.push(c);
+            }
+            shift.regrown += k as u32;
+            shift.revived += k as u32;
+        }
+
+        // 墾殖：離治所近的森林先墾，靈氣達門檻的墾不動。復林：離治所遠的先長回來。
         if cultivation > EVO_CLEAR_ABOVE {
-            let mut forest: Vec<u32> =
-                p.cells.iter().copied().filter(|&c| terrain[c as usize] == Terrain::Forest && !flora.cleared[c as usize]).collect();
+            let standing = |c: &u32| terrain[*c as usize] == Terrain::Forest && !flora.cleared[*c as usize];
+            let guarded = p.cells.iter().filter(|c| standing(c) && lush(**c)).count();
+            let mut forest: Vec<u32> = p.cells.iter().copied().filter(|c| standing(c) && !lush(*c)).collect();
             if !forest.is_empty() {
                 forest.sort_by_key(|&c| (near(c), c));
                 let k = share(forest.len(), EVO_CLEAR_SHARE);
@@ -116,7 +138,7 @@ pub fn settle(w: &mut World) -> FloraShift {
                     shift.touched.push(c);
                 }
                 shift.cleared += k as u32;
-                if k == forest.len() {
+                if k == forest.len() && guarded == 0 {
                     shift.exhausted.push(p.id);
                 }
             }
