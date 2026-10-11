@@ -25,6 +25,7 @@ fn province(id: u16, pop: f64, neighbors: Vec<u16>, faith: [f32; 3]) -> Province
         devastation: 0.0,
         faith,
         city_level: 0,
+        lost: false,
     }
 }
 

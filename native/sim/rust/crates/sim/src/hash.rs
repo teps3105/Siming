@@ -129,6 +129,7 @@ fn province(h: &mut FxHasher, p: &Province) {
     h.write_u32(p.seat);
     u16s(h, &p.neighbors);
     u16s(h, &p.sea_neighbors);
+    h.write_u8(p.lost as u8);
     for c in p.terrain_mix {
         h.write_u32(c);
     }
@@ -208,6 +209,7 @@ mod tests {
             devastation: 0.0,
             faith: [0.1, 0.0, 0.0],
             city_level: 0,
+            lost: false,
         }
     }
 

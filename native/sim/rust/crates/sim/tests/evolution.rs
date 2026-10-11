@@ -85,6 +85,7 @@ fn gdd_2_8_opening_aura_follows_the_opening_tide() {
 fn gdd_2_8_aura_is_rescaled_by_the_tide_every_shi() {
     let mut sim = sim_in(Era::Middle);
     let before = sim.world().geo.aura_cell.clone();
+    let terrain_before = sim.world().geo.terrain.clone();
     let tide_before = sim.world().evolution.tide;
     let provinces_before: Vec<f32> = sim.world().provinces.iter().map(|p| p.aura).collect();
     while sim.world().tick < 360 {
@@ -96,7 +97,8 @@ fn gdd_2_8_aura_is_rescaled_by_the_tide_every_shi() {
     let same_nodes = !w.ledger.events.iter().any(|e| e.kind == EventKind::NodeShifted);
     assert!(same_nodes, "這一世沒有節點升降");
     for (i, (&was, &now)) in before.iter().zip(&w.geo.aura_cell).enumerate() {
-        if was < 1.9 {
+        // 地形這一世變了的格，靈氣的地形基礎也跟著變，不在此列。
+        if was < 1.9 && w.geo.terrain[i] == terrain_before[i] {
             assert!((now - was * ratio).abs() < 1e-4, "格 {i}：{was} → {now}，倍率 {ratio}");
         }
     }

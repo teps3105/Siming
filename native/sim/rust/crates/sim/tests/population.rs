@@ -23,6 +23,7 @@ fn prov(id: u16, hab: f64, pop: f64, neighbors: Vec<u16>) -> Province {
         devastation: 0.0,
         faith: [0.0; 3],
         city_level: 0,
+        lost: false,
     }
 }
 

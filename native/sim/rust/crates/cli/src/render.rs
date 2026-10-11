@@ -578,6 +578,7 @@ mod tests {
             devastation: 0.0,
             faith: [0.0; 3],
             city_level: 0,
+            lost: false,
         };
         (geo, vec![mk(0, 2 * 8 + 1, 1), mk(1, 2 * 8 + 5, 0)])
     }

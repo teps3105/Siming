@@ -19,9 +19,9 @@ pub use naming::seat_stems;
 mod waters;
 pub use waters::{name_waters, NamedWater, WaterKind};
 mod noise;
-mod provinces;
+pub(crate) mod provinces;
 pub(crate) mod quality;
-mod terrain;
+pub(crate) mod terrain;
 
 use crate::params::*;
 use crate::rng::{stream, Stream};
@@ -494,6 +494,7 @@ fn finalize(d: Draft, mut rng: ChaCha8Rng, params: &WorldParams, seed: u64) -> G
             devastation: 0.0,
             faith,
             city_level: city_level(population),
+            lost: false,
         });
     }
 

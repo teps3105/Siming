@@ -295,6 +295,10 @@ pub struct Province {
     pub faith: [f32; 3],
     /// 0 村 .. 4 都（GDD 2.3）。
     pub city_level: u8,
+    /// 格全數沒入海中而消失（GDD 2.8）。消失的州郡留在原位、ID 不變，沒有格、人口與鄰州；
+    /// 之後重新浮出的地併入鄰州或成為無主之地，消失的州郡不復原。
+    #[serde(default)]
+    pub lost: bool,
 }
 
 /// 世界生成失敗（品質檢查連續失敗 `WG_RETRY` 次，GDD 2.2）。

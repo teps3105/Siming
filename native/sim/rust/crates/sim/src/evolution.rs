@@ -2,7 +2,7 @@
 //!
 //! 全球的三個慢變量——寒暖、海平面偏移、靈潮——每世（30 年）更新一次；寒暖與靈潮跨過門檻就是
 //! 世界大事，並依 GDD 2.6 開啟新紀元。靈潮是格點靈氣的倍率，並使洞天福地升降級；
-//! 寒暖與海平面還沒有接到地形與海陸上。
+//! 寒暖與海平面改地形與海陸（[`crate::landform`]）。
 //!
 //! 開局不是開天第一年：世界在開局前已有一段歷史（[`Evolution::history_years`]），那段歷史只推演
 //! 這裡的慢變量、紀元年表與洞天福地的升降，不推演人間。週期的長度與相位、洞天福地每世的升降
@@ -78,6 +78,9 @@ pub struct Evolution {
     pub sea_shift: f32,
     /// 靈潮：天地靈氣的倍率。
     pub tide: f32,
+    /// 開局那一年的寒暖與海平面偏移：生成出來的地形就是那一年的地形，之後以它們為零點算變化量。
+    pub opening_warmth: f32,
+    pub opening_sea_shift: f32,
     /// 寒暖兩個週期的長度（年）。
     pub warmth_periods: [u32; 2],
     /// 寒暖兩個週期在開天時的相位（0..1，一整圈為 1）。
@@ -110,6 +113,8 @@ impl Evolution {
             warmth: 0.0,
             sea_shift: 0.0,
             tide: 1.0,
+            opening_warmth: 0.0,
+            opening_sea_shift: 0.0,
             warmth_periods: [
                 pick(1, EVO_WARMTH_P1_MIN, EVO_WARMTH_P1_MAX),
                 pick(2, EVO_WARMTH_P2_MIN, EVO_WARMTH_P2_MAX),
@@ -129,6 +134,16 @@ impl Evolution {
     pub fn warmth_cycle(&self, year: u32) -> f32 {
         EVO_WARMTH_W1 * wave(year, self.warmth_periods[0], self.warmth_phases[0])
             + EVO_WARMTH_W2 * wave(year, self.warmth_periods[1], self.warmth_phases[1])
+    }
+
+    /// 寒暖相對於開局那一年的變化量。
+    pub fn warmth_delta(&self) -> f32 {
+        self.warmth - self.opening_warmth
+    }
+
+    /// 海平面相對於開局那一年的變化量（高度單位）。
+    pub fn sea_delta(&self) -> f32 {
+        self.sea_shift - self.opening_sea_shift
     }
 
     /// 靈潮的週期值：以 1 為中心上下起伏。
@@ -221,6 +236,8 @@ pub fn genesis(seed: u64, era: Era) -> (Evolution, Vec<CalendarEra>) {
         open_era(&evolution, &changes, year, seed, &lexicon, &mut eras);
         year += 30;
     }
+    evolution.opening_warmth = evolution.warmth;
+    evolution.opening_sea_shift = evolution.sea_shift;
     (evolution, eras)
 }
 
@@ -326,11 +343,12 @@ pub fn prepare_aura(w: &mut World) -> bool {
     true
 }
 
-/// GDD 2.8「每世結算」：在每世的天機收入之前執行。靈氣隨靈潮重算；世界大事與洞天福地的升降
-/// 寫入因果帳；改元則追加紀元。
+/// GDD 2.8「每世結算」：在每世的天機收入之前執行。地形與海陸隨寒暖與海平面推進一步、州郡重算；
+/// 靈氣隨靈潮重算；世界大事、地形的變動與洞天福地的升降寫入因果帳；改元則追加紀元。
 pub fn shi_settle(w: &mut World) {
     let year = w.evolution.history_years + year_of(w.tick);
     let changes = w.evolution.settle(year);
+    let land = crate::landform::settle(w);
     let shifts = shift_nodes(w.params.seed, year, w.evolution.tide, &mut w.geo.nodes);
     refresh_aura(w);
     if !changes.is_empty() {
@@ -342,12 +360,35 @@ pub fn shi_settle(w: &mut World) {
             crate::ledger::record(w, NewEvent::new(EventKind::WorldChanged, EVO_EVENT_IMPORTANCE, args));
         }
     }
+    record_land(w, &land);
     for shift in shifts {
         let cell = w.geo.nodes[shift.node as usize].cell;
         let args = EventArgs::Node { node: shift.node, from: shift.from, to: shift.to };
         let mut event = NewEvent::new(EventKind::NodeShifted, EVO_NODE_IMPORTANCE, args);
         event.cell = Some(cell);
         event.province = w.geo.province_of.get(cell as usize).copied().filter(|&p| (p as usize) < w.provinces.len());
+        crate::ledger::record(w, event);
+    }
+}
+
+/// 地形演變裡要記事的變動寫入因果帳（GDD 2.8、7.2）：州郡消失、治所遷移、陸橋浮現與沉沒。
+fn record_land(w: &mut World, land: &crate::landform::LandShift) {
+    for lost in &land.lost {
+        let args = EventArgs::Lost { refuge: lost.refuge, perished: lost.perished };
+        let mut event = NewEvent::new(EventKind::ProvinceLost, EVO_LOST_IMPORTANCE, args);
+        event.province = Some(lost.province);
+        crate::ledger::record(w, event);
+    }
+    for &(province, from, to) in &land.seats {
+        let mut event = NewEvent::new(EventKind::SeatMoved, EVO_SEAT_IMPORTANCE, EventArgs::Seat { from, to });
+        event.province = Some(province);
+        event.cell = Some(to);
+        crate::ledger::record(w, event);
+    }
+    for &(a, b, joined) in &land.links {
+        let args = EventArgs::Link { other: b, joined };
+        let mut event = NewEvent::new(EventKind::LandLinked, EVO_LINK_IMPORTANCE, args);
+        event.province = Some(a);
         crate::ledger::record(w, event);
     }
 }

@@ -376,6 +376,12 @@ pub enum EventKind {
     WorldChanged,
     /// GDD 2.8 洞天福地升降級：末法時降級或沉寂，靈潮回漲後回復。
     NodeShifted,
+    /// GDD 2.8 治所被海淹沒，遷到州內宜居度最高的格。
+    SeatMoved,
+    /// GDD 2.8 州郡的格全數沒入海中，州郡消失。
+    ProvinceLost,
+    /// GDD 2.8 陸橋浮現或沉沒：兩州成為陸鄰，或不再是陸鄰。
+    LandLinked,
 }
 
 /// GDD 3.5 天劫結果。
@@ -404,6 +410,12 @@ pub enum EventArgs {
     World { change: crate::evolution::WorldChange, new_era: bool },
     /// GDD 2.8：節點由 `from` 級變為 `to` 級（0 沉寂、1 福地、2 洞天、3 大洞天）。
     Node { node: NodeId, from: u8, to: u8 },
+    /// GDD 2.8：治所由格 `from` 遷到格 `to`。
+    Seat { from: u32, to: u32 },
+    /// GDD 2.8：州郡消失；`refuge` 為收容最多人的鄰州，`perished` 為鄰州容不下而折損的人數。
+    Lost { refuge: Option<ProvinceId>, perished: u32 },
+    /// GDD 2.8：與 `other` 成為陸鄰（`joined`）或不再是陸鄰。
+    Link { other: ProvinceId, joined: bool },
 }
 
 /// GDD 3.3 因果帳中的一筆事件。文字不存在模擬中（由介面依 7.2 模板產生）。

@@ -584,6 +584,10 @@ pub const EVO_DECLINE_LEAVE: f32 = 0.9;
 pub const EVO_REVIVAL_ENTER: f32 = 1.3;
 /// 7.1 `EVO_REVIVAL_GATE` 靈氣復甦的結束門檻：靈潮退到 1.2（GDD 2.8 世界大事）。
 pub const EVO_REVIVAL_LEAVE: f32 = 1.2;
+/// 7.1 `EVO_WARMTH_TEMPERATURE` 寒暖每 1 使溫度偏移 0.18（GDD 2.8 每世結算）。
+pub const EVO_WARMTH_TEMPERATURE: f32 = 0.18;
+/// 7.1 `EVO_WARMTH_MOISTURE` 寒暖每 1 使濕度增減 15%（GDD 2.8 每世結算）。
+pub const EVO_WARMTH_MOISTURE: f32 = 0.15;
 /// 7.1 `EVO_ERA_MIN_YEARS` 兩次改元至少相隔 60 年（GDD 2.8 世界大事）。
 pub const EVO_ERA_MIN_YEARS: u32 = 60;
 /// 7.1 `EVO_NODE_FADE` 靈潮低於 0.7 時，洞天福地每世可能降一級（GDD 2.8 每世結算）。
@@ -594,6 +598,12 @@ pub const EVO_NODE_RISE_ABOVE: f32 = 1.1;
 pub const EVO_NODE_CHANCE: f32 = 0.1;
 /// 7.1 `EVO_NODE_IMPORTANCE` 洞天福地升降級的事件重要度 3（GDD 2.8、7.2）。
 pub const EVO_NODE_IMPORTANCE: u8 = 3;
+/// 7.1 `EVO_LOST_IMPORTANCE` 州郡沒入海中而消失的事件重要度 4（GDD 2.8、7.2）。
+pub const EVO_LOST_IMPORTANCE: u8 = 4;
+/// 7.1 `EVO_SEAT_IMPORTANCE` 治所遷移的事件重要度 2（GDD 2.8、7.2）。
+pub const EVO_SEAT_IMPORTANCE: u8 = 2;
+/// 7.1 `EVO_LINK_IMPORTANCE` 陸橋浮現或沉沒的事件重要度 3（GDD 2.8、7.2）。
+pub const EVO_LINK_IMPORTANCE: u8 = 3;
 /// 7.1 `EVO_EVENT_IMPORTANCE` 世界大事的事件重要度 5（GDD 2.8、7.2）。
 pub const EVO_EVENT_IMPORTANCE: u8 = 5;
 

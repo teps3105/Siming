@@ -48,6 +48,10 @@ pub fn affinity_dist(w: &World, affinity: [f32; 4]) -> Vec<f64> {
         w.provinces
             .iter()
             .map(|p| {
+                // 已沒入海中的州郡不投生（GDD 2.8）。
+                if p.lost {
+                    return 0.0;
+                }
                 let f = faith4(p);
                 (0..4).map(|k| f[k] as f64 * affinity[k] as f64).sum::<f64>()
             })
@@ -143,7 +147,7 @@ pub fn sample_near(w: &mut World, anchor: ProvinceId) -> ProvinceId {
 /// 菩薩願（GDD 3.2）：業氣最重的州郡；同值取 ID 小者。
 pub fn heaviest_karma_province(w: &World) -> ProvinceId {
     let mut best: Option<(ProvinceId, f32)> = None;
-    for p in &w.provinces {
+    for p in w.provinces.iter().filter(|p| !p.lost) {
         if best.is_none_or(|(_, k)| p.karma_qi > k) {
             best = Some((p.id, p.karma_qi));
         }

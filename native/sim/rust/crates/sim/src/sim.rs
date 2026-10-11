@@ -36,6 +36,8 @@ pub struct World {
     pub alive_ids: Vec<PersonId>,
     /// 格點靈氣的距離衰減表（效能快取，GDD 6.8；不納入雜湊與存檔）。開天時建立；以 `from_parts` 建立的世界在第一次每世結算時建立。
     pub aura_basis: Option<crate::worldgen::ley::AuraBasis>,
+    /// 生成時的地形，寒暖與海平面改地形時的基準（GDD 2.8；不納入雜湊與存檔，讀檔重播時在開天當下重建）。
+    pub land_basis: Option<crate::landform::LandBasis>,
     pub rng: RngStreams,
 }
 
@@ -63,6 +65,7 @@ impl World {
             prerun: false,
             alive_ids: Vec::new(),
             aura_basis: None,
+            land_basis: None,
             rng,
         }
     }
@@ -110,6 +113,7 @@ impl Sim {
         let mut sim = Self::from_parts(g.params, g.geo, g.provinces);
         sim.world.fine = g.fine;
         crate::evolution::prepare_aura(&mut sim.world);
+        crate::landform::prepare(&mut sim.world);
         crate::genesis::run(&mut sim);
         Ok(sim)
     }

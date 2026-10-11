@@ -418,6 +418,77 @@ fn component_area(sp: &Sphere, label: &[u32], count: usize) -> Vec<f32> {
     area
 }
 
+/// 州郡的相鄰關係（GDD 2.2 步驟 7「相鄰」）。
+pub struct Adjacency {
+    /// 陸鄰：共享邊界格。
+    pub land: Vec<BTreeSet<u16>>,
+    /// 海鄰：隔海、球面距離 ≤ `WG_SEA_LANE` 的沿岸州郡。
+    pub sea: Vec<BTreeSet<u16>>,
+    /// 鄰接海或湖的格數。
+    pub coast_cells: Vec<u32>,
+}
+
+/// 由每格的歸屬 `of` 算出 `count` 個州郡的陸鄰、海鄰與沿岸格數；世界生成與天地演變（GDD 2.8）共用。
+pub fn adjacency(sp: &Sphere, terrain: &[Terrain], of: &[u16], count: usize) -> Adjacency {
+    let (w, h) = (sp.w, sp.h);
+    let n = w * h;
+    // 陸鄰：共享邊界格。
+    let mut nbr: Vec<BTreeSet<u16>> = vec![BTreeSet::new(); count];
+    for c in 0..n {
+        if of[c] == u16::MAX {
+            continue;
+        }
+        for nb in nb4(w, h, c) {
+            if of[nb] != u16::MAX && of[nb] != of[c] {
+                nbr[of[c] as usize].insert(of[nb]);
+            }
+        }
+    }
+
+    // 沿岸格（海或湖，用於命名）與沿海格（僅海，用於海路）。
+    let mut coast_cells = vec![0u32; count];
+    let mut sea_coast = vec![false; n];
+    for c in 0..n {
+        if of[c] == u16::MAX {
+            continue;
+        }
+        let mut near_water = false;
+        let mut near_sea = false;
+        for (nb, _) in nb8(w, h, c) {
+            near_water |= terrain[nb].is_water();
+            near_sea |= terrain[nb] == Terrain::Sea;
+        }
+        if near_water {
+            coast_cells[of[c] as usize] += 1;
+        }
+        sea_coast[c] = near_sea;
+    }
+
+    // 海鄰：隔海、球面距離 ≤ WG_SEA_LANE 的沿岸州郡（兩者連線須經過海格；陸鄰不算）。
+    let mut lanes: Vec<BTreeSet<u16>> = vec![BTreeSet::new(); count];
+    let r2 = (WG_SEA_LANE * WG_SEA_LANE) as f32;
+    for a in 0..n {
+        if !sea_coast[a] {
+            continue;
+        }
+        let pa = of[a];
+        for b in sp.box_cells(a, WG_SEA_LANE as f32) {
+            if !sea_coast[b] || sp.dist2(a, b) > r2 {
+                continue;
+            }
+            let pb = of[b];
+            if pb <= pa || nbr[pa as usize].contains(&pb) || lanes[pa as usize].contains(&pb) {
+                continue;
+            }
+            if line_crosses_sea(w, terrain, a, b) {
+                lanes[pa as usize].insert(pb);
+                lanes[pb as usize].insert(pa);
+            }
+        }
+    }
+    Adjacency { land: nbr, sea: lanes, coast_cells }
+}
+
 /// GDD 2.2 步驟 7：完整的州郡生成。
 pub fn build(
     sp: &Sphere,
@@ -548,60 +619,7 @@ pub fn build(
         }
     }
 
-    // 陸鄰：共享邊界格。
-    let mut nbr: Vec<BTreeSet<u16>> = vec![BTreeSet::new(); count];
-    for c in 0..n {
-        if of[c] == u16::MAX {
-            continue;
-        }
-        for nb in nb4(w, h, c) {
-            if of[nb] != u16::MAX && of[nb] != of[c] {
-                nbr[of[c] as usize].insert(of[nb]);
-            }
-        }
-    }
-
-    // 沿岸格（海或湖，用於命名）與沿海格（僅海，用於海路）。
-    let mut coast_cells = vec![0u32; count];
-    let mut sea_coast = vec![false; n];
-    for c in 0..n {
-        if of[c] == u16::MAX {
-            continue;
-        }
-        let mut near_water = false;
-        let mut near_sea = false;
-        for (nb, _) in nb8(w, h, c) {
-            near_water |= terrain[nb].is_water();
-            near_sea |= terrain[nb] == Terrain::Sea;
-        }
-        if near_water {
-            coast_cells[of[c] as usize] += 1;
-        }
-        sea_coast[c] = near_sea;
-    }
-
-    // 海鄰：隔海、球面距離 ≤ WG_SEA_LANE 的沿岸州郡（兩者連線須經過海格；陸鄰不算）。
-    let mut lanes: Vec<BTreeSet<u16>> = vec![BTreeSet::new(); count];
-    let r2 = (WG_SEA_LANE * WG_SEA_LANE) as f32;
-    for a in 0..n {
-        if !sea_coast[a] {
-            continue;
-        }
-        let pa = of[a];
-        for b in sp.box_cells(a, WG_SEA_LANE as f32) {
-            if !sea_coast[b] || sp.dist2(a, b) > r2 {
-                continue;
-            }
-            let pb = of[b];
-            if pb <= pa || nbr[pa as usize].contains(&pb) || lanes[pa as usize].contains(&pb) {
-                continue;
-            }
-            if line_crosses_sea(w, terrain, a, b) {
-                lanes[pa as usize].insert(pb);
-                lanes[pb as usize].insert(pa);
-            }
-        }
-    }
+    let Adjacency { land: nbr, sea: lanes, coast_cells } = adjacency(sp, terrain, &of, count);
 
     let mut list = Vec::with_capacity(count);
     for id in 0..count {
