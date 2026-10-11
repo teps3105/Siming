@@ -6,6 +6,7 @@
 //! 回到零之後地圖會一世一步地回到生成時的樣子。
 
 use crate::evolution::Evolution;
+use crate::flora::Flora;
 use crate::model::PowerKind;
 use crate::params::*;
 use crate::sim::World;
@@ -198,16 +199,26 @@ pub fn prepare(w: &mut World) -> bool {
 }
 
 /// 細格這一世的目標地形：變化量下的判定與零變化量下的判定相同就取生成時的地形，否則取新判定。
-fn desired(fine: &FineGeography, basis: &LandBasis, evolution: &Evolution) -> Vec<Terrain> {
+/// 人改過的遊戲格再疊上去（GDD 2.8 草木）：該是森林而已墾的是平原，該是平原而已沙化的是沙漠。
+fn desired(fine: &FineGeography, basis: &LandBasis, evolution: &Evolution, flora: &Flora) -> Vec<Terrain> {
     let (warmth, sea) = (evolution.warmth_delta(), evolution.sea_delta());
+    let (fw, scale) = (fine.w as usize, fine.scale as usize);
+    let gw = fw / scale;
+    let flagged = flora.cleared.len() * scale * scale == fine.len() && flora.sanded.len() == flora.cleared.len();
     (0..fine.len())
         .map(|c| {
             let target = classify_fine(fine, c, basis.terrain[c] == Terrain::Lake, warmth, sea);
-            if target == basis.base[c] {
-                basis.terrain[c]
-            } else {
-                target
+            let mut want = if target == basis.base[c] { basis.terrain[c] } else { target };
+            if flagged {
+                let cell = c / fw / scale * gw + c % fw / scale;
+                if want == Terrain::Forest && flora.cleared[cell] {
+                    want = Terrain::Plains;
+                }
+                if want == Terrain::Plains && flora.sanded[cell] {
+                    want = Terrain::Desert;
+                }
             }
+            want
         })
         .collect()
 }
@@ -501,18 +512,36 @@ fn rehome(w: &mut World, lost: &[LostProvince]) {
 
 /// GDD 2.8「每世結算」第 2、7 步。沒有細格資料的手工世界不演變。
 pub fn settle(w: &mut World) -> LandShift {
+    settle_with(w, &[])
+}
+
+/// 同 [`settle`]；`touched` 是這一世草木旗標有變的遊戲格（[`crate::flora::settle`]），格內的平原、森林、
+/// 沙漠當世就照旗標改，不等一世一步。
+pub fn settle_with(w: &mut World, touched: &[u32]) -> LandShift {
     let mut shift = LandShift::default();
     if !prepare(w) {
         return shift;
     }
     let basis = w.land_basis.take().expect("prepare 剛建立");
-    let want = desired(&w.fine, &basis, &w.evolution);
-    let changed = advance(&mut w.fine, &basis, &want);
+    let want = desired(&w.fine, &basis, &w.evolution, &w.flora);
+    let mut changed = advance(&mut w.fine, &basis, &want);
+    let scale = w.fine.scale as usize;
+    let (fw, gw) = (w.fine.w as usize, w.geo.w as usize);
+    let soft = |t: Terrain| matches!(t, Terrain::Plains | Terrain::Forest | Terrain::Desert);
+    for &cell in touched {
+        let (x, y) = (cell as usize % gw, cell as usize / gw);
+        for f in (0..scale * scale).map(|i| (y * scale + i / scale) * fw + x * scale + i % scale) {
+            if w.fine.terrain[f] != want[f] && soft(w.fine.terrain[f]) && soft(want[f]) {
+                w.fine.terrain[f] = want[f];
+                changed.push(f as u32);
+            }
+        }
+    }
+    changed.sort_unstable();
+    changed.dedup();
     shift.fine = changed.len() as u32;
 
     // 有細格變動的遊戲格照降採樣規則重推。
-    let scale = w.fine.scale as usize;
-    let (fw, gw) = (w.fine.w as usize, w.geo.w as usize);
     let mut blocks: Vec<u32> = changed.iter().map(|&f| ((f as usize / fw / scale) * gw + f as usize % fw / scale) as u32).collect();
     blocks.dedup();
     blocks.sort_unstable();

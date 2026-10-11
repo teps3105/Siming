@@ -2,7 +2,7 @@
 //!
 //! 全球的三個慢變量——寒暖、海平面偏移、靈潮——每世（30 年）更新一次；寒暖與靈潮跨過門檻就是
 //! 世界大事，並依 GDD 2.6 開啟新紀元。靈潮是格點靈氣的倍率，並使洞天福地升降級；
-//! 寒暖與海平面改地形與海陸（[`crate::landform`]）。
+//! 寒暖與海平面改地形與海陸（[`crate::landform`]）；人口改草木（[`crate::flora`]）。
 //!
 //! 開局不是開天第一年：世界在開局前已有一段歷史（[`Evolution::history_years`]），那段歷史只推演
 //! 這裡的慢變量、紀元年表與洞天福地的升降，不推演人間。週期的長度與相位、洞天福地每世的升降
@@ -343,12 +343,13 @@ pub fn prepare_aura(w: &mut World) -> bool {
     true
 }
 
-/// GDD 2.8「每世結算」：在每世的天機收入之前執行。地形與海陸隨寒暖與海平面推進一步、州郡重算；
+/// GDD 2.8「每世結算」：在每世的天機收入之前執行。草木隨墾殖度消長；地形與海陸隨寒暖與海平面推進一步、州郡重算；
 /// 靈氣隨靈潮重算；世界大事、地形的變動與洞天福地的升降寫入因果帳；改元則追加紀元。
 pub fn shi_settle(w: &mut World) {
     let year = w.evolution.history_years + year_of(w.tick);
     let changes = w.evolution.settle(year);
-    let land = crate::landform::settle(w);
+    let flora = crate::flora::settle(w);
+    let land = crate::landform::settle_with(w, &flora.touched);
     let shifts = shift_nodes(w.params.seed, year, w.evolution.tide, &mut w.geo.nodes);
     refresh_aura(w);
     if !changes.is_empty() {
@@ -361,6 +362,13 @@ pub fn shi_settle(w: &mut World) {
         }
     }
     record_land(w, &land);
+    for (kind, provinces) in [(EventKind::ForestCleared, &flora.exhausted), (EventKind::Desertified, &flora.desertified)] {
+        for &province in provinces {
+            let mut event = NewEvent::new(kind, EVO_FLORA_IMPORTANCE, EventArgs::None);
+            event.province = Some(province);
+            crate::ledger::record(w, event);
+        }
+    }
     for shift in shifts {
         let cell = w.geo.nodes[shift.node as usize].cell;
         let args = EventArgs::Node { node: shift.node, from: shift.from, to: shift.to };

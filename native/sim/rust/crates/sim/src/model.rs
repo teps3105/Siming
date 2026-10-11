@@ -382,6 +382,10 @@ pub enum EventKind {
     ProvinceLost,
     /// GDD 2.8 陸橋浮現或沉沒：兩州成為陸鄰，或不再是陸鄰。
     LandLinked,
+    /// GDD 2.8 一州的森林墾盡。
+    ForestCleared,
+    /// GDD 2.8 一州開始沙化。
+    Desertified,
 }
 
 /// GDD 3.5 天劫結果。

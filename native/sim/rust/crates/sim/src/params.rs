@@ -604,6 +604,26 @@ pub const EVO_LOST_IMPORTANCE: u8 = 4;
 pub const EVO_SEAT_IMPORTANCE: u8 = 2;
 /// 7.1 `EVO_LINK_IMPORTANCE` 陸橋浮現或沉沒的事件重要度 3（GDD 2.8、7.2）。
 pub const EVO_LINK_IMPORTANCE: u8 = 3;
+/// 7.1 `EVO_CULTIVATION_APPROACH` 墾殖度每世向「人口 ÷ 開局時的承載」靠近 25%（GDD 2.8 慢變量）。
+pub const EVO_CULTIVATION_APPROACH: f32 = 0.25;
+/// 7.1 `EVO_CLEAR_ABOVE` 墾殖度高於 0.7 的州墾森林（GDD 2.8 草木）。
+pub const EVO_CLEAR_ABOVE: f32 = 0.7;
+/// 7.1 `EVO_CLEAR_SHARE` 每世墾掉州內 5% 的森林格（GDD 2.8 草木）。
+pub const EVO_CLEAR_SHARE: f32 = 0.05;
+/// 7.1 `EVO_REGROW_BELOW` 墾殖度低於 0.3 的州復林、沙化的格回復（GDD 2.8 草木）。
+pub const EVO_REGROW_BELOW: f32 = 0.3;
+/// 7.1 `EVO_REGROW_SHARE` 每世 5% 的已墾格長回森林、5% 的沙化格回復（GDD 2.8 草木）。
+pub const EVO_REGROW_SHARE: f32 = 0.05;
+/// 7.1 `EVO_SAND_ABOVE` 墾殖度高於 0.8 的乾燥州沙化（GDD 2.8 草木）。
+pub const EVO_SAND_ABOVE: f32 = 0.8;
+/// 7.1 `EVO_SAND_MOISTURE` 州的有效濕度低於 0.25 才沙化（GDD 2.8 草木）。
+pub const EVO_SAND_MOISTURE: f32 = 0.25;
+/// 7.1 `EVO_SAND_SHARE` 每世 3% 的平原格沙化（GDD 2.8 草木）。
+pub const EVO_SAND_SHARE: f32 = 0.03;
+/// 7.1 `EVO_SAND_LIMIT` 州內平原（含已沙化的）沙化到一半為止（GDD 2.8 草木）。
+pub const EVO_SAND_LIMIT: f32 = 0.5;
+/// 7.1 `EVO_FLORA_IMPORTANCE` 森林墾盡、開始沙化的事件重要度 2（GDD 2.8、7.2）。
+pub const EVO_FLORA_IMPORTANCE: u8 = 2;
 /// 7.1 `EVO_EVENT_IMPORTANCE` 世界大事的事件重要度 5（GDD 2.8、7.2）。
 pub const EVO_EVENT_IMPORTANCE: u8 = 5;
 

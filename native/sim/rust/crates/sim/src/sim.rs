@@ -19,6 +19,8 @@ pub struct World {
     pub eras: Vec<crate::calendar::Era>,
     /// GDD 2.8 天地的慢變量（寒暖、海平面偏移、靈潮）、所在的時期與開局前的歷史年數；每世結算一次。
     pub evolution: crate::evolution::Evolution,
+    /// GDD 2.8 草木：各州的墾殖度與遊戲格的墾殖、沙化旗標；每世結算一次。
+    pub flora: crate::flora::Flora,
     pub souls: Vec<Soul>,
     pub persons: Vec<Person>,
     pub powers: Vec<Power>,
@@ -54,6 +56,7 @@ impl World {
             provinces,
             eras,
             evolution,
+            flora: Default::default(),
             souls: Vec::new(),
             persons: Vec::new(),
             powers: Vec::new(),
@@ -115,6 +118,7 @@ impl Sim {
         crate::evolution::prepare_aura(&mut sim.world);
         crate::landform::prepare(&mut sim.world);
         crate::genesis::run(&mut sim);
+        crate::flora::prepare(&mut sim.world);
         Ok(sim)
     }
 
