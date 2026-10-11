@@ -1,7 +1,7 @@
 class_name Hud
 extends CanvasLayer
 ## GDD 5.7 介面佈局：把案頭器物放到畫面上並接到模擬、地圖與鏡頭。
-## 常駐器物只有天時儀＋題簽（左上）與印匣（右下）；州郡卡與停留提示隨選取、停留出現。
+## 常駐器物只有天時儀＋題簽與視角鈕（左上）、印匣（右下）；州郡卡與停留提示隨選取、停留出現。
 
 const MARGIN := 12.0
 ## Steam Deck 版面（高度 ≤ 800）器物放大不改形（GDD 5.9）。
@@ -19,6 +19,8 @@ var _overlay: MapOverlay
 var _dial: TimeDial
 var _seals: SealBox
 var _card: ProvinceCard
+var _view: ViewToggle
+var _cursor: GameCursor
 
 
 func setup(sim: SimHost, map: TerrainMap, camera: MapCamera) -> void:
@@ -27,6 +29,7 @@ func setup(sim: SimHost, map: TerrainMap, camera: MapCamera) -> void:
 	_camera = camera
 	camera.province_hovered.connect(func(id: int) -> void: _overlay.set_hover(id))
 	camera.province_selected.connect(func(id: int) -> void: _card.show_province(id))
+	camera.globe_changed.connect(func(on: bool) -> void: _view.globe = on)
 	sim.advanced.connect(func(_months: int) -> void:
 		_card.refresh()
 		_overlay.refresh_seats())
@@ -76,10 +79,18 @@ func _build() -> void:
 	_card.closed.connect(func() -> void: _map.set_selected(-1))
 	_card.show_province(selected)
 
-	# 搖桿游標畫在所有器物之上。
-	var cursor := PadCursor.new()
-	add_child(cursor)
-	cursor.setup(_camera, _unit)
+	_view = ViewToggle.new()
+	add_child(_view)
+	_view.setup(_unit)
+	_view.globe = _camera.globe
+	_view.toggled.connect(func() -> void: _camera.toggle_globe())
+	var under_dial := maxf(_dial._disc_radius() * 2.0, _dial._speed_rect().end.y + Ink.SLIP_BAND)
+	_view.position = _dial.position + Vector2(0.0, under_dial + 8.0 * _unit)
+
+	# 遊戲內游標畫在所有器物之上。
+	_cursor = GameCursor.new()
+	add_child(_cursor)
+	_cursor.setup(_camera, _unit)
 	_apply_device()
 
 
@@ -102,6 +113,7 @@ func _occupied() -> Array[Rect2]:
 	var out: Array[Rect2] = [disc.grow(6.0), slips.grow(6.0), seals.grow(6.0)]
 	if _card.visible:
 		out.append(Rect2(_card.position, _card.size).grow(6.0))
+	out.append(Rect2(_view.position, _view.size).grow(6.0))
 	return out
 
 
@@ -109,6 +121,7 @@ func _apply_device() -> void:
 	_dial.gamepad = _camera.use_crosshair
 	_seals.gamepad = _camera.use_crosshair
 	_card.gamepad = _camera.use_crosshair
+	_view.gamepad = _camera.use_crosshair
 
 
 func _set_mode(mode: TerrainMap.Mode) -> void:

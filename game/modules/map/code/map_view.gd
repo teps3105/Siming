@@ -8,7 +8,8 @@ const Z_MAX_FRAC := 1.1
 const PITCH_MIN_DEG := 68.0
 const PITCH_MAX_DEG := 88.0
 const FLATTEN_START_FRAC := 0.6
-const GLOBE_Z_FRAC := 0.9
+## 星球視角下，江在這個鏡頭高度（地圖寬的比例）以上淡出。
+const RIVER_GLOBE_Z_FRAC := 0.5
 const FOCUS_MAX_LAT_DEG := 75.0
 const FRONTIER_FRAC := 0.05
 ## GDD 5.3「河流」：大河、小河出現的鏡頭高度（地圖寬的比例）與淡入區間。
@@ -38,17 +39,12 @@ static func height_scale(z: float, map_w: float) -> float:
 	return lerpf(1.0, 0.05, flatten_weight(z, map_w))
 
 
-## 星球視角的目標權重（0 平面、1 球面）。
-static func globe_target(z: float, map_w: float) -> float:
-	return 1.0 if z > map_w * GLOBE_Z_FRAC else 0.0
-
-
-## 河流各等級的不透明度（x 小河、y 大河、z 江）：門檻上下各 10% 線性淡入淡出；江在星球視角淡出。
+## 河流各等級的不透明度（x 小河、y 大河、z 江）：門檻上下各 10% 線性淡入淡出；江在星球視角拉遠後淡出。
 static func river_alpha(z: float, map_w: float, globe_morph: float) -> Vector3:
 	return Vector3(
 		_fade_below(z, map_w * RIVER_SMALL_Z_FRAC),
 		_fade_below(z, map_w * RIVER_BIG_Z_FRAC),
-		1.0 - globe_morph,
+		lerpf(1.0, _fade_below(z, map_w * RIVER_GLOBE_Z_FRAC), globe_morph),
 	)
 
 
@@ -58,12 +54,12 @@ static func _fade_below(z: float, threshold: float) -> float:
 	return 1.0 - clampf((z - lo) / (hi - lo), 0.0, 1.0)
 
 
-## 鏡頭焦點的列座標範圍：南北緯 75° 之內，且畫面可見的地面不超出南北緣太多。
-static func focus_row_limits(map_size: Vector2, z: float) -> Vector2:
+## 鏡頭焦點的列座標範圍：南北緯 75° 之內；平面視角另要求畫面可見的地面不超出南北緣太多。
+static func focus_row_limits(map_size: Vector2, z: float, globe := false) -> Vector2:
 	var t := (90.0 - FOCUS_MAX_LAT_DEG) / 180.0
 	var lo := map_size.y * t
 	var hi := map_size.y * (1.0 - t)
-	if z > map_size.x * GLOBE_Z_FRAC:
+	if globe:
 		return Vector2(lo, hi)
 	var p := pitch(z, map_size.x)
 	var half := deg_to_rad(FOV_DEG) * 0.5
@@ -84,6 +80,12 @@ static func nearest_copy_x(x: float, near_x: float, map_w: float) -> float:
 
 static func globe_radius(map_w: float) -> float:
 	return map_w / TAU
+
+
+## 鏡頭到焦點的距離：平面視角是到地面的距離；星球視角焦點在球心，再加一個半徑，
+## 因此同一個鏡頭高度在兩種視角下看到的地面大小相同。morph 為 0 平面 .. 1 球面。
+static func camera_distance(z: float, map_w: float, morph: float) -> float:
+	return z / sin(pitch(z, map_w)) + globe_radius(map_w) * morph
 
 
 ## 單位球面上（經度、緯度）的方向，+y 為北。

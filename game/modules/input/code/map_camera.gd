@@ -2,12 +2,14 @@ class_name MapCamera
 extends Camera3D
 ## GDD 5.2 鏡頭：透視 30°，以焦點、離地高度 z 與方位角描述；俯角隨高度內插。
 ## 讀 InputMap 動作、滑鼠（拖曳平移、滾輪縮放、右鍵旋轉）、觸控與搖桿（GDD 5.9），並每幀把鏡頭狀態交給地圖。
+## 星球視角與平面地圖由 globe 切換（按鈕或快捷鍵），兩者的縮放範圍相同。
 ## 搖桿當滑鼠用：右搖桿移動游標，LT 是左鍵，RT 是右鍵；這裡把它們轉成滑鼠事件送回輸入分派，
 ## 地圖與介面因此都以同一條滑鼠路徑回應。
 ## 單指的點與拖由引擎轉成滑鼠事件（專案設定 emulate_mouse_from_touch），這裡只另外處理雙指與長按。
 
 signal province_hovered(province: int)
 signal province_selected(province: int)
+signal globe_changed(on: bool)
 
 ## 臨界阻尼平滑的時間常數（秒）。
 const SMOOTH_SECONDS := 0.12
@@ -24,6 +26,8 @@ const HOVER_DELAY := 0.3
 const CLICK_SLOP := 6.0
 ## 開場運鏡的秒數（GDD 5.2）。
 const OPENING_SECONDS := 3.5
+## 開場運鏡降到這個高度（地圖寬的比例）以下，星球攤平成平面地圖。
+const LANDING_Z_FRAC := 0.9
 ## 手指按住不動超過這個秒數算長按：提示照常出現，放開不選取（GDD 5.9）。
 const LONG_PRESS_SECONDS := 0.5
 ## 搖桿游標推滿時每秒移動的距離（以 1080 高的畫面計，其他解析度等比）；實際速度再乘輸入量。
@@ -34,19 +38,29 @@ const PAD_DEVICE := 77
 var focus := Vector2.ZERO
 var z := 100.0
 var yaw := 0.0
-## 最後一次輸入來自搖桿：為真時以搖桿游標取代滑鼠位置。
-var use_crosshair := false
+## 星球視角（GDD 5.2）：由介面的按鈕或快捷鍵切換，與鏡頭高度無關。
+var globe := false
+## 最後一次輸入來自搖桿：為真時以搖桿游標取代滑鼠位置。換到搖桿的那一刻，游標從滑鼠所在的位置接手。
+var use_crosshair := false:
+	set(value):
+		if value and not use_crosshair and is_inside_tree():
+			_cursor = _mouse
+		use_crosshair = value
 
 var _map: TerrainMap
 var _target_focus := Vector2.ZERO
 var _target_z := 100.0
 var _target_yaw := 0.0
 var _dragging := false
+## 這次按住左鍵已經拖動地圖（超過點擊的容許距離）。
+var _drag_moved := false
 var _rotating := false
 var _press_position := Vector2.ZERO
 var _hover_timer := 0.0
 var _hover_province := -1
 var _last_pointer := Vector2.ZERO
+## 滑鼠最後一次回報的位置（取自滑鼠事件；遊戲內游標畫在這裡）。
+var _mouse := Vector2.ZERO
 ## 搖桿游標在畫面上的位置；(-1, -1) 表示還沒用過，第一次用時放到畫面中央。
 var _cursor := Vector2(-1.0, -1.0)
 ## 自動鎖定：這一輪已經鎖過的目標（索引）；游標或鏡頭被玩家移動後清空，重新從最近的算起。
@@ -60,6 +74,8 @@ var _flight_from_z := 0.0
 var _flight_to_z := 0.0
 var _flight_seconds := 0.0
 var _flight_progress := 0.0
+## 開場運鏡從星球開始：降到這個高度以下就攤平成平面地圖。
+var _flight_lands := false
 
 
 ## 綁定地圖並把鏡頭放到指定焦點與高度。
@@ -71,6 +87,7 @@ func attach(map: TerrainMap, start_focus: Vector2, start_z: float) -> void:
 	z = start_z
 	_target_z = start_z
 	near = 0.5
+	_mouse = get_viewport().get_mouse_position()
 	far = map.map_size.x * 8.0
 	_apply(0.0)
 
@@ -87,8 +104,38 @@ func look_at_map(target_focus: Vector2, target_z := -1.0, instant := false) -> v
 		_apply(0.0)
 
 
-## 開場運鏡（GDD 5.2）：在 seconds 秒內把高度降到 target_z，焦點不動；期間按下任何鍵或螢幕就直接到位。
+## 切換星球視角與平面地圖。
+func set_globe(on: bool) -> void:
+	if on == globe:
+		return
+	globe = on
+	_locked.clear()
+	globe_changed.emit(on)
+
+
+func toggle_globe() -> void:
+	set_globe(not globe)
+
+
+## 游標該用哪一種圖示（GDD 5.9）：旋轉鏡頭、拖動地圖，其餘為一般。
+func pointer_kind() -> StringName:
+	if _rotating:
+		return &"rotate"
+	if _dragging and _drag_moved:
+		return &"drag"
+	return &"arrow"
+
+
+## 游標在畫面上的位置：搖桿模式是搖桿游標，否則是滑鼠。
+func pointer_position() -> Vector2:
+	return _pointer()
+
+
+## 開場運鏡（GDD 5.2）：從星球視角開始，在 seconds 秒內把高度降到 target_z，途中攤平成平面地圖；
+## 焦點不動，期間按下任何鍵或螢幕就直接到位。
 func descend_to(target_z: float, seconds: float) -> void:
+	set_globe(true)
+	_flight_lands = true
 	_flight_from_z = _target_z
 	_flight_to_z = target_z
 	_flight_seconds = seconds
@@ -100,12 +147,20 @@ func is_flying() -> bool:
 	return _flight_seconds > 0.0
 
 
+## 滑鼠的位置取自事件本身：介面器物攔下的事件也算，游標與器物收到的位置因此一致。
+func _input(event: InputEvent) -> void:
+	if event is InputEventMouse and event.device != PAD_DEVICE:
+		_mouse = (event as InputEventMouse).position
+		use_crosshair = false
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if _map == null:
 		return
 	if is_flying() and _is_press(event):
 		_flight_seconds = 0.0
 		_target_z = _flight_to_z
+		_land()
 	if event is InputEventScreenTouch:
 		_on_touch(event)
 	elif event is InputEventScreenDrag:
@@ -118,6 +173,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		use_crosshair = true
 	if event.is_action_pressed(InputActions.LOCK_ON):
 		_lock_on()
+	if event.is_action_pressed(InputActions.VIEW_TOGGLE):
+		toggle_globe()
 
 
 static func _is_press(event: InputEvent) -> bool:
@@ -176,16 +233,13 @@ func set_cursor_position(screen: Vector2) -> void:
 
 ## 自動鎖定（GDD 5.9）：游標吸到畫面上離它最近、這一輪還沒鎖過的目標並選取；都鎖過了就從頭再來。
 func _lock_on() -> void:
-	if _map.globe_morph > 0.5:
-		return
 	var bounds := Rect2(Vector2.ZERO, get_viewport().get_visible_rect().size)
 	var from := cursor_position()
 	var targets := _map.lock_targets()
 	var on_screen := {}
 	for i in targets.size():
-		var x := MapView.nearest_copy_x(targets[i].x, focus.x, _map.map_size.x)
-		var world_pos := Vector3(x, _map.surface_height(targets[i].x, targets[i].y), targets[i].y)
-		if is_position_behind(world_pos):
+		var world_pos := _map.world_position(targets[i], focus.x)
+		if is_position_behind(world_pos) or not _map.faces_camera(targets[i], global_position):
 			continue
 		var screen := unproject_position(world_pos)
 		if bounds.has_point(screen):
@@ -254,6 +308,7 @@ func _on_mouse_button(event: InputEventMouseButton) -> void:
 		MOUSE_BUTTON_LEFT:
 			if event.pressed:
 				_dragging = true
+				_drag_moved = false
 				_press_position = event.position
 				_press_msec = Time.get_ticks_msec()
 			else:
@@ -273,8 +328,11 @@ func _on_mouse_motion(event: InputEventMouseMotion) -> void:
 		use_crosshair = false
 	_hover_timer = 0.0
 	if _dragging and event.position.distance_to(_press_position) > CLICK_SLOP:
+		_drag_moved = true
 		var per_pixel := _ground_width() / get_viewport().get_visible_rect().size.x
-		_target_focus -= Vector2(event.relative.x, event.relative.y / sin(MapView.pitch(z, _map.map_size.x))).rotated(-yaw) * per_pixel
+		# 星球正對鏡頭，上下拖不必依俯角換算。
+		var foreshorten := 1.0 if globe else sin(MapView.pitch(z, _map.map_size.x))
+		_pan(-Vector2(event.relative.x, event.relative.y / foreshorten).rotated(-yaw) * per_pixel)
 	if _rotating:
 		_target_yaw = clampf(_target_yaw - event.relative.x * 0.005, -deg_to_rad(YAW_LIMIT_DEG), deg_to_rad(YAW_LIMIT_DEG))
 
@@ -286,7 +344,7 @@ func _process(delta: float) -> void:
 	var pan := Input.get_vector(InputActions.PAN_LEFT, InputActions.PAN_RIGHT, InputActions.PAN_UP, InputActions.PAN_DOWN)
 	if pan != Vector2.ZERO:
 		_locked.clear()
-		_target_focus += pan.rotated(-yaw) * _ground_width() * PAN_PER_SECOND * delta
+		_pan(pan.rotated(-yaw) * _ground_width() * PAN_PER_SECOND * delta)
 	var zoom := Input.get_axis(InputActions.ZOOM_IN, InputActions.ZOOM_OUT)
 	if zoom != 0.0:
 		_target_z *= pow(1.0 + KEY_ZOOM_PER_SECOND, zoom * delta * 4.0)
@@ -299,8 +357,11 @@ func _process(delta: float) -> void:
 		# 高度取對數內插，畫面縮放的速度才均勻；兩端緩起緩停。
 		_flight_progress = minf(_flight_progress + delta / _flight_seconds, 1.0)
 		_target_z = _flight_from_z * pow(_flight_to_z / _flight_from_z, smoothstep(0.0, 1.0, _flight_progress))
+		if _target_z < _map.map_size.x * LANDING_Z_FRAC:
+			_land()
 		if _flight_progress >= 1.0:
 			_flight_seconds = 0.0
+			_land()
 	_apply(delta)
 	_update_hover(delta)
 
@@ -309,7 +370,7 @@ func _apply(delta: float) -> void:
 	var map_size := _map.map_size
 	var limits := MapView.z_range(map_size.x)
 	_target_z = clampf(_target_z, limits.x, limits.y)
-	var rows := MapView.focus_row_limits(map_size, _target_z)
+	var rows := MapView.focus_row_limits(map_size, _target_z, globe)
 	_target_focus.y = clampf(_target_focus.y, rows.x, rows.y)
 
 	var blend := 1.0 if delta <= 0.0 else 1.0 - exp(-delta / SMOOTH_SECONDS)
@@ -320,9 +381,27 @@ func _apply(delta: float) -> void:
 	var tilt := MapView.pitch(z, map_size.x)
 	var back := Vector3(0.0, 0.0, 1.0).rotated(Vector3.UP, yaw) * (z / tan(tilt))
 	var target := Vector3(focus.x, 0.0, focus.y)
-	global_position = target + back + Vector3(0.0, z, 0.0)
+	# 星球視角焦點在球心：鏡頭沿原方向退一個半徑，拉近時停在球面外，像轉地球儀一樣看。
+	var morph := smoothstep(0.0, 1.0, _map.globe_morph)
+	var away := (back + Vector3(0.0, z, 0.0)).normalized()
+	global_position = target + away * MapView.camera_distance(z, map_size.x, morph)
 	look_at(target, Vector3.UP)
-	_map.update_view(z, focus, global_basis, delta)
+	_map.update_view(z, focus, global_basis, delta, globe)
+
+
+## 平移焦點（地面距離）。星球視角下，同樣的距離在高緯跨過較多經度。
+func _pan(by: Vector2) -> void:
+	if globe:
+		var latitude := (0.5 - _target_focus.y / _map.map_size.y) * PI
+		by.x /= maxf(cos(latitude), 0.25)
+	_target_focus += by
+
+
+## 開場運鏡落地：攤平成平面地圖。
+func _land() -> void:
+	if _flight_lands:
+		_flight_lands = false
+		set_globe(false)
 
 
 ## 以指定螢幕位置為中心縮放：縮放後該位置下的地面點不動。
@@ -346,7 +425,7 @@ func _ground_width() -> float:
 func _pointer() -> Vector2:
 	if use_crosshair:
 		return cursor_position()
-	return get_viewport().get_mouse_position()
+	return _mouse
 
 
 func _province_under(screen: Vector2) -> int:

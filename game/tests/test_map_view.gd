@@ -46,7 +46,7 @@ func test_gdd_5_3_rivers_hidden_in_globe_view() -> void:
 
 
 func test_gdd_5_2_focus_stays_within_75_degrees_latitude() -> void:
-	var rows := MapView.focus_row_limits(MAP_SIZE, MAP_W * 1.0)
+	var rows := MapView.focus_row_limits(MAP_SIZE, MAP_W * 1.0, true)
 	assert_true(is_equal_approx(rows.x, MAP_SIZE.y * 15.0 / 180.0))
 	assert_true(is_equal_approx(rows.y, MAP_SIZE.y * 165.0 / 180.0))
 

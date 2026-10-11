@@ -121,6 +121,8 @@
   "place_range": "山脈",
   "place_node": "洞天福地",
   "prompt_cursor": "游標",
+  "view_globe": "星球",
+  "view_plane": "平面",
   "prompt_rotate": "按住旋轉",
   "prompt_zoom": "縮放",
   "prompt_turn": "旋轉",

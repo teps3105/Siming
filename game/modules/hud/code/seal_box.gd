@@ -242,6 +242,12 @@ func _seal_at(pos: Vector2) -> int:
 	return -1
 
 
+## 游標停在這裡時是否可以按（GDD 5.9 游標圖示）：尚未開放的印不算。
+func is_hot(point: Vector2) -> bool:
+	var index := _seal_at(point)
+	return index >= 0 and SEALS[index]["mode"] >= 0
+
+
 ## 滑鼠只在印章上才攔截，例簽與空白處讓地圖收到事件。
 func _has_point(point: Vector2) -> bool:
 	return _seal_at(point) >= 0

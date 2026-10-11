@@ -144,7 +144,11 @@ func test_every_control_has_text_and_a_key_image() -> void:
 	await key(KEY_TAB)
 	await key(KEY_TAB)
 	assert_eq(_hud._dial._state_label(), Locale.t("dial_running"))
-	assert_eq(_hud._dial._speed_label(), "20x")
+	assert_eq(_hud._dial._speed_label(), "10x")
+	await key(KEY_TAB)
+	assert_eq(_hud._dial._speed_label(), "20x", "最快 20 倍")
+	assert_eq(_hud._view._key(), "G", "視角鈕帶快捷鍵的圖像")
+	assert_false(_hud._view._label().is_empty(), "視角鈕有文字")
 	var badge_owner: Rect2 = _hud._seals._seal_rect(0)
 	assert_lt(_hud._seals._badge_position(0).x, badge_owner.get_center().x, "模式鈕的鍵帽掛在左上角")
 	assert_eq(_hud._card._close_key(), "Esc")
@@ -233,12 +237,12 @@ func test_map_labels_keep_clear_of_the_instruments() -> void:
 	_hud._card.show_province(0)
 	await wait(0.5)
 	var reserved: Array[Rect2] = _hud._overlay.reserved
-	assert_eq(reserved.size(), 4, "圓盤、兩張簽、模式鈕與開著的命簿")
+	assert_eq(reserved.size(), 5, "圓盤、兩張簽、模式鈕、視角鈕與開著的命簿")
 	var card := Rect2(_hud._card.position, _hud._card.size)
 	assert_true(reserved[3].encloses(card), "命簿的範圍在避讓區內")
 	_hud._card.close()
 	await wait(0.5)
-	assert_eq(_hud._overlay.reserved.size(), 3, "命簿收起後不再佔位")
+	assert_eq(_hud._overlay.reserved.size(), 4, "命簿收起後不再佔位")
 
 
 func test_card_title_is_written_vertically_on_a_side_strip() -> void:

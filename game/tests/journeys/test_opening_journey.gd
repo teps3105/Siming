@@ -18,7 +18,7 @@ func setup() -> void:
 
 func test_opening_starts_on_the_globe_and_descends_to_the_continent() -> void:
 	var width := _map.map_size.x
-	assert_gt(_camera.z, width * MapView.GLOBE_Z_FRAC, "第一個畫面是星球")
+	assert_true(_camera.globe, "第一個畫面是星球")
 	assert_true(_camera.is_flying(), "開場運鏡進行中")
 	var focus := _camera.focus
 	await wait(MapCamera.OPENING_SECONDS * 0.5)

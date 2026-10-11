@@ -8,8 +8,8 @@ signal advanced(months: int)
 signal time_state_changed
 signal slowed_down
 
-## GDD 2.6 速度：1×、5×、20×、100×；1× 每秒 2 個月。
-const SPEED_MULTIPLIERS: Array[int] = [1, 5, 20, 100]
+## GDD 2.6 速度：1×、5×、10×、20×；1× 每秒 2 個月。
+const SPEED_MULTIPLIERS: Array[int] = [1, 5, 10, 20]
 const MONTHS_PER_SECOND := 2.0
 ## 每幀推進的時間預算（毫秒）與累積上限（月）。
 const FRAME_BUDGET_MSEC := 8

@@ -20,6 +20,20 @@ static func draw(item: CanvasItem, icon: StringName, center: Vector2, r: float, 
 			item.draw_arc(center, r * 0.6, 0.0, TAU, 24, color, WIDTH, true)
 			for dir: Vector2 in [Vector2.UP, Vector2.DOWN, Vector2.LEFT, Vector2.RIGHT]:
 				item.draw_line(center + dir * r * 0.35, center + dir * r, color, WIDTH, true)
+		&"globe":
+			# 星球：圓、赤道與一條經線。
+			item.draw_arc(center, r, 0.0, TAU, 32, color, WIDTH, true)
+			item.draw_line(center + Vector2(-r, 0.0), center + Vector2(r, 0.0), color, WIDTH, true)
+			var meridian := PackedVector2Array()
+			for i in 25:
+				var angle := TAU * i / 24.0
+				meridian.append(center + Vector2(cos(angle) * r * 0.45, sin(angle) * r))
+			item.draw_polyline(meridian, color, WIDTH, true)
+		&"plane":
+			# 平面地圖：一張攤開的圖，中間兩道摺線。
+			_line(item, center, r, [Vector2(-1.0, -0.7), Vector2(1.0, -0.7), Vector2(1.0, 0.7), Vector2(-1.0, 0.7), Vector2(-1.0, -0.7)], color)
+			_line(item, center, r, [Vector2(-0.33, -0.7), Vector2(-0.33, 0.7)], color)
+			_line(item, center, r, [Vector2(0.33, -0.7), Vector2(0.33, 0.7)], color)
 		&"shanhe":
 			# 山與水：兩座山峰，下面一道水紋。
 			_line(item, center, r, [Vector2(-1.0, 0.35), Vector2(-0.35, -0.75), Vector2(0.1, 0.0), Vector2(0.45, -0.4), Vector2(1.0, 0.35)], color)

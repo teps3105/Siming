@@ -202,16 +202,64 @@ func test_province_card_reports_terrain_mix() -> void:
 	assert_eq(total, int(_sim.world.province_info(0)["cells"]), "各地形格數合計等於州郡格數")
 
 
-func test_zooming_all_the_way_out_turns_the_map_into_a_globe() -> void:
+func test_view_button_switches_between_globe_and_plane_at_any_zoom() -> void:
 	_camera.look_at_map(_map.map_size * 0.5, _map.map_size.x * 1.05, true)
 	await wait(0.9)
-	assert_true(is_equal_approx(_map.globe_morph, 1.0), "拉到最遠後變成星球：%s" % _map.globe_morph)
+	assert_eq(_map.globe_morph, 0.0, "拉到最遠仍是平面地圖，不自動變成星球")
+	await click(_hud._view.position + _hud._view.size * 0.5)
+	await wait(0.9)
+	assert_true(_camera.globe, "按視角鈕換到星球")
+	assert_true(is_equal_approx(_map.globe_morph, 1.0), "過渡完成：%s" % _map.globe_morph)
 	var centre := tree.root.get_visible_rect().size * 0.5
 	var hit := _map.pick(_camera.project_ray_origin(centre), _camera.project_ray_normal(centre))
 	assert_lt(hit.distance_to(_camera.focus), 1.0, "星球正中央就是鏡頭焦點")
-	_camera.look_at_map(_map.map_size * 0.5, _map.map_size.x * 0.3, true)
+	# 星球視角可以像地球儀一樣拉近：鏡頭停在球面外，正中央仍是焦點。
+	_camera.look_at_map(_map.map_size * 0.5, _map.map_size.x * 0.1, true)
 	await wait(0.9)
-	assert_eq(_map.globe_morph, 0.0, "推回去變回平面")
+	assert_true(is_equal_approx(_map.globe_morph, 1.0), "拉近後仍是星球")
+	var radius := MapView.globe_radius(_map.map_size.x)
+	assert_gt(_camera.global_position.distance_to(_map.globe_xform.origin), radius, "鏡頭在球面外")
+	hit = _map.pick(_camera.project_ray_origin(centre), _camera.project_ray_normal(centre))
+	assert_lt(hit.distance_to(_camera.focus), 1.0, "拉近後正中央仍是鏡頭焦點")
+	await key(KEY_G)
+	await wait(0.9)
+	assert_eq(_map.globe_morph, 0.0, "按 G 變回平面")
+	assert_true(is_equal_approx(_camera.z, _map.map_size.x * 0.1), "切換視角不改鏡頭高度")
+
+
+func test_game_cursor_changes_with_the_situation() -> void:
+	# 無視窗的顯示驅動不能改滑鼠模式，只在有視窗時檢查。
+	if DisplayServer.get_name() != "headless":
+		assert_eq(Input.mouse_mode, Input.MOUSE_MODE_HIDDEN, "系統游標隱藏，由遊戲自己畫")
+	var screen := await _aim_at_province(0)
+	await _move_mouse(screen)
+	assert_eq(_hud._cursor.kind(), &"arrow", "在地圖上是一般游標")
+	await _move_mouse(_hud._view.position + _hud._view.size * 0.5)
+	assert_eq(_hud._cursor.kind(), &"point", "在按鈕上是可按的游標")
+	var centre := Vector2(tree.root.get_visible_rect().size) * 0.5
+	await _move_mouse(centre)
+	Input.parse_input_event(_mouse_button(MOUSE_BUTTON_LEFT, true, centre))
+	await frames(2)
+	await _move_mouse(centre + Vector2(60.0, 0.0), MOUSE_BUTTON_MASK_LEFT, Vector2(60.0, 0.0))
+	assert_eq(_hud._cursor.kind(), &"drag", "拖動地圖時是拖動的游標")
+	Input.parse_input_event(_mouse_button(MOUSE_BUTTON_LEFT, false, centre + Vector2(60.0, 0.0)))
+	await frames(2)
+	assert_eq(_hud._cursor.kind(), &"arrow", "放開後回到一般游標")
+	Input.parse_input_event(_mouse_button(MOUSE_BUTTON_RIGHT, true, centre))
+	await frames(2)
+	assert_eq(_hud._cursor.kind(), &"rotate", "按住右鍵旋轉時是旋轉的游標")
+	Input.parse_input_event(_mouse_button(MOUSE_BUTTON_RIGHT, false, centre))
+	await frames(2)
+
+
+func _move_mouse(pos: Vector2, mask := 0, relative := Vector2.ZERO) -> void:
+	var motion := InputEventMouseMotion.new()
+	motion.position = pos
+	motion.global_position = pos
+	motion.relative = relative
+	motion.button_mask = mask
+	Input.parse_input_event(motion)
+	await frames(2)
 
 
 func test_touch_tap_selects_and_one_finger_drag_pans() -> void:
@@ -277,7 +325,8 @@ func test_right_stick_moves_the_cursor_and_triggers_are_mouse_buttons() -> void:
 	await joy_button(JOY_BUTTON_LEFT_SHOULDER)
 	await joy_button(JOY_BUTTON_RIGHT_SHOULDER)
 	var centre := Vector2(tree.root.get_visible_rect().size) * 0.5
-	assert_lt(_camera.cursor_position().distance_to(centre), 1.0, "游標一開始在畫面中央")
+	assert_lt(_camera.cursor_position().distance_to(_camera._mouse), 1.0, "換到搖桿時，游標從滑鼠所在的位置接手")
+	_camera.set_cursor_position(centre)
 	await joy_axis(JOY_AXIS_RIGHT_X, 1.0, 0.3)
 	assert_gt(_camera.cursor_position().x, centre.x + 100.0, "右搖桿往右推，游標往右移")
 	var z_before := _camera.z

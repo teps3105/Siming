@@ -18,7 +18,7 @@ const PAD := 8.0
 ## 題簽的寬度按年幾位數、月幾位數的最寬日期預留；倍速的數字留幾位數的欄寬並靠右對齊。容器因此不隨內容變寬。
 const YEAR_DIGITS := 4
 const MONTH_DIGITS := 2
-const SPEED_DIGITS := 3
+const SPEED_DIGITS := 2
 const DATE_PAD := 12.0
 const PRESSED_PAUSE := 100
 ## 兩個調速鍵之間的間距。
@@ -251,6 +251,11 @@ func _notification(what: int) -> void:
 ## 滑鼠只在圓盤與時速簽上才攔截，其餘讓地圖收到事件。
 func _has_point(point: Vector2) -> bool:
 	return point.distance_to(_disc_center()) <= _disc_radius() or _speed_rect().grow(Ink.SLIP_BAND).has_point(point)
+
+
+## 游標停在這裡時是否可以按（GDD 5.9 游標圖示）。
+func is_hot(point: Vector2) -> bool:
+	return _on_pause(point) or _stroke_at(point) >= 0
 
 
 ## 圓盤，或時速簽上狀態字與暫停鍵那一段：點了切換行止。

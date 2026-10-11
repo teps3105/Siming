@@ -307,6 +307,11 @@ func _gui_input(event: InputEvent) -> void:
 		queue_redraw()
 
 
+## 游標停在這裡時是否可以按（GDD 5.9 游標圖示）。
+func is_hot(point: Vector2) -> bool:
+	return not _target_at(point).is_empty()
+
+
 func _target_at(pos: Vector2) -> String:
 	var close := _close_rect()
 	if pos.distance_to(close.get_center()) <= close.size.x * 0.5:

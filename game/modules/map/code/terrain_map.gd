@@ -109,8 +109,9 @@ func set_selected(province: int) -> void:
 
 
 ## 每幀由鏡頭呼叫：依鏡頭高度、焦點與朝向更新高度縮放、古地圖化、河流分級與星球過渡。
-func update_view(z: float, focus: Vector2, camera_basis: Basis, delta: float) -> void:
-	var target := MapView.globe_target(z, map_size.x)
+## globe 為真時過渡到星球視角，否則過渡回平面。
+func update_view(z: float, focus: Vector2, camera_basis: Basis, delta: float, globe: bool) -> void:
+	var target := 1.0 if globe else 0.0
 	globe_morph = move_toward(globe_morph, target, delta / GLOBE_MORPH_SECONDS)
 	var eased := smoothstep(0.0, 1.0, globe_morph)
 	globe_xform = MapView.globe_frame(focus, map_size, camera_basis)
@@ -136,6 +137,23 @@ func height_scale() -> float:
 ## 世界座標 (x, z) 的地表高度（已含高度縮放）。
 func surface_height(x: float, z: float) -> float:
 	return _world.terrain_height_at(x, z) * _height_scale
+
+
+## 地圖座標 → 世界座標：平面取離 near_x 最近的東西副本並貼地；星球視角換算到球面。
+func world_position(pos: Vector2, near_x: float) -> Vector3:
+	if globe_morph > 0.5:
+		var lon := pos.x / map_size.x * TAU
+		var lat := (0.5 - pos.y / map_size.y) * PI
+		return globe_xform * (MapView.sphere_dir(lon, lat) * MapView.globe_radius(map_size.x))
+	return Vector3(MapView.nearest_copy_x(pos.x, near_x, map_size.x), surface_height(pos.x, pos.y), pos.y)
+
+
+## 該地圖座標是否朝向鏡頭：平面視角恆為真；星球視角只有面向鏡頭的半球為真。
+func faces_camera(pos: Vector2, camera_position: Vector3) -> bool:
+	if globe_morph <= 0.5:
+		return true
+	var at := world_position(pos, 0.0)
+	return (at - globe_xform.origin).normalized().dot((camera_position - at).normalized()) > 0.25
 
 
 ## 射線與地圖求交，回傳地圖座標（x、z）；未命中回傳 Vector2.INF。

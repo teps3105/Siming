@@ -122,7 +122,7 @@ func _draw_labels() -> void:
 		var text: String = label["text"]
 		var path: PackedVector2Array = label["path"]
 		# 江河與山脈：字沿河道或山脊一個一個排開；路徑太短就縮小字級，再排不下就不顯示。
-		if path.size() >= 2 and _map.globe_morph < 0.5:
+		if path.size() >= 2:
 			var points := _path_on_screen(path)
 			# 路徑在鏡頭後方：這個標籤不畫。
 			if points.is_empty():
@@ -173,13 +173,9 @@ func _blocked(rect: Rect2, taken: Array[Rect2]) -> bool:
 
 ## 該地圖座標在畫面上是否看得到：在鏡頭前方，且星球視角時位於朝向鏡頭的半球。
 func _visible_on_map(pos: Vector2) -> bool:
-	var world_pos := _world_position(pos)
-	if _camera.is_position_behind(world_pos):
+	if _camera.is_position_behind(_world_position(pos)):
 		return false
-	if _map.globe_morph > 0.5:
-		var outward := (world_pos - _map.globe_xform.origin).normalized()
-		return outward.dot((_camera.global_position - world_pos).normalized()) > 0.25
-	return true
+	return _map.faces_camera(pos, _camera.global_position)
 
 
 ## 沿路徑排字的字級：路徑在畫面上長 total 像素、要排 count 個字。
@@ -192,15 +188,17 @@ static func path_label_size(total: float, count: int, base: int, min_size: int) 
 	return size if size >= min_size else 0
 
 
-## 路徑各點的螢幕位置，依閱讀方向排列（由左到右；近乎垂直時由上到下）。有點在鏡頭後方時回傳空陣列。
+## 路徑各點的螢幕位置，依閱讀方向排列（由左到右；近乎垂直時由上到下）。
+## 有點在鏡頭後方、或星球視角下轉到背面時回傳空陣列。
 func _path_on_screen(path: PackedVector2Array) -> PackedVector2Array:
 	var points := PackedVector2Array()
 	# 整條路徑用同一個東西副本（跟著第一個點選）：逐點各自選最近的副本時，
 	# 離鏡頭約半個地圖寬的路徑會被拆到兩邊，折線就橫跨整個畫面。
 	var shift := MapView.nearest_copy_x(path[0].x, _camera.focus.x, _map.map_size.x) - path[0].x
+	var on_globe := _map.globe_morph > 0.5
 	for p in path:
-		var world_pos := Vector3(p.x + shift, _map.surface_height(p.x, p.y), p.y)
-		if _camera.is_position_behind(world_pos):
+		var world_pos := _world_position(p) if on_globe else Vector3(p.x + shift, _map.surface_height(p.x, p.y), p.y)
+		if _camera.is_position_behind(world_pos) or not _map.faces_camera(p, _camera.global_position):
 			return PackedVector2Array()
 		points.append(_camera.unproject_position(world_pos))
 	var delta := points[points.size() - 1] - points[0]
@@ -272,15 +270,15 @@ func _is_water_at(screen: Vector2, plane_y: float) -> bool:
 
 ## 治所（GDD 5.3）：一個墨點，右邊寫治所名；名字與已放的標籤重疊時只畫點。
 func _draw_seats(taken: Array[Rect2]) -> void:
-	if _camera.z > _map.map_size.x * SEAT_Z_MAX or _map.globe_morph > 0.5:
+	if _camera.z > _map.map_size.x * SEAT_Z_MAX:
 		return
 	var screen := get_viewport_rect()
 	var size := Ink.font_size(SEAT_SIZE, _unit)
 	var radius := 3.0 * _unit
 	for seat in _seats:
-		var world_pos := _world_position(seat["pos"])
-		if _camera.is_position_behind(world_pos):
+		if not _visible_on_map(seat["pos"]):
 			continue
+		var world_pos := _world_position(seat["pos"])
 		var point := _camera.unproject_position(world_pos)
 		if not screen.has_point(point):
 			continue
@@ -307,18 +305,13 @@ func _draw_ley_nodes() -> void:
 
 ## 地圖座標 → 世界座標：平面取離鏡頭最近的東西副本並貼地；星球視角換算到球面。
 func _world_position(pos: Vector2) -> Vector3:
-	if _map.globe_morph > 0.5:
-		var lon := pos.x / _map.map_size.x * TAU
-		var lat := (0.5 - pos.y / _map.map_size.y) * PI
-		return _map.globe_xform * (MapView.sphere_dir(lon, lat) * MapView.globe_radius(_map.map_size.x))
-	var x := MapView.nearest_copy_x(pos.x, _camera.focus.x, _map.map_size.x)
-	return Vector3(x, _map.surface_height(pos.x, pos.y), pos.y)
+	return _map.world_position(pos, _camera.focus.x)
 
 
 func _draw_hover_tip() -> void:
 	var size := Ink.font_size(Ink.SIZE_NOTE, _unit)
 	var extent := Ink.text_size(_hover_text, size)
-	var anchor := _camera.cursor_position() if _camera.use_crosshair else get_local_mouse_position()
+	var anchor := _camera.pointer_position()
 	var slip := Rect2(anchor + Vector2(16.0, 18.0) * _unit, extent + Vector2(20.0, 12.0) * _unit)
 	var bounds := get_viewport_rect().size
 	slip.position.x = minf(slip.position.x, bounds.x - slip.size.x - 8.0)
