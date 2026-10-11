@@ -129,5 +129,9 @@
   "prompt_lock": "鎖定",
   "card_seat": "治所",
   "place_water": "海與湖",
-  "date_era_sample": "天地紀元"
+  "date_era_sample": "天地紀元",
+  "save_error_no_world": "還沒有世界可以存",
+  "save_error_write": "存檔寫不進去",
+  "share_error_prefix": "這不是分享碼",
+  "share_error_broken": "分享碼不完整或已損壞"
 }
