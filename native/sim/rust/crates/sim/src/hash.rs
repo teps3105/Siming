@@ -8,6 +8,9 @@ use crate::hash_ser::feed;
 use crate::sim::World;
 use crate::types::{Era, FineGeography, Geography, Province, WorldParams, WorldSize};
 
+// 世界雜湊只在 64 位元目標上有定義：長度以 usize 餵入，FxHasher 的內部狀態也是 usize（GDD 6.5）。
+const _: () = assert!(usize::BITS == 64, "世界雜湊只支援 64 位元目標");
+
 fn f32s(h: &mut FxHasher, v: &[f32]) {
     h.write_usize(v.len());
     for x in v {
