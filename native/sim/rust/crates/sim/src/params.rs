@@ -840,29 +840,29 @@ pub const ATTR_FEROCITY_MIN: f32 = 0.0;
 pub const ATTR_FEROCITY_MAX: f32 = 6.0;
 /// 7.1 `FEROCITY` 修羅的戾氣加成 4，即 + 修羅 4（GDD 3.4 屬性）。
 pub const ATTR_FEROCITY_ASURA_BONUS: f32 = 4.0;
-/// 7.1 `POWER_*` 修士戰力的底數 3，即 3^境界（GDD 3.4 戰力）。
+/// 7.1 `POWER` 修士戰力的底數 3，即 3^境界（GDD 3.4 戰力）。
 pub const POWER_CULTIVATOR_BASE: f32 = 3.0;
-/// 7.1 `POWER_*` 修士戰力的層數除數 10，即 (1 + 層/10)（GDD 3.4 戰力）。
+/// 7.1 `POWER` 修士戰力的層數除數 10，即 (1 + 層/10)（GDD 3.4 戰力）。
 pub const POWER_LAYER_DIV: f32 = 10.0;
-/// 7.1 `POWER_*` 僧人戰力的基數 2，即 2 × 3^果位（GDD 3.4 戰力）。
+/// 7.1 `POWER` 僧人戰力的基數 2，即 2 × 3^果位（GDD 3.4 戰力）。
 pub const POWER_MONK_BASE: f32 = 2.0;
-/// 7.1 `POWER_*` 僧人戰力的果位底數 3，即 2 × 3^果位（GDD 3.4 戰力）。
+/// 7.1 `POWER` 僧人戰力的果位底數 3，即 2 × 3^果位（GDD 3.4 戰力）。
 pub const POWER_MONK_FRUIT_BASE: f32 = 3.0;
-/// 7.1 `POWER_*` 大儒固定戰力 27（GDD 3.4 戰力）。
+/// 7.1 `POWER` 大儒固定戰力 27（GDD 3.4 戰力）。
 pub const POWER_GREAT_CONFUCIAN: f32 = 27.0;
-/// 7.1 `POWER_*` 武將戰力的基數 3，即 3 + 才略（GDD 3.4 戰力）。
+/// 7.1 `POWER` 武將戰力的基數 3，即 3 + 才略（GDD 3.4 戰力）。
 pub const POWER_GENERAL_BASE: f32 = 3.0;
-/// 7.1 `POWER_*` 武將戰力的才略係數 1，即 3 + 才略 × 1（GDD 3.4 戰力）。
+/// 7.1 `POWER` 武將戰力的才略係數 1，即 3 + 才略 × 1（GDD 3.4 戰力）。
 pub const POWER_GENERAL_TALENT_COEF: f32 = 1.0;
-/// 7.1 `POWER_*` 君主戰力的基數 2，即 2 + 才略 × 0.5（GDD 3.4 戰力）。
+/// 7.1 `POWER` 君主戰力的基數 2，即 2 + 才略 × 0.5（GDD 3.4 戰力）。
 pub const POWER_MONARCH_BASE: f32 = 2.0;
-/// 7.1 `POWER_*` 君主戰力的才略係數 0.5（GDD 3.4 戰力）。
+/// 7.1 `POWER` 君主戰力的才略係數 0.5（GDD 3.4 戰力）。
 pub const POWER_MONARCH_TALENT_COEF: f32 = 0.5;
-/// 7.1 `POWER_*` 君主被襲時戰力倍率 3（GDD 3.4 戰力）。
+/// 7.1 `POWER` 君主被襲時戰力倍率 3（GDD 3.4 戰力）。
 pub const POWER_MONARCH_ASSAULT_MULT: f32 = 3.0;
-/// 7.1 `POWER_*` 其他人物戰力的基數 1，即 1 + 才略 × 0.2（GDD 3.4 戰力）。
+/// 7.1 `POWER` 其他人物戰力的基數 1，即 1 + 才略 × 0.2（GDD 3.4 戰力）。
 pub const POWER_OTHER_BASE: f32 = 1.0;
-/// 7.1 `POWER_*` 其他人物戰力的才略係數 0.2（GDD 3.4 戰力）。
+/// 7.1 `POWER` 其他人物戰力的才略係數 0.2（GDD 3.4 戰力）。
 pub const POWER_OTHER_TALENT_COEF: f32 = 0.2;
 /// 7.1 `ENTRY_REQ` 道的入道門檻：根骨 ≥ 3（GDD 3.4 入道）。
 pub const ENTRY_REQ_TAO_ROOT: f32 = 3.0;
