@@ -109,9 +109,13 @@ func test_date_uses_the_era_form_with_arabic_numerals() -> void:
 	world.step(22)
 	# 世界生成後已預跑一段時間；預期值由 tick 換算（tick 1 是 1年 1月）。
 	var months := world.tick() - 1
-	var expected := "開天紀元 %d年 %d月" % [months / 12 + 1, months % 12 + 1]
-	assert_eq(world.date_short(), expected)
-	assert_eq(world.date_text(), "%s（開天以來第 %d 年）" % [expected, months / 12 + 1])
+	var date := world.date_short()
+	var parts := date.split(" ")
+	assert_eq(parts.size(), 3, "日期是「某某紀元 N年 M月」：%s" % date)
+	assert_true(parts[0].ends_with("紀元") and parts[0].length() == 4, "紀元名是兩個字加「紀元」：%s" % parts[0])
+	assert_eq(parts[1], "%d年" % (months / 12 + 1))
+	assert_eq(parts[2], "%d月" % (months % 12 + 1))
+	assert_eq(world.date_text(), "%s（開天以來第 %d 年）" % [date, months / 12 + 1])
 
 
 func test_gdd_5_3_range_label_paths_stay_on_land() -> void:

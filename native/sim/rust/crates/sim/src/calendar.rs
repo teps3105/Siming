@@ -67,16 +67,8 @@ pub struct Era {
     pub start_year: u32,
 }
 
-/// 開局的第一個紀元名。
-pub const GENESIS_ERA: &str = "開天";
-
-/// 只有開局紀元的紀元表。
-pub fn genesis_eras() -> Vec<Era> {
-    vec![Era {
-        name: GENESIS_ERA.to_string(),
-        start_year: 1,
-    }]
-}
+/// 開局那件世界大事的名稱；自它起算的年份寫作「開天以來第 N 年」。
+pub const GENESIS: &str = "開天";
 
 /// `tick` 所在的紀元與紀元內的年份（1 起算）：取起始年不晚於當年的最後一個紀元。
 /// `eras` 須依起始年遞增排列，且第一個紀元始於第 1 年。
@@ -90,25 +82,20 @@ pub fn era_year(tick: Tick, eras: &[Era]) -> (&Era, u32) {
     (era, total.saturating_sub(era.start_year) + 1)
 }
 
-/// 日期（GDD 2.6）：「開天紀元 12年 11月」。年、月用阿拉伯數字。
+/// 日期（GDD 2.6）：「鴻蒙紀元 12年 11月」，供題簽使用。年、月用阿拉伯數字。
 pub fn era_date(tick: Tick, eras: &[Era]) -> String {
     let (era, year) = era_year(tick, eras);
     format!("{}紀元 {}年 {}月", era.name, year, date(tick).month)
 }
 
-/// 完整日期：紀元日期加自開天起的年份，「開天紀元 12年 11月（開天以來第 12 年）」。
-pub fn full(tick: Tick) -> String {
+/// 完整日期：紀元日期加自開天起的年份，「鴻蒙紀元 12年 11月（開天以來第 12 年）」。
+pub fn full(tick: Tick, eras: &[Era]) -> String {
     format!(
         "{}（{}以來第 {} 年）",
-        short(tick),
-        GENESIS_ERA,
+        era_date(tick, eras),
+        GENESIS,
         date(tick).total_year
     )
-}
-
-/// 簡短日期，供題簽使用：「開天紀元 12年 11月」。換紀元的大事接上之前，紀元表只有開局紀元。
-pub fn short(tick: Tick) -> String {
-    era_date(tick, &genesis_eras())
 }
 
 /// 天書與卡片中的年份標記：「第 N 年」（自開天起，Arabic 數字；GDD 2.6）。
@@ -185,31 +172,42 @@ mod tests {
         assert_eq!((d.hui, d.yun, d.shi, d.year, d.month), (2, 1, 1, 1, 1));
     }
 
+    fn chronicle() -> Vec<Era> {
+        vec![Era {
+            name: "鴻蒙".to_string(),
+            start_year: 1,
+        }]
+    }
+
     #[test]
-    fn short_form_is_era_with_arabic_year_and_month() {
-        assert_eq!(short(0), "開天紀元 1年 1月");
-        assert_eq!(short(12 * 11 + 11), "開天紀元 12年 11月");
+    fn date_is_era_with_arabic_year_and_month() {
+        let eras = chronicle();
+        assert_eq!(era_date(0, &eras), "鴻蒙紀元 1年 1月");
+        assert_eq!(era_date(12 * 11 + 11, &eras), "鴻蒙紀元 12年 11月");
         // 年份不在 30 年或 360 年處歸零。
-        assert_eq!(short(12 * 360 + 1), "開天紀元 361年 1月");
+        assert_eq!(era_date(12 * 360 + 1, &eras), "鴻蒙紀元 361年 1月");
     }
 
     #[test]
     fn full_form_adds_the_year_since_genesis() {
-        assert_eq!(full(12 * 11 + 11), "開天紀元 12年 11月（開天以來第 12 年）");
+        assert_eq!(
+            full(12 * 11 + 11, &chronicle()),
+            "鴻蒙紀元 12年 11月（開天以來第 12 年）"
+        );
     }
 
     #[test]
     fn a_new_era_restarts_the_year_count() {
-        let mut eras = genesis_eras();
+        let mut eras = chronicle();
         eras.push(Era {
-            name: "封神".to_string(),
+            name: "玄冥".to_string(),
             start_year: 361,
         });
         // 第 360 年還在舊紀元；第 361 年是新紀元元年。
-        assert_eq!(era_date(12 * 359 + 12, &eras), "開天紀元 360年 12月");
-        assert_eq!(era_date(12 * 360 + 1, &eras), "封神紀元 1年 1月");
-        assert_eq!(era_date(12 * 371 + 3, &eras), "封神紀元 12年 3月");
-        assert_eq!(era_year(12 * 371 + 3, &eras).0.name, "封神");
+        assert_eq!(era_date(12 * 359 + 12, &eras), "鴻蒙紀元 360年 12月");
+        assert_eq!(era_date(12 * 360 + 1, &eras), "玄冥紀元 1年 1月");
+        assert_eq!(era_date(12 * 371 + 3, &eras), "玄冥紀元 12年 3月");
+        assert_eq!(era_year(12 * 371 + 3, &eras).0.name, "玄冥");
     }
 
     #[test]

@@ -153,7 +153,7 @@ fn row(sim: &Sim) -> serde_json::Value {
     }
     json!({
         "tick": w.tick,
-        "date": calendar::short(w.tick),
+        "date": calendar::era_date(w.tick, &w.eras),
         "population": pop,
         "provinces": w.provinces.len(),
         "city_levels": lv,

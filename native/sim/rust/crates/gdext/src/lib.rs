@@ -104,7 +104,7 @@ impl SimWorld {
     #[func]
     fn date_text(&self) -> GString {
         match self.sim.as_ref() {
-            Some(s) => GString::from(calendar::full(s.world().tick).as_str()),
+            Some(s) => GString::from(calendar::full(s.world().tick, &s.world().eras).as_str()),
             None => GString::new(),
         }
     }
@@ -113,7 +113,7 @@ impl SimWorld {
     #[func]
     fn date_short(&self) -> GString {
         match self.sim.as_ref() {
-            Some(s) => GString::from(calendar::short(s.world().tick).as_str()),
+            Some(s) => GString::from(calendar::era_date(s.world().tick, &s.world().eras).as_str()),
             None => GString::new(),
         }
     }

@@ -29,6 +29,6 @@ fn gdd_6_5_golden_hash_is_stable_across_platforms() {
 }
 
 /// 種子 20261011、預設尺寸：開天並預跑後（tick 120）與再推進 360 個月後（tick 480）的世界雜湊。
-const GOLDEN_AT_CREATION: &str = "000c138230899675";
-const GOLDEN_AFTER_30_YEARS: &str = "c52a568534c1a474";
+const GOLDEN_AT_CREATION: &str = "a2f3b3526a001095";
+const GOLDEN_AFTER_30_YEARS: &str = "76edc0a3cfc864cc";
 

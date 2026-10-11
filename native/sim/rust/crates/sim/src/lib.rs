@@ -4,6 +4,7 @@ pub mod book;
 pub mod calendar;
 pub mod command;
 pub mod dao;
+pub mod era;
 pub mod genesis;
 pub mod hash;
 mod hash_ser;
