@@ -307,3 +307,13 @@ func test_time_slips_keep_one_fixed_width() -> void:
 	for i in TimeDial.STROKE_COUNT:
 		assert_true(_hud._dial._speed_rect().encloses(_hud._dial._stroke_rect(i)), "四筆仍在時速簽內")
 
+
+func test_date_is_centred_in_the_title_slip() -> void:
+	await _boot(FLOW_VIEW)
+	var title: Rect2 = _hud._dial._title_rect()
+	var columns: Dictionary = _hud._dial._date_columns()
+	var shift: float = _hud._dial._date_shift()
+	var left: float = columns["era"] + shift - title.position.x
+	var right: float = title.end.x - (columns["end"] + shift - TimeDial.DATE_PAD)
+	assert_lt(absf(left - right), 1.0, "紀元名與日期整段左右留白相等：左 %s、右 %s" % [left, right])
+

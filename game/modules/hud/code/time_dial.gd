@@ -90,6 +90,11 @@ func _slip_width() -> float:
 	return maxf(_date_columns()["end"], _columns()["end"]) - _slip_left()
 
 
+## 日期整段往右移多少才在題簽裡置中。
+func _date_shift() -> float:
+	return (_slip_width() - (_date_columns()["end"] - _slip_left())) * 0.5
+
+
 ## 一個數字佔的寬度（取 0–9 中最寬者）。
 static func _digit_width(size: int) -> float:
 	var widest := 0.0
@@ -194,15 +199,16 @@ func _draw() -> void:
 	var date_size := Ink.font_size(Ink.SIZE_BODY, _unit)
 	var title := _title_rect()
 	Ink.paper_slip(self, title)
-	# 紀元名靠左；年與月的數字各在固定寬的欄位裡靠右對齊，數字變多變少時其他字不動。
+	# 紀元名與日期整段在題簽裡置中；年與月的數字各在固定寬的欄位裡靠右對齊，數字變多變少時其他字不動。
 	var date := _date_parts()
 	var date_at := _date_columns()
+	var shift := _date_shift()
 	var date_y := title.position.y + (title.size.y - Ink.text_size(date[0], date_size).y) * 0.5
-	Ink.text(self, Vector2(date_at["era"], date_y), date[0], date_size)
-	Ink.text(self, Vector2(date_at["year_end"] - Ink.text_size(date[1], date_size).x, date_y), date[1], date_size)
-	Ink.text(self, Vector2(date_at["year_mark"], date_y), Locale.t("date_year"), date_size)
-	Ink.text(self, Vector2(date_at["month_end"] - Ink.text_size(date[2], date_size).x, date_y), date[2], date_size)
-	Ink.text(self, Vector2(date_at["month_mark"], date_y), Locale.t("date_month"), date_size)
+	Ink.text(self, Vector2(date_at["era"] + shift, date_y), date[0], date_size)
+	Ink.text(self, Vector2(date_at["year_end"] + shift - Ink.text_size(date[1], date_size).x, date_y), date[1], date_size)
+	Ink.text(self, Vector2(date_at["year_mark"] + shift, date_y), Locale.t("date_year"), date_size)
+	Ink.text(self, Vector2(date_at["month_end"] + shift - Ink.text_size(date[2], date_size).x, date_y), date[2], date_size)
+	Ink.text(self, Vector2(date_at["month_mark"] + shift, date_y), Locale.t("date_month"), date_size)
 
 	# 時速簽：狀態與暫停鍵；四筆由短到長，已達速度者濃墨；倍速與調速鍵。
 	var slip := _speed_rect()
