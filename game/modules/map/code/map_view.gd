@@ -13,7 +13,7 @@ const RIVER_GLOBE_Z_FRAC := 0.5
 const FOCUS_MAX_LAT_DEG := 75.0
 ## 星球視角的地形高度倍率：湊近時的值、拉遠後的值，與兩者之間的鏡頭高度（地圖寬的比例）。
 const GLOBE_RELIEF_NEAR := 0.3
-const GLOBE_RELIEF_FAR := 1.0
+const GLOBE_RELIEF_FAR := 0.6
 const GLOBE_RELIEF_NEAR_FRAC := 0.08
 const GLOBE_RELIEF_FAR_FRAC := 0.6
 ## 星球視角的高度壓縮係數：低地照原樣，越高壓得越多（著色器同值）。
