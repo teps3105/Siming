@@ -2,11 +2,14 @@ class_name Hud
 extends CanvasLayer
 ## GDD 5.7 介面佈局：把案頭器物放到畫面上並接到模擬、地圖與鏡頭。
 ## 常駐器物只有天時儀＋題簽與視角鈕（左上）、印匣（右下）；州郡卡與停留提示隨選取、停留出現。
+## 遊戲中選單（GDD 9.1）開著時時間暫停、地圖不收輸入，關掉後恢復原本的行止。
+
+## 在遊戲中選單裡選了回主選單。
+signal title_requested
+## 在遊戲中選單裡讀出了另一個世界。
+signal world_loaded(world: SimWorld)
 
 const MARGIN := 12.0
-## Steam Deck 版面（高度 ≤ 800）器物放大不改形（GDD 5.9）。
-const DECK_HEIGHT := 800.0
-const DECK_UNIT := 8.0 / 7.0
 ## Steam Deck 版面的命簿是右側抽屜，寬度佔畫面的比例（GDD 5.8）。
 const DECK_CARD_WIDTH_FRAC := 0.45
 
@@ -21,6 +24,9 @@ var _seals: SealBox
 var _card: ProvinceCard
 var _view: ViewToggle
 var _cursor: GameCursor
+var _menu: MenuDeck
+## 開選單前時間是否已經暫停。
+var _paused_before_menu := false
 
 
 func setup(sim: SimHost, map: TerrainMap, camera: MapCamera) -> void:
@@ -42,8 +48,8 @@ func setup(sim: SimHost, map: TerrainMap, camera: MapCamera) -> void:
 ## 依畫面高度決定器物大小；大小改變時重建器物。
 func _layout() -> void:
 	var bounds := get_viewport().get_visible_rect().size
-	var unit := DECK_UNIT if bounds.y <= DECK_HEIGHT else 1.0
-	var card_width := bounds.x * DECK_CARD_WIDTH_FRAC if unit > 1.0 else -1.0
+	var unit := Ink.layout_unit(bounds, GameSettings.ui_scale())
+	var card_width := bounds.x * DECK_CARD_WIDTH_FRAC if bounds.y <= Ink.DECK_HEIGHT else -1.0
 	if _dial == null or unit != _unit or card_width != _card_width:
 		_unit = unit
 		_card_width = card_width
@@ -55,7 +61,8 @@ func _layout() -> void:
 func _build() -> void:
 	var selected := _card.province if _card != null else -1
 	for child in get_children():
-		child.queue_free()
+		if child != _menu:
+			child.queue_free()
 
 	_overlay = MapOverlay.new()
 	add_child(_overlay)
@@ -91,13 +98,58 @@ func _build() -> void:
 	_cursor = GameCursor.new()
 	add_child(_cursor)
 	_cursor.setup(_camera, _unit)
+	if _menu != null:
+		# 選單蓋在器物之上、游標之下。
+		move_child(_menu, -1)
+		move_child(_cursor, -1)
 	_apply_device()
+
+
+## 選單是否開著。
+func menu_open() -> bool:
+	return _menu != null
+
+
+func menu() -> MenuDeck:
+	return _menu
+
+
+## 開遊戲中選單：時間暫停，地圖不收輸入。
+func open_menu() -> void:
+	if _menu != null or _sim == null:
+		return
+	_paused_before_menu = _sim.paused
+	_sim.set_paused(true)
+	_camera.input_enabled = false
+	_menu = MenuDeck.new()
+	_menu.in_game = true
+	_menu.world = _sim.world
+	add_child(_menu)
+	move_child(_cursor, -1)
+	_menu.panel().gamepad = _camera.use_crosshair
+	_menu.resumed.connect(close_menu)
+	_menu.layout_changed.connect(_layout)
+	_menu.title_requested.connect(func() -> void: title_requested.emit())
+	_menu.world_ready.connect(func(world: SimWorld, _loaded: bool) -> void: world_loaded.emit(world))
+
+
+## 關選單：時間回到開選單前的行止。
+func close_menu() -> void:
+	if _menu == null:
+		return
+	_camera.use_crosshair = _menu.panel().gamepad
+	_menu.queue_free()
+	_menu = null
+	_camera.input_enabled = true
+	_sim.set_paused(_paused_before_menu)
 
 
 ## 輸入裝置換了（鍵鼠↔搖桿），器物上的實體鍵圖像跟著換。
 func _process(_delta: float) -> void:
 	if _camera == null or _dial == null:
 		return
+	if _menu != null:
+		_camera.use_crosshair = _menu.panel().gamepad
 	if _camera.use_crosshair != _dial.gamepad:
 		_apply_device()
 	_overlay.reserved = _occupied()
@@ -130,9 +182,13 @@ func _set_mode(mode: TerrainMap.Mode) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if _sim == null:
+	if _sim == null or _menu != null:
 		return
-	if event.is_action_pressed(InputActions.PAUSE):
+	if event.is_action_pressed(InputActions.MENU) or (event.is_action_pressed(InputActions.CANCEL) and not _card.visible):
+		# Esc／B：有卡片開著先關卡片，否則開選單；Start 一律開選單。
+		open_menu()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed(InputActions.PAUSE):
 		_sim.toggle_paused()
 	elif event.is_action_pressed(InputActions.SPEED_CYCLE):
 		_sim.set_speed((_sim.speed_index + 1) % SimHost.SPEED_MULTIPLIERS.size())

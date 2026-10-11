@@ -9,10 +9,14 @@ extends Node
 var start_world: SimWorld
 ## 進場時是否先暫停（讀檔進來的世界）。
 var start_paused := false
+## 每世自動存檔一次（GDD 4.8）；測試會關掉。
+var auto_save := true
 ## 開場運鏡（GDD 5.2）：先看到星球，鏡頭再落到開場位置；測試預設關掉。
 @export var opening_flight := true
 ## 開場鏡頭高度（地圖寬的比例）。
 const START_Z_FRAC := 0.3
+
+var _saved_tick := 0
 
 @onready var _sim: SimHost = $SimHost
 @onready var _map: TerrainMap = $TerrainMap
@@ -38,6 +42,20 @@ func _ready() -> void:
 		_camera.attach(_map, _start_focus(), start_z)
 	if has_node("Hud"):
 		$Hud.setup(_sim, _map, _camera)
+		$Hud.title_requested.connect(func() -> void: AppFlow.enter_title(self))
+		$Hud.world_loaded.connect(func(world: SimWorld) -> void: AppFlow.enter_game(self, world, true))
+	_saved_tick = _sim.world.tick()
+	_sim.advanced.connect(_auto_save)
+
+
+## 時間跨過一世的邊界就存一份自動存檔。
+func _auto_save(_months: int) -> void:
+	var now: int = _sim.world.tick()
+	if auto_save and SaveStore.auto_due(_saved_tick, now):
+		var error := SaveStore.save_auto(_sim.world)
+		if not error.is_empty():
+			push_warning("自動存檔失敗：%s" % error)
+	_saved_tick = now
 
 
 func _unhandled_key_input(event: InputEvent) -> void:

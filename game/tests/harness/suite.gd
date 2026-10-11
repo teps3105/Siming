@@ -8,6 +8,8 @@ const BOOTSTRAP := "res://app/scenes/bootstrap.tscn"
 ## 流程測試用的世界：固定種子、小尺寸（開得快）。
 const TEST_SEED := 20261011
 const TEST_SIZE := "small"
+## 測試期間存檔與設定的位置（預設沒有任何檔案）；需要寫檔的套件在 setup 改到自己的資料夾。
+const TEST_STORAGE := "user://test_run"
 ## 流程測試的畫面大小。
 const FLOW_VIEW := Vector2i(1920, 1080)
 
@@ -80,6 +82,7 @@ func boot(opening_flight := false, view := FLOW_VIEW) -> Node:
 	game.start_seed = TEST_SEED
 	game.start_size = TEST_SIZE
 	game.opening_flight = opening_flight
+	game.auto_save = false
 	track(game)
 	tree.root.add_child(game)
 	await frames(2)
@@ -256,6 +259,10 @@ func _begin_case() -> void:
 	_message = ""
 	_assertions = 0
 	_expected_errors.clear()
+	# 存檔與設定指到測試用的位置：測試不讀也不寫玩家的檔案。
+	SaveStore.root = TEST_STORAGE.path_join("saves")
+	GameSettings.file_path = TEST_STORAGE.path_join("settings.cfg")
+	GameSettings.load_file()
 
 
 func _finish_case() -> void:
@@ -275,4 +282,7 @@ func _finish_case() -> void:
 		Input.action_release(action)
 	tree.paused = false
 	Engine.time_scale = 1.0
+	SaveStore.root = SaveStore.DEFAULT_ROOT
+	GameSettings.file_path = GameSettings.DEFAULT_PATH
+	GameSettings.load_file()
 	await tree.process_frame

@@ -46,7 +46,6 @@ var _notice := ""
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	_panel = MenuPanel.new()
 	add_child(_panel)
@@ -84,6 +83,8 @@ func _draw() -> void:
 func _relayout() -> void:
 	var bounds := get_viewport().get_visible_rect().size
 	_unit = Ink.layout_unit(bounds, GameSettings.ui_scale())
+	position = Vector2.ZERO
+	size = bounds
 	_panel.max_height = bounds.y - EDGE_GAP * 2.0
 	_panel.setup(_unit)
 	_place()

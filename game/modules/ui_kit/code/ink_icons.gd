@@ -77,7 +77,7 @@ static func draw(item: CanvasItem, icon: StringName, center: Vector2, r: float, 
 		&"brush":
 			# 筆：斜斜一管，筆尖朝左下。
 			_line(item, center, r, [Vector2(0.9, -0.9), Vector2(-0.2, 0.2)], color)
-			item.draw_colored_polygon(_at(center, r, [Vector2(-0.05, 0.05), Vector2(-0.35, 0.35), Vector2(-0.95, 0.95), Vector2(-0.5, 0.2)]), color)
+			item.draw_colored_polygon(_at(center, r, [Vector2(-0.42, -0.02), Vector2(0.02, 0.42), Vector2(-0.95, 0.95)]), color)
 		&"knot":
 			# 分享：一個結，兩端各一條線頭。
 			item.draw_arc(center, r * 0.42, 0.0, TAU, 20, color, WIDTH, true)

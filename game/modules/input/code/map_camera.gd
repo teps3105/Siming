@@ -35,6 +35,17 @@ const CURSOR_SPEED := 1100.0
 ## 由搖桿轉出的滑鼠事件以這個裝置編號標記，收到時不把輸入裝置切回鍵鼠。
 const PAD_DEVICE := 77
 
+## 游標離畫面邊緣多近就平移（設定開了邊緣捲動時，GDD 5.9）。
+const EDGE_SCROLL_PX := 10.0
+
+## 為假時地圖不收輸入（選單開著）；鏡頭照常跟著既有的目標走，游標位置照常更新。
+var input_enabled := true:
+	set(value):
+		input_enabled = value
+		if not value and _map != null:
+			_dragging = false
+			_rotating = false
+			_set_hover(-1)
 var focus := Vector2.ZERO
 var z := 100.0
 var yaw := 0.0
@@ -61,6 +72,7 @@ var _hover_province := -1
 var _last_pointer := Vector2.ZERO
 ## 滑鼠最後一次回報的位置（取自滑鼠事件；遊戲內游標畫在這裡）。
 var _mouse := Vector2.ZERO
+var _mouse_inside := true
 ## 搖桿游標在畫面上的位置；(-1, -1) 表示還沒用過，第一次用時放到畫面中央。
 var _cursor := Vector2(-1.0, -1.0)
 ## 自動鎖定：這一輪已經鎖過的目標（索引）；游標或鏡頭被玩家移動後清空，重新從最近的算起。
@@ -154,8 +166,15 @@ func _input(event: InputEvent) -> void:
 		use_crosshair = false
 
 
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_MOUSE_ENTER:
+		_mouse_inside = true
+	elif what == NOTIFICATION_WM_MOUSE_EXIT:
+		_mouse_inside = false
+
+
 func _unhandled_input(event: InputEvent) -> void:
-	if _map == null:
+	if _map == null or not input_enabled:
 		return
 	if is_flying() and _is_press(event):
 		_flight_seconds = 0.0
@@ -340,8 +359,13 @@ func _on_mouse_motion(event: InputEventMouseMotion) -> void:
 func _process(delta: float) -> void:
 	if _map == null:
 		return
+	if not input_enabled:
+		_apply(delta)
+		return
 	_update_pad_mouse(delta)
 	var pan := Input.get_vector(InputActions.PAN_LEFT, InputActions.PAN_RIGHT, InputActions.PAN_UP, InputActions.PAN_DOWN)
+	if pan == Vector2.ZERO:
+		pan = _edge_push()
 	if pan != Vector2.ZERO:
 		_locked.clear()
 		_pan(pan.rotated(-yaw) * _ground_width() * PAN_PER_SECOND * delta)
@@ -364,6 +388,23 @@ func _process(delta: float) -> void:
 			_land()
 	_apply(delta)
 	_update_hover(delta)
+
+
+## 邊緣捲動：滑鼠游標貼著畫面邊緣時的平移方向；沒開這個設定、用搖桿或游標在視窗外時為零。
+func _edge_push() -> Vector2:
+	if use_crosshair or not _mouse_inside or _dragging or _rotating or not GameSettings.flag("edge_scroll"):
+		return Vector2.ZERO
+	var view := get_viewport().get_visible_rect().size
+	var push := Vector2.ZERO
+	if _mouse.x <= EDGE_SCROLL_PX:
+		push.x = -1.0
+	elif _mouse.x >= view.x - EDGE_SCROLL_PX:
+		push.x = 1.0
+	if _mouse.y <= EDGE_SCROLL_PX:
+		push.y = -1.0
+	elif _mouse.y >= view.y - EDGE_SCROLL_PX:
+		push.y = 1.0
+	return push
 
 
 func _apply(delta: float) -> void:
