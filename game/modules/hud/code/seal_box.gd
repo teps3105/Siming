@@ -1,7 +1,7 @@
 class_name SealBox
 extends Control
 ## GDD 5.7 印匣與例簽：右下六枚模式鈕切換地圖模式（5.4），每枚是圖示加模式名；
-## 鍵盤模式在鈕的右上角掛該模式的鍵帽，搖桿模式在整列兩側畫 LB、RB。
+## 鍵盤模式在鈕的左上角掛該模式的鍵帽，搖桿模式在整列兩側畫 LB、RB。
 ## 停留在某鈕上時，上方展開例簽說明該模式。支援的決定：想問的是哪一類問題。
 
 signal mode_chosen(mode: TerrainMap.Mode)
@@ -108,6 +108,12 @@ func _key_label(index: int) -> String:
 	return InputHints.label(SEALS[index]["action"], false)
 
 
+## 該鈕的鍵帽畫在哪裡：鈕的左上角，往上凸出一截。
+func _badge_position(index: int) -> Vector2:
+	var rect := _seal_rect(index)
+	return Vector2(rect.position.x + 3.0, rect.position.y - BADGE_RISE * _unit)
+
+
 ## 搖桿切換上一個、下一個模式的鍵。
 func _cycle_keys() -> Array[String]:
 	return [InputHints.label(InputActions.MODE_PREV, true), InputHints.label(InputActions.MODE_NEXT, true)]
@@ -130,7 +136,7 @@ func _draw() -> void:
 		var text_pos := Vector2(icon_center.x + (ICON_RADIUS + 6.0) * _unit, rect.position.y + (rect.size.y - Ink.text_size(label, label_size).y) * 0.5)
 		Ink.text(self, text_pos, label, label_size, ink)
 		var key := _key_label(i)
-		Ink.key_glyph(self, Vector2(rect.end.x - Ink.key_glyph_width(key, _unit) - 3.0, rect.position.y - BADGE_RISE * _unit), key, _unit)
+		Ink.key_glyph(self, _badge_position(i), key, _unit)
 	if gamepad:
 		var keys := _cycle_keys()
 		var key_y := size.y - (SEAL_SIZE + Ink.KEY_HEIGHT) * 0.5 * _unit

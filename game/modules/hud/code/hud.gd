@@ -138,9 +138,3 @@ func _unhandled_input(event: InputEvent) -> void:
 		_card.close()
 	elif event.is_action_pressed(InputActions.CARD_CENTER):
 		_card.request_center()
-	else:
-		var speeds := [InputActions.SPEED_1, InputActions.SPEED_2, InputActions.SPEED_3, InputActions.SPEED_4]
-		for i in speeds.size():
-			if event.is_action_pressed(speeds[i]):
-				_sim.set_speed(i)
-				_sim.set_paused(false)

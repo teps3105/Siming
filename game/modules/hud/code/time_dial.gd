@@ -64,11 +64,9 @@ func _pause_key() -> String:
 	return InputHints.label(InputActions.PAUSE, gamepad)
 
 
-## 調速的鍵：鍵盤是第一速與第四速的數字鍵（表示 1 到 4），搖桿是切到下一檔的 Y。
+## 調速的鍵：鍵盤是 Tab、搖桿是 Y，每按一次切到下一檔。
 func _speed_keys() -> Array[String]:
-	if gamepad:
-		return [InputHints.label(InputActions.SPEED_CYCLE, true)]
-	return [InputHints.label(InputActions.SPEED_1, false), InputHints.label(InputActions.SPEED_4, false)]
+	return [InputHints.label(InputActions.SPEED_CYCLE, gamepad)]
 
 
 ## 題簽的紙面（不含綾邊）。
@@ -99,9 +97,7 @@ func _columns() -> Dictionary:
 	x += Ink.text_size("%d %s" % [SimHost.SPEED_MULTIPLIERS[-1], Locale.t("dial_speed_unit")], note).x + 6.0 * _unit
 	out["speed_keys"] = x
 	var keys := _speed_keys()
-	for i in keys.size():
-		x += Ink.key_glyph_width(keys[i], _unit) + (KEY_GAP * _unit if i > 0 else 0.0)
-	x += PAD * _unit
+	x += Ink.key_glyph_width(keys[0], _unit) + PAD * _unit
 	out["end"] = x
 	return out
 
@@ -170,13 +166,7 @@ func _draw() -> void:
 		Ink.stroke(self, Vector2(rect.position.x, y + 1.5 * _unit), Vector2(rect.end.x, y - 1.5 * _unit), 3.5 * _unit, color)
 	Ink.text(self, Vector2(columns["speed"], text_y), _speed_label(), note)
 	var keys := _speed_keys()
-	var first := Ink.key_glyph(self, Vector2(columns["speed_keys"], key_y), keys[0], _unit)
-	if keys.size() > 1:
-		var second_x: float = columns["speed_keys"] + first + KEY_GAP * _unit
-		Ink.key_glyph(self, Vector2(second_x, key_y), keys[1], _unit)
-		# 鍵盤是「1 到 4」四個數字鍵：兩個鍵帽之間畫一道連接線。
-		var mid_y := key_y + Ink.KEY_HEIGHT * _unit * 0.5
-		draw_line(Vector2(columns["speed_keys"] + first + 2.0, mid_y), Vector2(second_x - 2.0, mid_y), Ink.INK, 1.5)
+	Ink.key_glyph(self, Vector2(columns["speed_keys"], key_y), keys[0], _unit)
 
 
 func _gui_input(event: InputEvent) -> void:

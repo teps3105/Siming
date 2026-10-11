@@ -23,14 +23,10 @@ const CURSOR_DOWN := &"pad_cursor_down"
 const CANCEL := &"ui_back"
 const CARD_CENTER := &"card_center"
 const PAUSE := &"time_pause"
-## 搖桿的 Y：切到下一檔速度，到最快再回到最慢。
+## 鍵盤的 Tab、搖桿的 Y：切到下一檔速度，到最快再回到最慢。
 const SPEED_CYCLE := &"time_speed_cycle"
 ## 搖桿的 Start：開總覽選單。
 const MENU := &"menu_open"
-const SPEED_1 := &"time_speed_1"
-const SPEED_2 := &"time_speed_2"
-const SPEED_3 := &"time_speed_3"
-const SPEED_4 := &"time_speed_4"
 const MODE_NEXT := &"map_mode_next"
 const MODE_PREV := &"map_mode_prev"
 const MODE_SHANHE := &"map_mode_shanhe"
@@ -61,13 +57,9 @@ static func bindings() -> Dictionary:
 		CANCEL: [KEY_ESCAPE, "joy:%d" % JOY_BUTTON_B],
 		CARD_CENTER: [KEY_C, "joy:%d" % JOY_BUTTON_X],
 		PAUSE: [KEY_SPACE, "joy:%d" % JOY_BUTTON_BACK],
-		SPEED_CYCLE: ["joy:%d" % JOY_BUTTON_Y],
+		SPEED_CYCLE: [KEY_TAB, "joy:%d" % JOY_BUTTON_Y],
 		# 總覽選單（M2 才有內容）：先把鍵留給它。
 		MENU: ["joy:%d" % JOY_BUTTON_START],
-		SPEED_1: [KEY_1],
-		SPEED_2: [KEY_2],
-		SPEED_3: [KEY_3],
-		SPEED_4: [KEY_4],
 		MODE_NEXT: ["joy:%d" % JOY_BUTTON_RIGHT_SHOULDER],
 		MODE_PREV: ["joy:%d" % JOY_BUTTON_LEFT_SHOULDER],
 		MODE_SHANHE: [KEY_F1],

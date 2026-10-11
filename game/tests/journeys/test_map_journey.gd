@@ -50,12 +50,21 @@ func test_time_runs_when_unpaused_and_stops_on_space() -> void:
 	assert_eq(_sim.world.tick(), stopped, "暫停後時間不動")
 
 
-func test_number_keys_set_speed() -> void:
+func test_tab_cycles_speed_and_number_keys_do_nothing() -> void:
+	await key(KEY_TAB)
+	assert_eq(_sim.speed_index, 1, "Tab 切到下一檔")
+	assert_false(_sim.paused, "切速度即放行")
+	await key(KEY_TAB)
+	await key(KEY_TAB)
+	assert_eq(_sim.speed_index, 3)
+	await key(KEY_TAB)
+	assert_eq(_sim.speed_index, 0, "最快之後回到最慢")
 	await key(KEY_3)
-	assert_eq(_sim.speed_index, 2)
-	assert_false(_sim.paused, "按速度鍵即放行")
-	await key(KEY_1)
-	assert_eq(_sim.speed_index, 0)
+	assert_eq(_sim.speed_index, 0, "數字鍵不再調速")
+	_sim.set_paused(true)
+	await click(_hud._dial.position + _hud._dial._stroke_rect(2).get_center())
+	assert_eq(_sim.speed_index, 2, "滑鼠點時速簽的第三筆設為第三檔")
+	assert_false(_sim.paused)
 
 
 func test_function_keys_switch_map_mode() -> void:
