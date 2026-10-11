@@ -17,6 +17,7 @@ const DEFAULTS := {
 	"ui_scale": 1.0,
 	"edge_scroll": false,
 	"tutorial_done": false,
+	"tutorial_step": 0,
 }
 
 ## 設定檔的位置；測試會改到別處。

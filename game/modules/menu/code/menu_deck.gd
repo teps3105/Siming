@@ -10,6 +10,8 @@ signal resumed
 signal title_requested
 ## 介面縮放改了，外面的器物要跟著重排。
 signal layout_changed
+## 玩家要重看引導。
+signal guide_reset
 
 ## 讀檔每幀最多花的時間（毫秒）與每次重演的月數。
 const LOAD_BUDGET_MSEC := 12
@@ -292,7 +294,7 @@ func _settings_rows() -> Array[Dictionary]:
 		MenuPanel.choice(&"set.ui_scale", Locale.t("set_ui_scale"), scales, int(round(GameSettings.ui_scale() * 10.0)) * 10),
 		MenuPanel.choice(&"set.edge_scroll", Locale.t("set_edge"), switch, GameSettings.flag("edge_scroll")),
 		MenuPanel.choice(&"set.language", Locale.t("set_language"), [["zh-Hant", Locale.t("language_zh_hant")]], "zh-Hant"),
-		MenuPanel.action(&"set.tutorial", Locale.t("set_tutorial"), &"book", "" if GameSettings.flag("tutorial_done") else Locale.t("set_tutorial_note")),
+		MenuPanel.action(&"set.tutorial", Locale.t("set_tutorial"), &"book"),
 	]
 
 
@@ -355,6 +357,9 @@ func _on_chosen(id: StringName) -> void:
 			_start_world()
 		&"set.tutorial":
 			GameSettings.set_value("tutorial_done", false)
+			GameSettings.set_value("tutorial_step", 0)
+			guide_reset.emit()
+			_panel.set_note(&"set.tutorial", Locale.t("set_tutorial_note"))
 			_show(&"settings", &"set.tutorial")
 		&"share.copy":
 			clipboard_set.call(SaveStore.share_code(world.save_text()))

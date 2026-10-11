@@ -200,7 +200,6 @@
   "set_language": "語言",
   "language_zh_hant": "繁體中文",
   "set_tutorial": "重看引導",
-  "set_tutorial_note": "下次進入世界時出現",
   "switch_on": "開",
   "switch_off": "關",
   "share_title": "分享碼",
@@ -215,5 +214,15 @@
   "credits_font": "LXGW WenKai TC／LXGW／SIL OFL 1.1",
   "credits_engine": "Godot Engine／Godot Engine contributors／MIT",
   "credits_bridge": "godot-rust／godot-rust contributors／MPL-2.0",
-  "credits_chars": "教育部常用字表／中華民國教育部"
+  "credits_chars": "教育部常用字表／中華民國教育部",
+  "guide_pan": "移動地圖，或按住左鍵拖動",
+  "guide_pan_pad": "移動地圖",
+  "guide_zoom": "拉遠拉近，滾輪也行",
+  "guide_zoom_pad": "拉近拉遠",
+  "guide_globe": "換成星球視角看看",
+  "guide_time": "讓時間停下，或再走起來",
+  "guide_mode": "換一種地圖模式",
+  "guide_select": "點一個州郡，翻開它的命簿",
+  "guide_select_pad": "鎖定最近的州郡，翻開它的命簿",
+  "set_tutorial_note": "已重來"
 }

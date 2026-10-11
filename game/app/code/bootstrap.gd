@@ -11,6 +11,8 @@ var start_world: SimWorld
 var start_paused := false
 ## 每世自動存檔一次（GDD 4.8）；測試會關掉。
 var auto_save := true
+## 是否顯示引導簽（GDD 5.7）；測試會關掉。
+var show_guide := true
 ## 開場運鏡（GDD 5.2）：先看到星球，鏡頭再落到開場位置；測試預設關掉。
 @export var opening_flight := true
 ## 開場鏡頭高度（地圖寬的比例）。
@@ -41,6 +43,7 @@ func _ready() -> void:
 	else:
 		_camera.attach(_map, _start_focus(), start_z)
 	if has_node("Hud"):
+		$Hud.guide_enabled = show_guide
 		$Hud.setup(_sim, _map, _camera)
 		$Hud.title_requested.connect(func() -> void: AppFlow.enter_title(self))
 		$Hud.world_loaded.connect(func(world: SimWorld) -> void: AppFlow.enter_game(self, world, true))

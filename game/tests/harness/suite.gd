@@ -75,7 +75,7 @@ func assert_lt(actual: Variant, threshold: Variant, msg: String = "") -> void:
 
 ## 開起整個遊戲（入口場景，小尺寸世界），回傳入口節點；案例結束時自動關掉。時間先暫停，由案例自己放行。
 ## opening_flight 為真時保留開場運鏡，否則鏡頭直接落在開場位置。
-func boot(opening_flight := false, view := FLOW_VIEW) -> Node:
+func boot(opening_flight := false, view := FLOW_VIEW, show_guide := false) -> Node:
 	# 無視窗模式的畫面預設只有 64×64，器物會蓋住整個畫面；預設固定成 1920×1080。
 	tree.root.size = view
 	var game: Node = (load(BOOTSTRAP) as PackedScene).instantiate()
@@ -83,6 +83,7 @@ func boot(opening_flight := false, view := FLOW_VIEW) -> Node:
 	game.start_size = TEST_SIZE
 	game.opening_flight = opening_flight
 	game.auto_save = false
+	game.show_guide = show_guide
 	track(game)
 	tree.root.add_child(game)
 	await frames(2)
