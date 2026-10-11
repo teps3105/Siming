@@ -11,6 +11,7 @@ const ARROW: Array[Vector2] = [
 ]
 const OUTLINE := 2.5
 
+## 鏡頭；沒有鏡頭的畫面（標題）只跟著滑鼠。
 var _camera: MapCamera
 var _unit := 1.0
 ## 滑鼠在視窗內（搖桿模式不看這個）。
@@ -45,23 +46,25 @@ func _process(_delta: float) -> void:
 
 ## 目前該畫哪一種圖示。
 func kind() -> StringName:
-	if _camera == null:
-		return &"arrow"
-	var from_camera := _camera.pointer_kind()
+	var from_camera := _camera.pointer_kind() if _camera != null else &"arrow"
 	if from_camera != &"arrow":
 		return from_camera
 	var hovered := get_viewport().gui_get_hovered_control()
 	if hovered != null and hovered.has_method(&"is_hot"):
-		var local := hovered.get_global_transform().affine_inverse() * _camera.pointer_position()
+		var local := hovered.get_global_transform().affine_inverse() * _pointer()
 		if hovered.call(&"is_hot", local):
 			return &"point"
 	return &"arrow"
 
 
+func _pointer() -> Vector2:
+	return _camera.pointer_position() if _camera != null else get_viewport().get_mouse_position()
+
+
 func _draw() -> void:
-	if _camera == null or not (_inside or _camera.use_crosshair):
+	if not (_inside or (_camera != null and _camera.use_crosshair)):
 		return
-	var at := _camera.pointer_position()
+	var at := _pointer()
 	match kind():
 		&"drag":
 			_draw_drag(at)

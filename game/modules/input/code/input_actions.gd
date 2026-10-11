@@ -25,7 +25,7 @@ const CARD_CENTER := &"card_center"
 const PAUSE := &"time_pause"
 ## 鍵盤的 Tab、搖桿的 Y：切到下一檔速度，到最快再回到最慢。
 const SPEED_CYCLE := &"time_speed_cycle"
-## 搖桿的 Start：開總覽選單。
+## 搖桿的 Start：開遊戲中選單（GDD 9.1）。
 const MENU := &"menu_open"
 const MODE_NEXT := &"map_mode_next"
 const MODE_PREV := &"map_mode_prev"
@@ -34,6 +34,13 @@ const MODE_TIANXIA := &"map_mode_tianxia"
 const MODE_LINGMAI := &"map_mode_lingmai"
 ## 星球視角與平面地圖互換：鍵盤 G、搖桿按下右搖桿。
 const VIEW_TOGGLE := &"map_view_toggle"
+## 選單（GDD 9.1）：上下選列、左右調整、確定，與該列的第二個動作（刪除存檔）。選單開著時地圖不收輸入。
+const MENU_UP := &"menu_up"
+const MENU_DOWN := &"menu_down"
+const MENU_LEFT := &"menu_left"
+const MENU_RIGHT := &"menu_right"
+const MENU_ACCEPT := &"menu_accept"
+const MENU_ALT := &"menu_alt"
 
 const STICK_DEADZONE := 0.2
 
@@ -60,7 +67,7 @@ static func bindings() -> Dictionary:
 		CARD_CENTER: [KEY_C, "joy:%d" % JOY_BUTTON_X],
 		PAUSE: [KEY_SPACE, "joy:%d" % JOY_BUTTON_BACK],
 		SPEED_CYCLE: [KEY_TAB, "joy:%d" % JOY_BUTTON_Y],
-		# 總覽選單（M2 才有內容）：先把鍵留給它。
+		# 遊戲中選單：搖桿 Start；鍵盤的 Esc 在沒有卡片開著時也開它（hud）。
 		MENU: ["joy:%d" % JOY_BUTTON_START],
 		MODE_NEXT: ["joy:%d" % JOY_BUTTON_RIGHT_SHOULDER],
 		MODE_PREV: ["joy:%d" % JOY_BUTTON_LEFT_SHOULDER],
@@ -68,6 +75,12 @@ static func bindings() -> Dictionary:
 		MODE_TIANXIA: [KEY_F2],
 		MODE_LINGMAI: [KEY_F4],
 		VIEW_TOGGLE: [KEY_G, "joy:%d" % JOY_BUTTON_RIGHT_STICK],
+		MENU_UP: [KEY_UP, KEY_W, "joy:%d" % JOY_BUTTON_DPAD_UP, "axis:%d:-1" % JOY_AXIS_LEFT_Y],
+		MENU_DOWN: [KEY_DOWN, KEY_S, "joy:%d" % JOY_BUTTON_DPAD_DOWN, "axis:%d:1" % JOY_AXIS_LEFT_Y],
+		MENU_LEFT: [KEY_LEFT, KEY_A, "joy:%d" % JOY_BUTTON_DPAD_LEFT, "axis:%d:-1" % JOY_AXIS_LEFT_X],
+		MENU_RIGHT: [KEY_RIGHT, KEY_D, "joy:%d" % JOY_BUTTON_DPAD_RIGHT, "axis:%d:1" % JOY_AXIS_LEFT_X],
+		MENU_ACCEPT: [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE, "joy:%d" % JOY_BUTTON_A],
+		MENU_ALT: [KEY_DELETE, "joy:%d" % JOY_BUTTON_X],
 	}
 
 

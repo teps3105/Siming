@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="司業命緣"
-run/main_scene="res://app/scenes/bootstrap.tscn"
+run/main_scene="res://app/scenes/title.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 
 [autoload]

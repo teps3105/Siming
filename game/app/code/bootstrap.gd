@@ -1,10 +1,14 @@
 extends Node
-## 遊戲入口：裝配模擬、地圖、鏡頭與介面（GDD 6.4）。
-## 開局設定畫面完成前，以固定種子開一個中尺寸世界。
+## 遊戲場景：裝配模擬、地圖、鏡頭與介面（GDD 6.4）。
+## 平時由標題畫面交來一個已經開好或讀出來的世界（start_world）；直接執行這個場景時以固定種子開一個世界。
 
-## 開局的種子與星球尺寸（"small"、"medium"、"large"）；測試會在加入場景樹前改成小尺寸。
+## 直接執行時的種子與星球尺寸（"small"、"medium"、"large"）；測試會在加入場景樹前改成小尺寸。
 @export var start_seed := 20261011
 @export var start_size := "medium"
+## 選單端備妥的世界；有值就不另外開天。
+var start_world: SimWorld
+## 進場時是否先暫停（讀檔進來的世界）。
+var start_paused := false
 ## 開場運鏡（GDD 5.2）：先看到星球，鏡頭再落到開場位置；測試預設關掉。
 @export var opening_flight := true
 ## 開場鏡頭高度（地圖寬的比例）。
@@ -17,10 +21,14 @@ const START_Z_FRAC := 0.3
 
 func _ready() -> void:
 	InputActions.register()
-	var error := _sim.create_world(start_seed, start_size)
-	if not error.is_empty():
-		push_error("世界生成失敗：%s" % error)
-		return
+	if start_world != null:
+		_sim.adopt_world(start_world)
+	else:
+		var error := _sim.create_world(start_seed, start_size)
+		if not error.is_empty():
+			push_error("世界生成失敗：%s" % error)
+			return
+	_sim.set_paused(start_paused)
 	_map.build(_sim.world)
 	var start_z := _map.map_size.x * START_Z_FRAC
 	if opening_flight:
@@ -32,14 +40,8 @@ func _ready() -> void:
 		$Hud.setup(_sim, _map, _camera)
 
 
-## F12 把目前的畫面存成 PNG（user://screenshots/）。
 func _unhandled_key_input(event: InputEvent) -> void:
-	var key := event as InputEventKey
-	if key == null or not key.pressed or key.echo or key.keycode != KEY_F12:
-		return
-	DirAccess.make_dir_recursive_absolute("user://screenshots")
-	var stamp := Time.get_datetime_string_from_system().replace(":", "").replace("-", "")
-	get_viewport().get_texture().get_image().save_png("user://screenshots/%s.png" % stamp)
+	AppFlow.screenshot_on_f12(event, get_viewport())
 
 
 ## 開場焦點：形心在南北緯 60° 內、面積最大的大洲（GDD 5.3）。

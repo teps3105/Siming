@@ -30,6 +30,13 @@ func create_world(world_seed: int, size: String = "medium") -> String:
 	return error
 
 
+## 接手一個已經開好或讀出來的世界（選單端建立，GDD 9.1）。
+func adopt_world(ready_world: SimWorld) -> void:
+	world = ready_world
+	_backlog = 0.0
+	world_created.emit()
+
+
 ## 立即推進 months 個月（測試與工具用；平時由 _process 依速度推進）。
 func advance(months: int) -> void:
 	if not world.is_ready() or months <= 0:
