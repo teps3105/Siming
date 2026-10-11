@@ -1,10 +1,12 @@
 //! GDD 2.8 天地演變：慢變量、每世結算、世界大事與改元。
 //!
 //! 全球的三個慢變量——寒暖、海平面偏移、靈潮——每世（30 年）更新一次；寒暖與靈潮跨過門檻就是
-//! 世界大事，並依 GDD 2.6 開啟新紀元。它們還沒有接到地形、海陸與靈氣上。
+//! 世界大事，並依 GDD 2.6 開啟新紀元。靈潮是格點靈氣的倍率，並使洞天福地升降級；
+//! 寒暖與海平面還沒有接到地形與海陸上。
 //!
 //! 開局不是開天第一年：世界在開局前已有一段歷史（[`Evolution::history_years`]），那段歷史只推演
-//! 這裡的慢變量與紀元年表，不推演人間。週期的長度與相位由世界種子算出，不消耗隨機流；
+//! 這裡的慢變量、紀元年表與洞天福地的升降，不推演人間。週期的長度與相位、洞天福地每世的升降
+//! 都由世界種子算出，不消耗隨機流；
 //! 歷史的長度與靈潮在開局時的位置由開局時代決定。
 
 use serde::{Deserialize, Serialize};
@@ -15,8 +17,9 @@ use crate::ledger::NewEvent;
 use crate::model::{EventArgs, EventKind};
 use crate::params::*;
 use crate::sim::World;
-use crate::types::{Era, Tick};
-use crate::worldgen::grid::{sin, TAU};
+use crate::types::{Era, LeyNode, NodeId, Tick};
+use crate::worldgen::grid::{sin, Sphere, TAU};
+use crate::worldgen::ley;
 
 /// 寒暖所在的時期（GDD 2.8「世界大事與紀元」）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -240,19 +243,112 @@ pub fn open_era(
     true
 }
 
-/// GDD 2.8「每世結算」：在每世的天機收入之前執行。世界大事寫入因果帳；改元則追加紀元。
+/// 一個洞天福地在這一世升或降了一級（等級見 [`LeyNode::grade`]）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NodeShift {
+    pub node: NodeId,
+    pub from: u8,
+    pub to: u8,
+}
+
+/// GDD 2.8「每世結算」第 6 步：靈潮低於 [`EVO_NODE_FADE_BELOW`] 時，每個洞天福地以機率
+/// [`EVO_NODE_CHANCE`] 降一級（福地則沉寂）；高於 [`EVO_NODE_RISE_ABOVE`] 時，降過級的以同樣的機率
+/// 回復一級，至多回到生成時的等級。擲骰只看種子、節點與年份，開局前後用的是同一套。
+pub fn shift_nodes(seed: u64, year: u32, tide: f32, nodes: &mut [LeyNode]) -> Vec<NodeShift> {
+    let fading = tide < EVO_NODE_FADE_BELOW;
+    let rising = tide > EVO_NODE_RISE_ABOVE;
+    let mut shifts = Vec::new();
+    if !fading && !rising {
+        return shifts;
+    }
+    for (i, node) in nodes.iter_mut().enumerate() {
+        let from = node.grade();
+        let to = if fading && from > 0 {
+            from - 1
+        } else if rising && from < LeyNode::grade_of(node.origin) {
+            from + 1
+        } else {
+            continue;
+        };
+        let roll = (mix(mix(seed ^ (7 << 48)) ^ ((i as u64) << 32) ^ u64::from(year)) >> 40) as f32 / (1u64 << 24) as f32;
+        if roll < EVO_NODE_CHANCE {
+            node.strength = LeyNode::LADDER[to as usize];
+            shifts.push(NodeShift { node: i as NodeId, from, to });
+        }
+    }
+    shifts
+}
+
+/// 開局前的歷史裡洞天福地的升降：自開天第 0 年起每世擲一次，推演到開局那一年；
+/// 回傳開局那一年的靈潮（世界生成用它算格點靈氣）。
+pub fn history_nodes(seed: u64, era: Era, nodes: &mut [LeyNode]) -> f32 {
+    let mut evolution = Evolution::at_genesis(seed, era);
+    let mut year = 30;
+    while year <= evolution.history_years {
+        evolution.settle(year);
+        shift_nodes(seed, year, evolution.tide, nodes);
+        year += 30;
+    }
+    evolution.tide
+}
+
+/// 依目前的靈潮與洞天福地的等級，重算靈脈強度、格點靈氣與州郡靈氣（GDD 2.4）。
+/// 沒有格點資料的手工世界不重算。
+pub fn refresh_aura(w: &mut World) {
+    if !prepare_aura(w) {
+        return;
+    }
+    let geo = &mut w.geo;
+    for edge in &mut geo.ley {
+        edge.strength = ley::edge_strength(&geo.nodes, edge.a, edge.b);
+    }
+    let basis = w.aura_basis.as_ref().expect("prepare_aura 剛建立");
+    geo.aura_cell = basis.cells(&geo.terrain, &geo.nodes, &geo.ley, w.evolution.tide);
+    for p in &mut w.provinces {
+        if !p.cells.is_empty() {
+            p.aura = ley::province_aura(&p.cells, &geo.aura_cell);
+        }
+    }
+}
+
+/// 建立格點靈氣的距離衰減表（[`ley::AuraBasis`]）；已有且對得上地圖就不重建。開天時先建好，
+/// 每世結算才不必在推演途中花這筆時間。回傳這個世界有沒有格點資料。
+pub fn prepare_aura(w: &mut World) -> bool {
+    let geo = &w.geo;
+    let cells = geo.w as usize * geo.h as usize;
+    if cells == 0 || geo.terrain.len() != cells || geo.aura_cell.len() != cells {
+        return false;
+    }
+    if !w.aura_basis.as_ref().is_some_and(|b| b.fits(cells, &geo.nodes, &geo.ley)) {
+        let sphere = Sphere::new(geo.w as usize, geo.h as usize);
+        w.aura_basis = Some(ley::AuraBasis::build(&sphere, &geo.nodes, &geo.ley));
+    }
+    true
+}
+
+/// GDD 2.8「每世結算」：在每世的天機收入之前執行。靈氣隨靈潮重算；世界大事與洞天福地的升降
+/// 寫入因果帳；改元則追加紀元。
 pub fn shi_settle(w: &mut World) {
     let year = w.evolution.history_years + year_of(w.tick);
     let changes = w.evolution.settle(year);
-    if changes.is_empty() {
-        return;
+    let shifts = shift_nodes(w.params.seed, year, w.evolution.tide, &mut w.geo.nodes);
+    refresh_aura(w);
+    if !changes.is_empty() {
+        let new_era = open_era(&w.evolution, &changes, year, w.params.seed, &Lexicon::builtin(), &mut w.eras);
+        // 開啟紀元的那一件掛在紀元上：有時期開始取第一件開始的，否則（承平）取最後一件。
+        let opener = changes.iter().position(|c| c.opens().is_some()).unwrap_or(changes.len() - 1);
+        for (i, &change) in changes.iter().enumerate() {
+            let args = EventArgs::World { change, new_era: new_era && i == opener };
+            crate::ledger::record(w, NewEvent::new(EventKind::WorldChanged, EVO_EVENT_IMPORTANCE, args));
+        }
     }
-    let new_era = open_era(&w.evolution, &changes, year, w.params.seed, &Lexicon::builtin(), &mut w.eras);
-    // 開啟紀元的那一件掛在紀元上：有時期開始取第一件開始的，否則（承平）取最後一件。
-    let opener = changes.iter().position(|c| c.opens().is_some()).unwrap_or(changes.len() - 1);
-    for (i, &change) in changes.iter().enumerate() {
-        let args = EventArgs::World { change, new_era: new_era && i == opener };
-        crate::ledger::record(w, NewEvent::new(EventKind::WorldChanged, EVO_EVENT_IMPORTANCE, args));
+    for shift in shifts {
+        let cell = w.geo.nodes[shift.node as usize].cell;
+        let args = EventArgs::Node { node: shift.node, from: shift.from, to: shift.to };
+        let mut event = NewEvent::new(EventKind::NodeShifted, EVO_NODE_IMPORTANCE, args);
+        event.cell = Some(cell);
+        event.province = w.geo.province_of.get(cell as usize).copied().filter(|&p| (p as usize) < w.provinces.len());
+        crate::ledger::record(w, event);
     }
 }
 
@@ -449,6 +545,79 @@ mod tests {
         assert_eq!(a.1, b.1);
         assert_eq!(a.2, b.2);
         assert_ne!(a.1, play(20261012, Era::Middle, THREE_YUN).1);
+    }
+
+    fn node(origin: f32) -> LeyNode {
+        LeyNode { cell: 0, strength: origin, origin, name: String::new() }
+    }
+
+    #[test]
+    fn gdd_2_8_nodes_fade_in_decline_and_stop_at_dormant() {
+        let mut nodes: Vec<LeyNode> = [1.0, 0.75, 0.5].into_iter().cycle().take(60).map(node).collect();
+        let mut shifted = 0;
+        for shi in 1..=10u32 {
+            for s in shift_nodes(9, shi * 30, 0.6, &mut nodes) {
+                assert_eq!(s.to + 1, s.from, "一世至多降一級");
+                shifted += 1;
+            }
+        }
+        // 60 個節點、10 世、每世 0.1：期望約 55 次（已沉寂的不再擲）。
+        assert!((30..=80).contains(&shifted), "降級 {shifted} 次");
+        assert!(nodes.iter().all(|n| LeyNode::LADDER.contains(&n.strength)));
+        for shi in 11..=400u32 {
+            shift_nodes(9, shi * 30, 0.6, &mut nodes);
+        }
+        assert!(nodes.iter().all(|n| n.strength == 0.0), "末法夠久，全部沉寂");
+    }
+
+    #[test]
+    fn gdd_2_8_nodes_recover_up_to_their_origin() {
+        let mut nodes: Vec<LeyNode> = [1.0, 0.75, 0.5].into_iter().cycle().take(60).map(node).collect();
+        for n in &mut nodes {
+            n.strength = 0.0;
+        }
+        for shi in 1..=400u32 {
+            for s in shift_nodes(9, shi * 30, 1.2, &mut nodes) {
+                assert_eq!(s.to, s.from + 1, "一世至多回復一級");
+            }
+            assert!(nodes.iter().all(|n| n.strength <= n.origin), "不超過生成時的等級");
+        }
+        assert!(nodes.iter().all(|n| n.strength == n.origin), "靈潮高得夠久，全部回復");
+    }
+
+    #[test]
+    fn gdd_2_8_nodes_hold_between_the_two_gates() {
+        let mut nodes: Vec<LeyNode> = (0..40).map(|_| node(0.75)).collect();
+        nodes[0].strength = 0.5;
+        let before = nodes.clone();
+        for tide in [EVO_NODE_FADE_BELOW, 0.9, 1.0, EVO_NODE_RISE_ABOVE] {
+            for shi in 1..=50u32 {
+                assert!(shift_nodes(3, shi * 30, tide, &mut nodes).is_empty());
+            }
+        }
+        assert_eq!(nodes, before);
+    }
+
+    #[test]
+    fn gdd_2_8_opening_nodes_carry_the_history() {
+        let fresh: Vec<LeyNode> = [1.0, 0.75, 0.5].into_iter().cycle().take(22).map(node).collect();
+        let (mut ancient_down, mut decline_down) = (0usize, 0usize);
+        for seed in 1..=40u64 {
+            let mut a = fresh.clone();
+            let mut d = fresh.clone();
+            assert!((history_nodes(seed, Era::Ancient, &mut a) - 1.3).abs() < 0.01);
+            assert!((history_nodes(seed, Era::Decline, &mut d) - 0.6).abs() < 0.01);
+            ancient_down += a.iter().filter(|n| n.strength < n.origin).count();
+            decline_down += d.iter().filter(|n| n.strength < n.origin).count();
+            let mut again = fresh.clone();
+            history_nodes(seed, Era::Decline, &mut again);
+            assert_eq!(again, d, "同種子同結果");
+        }
+        let total = 40 * fresh.len();
+        // 實測 40 個種子：上古 19%、末法 53%（上古的歷史不滿一個靈潮週期，早年降的還沒全部回復）。
+        assert!(ancient_down * 4 < total, "上古開局降級中的節點 {ancient_down}/{total}");
+        assert!(decline_down * 10 > total * 4, "末法開局降級中的節點 {decline_down}/{total}");
+        assert!(decline_down * 10 < total * 7, "末法開局降級中的節點 {decline_down}/{total}");
     }
 
     #[test]

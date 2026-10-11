@@ -34,6 +34,8 @@ pub struct World {
     /// 在世有名之人的 ID，升冪（效能快取，GDD 6.8；不納入雜湊與存檔）。`people::spawn` 追加、`people::die` 移除；
     /// 逐人掃描一律先取 [`World::alive_snapshot`]，迴圈內仍檢查 `Person::alive`，因此與全表掃描等價但不隨歷史變長。
     pub alive_ids: Vec<PersonId>,
+    /// 格點靈氣的距離衰減表（效能快取，GDD 6.8；不納入雜湊與存檔）。第一次每世結算時建立。
+    pub aura_basis: Option<crate::worldgen::ley::AuraBasis>,
     pub rng: RngStreams,
 }
 
@@ -60,6 +62,7 @@ impl World {
             follows: BTreeSet::new(),
             prerun: false,
             alive_ids: Vec::new(),
+            aura_basis: None,
             rng,
         }
     }
@@ -106,6 +109,7 @@ impl Sim {
         let g = crate::worldgen::generate_with(params, diag)?;
         let mut sim = Self::from_parts(g.params, g.geo, g.provinces);
         sim.world.fine = g.fine;
+        crate::evolution::prepare_aura(&mut sim.world);
         crate::genesis::run(&mut sim);
         Ok(sim)
     }

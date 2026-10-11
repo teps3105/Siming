@@ -533,12 +533,6 @@ pub const AURA_LEY_COEF: f32 = 0.3;
 /// 7.1 `AURA_LEY` 靈脈靈氣的衰減距離 3 格，即 exp(−d/3)（GDD 2.4 格點靈氣）。
 pub const AURA_LEY_DECAY: f32 = 3.0;
 
-/// 7.1 `AURA_ERA` 上古時代倍率 1.3（GDD 2.4 格點靈氣；4.6 開局時代）。
-pub const AURA_ERA_ANCIENT: f32 = 1.3;
-/// 7.1 `AURA_ERA` 中古時代倍率 1.0（GDD 2.4 格點靈氣；4.6 開局時代）。
-pub const AURA_ERA_MIDDLE: f32 = 1.0;
-/// 7.1 `AURA_ERA` 末法時代倍率 0.6（GDD 2.4 格點靈氣；4.6 開局時代）。
-pub const AURA_ERA_DECLINE: f32 = 0.6;
 
 /// 7.1 `EVO_WARMTH_P1` 寒暖第一週期的長度下限 600 年（GDD 2.8 慢變量）。
 pub const EVO_WARMTH_P1_MIN: u32 = 600;
@@ -592,6 +586,14 @@ pub const EVO_REVIVAL_ENTER: f32 = 1.3;
 pub const EVO_REVIVAL_LEAVE: f32 = 1.2;
 /// 7.1 `EVO_ERA_MIN_YEARS` 兩次改元至少相隔 60 年（GDD 2.8 世界大事）。
 pub const EVO_ERA_MIN_YEARS: u32 = 60;
+/// 7.1 `EVO_NODE_FADE` 靈潮低於 0.7 時，洞天福地每世可能降一級（GDD 2.8 每世結算）。
+pub const EVO_NODE_FADE_BELOW: f32 = 0.7;
+/// 7.1 `EVO_NODE_RISE` 靈潮高於 1.1 時，降過級的洞天福地每世可能回復一級（GDD 2.8 每世結算）。
+pub const EVO_NODE_RISE_ABOVE: f32 = 1.1;
+/// 7.1 `EVO_NODE_CHANCE` 洞天福地每世降級或回復的機率 0.1（GDD 2.8 每世結算）。
+pub const EVO_NODE_CHANCE: f32 = 0.1;
+/// 7.1 `EVO_NODE_IMPORTANCE` 洞天福地升降級的事件重要度 3（GDD 2.8、7.2）。
+pub const EVO_NODE_IMPORTANCE: u8 = 3;
 /// 7.1 `EVO_EVENT_IMPORTANCE` 世界大事的事件重要度 5（GDD 2.8、7.2）。
 pub const EVO_EVENT_IMPORTANCE: u8 = 5;
 

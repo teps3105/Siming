@@ -73,6 +73,7 @@ fn geo(h: &mut FxHasher, g: &Geography) {
     for n in &g.nodes {
         h.write_u32(n.cell);
         h.write_u32(n.strength.to_bits());
+        h.write_u32(n.origin.to_bits());
         str(h, &n.name);
     }
     h.write_usize(g.ley.len());

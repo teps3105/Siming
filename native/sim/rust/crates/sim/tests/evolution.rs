@@ -1,7 +1,7 @@
 //! GDD 2.8 天地演變：每世結算、世界大事與改元接在推演流程上。
 
 use siming_sim::era::EraKind;
-use siming_sim::{calendar, EventArgs, EventKind, Sim, WorldParams};
+use siming_sim::{calendar, Era, EventArgs, EventKind, LeyNode, Sim, WorldParams};
 
 #[test]
 fn gdd_2_8_slow_variables_settle_once_per_shi() {
@@ -59,4 +59,76 @@ fn gdd_2_8_world_events_enter_the_ledger_and_open_eras() {
     let (era, year) = calendar::era_year(w.tick, history, &w.eras);
     assert_eq!(era.name, w.eras.last().unwrap().name);
     assert!(year >= 1);
+}
+
+fn sim_in(era: Era) -> Sim {
+    let mut params = WorldParams::new(20261011);
+    params.era = era;
+    Sim::new(&params).unwrap()
+}
+
+fn mean(values: &[f32]) -> f32 {
+    values.iter().sum::<f32>() / values.len() as f32
+}
+
+#[test]
+fn gdd_2_8_opening_aura_follows_the_opening_tide() {
+    let [ancient, middle, decline] = [Era::Ancient, Era::Middle, Era::Decline].map(sim_in);
+    let cell = |s: &Sim| mean(&s.world().geo.aura_cell);
+    assert!(cell(&ancient) > cell(&middle) * 1.15, "上古 {} 中古 {}", cell(&ancient), cell(&middle));
+    assert!(cell(&decline) < cell(&middle) * 0.7, "末法 {} 中古 {}", cell(&decline), cell(&middle));
+    let province = |s: &Sim| mean(&s.world().provinces.iter().map(|p| p.aura).collect::<Vec<_>>());
+    assert!(province(&ancient) > province(&middle) && province(&middle) > province(&decline));
+}
+
+#[test]
+fn gdd_2_8_aura_is_rescaled_by_the_tide_every_shi() {
+    let mut sim = sim_in(Era::Middle);
+    let before = sim.world().geo.aura_cell.clone();
+    let tide_before = sim.world().evolution.tide;
+    let provinces_before: Vec<f32> = sim.world().provinces.iter().map(|p| p.aura).collect();
+    while sim.world().tick < 360 {
+        sim.step();
+    }
+    let w = sim.world();
+    let ratio = w.evolution.tide / tide_before;
+    assert!(ratio < 0.99, "中古開局靈潮正在退，倍率 {ratio}");
+    let same_nodes = !w.ledger.events.iter().any(|e| e.kind == EventKind::NodeShifted);
+    assert!(same_nodes, "這一世沒有節點升降");
+    for (i, (&was, &now)) in before.iter().zip(&w.geo.aura_cell).enumerate() {
+        if was < 1.9 {
+            assert!((now - was * ratio).abs() < 1e-4, "格 {i}：{was} → {now}，倍率 {ratio}");
+        }
+    }
+    let lowered = w.provinces.iter().zip(&provinces_before).filter(|(p, &was)| p.aura < was).count();
+    assert!(lowered * 10 >= w.provinces.len() * 9, "州郡靈氣跟著降的只有 {lowered}/{}", w.provinces.len());
+}
+
+#[test]
+fn gdd_2_8_node_shifts_enter_the_ledger_and_change_the_ley_lines() {
+    let mut sim = sim_in(Era::Decline);
+    let at_opening: Vec<u8> = sim.world().geo.nodes.iter().map(LeyNode::grade).collect();
+    // 末法開局在谷底，靈潮回到 0.7 以上之前還有幾世。
+    while sim.world().tick < 6 * 360 {
+        sim.step();
+    }
+    let w = sim.world();
+    let shifts: Vec<_> = w.ledger.events.iter().filter(|e| e.kind == EventKind::NodeShifted).collect();
+    assert!(!shifts.is_empty(), "末法六世內至少有一個洞天福地降級");
+    let mut grades = at_opening;
+    for e in &shifts {
+        let EventArgs::Node { node, from, to } = e.args else { panic!("參數不是節點：{:?}", e.args) };
+        assert_eq!(e.tick % 360, 0, "只在每世結算時發生");
+        assert_eq!(grades[node as usize], from, "事件的原等級與節點當時的等級相同");
+        assert_eq!(e.cell, Some(w.geo.nodes[node as usize].cell));
+        assert!(e.province.is_some(), "事件掛在節點所在的州");
+        grades[node as usize] = to;
+    }
+    let now: Vec<u8> = w.geo.nodes.iter().map(LeyNode::grade).collect();
+    assert_eq!(grades, now, "照事件推演的等級與世界狀態相同");
+    for edge in &w.geo.ley {
+        let want = 0.5 * (w.geo.nodes[edge.a as usize].strength + w.geo.nodes[edge.b as usize].strength);
+        assert_eq!(edge.strength, want, "靈脈強度是兩端目前強度的平均");
+    }
+    assert!(w.geo.nodes.iter().all(|n| n.strength <= n.origin));
 }

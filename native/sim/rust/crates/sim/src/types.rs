@@ -109,9 +109,30 @@ impl WorldParams {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LeyNode {
     pub cell: u32,
-    /// 強度 s：1.0 大洞天、0.75 洞天、0.5 福地。
+    /// 目前的強度 s：1.0 大洞天、0.75 洞天、0.5 福地、0 沉寂（GDD 2.8：末法時降級，靈潮回漲後回復）。
     pub strength: f32,
+    /// 生成時的強度；回復至多到這一級，名稱也依這一級取。
+    pub origin: f32,
     pub name: String,
+}
+
+impl LeyNode {
+    /// 各等級的強度，由沉寂（0）到大洞天（3）。
+    pub const LADDER: [f32; 4] = [
+        0.0,
+        crate::params::WG_NODE_STRENGTH_BLESSED,
+        crate::params::WG_NODE_STRENGTH_CAVE,
+        crate::params::WG_NODE_STRENGTH_GREAT,
+    ];
+
+    /// 強度對應的等級：0 沉寂、1 福地、2 洞天、3 大洞天。
+    pub fn grade_of(strength: f32) -> u8 {
+        (1..4).rev().find(|&g| strength >= Self::LADDER[g]).unwrap_or(0) as u8
+    }
+
+    pub fn grade(&self) -> u8 {
+        Self::grade_of(self.strength)
+    }
 }
 
 /// GDD 2.4 靈脈：連接兩個節點，沿 `path` 的格點描出。

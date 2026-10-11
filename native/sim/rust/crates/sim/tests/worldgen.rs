@@ -308,7 +308,9 @@ fn gdd_2_4_nodes_ley_and_aura() {
                 geo.terrain[a.cell as usize],
                 Terrain::Mountain | Terrain::Hills
             ));
-            assert!([1.0, 0.75, 0.5].contains(&a.strength));
+            assert!([1.0, 0.75, 0.5].contains(&a.origin));
+            // 開局前的歷史裡可能降過級（GDD 2.8）。
+            assert!([1.0, 0.75, 0.5, 0.0].contains(&a.strength) && a.strength <= a.origin);
             for b in &geo.nodes[i + 1..] {
                 let (ax, ay) = (a.cell as usize % w, a.cell as usize / w);
                 let (bx, by) = (b.cell as usize % w, b.cell as usize / w);
@@ -316,7 +318,7 @@ fn gdd_2_4_nodes_ley_and_aura() {
                 assert!(d2 >= (WG_NODE_MIN_DIST * WG_NODE_MIN_DIST) as i32);
             }
         }
-        let great = geo.nodes.iter().filter(|n| n.strength == 1.0).count();
+        let great = geo.nodes.iter().filter(|n| n.origin == 1.0).count();
         assert_eq!(great, (geo.nodes.len() as f32 * 0.15).round() as usize);
         // 靈脈：節點連通（MST）且多於 n−1 條邊（有環）。
         assert!(geo.ley.len() >= geo.nodes.len());
@@ -561,9 +563,9 @@ fn gdd_8_3_names_are_unique_with_correct_suffixes() {
             all.push(&r.name);
         }
         for n in &g.geo.nodes {
-            let ok = if n.strength == 1.0 {
+            let ok = if n.origin == 1.0 {
                 n.name.ends_with("大洞天")
-            } else if n.strength == 0.75 {
+            } else if n.origin == 0.75 {
                 n.name.ends_with("洞天") && !n.name.ends_with("大洞天")
             } else {
                 n.name.ends_with("福地")

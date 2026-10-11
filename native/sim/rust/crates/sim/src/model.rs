@@ -374,6 +374,8 @@ pub enum EventKind {
     BookEntry,
     /// GDD 2.8 世界大事：大寒、大暖、末法、靈氣復甦的開始或結束。
     WorldChanged,
+    /// GDD 2.8 洞天福地升降級：末法時降級或沉寂，靈潮回漲後回復。
+    NodeShifted,
 }
 
 /// GDD 3.5 天劫結果。
@@ -400,6 +402,8 @@ pub enum EventArgs {
     Famine { deaths: u32 },
     /// GDD 2.8：`new_era` 為真表示這件大事開啟了新紀元（年表的最後一筆）。
     World { change: crate::evolution::WorldChange, new_era: bool },
+    /// GDD 2.8：節點由 `from` 級變為 `to` 級（0 沉寂、1 福地、2 洞天、3 大洞天）。
+    Node { node: NodeId, from: u8, to: u8 },
 }
 
 /// GDD 3.3 因果帳中的一筆事件。文字不存在模擬中（由介面依 7.2 模板產生）。

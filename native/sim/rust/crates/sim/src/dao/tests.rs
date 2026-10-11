@@ -57,7 +57,7 @@ fn line_world(seed: u64, n: usize, nodes: &[(u16, f32)]) -> World {
         aura_cell: vec![],
         nodes: nodes
             .iter()
-            .map(|&(p, s)| LeyNode { cell: p as u32 * 2, strength: s, name: format!("n{p}") })
+            .map(|&(p, s)| LeyNode { cell: p as u32 * 2, strength: s, origin: s, name: format!("n{p}") })
             .collect(),
         ley: vec![],
         rivers: vec![],

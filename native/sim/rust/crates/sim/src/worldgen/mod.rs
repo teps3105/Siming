@@ -13,7 +13,7 @@ mod erosion;
 pub(crate) mod grid;
 mod height;
 mod hydrology;
-mod ley;
+pub(crate) mod ley;
 mod naming;
 pub use naming::seat_stems;
 mod waters;
@@ -281,9 +281,11 @@ fn build_draft(params: &WorldParams, seed: u64) -> (Draft, ChaCha8Rng, u32) {
     // 7. 州郡。
     let provs = provinces::build(&sp, &terrain, &river_level, target as usize, &mut rng);
     // 8. 靈脈。
-    let nodes = ley::nodes(&sp, &terrain, &height, &ridged, target);
+    let mut nodes = ley::nodes(&sp, &terrain, &height, &ridged, target);
+    // 開局前的歷史裡，洞天福地已隨靈潮升降過（GDD 2.8）；靈氣以開局那一年的靈潮為倍率。
+    let tide = crate::evolution::history_nodes(seed, params.era, &mut nodes);
     let edges = ley::edges(&sp, &terrain, &nodes);
-    let aura = ley::aura_cell(&sp, &terrain, &nodes, &edges, params.era);
+    let aura = ley::aura_cell(&sp, &terrain, &nodes, &edges, tide);
 
     let draft = Draft {
         w,
@@ -451,15 +453,7 @@ fn finalize(d: Draft, mut rng: ChaCha8Rng, params: &WorldParams, seed: u64) -> G
     // 州郡本體（GDD 2.3）。
     let mut provs: Vec<Province> = Vec::with_capacity(d.provinces.list.len());
     for (id, rp) in d.provinces.list.iter().enumerate() {
-        let (mut sum, mut max) = (0.0f32, 0.0f32);
-        for &c in &rp.cells {
-            let a = d.aura[c as usize];
-            sum += a;
-            max = max.max(a);
-        }
-        let mean = sum / rp.cells.len() as f32;
-        let aura = (AURA_PROVINCE_MEAN_WEIGHT * mean + AURA_PROVINCE_MAX_WEIGHT * max)
-            .clamp(AURA_PROVINCE_CLAMP_MIN, AURA_PROVINCE_CLAMP_MAX);
+        let aura = ley::province_aura(&rp.cells, &d.aura);
         let population = rp.habitability * POP_INIT_PER_HAB * era_factor;
         let faith = if params.era == Era::Ancient {
             [
@@ -538,7 +532,7 @@ fn finalize(d: Draft, mut rng: ChaCha8Rng, params: &WorldParams, seed: u64) -> G
     let ranges = find_ranges(&d, &mut namer, &mut rng);
     let mut nodes = d.nodes.clone();
     for nd in nodes.iter_mut() {
-        nd.name = namer.node(&mut rng, nd.strength);
+        nd.name = namer.node(&mut rng, nd.origin);
     }
     let mut out_params = params.clone();
     out_params.seed = seed;

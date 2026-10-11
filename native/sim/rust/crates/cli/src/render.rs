@@ -553,7 +553,7 @@ mod tests {
             river,
             province_of,
             aura_cell: (0..n).map(|i| (i % 5) as f32 * 0.5).collect(),
-            nodes: vec![LeyNode { cell: 3 * 8 + 5, strength: 1.0, name: "甲洞天".into() }],
+            nodes: vec![LeyNode { cell: 3 * 8 + 5, strength: 1.0, origin: 1.0, name: "甲洞天".into() }],
             ley: vec![LeyEdge { a: 0, b: 0, strength: 1.0, path: vec![3 * 8 + 5, 3 * 8 + 6] }],
             rivers: vec![NamedRiver { name: "乙水".into(), level: 2, cells: vec![10, 18] }],
             ranges: vec![],
