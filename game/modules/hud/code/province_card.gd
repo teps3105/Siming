@@ -1,6 +1,6 @@
 class_name ProvinceCard
 extends Control
-## GDD 5.8 州郡卡（命簿）：卷軸式卡片——上下兩根軸頭，軸間是綾邊裱著的紙面。顯示選取州郡的名稱、
+## GDD 5.8 州郡卡（命簿）：卷軸式卡片——上下兩根軸頭，軸間是綾邊裱著的紙面；左側一條直書的題簽寫州郡名。顯示治所、
 ## 地形組成、民生、氣場墨條與三教教化；頁尾的置中鈕把鏡頭移到治所，右上的關閉鈕收卷——兩個鈕都是圖示加文字加實體鍵圖像。
 ## 值為零的墨條與沒有教化時的教化環不畫，卡片高度跟著內容走。
 
@@ -12,6 +12,8 @@ const WIDTH := 380.0
 const ROD := 12.0
 const UNROLL_SECONDS := 0.25
 const ROLL_UP_SECONDS := 0.18
+## 左側直書題簽的寬度。
+const STRIP := 40.0
 const CLOSE_RADIUS := 13.0
 const ACTION_RADIUS := 17.0
 ## 低於這個值的氣場視為零，不畫墨條。
@@ -135,6 +137,12 @@ func _center_key() -> String:
 	return InputHints.label(InputActions.CARD_CENTER, gamepad)
 
 
+## 直書題簽：紙面左側的一條，州郡名由上往下寫（GDD 5.8）。
+func _title_strip_rect() -> Rect2:
+	var paper := _paper_rect(_content_height())
+	return Rect2(paper.position, Vector2(STRIP * _unit, paper.size.y))
+
+
 ## 關閉鈕的外接方框。
 func _close_rect() -> Rect2:
 	var paper := _paper_rect(_content_height())
@@ -146,7 +154,7 @@ func _close_rect() -> Rect2:
 func _center_rect() -> Rect2:
 	var paper := _paper_rect(_content_height())
 	var diameter := ACTION_RADIUS * 2.0 * _unit
-	return Rect2(Vector2(paper.position.x + 16.0 * _unit, paper.end.y - 14.0 * _unit - diameter), Vector2(diameter, diameter))
+	return Rect2(Vector2(paper.position.x + (STRIP + 14.0) * _unit, paper.end.y - 14.0 * _unit - diameter), Vector2(diameter, diameter))
 
 
 func _draw() -> void:
@@ -165,7 +173,7 @@ func _draw() -> void:
 		return
 
 	var paper := _paper_rect(full)
-	var x := paper.position.x + 16.0 * _unit
+	var x := paper.position.x + (STRIP + 14.0) * _unit
 	var right := paper.end.x - 16.0 * _unit
 	var y := paper.position.y + 14.0 * _unit
 	var note := Ink.font_size(Ink.SIZE_NOTE, _unit)
@@ -173,10 +181,15 @@ func _draw() -> void:
 	var section := Ink.font_size(Ink.SIZE_SECTION, _unit)
 	var title := Ink.font_size(Ink.SIZE_TITLE, _unit)
 
-	# 標題與副題，下方一道墨劃。
-	Ink.text(self, Vector2(x, y), _info["name"], title)
-	var title_width := Ink.text_size(_info["name"], title).x
-	Ink.text(self, Vector2(x + title_width + 10.0 * _unit, y + (title - note) * 0.8), Locale.t("city_level_%d" % int(_info["city_level"])), note, Ink.INK_LIGHT)
+	# 直書題簽：紙面左側較深的一條，州郡名由上往下寫。
+	var strip := _title_strip_rect()
+	draw_rect(strip, Color(Ink.PAPER_DARK, 0.55), true)
+	draw_line(Vector2(strip.end.x, strip.position.y), strip.end, Color(Ink.INK_LIGHT, 0.6), 1.0)
+	Ink.vertical_text(self, Vector2(strip.get_center().x, strip.position.y + 14.0 * _unit), _info["name"], title)
+	# 首列：治所與治所名；下方一道墨劃。
+	var seat_label := Locale.t("card_seat")
+	Ink.text(self, Vector2(x, y + (body - note) * 0.6), seat_label, note, Ink.INK_LIGHT)
+	Ink.text(self, Vector2(x + Ink.text_size(seat_label, note).x + 8.0 * _unit, y), _info["seat_name"], body)
 	var close := _close_rect()
 	Ink.round_button(self, close.get_center(), close.size.x * 0.5, &"close", true, _hover == "close", _pressed == "close")
 	# 關閉鈕左邊：文字與實體鍵圖像。

@@ -237,3 +237,16 @@ func test_map_labels_keep_clear_of_the_instruments() -> void:
 	await wait(0.5)
 	assert_eq(_hud._overlay.reserved.size(), 3, "命簿收起後不再佔位")
 
+
+func test_card_title_is_written_vertically_on_a_side_strip() -> void:
+	await _boot(FLOW_VIEW)
+	_hud._card.show_province(0)
+	await wait(0.5)
+	var strip: Rect2 = _hud._card._title_strip_rect()
+	assert_gt(strip.size.y, strip.size.x * 3.0, "題簽是直的一條")
+	assert_lt(strip.position.x, _hud._card.size.x * 0.1, "題簽在紙面左側")
+	var name: String = _sim.world.province_info(0)["name"]
+	var needed := Ink.text_size(name[0], Ink.SIZE_TITLE).y * name.length()
+	assert_gt(strip.size.y, needed + 14.0, "題簽放得下直書的州郡名")
+	assert_gt(_hud._card._center_rect().position.x, strip.end.x, "內容與動作鈕在題簽右邊")
+

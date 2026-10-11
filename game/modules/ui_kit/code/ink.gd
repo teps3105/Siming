@@ -226,6 +226,17 @@ static func outlined_text(item: CanvasItem, pos: Vector2, text: String, size: in
 	item.draw_string(FONT, baseline, text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, size, color)
 
 
+## 直書：一個字一行，由上往下；top_center 為第一個字的上緣中點。回傳整段的高度。
+static func vertical_text(item: CanvasItem, top_center: Vector2, content: String, size: int, color := INK, gap := 2.0) -> float:
+	var y := top_center.y
+	for i in content.length():
+		var glyph := content[i]
+		var extent := text_size(glyph, size)
+		text(item, Vector2(top_center.x - extent.x * 0.5, y), glyph, size, color)
+		y += extent.y + gap
+	return y - top_center.y
+
+
 ## 紙面上的文字。pos 為文字左上角。
 static func text(item: CanvasItem, pos: Vector2, content: String, size: int, color := INK) -> void:
 	item.draw_string(FONT, pos + Vector2(0.0, FONT.get_ascent(size)), content, HORIZONTAL_ALIGNMENT_LEFT, -1.0, size, color)
