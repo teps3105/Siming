@@ -21,6 +21,12 @@ func test_gdd_5_2_flatten_starts_above_sixty_percent_of_map_width() -> void:
 	assert_true(is_equal_approx(MapView.height_scale(MAP_W * 1.1, MAP_W), 0.05))
 
 
+func test_gdd_5_3_globe_relief_eases_from_flat_scale_to_the_far_scale() -> void:
+	assert_eq(MapView.globe_relief(MAP_W * 0.04, MAP_W), 1.0)
+	assert_eq(MapView.globe_relief(MAP_W * 0.5, MAP_W), MapView.GLOBE_RELIEF)
+	assert_eq(MapView.globe_relief(MAP_W * 1.1, MAP_W), MapView.GLOBE_RELIEF)
+
+
 func test_gdd_5_3_far_view_shows_only_the_largest_rivers() -> void:
 	var alpha := MapView.river_alpha(MAP_W * 0.75, MAP_W, 0.0)
 	assert_eq(alpha, Vector3(0.0, 0.0, 1.0), "遠景只畫江")

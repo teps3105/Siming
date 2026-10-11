@@ -57,15 +57,6 @@ varying vec3 v_wpos;
 varying vec2 v_lpos;
 varying vec3 v_sdir;
 
-// 星球視角的地形高度：正對鏡頭處照原樣，靠近球緣漸收到 0，山不會從球的輪廓凸出去。
-float globe_limb(vec3 dir, vec3 cam) {
-	vec3 centre = globe_xform[3].xyz;
-	vec3 to_cam = cam - centre;
-	float horizon = globe_radius / max(length(to_cam), globe_radius);
-	float facing = dot(normalize((globe_xform * vec4(dir, 0.0)).xyz), normalize(to_cam));
-	return smoothstep(horizon, horizon + 0.3, facing);
-}
-
 void vertex() {
 	float lon = UV.x * TAU;
 	float lat = (0.5 - UV.y) * PI;
@@ -78,7 +69,8 @@ void vertex() {
 	float h1 = max(e, 0.0) * map_size.x * HEIGHT_GAIN * inside;
 	vec3 wp = vec3(VERTEX.x, h1 * height_scale, VERTEX.z);
 	if (globe_morph > 0.0) {
-		float r = globe_radius + h1 * height_scale * globe_relief * globe_limb(dir, CAMERA_POSITION_WORLD);
+		// 星球視角的山沿法線凸出球面，高度另乘 globe_relief；球緣不收，山勢在輪廓上看得見。
+		float r = globe_radius + h1 * height_scale * globe_relief;
 		vec3 sph = (globe_xform * vec4(dir * r, 1.0)).xyz;
 		wp = mix(wp, sph, globe_morph);
 	}

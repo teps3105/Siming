@@ -44,6 +44,7 @@ var _ley_copies: Array[MeshInstance3D] = []
 var _province_colors: ImageTexture
 var _blank_colors: ImageTexture
 var _height_scale := 1.0
+var _globe_relief := 1.0
 
 
 ## 以世界資料建立地圖。世界改變地形後再呼叫一次即可重建。
@@ -115,14 +116,17 @@ func update_view(z: float, focus: Vector2, camera_basis: Basis, delta: float, gl
 	globe_morph = move_toward(globe_morph, target, delta / GLOBE_MORPH_SECONDS)
 	var eased := smoothstep(0.0, 1.0, globe_morph)
 	globe_xform = MapView.globe_frame(focus, map_size, camera_basis)
-	_height_scale = MapView.height_scale(z, map_size.x)
+	# 古地圖化只屬於平面地圖：星球視角不壓平高度，拉遠後反而放大。
+	_height_scale = lerpf(MapView.height_scale(z, map_size.x), 1.0, eased)
+	_globe_relief = MapView.globe_relief(z, map_size.x)
 	var radius := MapView.globe_radius(map_size.x)
 	for material: ShaderMaterial in [_terrain_material, _river_material, _ley_material]:
 		material.set_shader_parameter("height_scale", _height_scale)
+		material.set_shader_parameter("globe_relief", _globe_relief)
 		material.set_shader_parameter("globe_morph", eased)
 		material.set_shader_parameter("globe_radius", radius)
 		material.set_shader_parameter("globe_xform", globe_xform)
-	_terrain_material.set_shader_parameter("flatten", MapView.flatten_weight(z, map_size.x))
+	_terrain_material.set_shader_parameter("flatten", MapView.flatten_weight(z, map_size.x) * (1.0 - eased))
 	_terrain_material.set_shader_parameter("fog_start", z * 3.0)
 	_terrain_material.set_shader_parameter("fog_end", z * 7.0)
 	_river_material.set_shader_parameter("level_alpha", MapView.river_alpha(z, map_size.x, eased))
@@ -144,7 +148,8 @@ func world_position(pos: Vector2, near_x: float) -> Vector3:
 	if globe_morph > 0.5:
 		var lon := pos.x / map_size.x * TAU
 		var lat := (0.5 - pos.y / map_size.y) * PI
-		return globe_xform * (MapView.sphere_dir(lon, lat) * MapView.globe_radius(map_size.x))
+		var lift := _world.terrain_height_at(pos.x, pos.y) * _height_scale * _globe_relief
+		return globe_xform * (MapView.sphere_dir(lon, lat) * (MapView.globe_radius(map_size.x) + lift))
 	return Vector3(MapView.nearest_copy_x(pos.x, near_x, map_size.x), surface_height(pos.x, pos.y), pos.y)
 
 

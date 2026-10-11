@@ -32,6 +32,16 @@ func _ready() -> void:
 		$Hud.setup(_sim, _map, _camera)
 
 
+## F12 把目前的畫面存成 PNG（user://screenshots/）。
+func _unhandled_key_input(event: InputEvent) -> void:
+	var key := event as InputEventKey
+	if key == null or not key.pressed or key.echo or key.keycode != KEY_F12:
+		return
+	DirAccess.make_dir_recursive_absolute("user://screenshots")
+	var stamp := Time.get_datetime_string_from_system().replace(":", "").replace("-", "")
+	get_viewport().get_texture().get_image().save_png("user://screenshots/%s.png" % stamp)
+
+
 ## 開場焦點：形心在南北緯 60° 內、面積最大的大洲（GDD 5.3）。
 func _start_focus() -> Vector2:
 	var best := _map.map_size * 0.5

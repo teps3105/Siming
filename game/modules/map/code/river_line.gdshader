@@ -18,14 +18,6 @@ varying float v_edge_px;
 varying float v_half_px;
 varying float v_alpha;
 
-// 星球視角的地形高度在球緣漸收到 0（與 terrain_relief.gdshader 的 globe_limb 相同）。
-float globe_limb(vec3 dir, vec3 cam) {
-	vec3 to_cam = cam - globe_xform[3].xyz;
-	float horizon = globe_radius / max(length(to_cam), globe_radius);
-	float facing = dot(normalize((globe_xform * vec4(dir, 0.0)).xyz), normalize(to_cam));
-	return smoothstep(horizon, horizon + 0.3, facing);
-}
-
 vec3 place(vec3 p, vec3 cam) {
 	vec3 flat_pos = vec3(p.x, p.y * height_scale, p.z);
 	vec3 world = flat_pos;
@@ -33,7 +25,7 @@ vec3 place(vec3 p, vec3 cam) {
 		float lon = (p.x - copy_offset) / map_size.x * TAU;
 		float lat = (0.5 - p.z / map_size.y) * PI;
 		vec3 dir = vec3(cos(lat) * cos(lon), sin(lat), -cos(lat) * sin(lon));
-		float r = globe_radius + p.y * height_scale * globe_relief * globe_limb(dir, cam);
+		float r = globe_radius + p.y * height_scale * globe_relief;
 		world = mix(flat_pos, (globe_xform * vec4(dir * r, 1.0)).xyz, globe_morph);
 	}
 	// 朝鏡頭拉近 1.5%，避免與地形深度相爭；拉近量與距離成正比，遠近都有效。
