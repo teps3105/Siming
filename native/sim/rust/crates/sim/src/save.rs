@@ -109,32 +109,82 @@ impl Sim {
         file: &SaveFile,
         build: impl FnOnce(&WorldParams) -> Result<Sim, WorldGenError>,
     ) -> Result<Self, SaveError> {
+        let mut replay = Replay::start(file.clone(), build)?;
+        while !replay.advance(u32::MAX)? {}
+        replay.finish()
+    }
+}
+
+/// 分段載入（GDD 4.8「快轉時顯示進度條」）：開天之後，每次推進有限個 tick，介面在中間更新進度。
+pub struct Replay {
+    sim: Sim,
+    file: SaveFile,
+    /// 下一筆要處理的指令。
+    next: usize,
+    start: Tick,
+}
+
+impl Replay {
+    /// 檢查檔頭並重新開天；之後以 [`Replay::advance`] 重播。
+    pub fn start(
+        file: SaveFile,
+        build: impl FnOnce(&WorldParams) -> Result<Sim, WorldGenError>,
+    ) -> Result<Self, SaveError> {
         file.check_header()?;
-        let mut sim = build(&file.params).map_err(SaveError::WorldGen)?;
-        for (t, cmd) in &file.commands {
-            if *t <= sim.world().tick {
-                return Err(SaveError::BadCommandLog(*t));
-            }
-            if *t > file.tick {
-                // 存檔時尚未套用的排隊指令：先推進到存檔 tick，只排隊，不再推進。
-                while sim.world().tick < file.tick {
-                    sim.step();
+        let sim = build(&file.params).map_err(SaveError::WorldGen)?;
+        let start = sim.world().tick;
+        Ok(Self { sim, file, next: 0, start })
+    }
+
+    /// 最多推進 `max_ticks` 個 tick；重播到存檔的 tick 時回傳 `true`。
+    pub fn advance(&mut self, max_ticks: u32) -> Result<bool, SaveError> {
+        let mut left = max_ticks;
+        loop {
+            let tick = self.sim.world().tick;
+            let Some((t, cmd)) = self.file.commands.get(self.next).cloned() else {
+                if tick >= self.file.tick {
+                    return Ok(true);
                 }
-                sim.apply(cmd.clone());
+                if left == 0 {
+                    return Ok(false);
+                }
+                self.sim.step();
+                left -= 1;
                 continue;
+            };
+            if t <= tick {
+                return Err(SaveError::BadCommandLog(t));
             }
-            while sim.world().tick + 1 < *t {
-                sim.step();
+            // 存檔時尚未套用的排隊指令（tick 在存檔之後）：先推進到存檔 tick，只排隊，不再推進。
+            let due = if t > self.file.tick { tick >= self.file.tick } else { tick + 1 >= t };
+            if due {
+                self.sim.apply(cmd);
+                self.next += 1;
+            } else {
+                if left == 0 {
+                    return Ok(false);
+                }
+                self.sim.step();
+                left -= 1;
             }
-            sim.apply(cmd.clone());
         }
-        while sim.world().tick < file.tick {
-            sim.step();
+    }
+
+    /// 重播的進度，0..1。
+    pub fn progress(&self) -> f32 {
+        let span = self.file.tick.saturating_sub(self.start);
+        if span == 0 {
+            return 1.0;
         }
-        let got = sim.hash();
-        if got != file.hash {
-            return Err(SaveError::Desync { expected: file.hash, got, tick: file.tick });
+        (self.sim.world().tick.saturating_sub(self.start) as f32 / span as f32).min(1.0)
+    }
+
+    /// 比對雜湊並交出世界；不符回 [`SaveError::Desync`]。
+    pub fn finish(self) -> Result<Sim, SaveError> {
+        let got = self.sim.hash();
+        if got != self.file.hash {
+            return Err(SaveError::Desync { expected: self.file.hash, got, tick: self.file.tick });
         }
-        Ok(sim)
+        Ok(self.sim)
     }
 }

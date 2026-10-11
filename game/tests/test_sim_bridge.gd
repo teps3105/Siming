@@ -217,3 +217,65 @@ func test_gdd_7_3_seas_and_lakes_are_named() -> void:
 			break
 	assert_true(names.has(first), "同種子得到同樣的水域名")
 
+
+func test_gdd_4_6_create_with_applies_and_clamps_options() -> void:
+	var world := SimWorld.new()
+	var error := world.create_with({
+		"seed": SEED, "name": "  試煉界  ", "size": "small", "era": "decline",
+		"land_ratio": 0.9, "relief": 0.25, "humidity": 0.1,
+	})
+	assert_eq(error, "")
+	var options := world.world_options()
+	assert_eq(options["name"], "試煉界")
+	assert_eq(options["size"], "small")
+	assert_eq(options["era"], "decline")
+	assert_true(absf(options["land_ratio"] - 0.55) < 0.001, "陸地比例夾在上限")
+	assert_true(absf(options["relief"] - 0.25) < 0.001)
+	assert_true(absf(options["humidity"] - 0.6) < 0.001, "濕潤度夾在下限")
+
+
+func test_gdd_4_6_blank_name_takes_the_seed_name() -> void:
+	var options := _small_world().world_options()
+	assert_ne(options["name"], "")
+	assert_eq(options["name"], SimWorld.random_world_name(options["seed"]))
+	assert_eq(SimWorld.random_world_name(7), SimWorld.random_world_name(7))
+
+
+func test_gdd_4_8_save_text_loads_back_in_steps_to_the_same_date() -> void:
+	var source := SimWorld.new()
+	assert_eq(source.create(SEED, "small"), "")
+	source.step(30)
+	var text := source.save_text()
+	assert_true(text.length() > 0)
+
+	var loaded := SimWorld.new()
+	assert_eq(loaded.load_begin(text), "")
+	assert_false(loaded.is_ready(), "讀完之前還沒有世界")
+	var rounds := 0
+	var last := 0.0
+	while true:
+		var result := loaded.load_step(8)
+		assert_eq(result["error"], "")
+		assert_true(result["progress"] >= last)
+		last = result["progress"]
+		rounds += 1
+		if result["done"] or rounds > 100:
+			break
+	assert_gt(rounds, 2, "30 個月每次 8 個，分好幾段")
+	assert_true(loaded.is_ready())
+	assert_eq(loaded.tick(), source.tick())
+	assert_eq(loaded.date_text(), source.date_text())
+	assert_eq(loaded.save_text(), text, "讀回來再存，內容相同")
+
+
+func test_gdd_4_8_bad_save_text_reports_an_error() -> void:
+	var world := SimWorld.new()
+	assert_ne(world.load_begin("{"), "")
+	assert_ne(world.load_step(8)["error"], "")
+	var text := _small_world().save_text()
+	assert_eq(world.load_begin(text.replace('"hash":', '"hash":1')), "", "雜湊到重播完才比對")
+	var result := world.load_step(100000)
+	assert_true(result["done"])
+	assert_ne(result["error"], "", "雜湊被改過的存檔讀不進來")
+	assert_false(world.is_ready())
+

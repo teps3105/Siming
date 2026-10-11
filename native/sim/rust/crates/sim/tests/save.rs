@@ -4,7 +4,7 @@
 //! 讓出生、入道、婚配、修煉、突破、轉世、宿緣、因果帳都真的跑起來。
 
 use siming_sim::model::{Command, SoulOrigin};
-use siming_sim::save::{SaveError, SaveFile};
+use siming_sim::save::{Replay, SaveError, SaveFile};
 use siming_sim::types::{WorldGenError, WorldParams};
 use siming_sim::{soul, Sim};
 
@@ -172,4 +172,49 @@ fn hash_covers_new_fields() {
         use rand::RngCore;
         w.rng.people.next_u32();
     }));
+}
+
+#[test]
+fn replay_in_slices_matches_loading_in_one_go() {
+    let mut a = populated(&params(4242)).unwrap();
+    for _ in 0..200 {
+        a.step();
+    }
+    a.apply(Command::Follow { soul: 5, on: true });
+    for _ in 0..150 {
+        a.step();
+    }
+    a.apply(Command::Follow { soul: 9, on: true });
+    let file = a.save();
+
+    let mut replay = Replay::start(file.clone(), populated).unwrap();
+    assert_eq!(replay.progress(), 0.0);
+    let mut last = 0.0;
+    let mut rounds = 0;
+    while !replay.advance(60).unwrap() {
+        let p = replay.progress();
+        assert!(p >= last && p <= 1.0);
+        last = p;
+        rounds += 1;
+    }
+    assert!(rounds >= 5, "350 個 tick 每次 60 個，至少分 5 段");
+    assert_eq!(replay.progress(), 1.0);
+    let b = replay.finish().unwrap();
+    assert_eq!(b.hash(), a.hash());
+    assert_eq!(b.queued_commands(), a.queued_commands());
+
+    let mut bad = file;
+    bad.hash ^= 1;
+    let mut replay = Replay::start(bad, populated).unwrap();
+    while !replay.advance(1000).unwrap() {}
+    assert!(matches!(replay.finish(), Err(SaveError::Desync { .. })));
+}
+
+#[test]
+fn world_name_is_stable_per_seed_and_varies() {
+    use siming_sim::worldgen::world_name;
+    assert_eq!(world_name(42), world_name(42));
+    assert!(!world_name(42).is_empty());
+    let names: std::collections::BTreeSet<String> = (0..64u64).map(world_name).collect();
+    assert!(names.len() > 8);
 }

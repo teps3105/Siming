@@ -45,6 +45,15 @@ struct Places {
 
 const DATA: &str = include_str!("../../data/places.zh-Hant.json");
 
+/// 世界名（GDD 7.3）：字庫裡的兩字名加「界」。由種子算出，不消耗世界生成的隨機流。
+pub fn world_name(seed: u64) -> String {
+    let places: Places = serde_json::from_str(DATA).expect("places.zh-Hant.json");
+    let h = mix(seed ^ 0x5749_4E47);
+    let name = &places.world_names[(h as usize) % places.world_names.len()];
+    let suffix = &places.world_suffix[((h >> 32) as usize) % places.world_suffix.len()];
+    format!("{name}{suffix}")
+}
+
 /// 借州郡名一個字的治所所佔的比例（GDD 7.3）。
 const SEAT_SHARE_PROB: u64 = 40;
 

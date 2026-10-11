@@ -6,7 +6,8 @@ mod relief;
 
 use godot::prelude::*;
 use relief::Relief;
-use siming_sim::{calendar, Command, Sim, WorldParams, WorldSize, NO_PROVINCE};
+use siming_sim::save::{Replay, SaveFile};
+use siming_sim::{calendar, Command, Era, Sim, WorldParams, WorldSize, NO_PROVINCE};
 
 /// 山脈標籤的路徑：沿主軸每幾格取一段（GDD 5.3「文字標籤」）。
 const RANGE_LABEL_SEGMENT: f32 = 4.0;
@@ -48,7 +49,57 @@ pub struct SimWorld {
     seat_stems: Vec<String>,
     /// 有名字的海區與湖泊（世界生成後算一次）。
     waters: Vec<siming_sim::worldgen::NamedWater>,
+    /// 進行中的讀檔重播（`load_begin` 之後、`load_step` 回報完成之前）。
+    replay: Option<Replay>,
     base: Base<RefCounted>,
+}
+
+fn size_from(name: &str) -> WorldSize {
+    match name {
+        "small" => WorldSize::Small,
+        "large" => WorldSize::Large,
+        _ => WorldSize::Medium,
+    }
+}
+
+fn size_name(size: WorldSize) -> &'static str {
+    match size {
+        WorldSize::Small => "small",
+        WorldSize::Medium => "medium",
+        WorldSize::Large => "large",
+    }
+}
+
+fn era_name(era: Era) -> &'static str {
+    match era {
+        Era::Ancient => "ancient",
+        Era::Middle => "middle",
+        Era::Decline => "decline",
+    }
+}
+
+impl SimWorld {
+    /// 接手一個開好的世界：算出呈現端要用的高度場與地名。
+    fn adopt(&mut self, sim: Sim) {
+        self.relief = Some(relief::build_relief(&sim.world().geo, &sim.world().fine));
+        self.waters = siming_sim::worldgen::name_waters(sim.world().params.seed, &sim.world().geo);
+        self.seat_stems =
+            siming_sim::worldgen::seat_stems(sim.world().params.seed, &sim.world().provinces, &sim.world().geo);
+        self.sim = Some(sim);
+    }
+
+    fn open(&mut self, mut params: WorldParams) -> GString {
+        if params.name.is_empty() {
+            params.name = siming_sim::worldgen::world_name(params.seed);
+        }
+        match Sim::new(&params) {
+            Ok(sim) => {
+                self.adopt(sim);
+                GString::new()
+            }
+            Err(e) => GString::from(e.to_string().as_str()),
+        }
+    }
 }
 
 #[godot_api]
@@ -58,26 +109,122 @@ impl SimWorld {
     #[func]
     fn create(&mut self, seed: i64, size: GString) -> GString {
         let mut params = WorldParams::new(seed as u64);
-        params.size = match size.to_string().as_str() {
-            "small" => WorldSize::Small,
-            "large" => WorldSize::Large,
-            _ => WorldSize::Medium,
+        params.size = size_from(size.to_string().as_str());
+        self.open(params)
+    }
+
+    /// GDD 4.6 開天，開局選項全部由 `options` 指定：`seed`、`name`、`size`、`land_ratio`、`relief`、
+    /// `humidity`、`era`（`"ancient"`、`"middle"`、`"decline"`）；沒給的取預設值，數值夾在 4.6 的範圍內。
+    #[func]
+    fn create_with(&mut self, options: VarDictionary) -> GString {
+        let seed = options.get("seed").and_then(|v| v.try_to::<i64>().ok()).unwrap_or(0);
+        let mut params = WorldParams::new(seed as u64);
+        let text = |key: &str| options.get(key).and_then(|v| v.try_to::<GString>().ok()).map(|s| s.to_string());
+        let number = |key: &str| options.get(key).and_then(|v| v.try_to::<f64>().ok()).map(|n| n as f32);
+        if let Some(name) = text("name") {
+            params.name = name.trim().to_string();
+        }
+        if let Some(size) = text("size") {
+            params.size = size_from(&size);
+        }
+        if let Some(era) = text("era") {
+            params.era = match era.as_str() {
+                "ancient" => Era::Ancient,
+                "decline" => Era::Decline,
+                _ => Era::Middle,
+            };
+        }
+        if let Some(v) = number("land_ratio") {
+            params.land_ratio = v.clamp(0.25, 0.55);
+        }
+        if let Some(v) = number("relief") {
+            params.relief = v.clamp(0.0, 1.0);
+        }
+        if let Some(v) = number("humidity") {
+            params.humidity = v.clamp(0.6, 1.4);
+        }
+        self.open(params)
+    }
+
+    /// 這個世界的開局選項（鍵與 `create_with` 相同；`seed` 是品質檢查重試後實際使用的種子）。
+    #[func]
+    fn world_options(&self) -> VarDictionary {
+        let mut d = VarDictionary::new();
+        if let Some(sim) = self.sim.as_ref() {
+            let p = &sim.world().params;
+            d.set("seed", p.seed as i64);
+            d.set("name", &GString::from(p.name.as_str()));
+            d.set("size", &GString::from(size_name(p.size)));
+            d.set("era", &GString::from(era_name(p.era)));
+            d.set("land_ratio", p.land_ratio);
+            d.set("relief", p.relief);
+            d.set("humidity", p.humidity);
+        }
+        d
+    }
+
+    /// GDD 7.3 由種子取的世界名（開局設定畫面的「隨機」）。
+    #[func]
+    fn random_world_name(seed: i64) -> GString {
+        GString::from(siming_sim::worldgen::world_name(seed as u64).as_str())
+    }
+
+    /// GDD 6.5 存檔的內容：種子、開局設定、指令紀錄、目標 tick 與雜湊（JSON 文字）。
+    #[func]
+    fn save_text(&self) -> GString {
+        match self.sim.as_ref() {
+            Some(sim) => GString::from(sim.save().to_json().as_str()),
+            None => GString::new(),
+        }
+    }
+
+    /// GDD 4.8 讀檔第一步：檢查存檔並重新開天。失敗回傳原因，成功回傳空字串；接著反覆呼叫 `load_step`。
+    /// 讀檔完成前，原本的世界照舊可用。
+    #[func]
+    fn load_begin(&mut self, text: GString) -> GString {
+        self.replay = None;
+        let file = match SaveFile::from_json(text.to_string().as_str()) {
+            Ok(file) => file,
+            Err(e) => return GString::from(e.to_string().as_str()),
         };
-        match Sim::new(&params) {
-            Ok(sim) => {
-                self.relief = Some(relief::build_relief(&sim.world().geo, &sim.world().fine));
-                self.waters =
-                    siming_sim::worldgen::name_waters(sim.world().params.seed, &sim.world().geo);
-                self.seat_stems = siming_sim::worldgen::seat_stems(
-                    sim.world().params.seed,
-                    &sim.world().provinces,
-                    &sim.world().geo,
-                );
-                self.sim = Some(sim);
+        match Replay::start(file, Sim::new) {
+            Ok(replay) => {
+                self.replay = Some(replay);
                 GString::new()
             }
             Err(e) => GString::from(e.to_string().as_str()),
         }
+    }
+
+    /// 讀檔第二步：最多重播 `max_ticks` 個月。回傳 `done`、`progress`（0..1）與 `error`（空字串為無誤）；
+    /// 重播到存檔的時刻並通過雜湊比對後，世界換成讀出來的這一個。
+    #[func]
+    fn load_step(&mut self, max_ticks: i32) -> VarDictionary {
+        let mut d = VarDictionary::new();
+        let mut error = String::new();
+        let mut done = true;
+        let mut progress = 1.0f32;
+        match self.replay.as_mut() {
+            None => error = "沒有進行中的讀檔".to_string(),
+            Some(replay) => match replay.advance(max_ticks.max(1) as u32) {
+                Ok(false) => {
+                    done = false;
+                    progress = replay.progress();
+                }
+                Ok(true) => match self.replay.take().expect("replay").finish() {
+                    Ok(sim) => self.adopt(sim),
+                    Err(e) => error = e.to_string(),
+                },
+                Err(e) => error = e.to_string(),
+            },
+        }
+        if done {
+            self.replay = None;
+        }
+        d.set("done", done);
+        d.set("progress", progress);
+        d.set("error", &GString::from(error.as_str()));
+        d
     }
 
     #[func]

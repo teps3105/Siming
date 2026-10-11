@@ -15,7 +15,7 @@ mod height;
 mod hydrology;
 pub(crate) mod ley;
 mod naming;
-pub use naming::seat_stems;
+pub use naming::{seat_stems, world_name};
 mod waters;
 pub use waters::{name_waters, NamedWater, WaterKind};
 mod noise;
