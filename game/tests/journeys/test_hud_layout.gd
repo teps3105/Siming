@@ -280,3 +280,30 @@ func test_water_names_stay_on_the_water() -> void:
 	assert_gt(lakes, 0, "測試世界應有湖")
 	assert_gt(hidden_or_shrunk, 0, "拉遠時，小湖放不下原字級的名字：要嘛縮小、要嘛不顯示")
 
+
+func test_time_slips_keep_one_fixed_width() -> void:
+	await _boot(FLOW_VIEW)
+	var title_width: float = _hud._dial._title_rect().size.x
+	var speed_width: float = _hud._dial._speed_rect().size.x
+	assert_eq(title_width, speed_width, "題簽與時速簽同寬")
+	# 推進到月份變兩位數、年份多一位數，寬度都不變。
+	var seen_two_digit_month := false
+	for i in 30:
+		_sim.world.step(1)
+		_hud._dial.queue_redraw()
+		assert_eq(_hud._dial._title_rect().size.x, title_width, "日期變了，題簽寬度不變：%s" % _sim.world.date_short())
+		if _hud._dial._date_parts()[2].length() == 2:
+			seen_two_digit_month = true
+	assert_true(seen_two_digit_month, "測試涵蓋到兩位數的月份")
+	# 切到每一檔速度，寬度都不變。
+	for i in SimHost.SPEED_MULTIPLIERS.size():
+		await key(KEY_TAB)
+		assert_eq(_hud._dial._speed_rect().size.x, speed_width, "倍速 %s 時寬度不變" % _hud._dial._speed_label())
+	# 換成搖桿（鍵圖像不同），寬度也不變。
+	await joy_button(JOY_BUTTON_LEFT_STICK)
+	await frames(2)
+	assert_eq(_hud._dial._speed_rect().size.x, speed_width, "換輸入裝置時寬度不變")
+	assert_eq(_hud._dial._title_rect().size.x, title_width)
+	for i in TimeDial.STROKE_COUNT:
+		assert_true(_hud._dial._speed_rect().encloses(_hud._dial._stroke_rect(i)), "四筆仍在時速簽內")
+
