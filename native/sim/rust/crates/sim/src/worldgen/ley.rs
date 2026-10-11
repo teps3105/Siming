@@ -192,7 +192,7 @@ pub fn edge_strength(nodes: &[LeyNode], a: NodeId, b: NodeId) -> f32 {
     0.5 * (nodes[a as usize].strength + nodes[b as usize].strength)
 }
 
-/// GDD 2.4 州郡靈氣：所屬格的 `0.6 × 平均 + 0.4 × 最大`，截斷 0..1。
+/// GDD 2.4 州郡靈氣：所屬格靈氣的平均與最大值加權（7.1 `AURA_PROVINCE`），截斷 0..1。
 pub fn province_aura(cells: &[u32], aura: &[f32]) -> f32 {
     let (mut sum, mut max) = (0.0f32, 0.0f32);
     for &c in cells {
@@ -221,6 +221,20 @@ pub struct AuraBasis {
     ley: Vec<f32>,
     /// 各格最近的靈脈格屬於哪些靈脈（距離相同者並列，取其中強度最高的）。
     ley_edges: Vec<SmallVec<[u16; 2]>>,
+    /// 建表時各節點的格與各靈脈路徑的指紋；對不上就是過期了。
+    node_cells: Vec<u32>,
+    paths: u64,
+}
+
+/// 各靈脈路徑的指紋（FNV-1a）。
+fn path_print(ley: &[LeyEdge]) -> u64 {
+    let mut h = 0xcbf2_9ce4_8422_2325u64;
+    for e in ley {
+        for &c in e.path.iter().chain([&u32::MAX]) {
+            h = (h ^ u64::from(c)).wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    }
+    h
 }
 
 impl AuraBasis {
@@ -256,14 +270,14 @@ impl AuraBasis {
             .iter()
             .map(|&d2| if d2 == f32::MAX { 0.0 } else { AURA_LEY_COEF * (-d2.sqrt() / AURA_LEY_DECAY).exp() })
             .collect();
-        Self { node, ley: ley_fall, ley_edges }
+        Self { node, ley: ley_fall, ley_edges, node_cells: nodes.iter().map(|nd| nd.cell).collect(), paths: path_print(ley) }
     }
 
-    /// 這份表是否對得上這張地圖（格數、節點數、靈脈數）。
+    /// 這份表是否對得上這張地圖：格數、各節點的位置、各靈脈的路徑都沒變。
     pub fn fits(&self, cells: usize, nodes: &[LeyNode], ley: &[LeyEdge]) -> bool {
         self.ley.len() == cells
-            && self.node.len() == nodes.len()
-            && self.ley_edges.iter().flatten().all(|&e| (e as usize) < ley.len())
+            && self.node_cells.iter().eq(nodes.iter().map(|nd| &nd.cell))
+            && self.paths == path_print(ley)
     }
 
     pub fn cells(&self, terrain: &[Terrain], nodes: &[LeyNode], ley: &[LeyEdge], tide: f32) -> Vec<f32> {

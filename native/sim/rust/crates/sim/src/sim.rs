@@ -34,7 +34,7 @@ pub struct World {
     /// 在世有名之人的 ID，升冪（效能快取，GDD 6.8；不納入雜湊與存檔）。`people::spawn` 追加、`people::die` 移除；
     /// 逐人掃描一律先取 [`World::alive_snapshot`]，迴圈內仍檢查 `Person::alive`，因此與全表掃描等價但不隨歷史變長。
     pub alive_ids: Vec<PersonId>,
-    /// 格點靈氣的距離衰減表（效能快取，GDD 6.8；不納入雜湊與存檔）。第一次每世結算時建立。
+    /// 格點靈氣的距離衰減表（效能快取，GDD 6.8；不納入雜湊與存檔）。開天時建立；以 `from_parts` 建立的世界在第一次每世結算時建立。
     pub aura_basis: Option<crate::worldgen::ley::AuraBasis>,
     pub rng: RngStreams,
 }
