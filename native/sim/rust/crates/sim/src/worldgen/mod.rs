@@ -10,7 +10,7 @@
 
 mod climate;
 mod erosion;
-mod grid;
+pub(crate) mod grid;
 mod height;
 mod hydrology;
 mod ley;

@@ -17,6 +17,8 @@ pub struct World {
     pub provinces: Vec<Province>,
     /// GDD 2.6 紀元年表：依元年遞增；第一筆是開局的紀元。世界大事（2.8）接上後由它們追加。
     pub eras: Vec<crate::calendar::Era>,
+    /// GDD 2.8 天地的慢變量：寒暖、海平面偏移、靈潮；每世結算一次。
+    pub evolution: crate::evolution::Evolution,
     pub souls: Vec<Soul>,
     pub persons: Vec<Person>,
     pub powers: Vec<Power>,
@@ -43,6 +45,7 @@ impl World {
             name: crate::era::Lexicon::builtin().name(params.seed, 0, crate::era::EraKind::Genesis, &[]),
             start_year: 1,
         };
+        let evolution = crate::evolution::Evolution::new(params.seed, params.era);
         Self {
             params,
             tick: 0,
@@ -50,6 +53,7 @@ impl World {
             fine: FineGeography::default(),
             provinces,
             eras: vec![first_era],
+            evolution,
             souls: Vec::new(),
             persons: Vec::new(),
             powers: Vec::new(),
@@ -154,6 +158,10 @@ impl Sim {
             // 15–18 勢力
             crate::dao::yearly_sects(w);
             // 19、20 王朝、魔勢（M3、M4）
+            // 每世：天地演變（GDD 2.8），在天機收入之前
+            if is_shi(tick) {
+                crate::evolution::shi_settle(w);
+            }
             // 21 每世：天機（M5）
             // 22–24 量劫（M6）
             // 25 因果帳修剪

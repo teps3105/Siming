@@ -161,6 +161,7 @@ pub fn world_hash(world: &World) -> u64 {
         str(&mut h, &era.name);
         h.write_u32(era.start_year);
     }
+    feed(&mut h, &world.evolution);
     // M2 新欄位：魂、有名之人、勢力、宿緣、因果帳（含修剪／輸出游標）、天書、殺業對、關注、預跑旗標。
     feed(&mut h, &world.souls);
     feed(&mut h, &world.persons);
@@ -172,7 +173,7 @@ pub fn world_hash(world: &World) -> u64 {
     feed(&mut h, &world.follows);
     h.write_u8(world.prerun as u8);
     let g = &world.rng;
-    for r in [&g.genesis, &g.soul, &g.people, &g.powers, &g.field, &g.command] {
+    for r in [&g.genesis, &g.soul, &g.people, &g.powers, &g.field, &g.command, &g.evolution] {
         h.write_u64(r.get_stream());
         h.write(&r.get_seed());
         h.write_u128(r.get_word_pos());
@@ -259,6 +260,15 @@ mod tests {
         assert_ne!(base, world_hash(&w));
         let mut w = world();
         w.rng.field.next_u32();
+        assert_ne!(base, world_hash(&w));
+        let mut w = world();
+        w.rng.evolution.next_u32();
+        assert_ne!(base, world_hash(&w));
+        let mut w = world();
+        w.evolution.tide += 0.01;
+        assert_ne!(base, world_hash(&w));
+        let mut w = world();
+        w.evolution.sea_shift = 0.01;
         assert_ne!(base, world_hash(&w));
     }
 }

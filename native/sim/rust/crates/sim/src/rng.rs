@@ -20,6 +20,7 @@ pub enum Stream {
     Field = 7,
     Cosmos = 8,
     Command = 9,
+    Evolution = 10,
 }
 
 pub fn stream(seed: u64, s: Stream) -> ChaCha8Rng {
@@ -37,6 +38,7 @@ pub struct RngStreams {
     pub powers: ChaCha8Rng,
     pub field: ChaCha8Rng,
     pub command: ChaCha8Rng,
+    pub evolution: ChaCha8Rng,
 }
 
 impl RngStreams {
@@ -48,6 +50,7 @@ impl RngStreams {
             powers: stream(seed, Stream::Powers),
             field: stream(seed, Stream::Field),
             command: stream(seed, Stream::Command),
+            evolution: stream(seed, Stream::Evolution),
         }
     }
 }

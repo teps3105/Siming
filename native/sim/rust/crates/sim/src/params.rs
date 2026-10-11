@@ -540,6 +540,41 @@ pub const AURA_ERA_MIDDLE: f32 = 1.0;
 /// 7.1 `AURA_ERA` 末法時代倍率 0.6（GDD 2.4 格點靈氣；4.6 開局時代）。
 pub const AURA_ERA_DECLINE: f32 = 0.6;
 
+/// 7.1 `EVO_WARMTH_P1` 寒暖第一週期的長度下限 480 年（GDD 2.8 慢變量）。
+pub const EVO_WARMTH_P1_MIN: u32 = 480;
+/// 7.1 `EVO_WARMTH_P1` 寒暖第一週期的長度上限 720 年（GDD 2.8 慢變量）。
+pub const EVO_WARMTH_P1_MAX: u32 = 720;
+/// 7.1 `EVO_WARMTH_P2` 寒暖第二週期的長度下限 1,200 年（GDD 2.8 慢變量）。
+pub const EVO_WARMTH_P2_MIN: u32 = 1200;
+/// 7.1 `EVO_WARMTH_P2` 寒暖第二週期的長度上限 1,800 年（GDD 2.8 慢變量）。
+pub const EVO_WARMTH_P2_MAX: u32 = 1800;
+/// 7.1 `EVO_WARMTH_WEIGHT` 寒暖第一週期的權重 0.6（GDD 2.8 慢變量）。
+pub const EVO_WARMTH_W1: f32 = 0.6;
+/// 7.1 `EVO_WARMTH_WEIGHT` 寒暖第二週期的權重 0.4（GDD 2.8 慢變量）。
+pub const EVO_WARMTH_W2: f32 = 0.4;
+/// 7.1 `EVO_SEA_RANGE` 海平面偏移的上下限 0.03（高度單位；GDD 2.8 慢變量）。
+pub const EVO_SEA_RANGE: f32 = 0.03;
+/// 7.1 `EVO_SEA_APPROACH` 海平面每世向目標靠近的比例 0.5（GDD 2.8 慢變量）。
+pub const EVO_SEA_APPROACH: f32 = 0.5;
+/// 7.1 `EVO_TIDE_PERIOD` 靈潮週期的長度下限 700 年（GDD 2.8 慢變量）。
+pub const EVO_TIDE_PERIOD_MIN: u32 = 700;
+/// 7.1 `EVO_TIDE_PERIOD` 靈潮週期的長度上限 1,100 年（GDD 2.8 慢變量）。
+pub const EVO_TIDE_PERIOD_MAX: u32 = 1100;
+/// 7.1 `EVO_TIDE_AMPLITUDE` 靈潮週期值在 1 上下的振幅 0.3（GDD 2.8 慢變量）。
+pub const EVO_TIDE_AMPLITUDE: f32 = 0.3;
+/// 7.1 `EVO_TIDE_APPROACH` 靈潮每世向週期值靠近的比例 0.2（GDD 2.8 慢變量）。
+pub const EVO_TIDE_APPROACH: f32 = 0.2;
+/// 7.1 `EVO_TIDE_RANGE` 靈潮的下限 0.5（GDD 2.8 慢變量）。
+pub const EVO_TIDE_MIN: f32 = 0.5;
+/// 7.1 `EVO_TIDE_RANGE` 靈潮的上限 1.4（GDD 2.8 慢變量）。
+pub const EVO_TIDE_MAX: f32 = 1.4;
+/// 7.1 `EVO_TIDE_PHASE` 上古開局：靈潮週期在高點（相位 0.25 圈；GDD 2.8、4.6）。
+pub const EVO_TIDE_PHASE_PEAK: f32 = 0.25;
+/// 7.1 `EVO_TIDE_PHASE` 中古開局：靈潮週期在中點且正在退（相位 0.5 圈；GDD 2.8、4.6）。
+pub const EVO_TIDE_PHASE_FALLING: f32 = 0.5;
+/// 7.1 `EVO_TIDE_PHASE` 末法開局：靈潮週期在低點（相位 0.75 圈；GDD 2.8、4.6）。
+pub const EVO_TIDE_PHASE_TROUGH: f32 = 0.75;
+
 /// 7.1 `AURA_CELL_MAX` 格點靈氣上限 2（GDD 2.4 格點靈氣，截斷 0..2）。
 pub const AURA_CELL_MAX: f32 = 2.0;
 

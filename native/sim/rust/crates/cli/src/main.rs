@@ -63,6 +63,18 @@ enum Cmd {
         #[arg(long)]
         report: Option<PathBuf>,
     },
+    /// 無頭跑 N 運，每世印一行天地的慢變量：寒暖、海平面偏移、靈潮（GDD 2.8）
+    Evolve {
+        #[arg(long)]
+        seed: u64,
+        #[arg(long, default_value_t = 3)]
+        yun: u32,
+        #[arg(long, value_enum, default_value = "middle")]
+        era: EraArg,
+        /// 改為統計：從 --seed 起連續這麼多個種子，只算慢變量（不生成世界），印各變量極值的分佈
+        #[arg(long)]
+        seeds: Option<u32>,
+    },
 }
 
 const MONTHS_PER_SHI: u32 = 360;
@@ -75,6 +87,8 @@ fn main() {
             gen(seed, size, land, relief, humidity, era, layer, scale, out)
         }
         Cmd::Sim { seed, yun, report } => sim(seed, yun, report),
+        Cmd::Evolve { seed, yun, era, seeds: None } => evolve(seed, yun, era),
+        Cmd::Evolve { seed, yun, era, seeds: Some(n) } => evolve_survey(seed, yun, era, n),
     };
     if let Err(e) = r {
         eprintln!("錯誤：{e}");
@@ -230,6 +244,85 @@ fn resolved_by_lives(w: &siming_sim::World, lo: u32, hi: u32) -> [[u32; 3]; 5] {
 /// 本執行緒累計的 CPU 時間（奈秒）；僅 Linux（`/proc/thread-self/schedstat`），其他平台回傳 `None`。
 fn cpu_ns() -> Option<u64> {
     std::fs::read_to_string("/proc/thread-self/schedstat").ok()?.split_whitespace().next()?.parse().ok()
+}
+
+fn era_of(era: EraArg) -> Era {
+    match era {
+        EraArg::Ancient => Era::Ancient,
+        EraArg::Middle => Era::Middle,
+        EraArg::Decline => Era::Decline,
+    }
+}
+
+/// GDD 2.8：多個種子的慢變量極值分佈（只算慢變量；世界生成重試換種子的情況不在內）。
+fn evolve_survey(seed: u64, yun: u32, era: EraArg, seeds: u32) -> Result<(), String> {
+    let shi = yun * MONTHS_PER_YUN / MONTHS_PER_SHI;
+    // 各種子的：寒暖最高、寒暖最低、靈潮最高、靈潮最低。
+    let mut extremes: [Vec<f32>; 4] = Default::default();
+    for i in 0..seeds {
+        let mut e = siming_sim::evolution::Evolution::new(seed + u64::from(i), era_of(era));
+        let (mut warm, mut cold, mut high, mut low) = (e.warmth, e.warmth, e.tide, e.tide);
+        for k in 1..=shi {
+            e.settle(k * 30);
+            warm = warm.max(e.warmth);
+            cold = cold.min(e.warmth);
+            high = high.max(e.tide);
+            low = low.min(e.tide);
+        }
+        for (list, v) in extremes.iter_mut().zip([warm, cold, high, low]) {
+            list.push(v);
+        }
+    }
+    println!("{seeds} 個種子（自 {seed} 起）　開局時代 {:?}　{yun} 運", era_of(era));
+    println!("{:<10} {:>7} {:>7} {:>7}", "", "最小", "中位", "最大");
+    for (label, list) in ["寒暖最高", "寒暖最低", "靈潮最高", "靈潮最低"].iter().zip(extremes.iter_mut()) {
+        list.sort_by(|a, b| a.total_cmp(b));
+        println!("{:<10} {:>7.3} {:>7.3} {:>7.3}", label, list[0], list[list.len() / 2], list[list.len() - 1]);
+    }
+    let share = |list: &[f32], hit: &dyn Fn(f32) -> bool| 100 * list.iter().filter(|v| hit(**v)).count() / list.len();
+    println!(
+        "到過門檻的種子比例　大暖（寒暖 ≥ 0.6）{}%　大寒（≤ −0.6）{}%　靈潮 ≥ 1.2：{}%　靈潮 ≤ 0.7：{}%",
+        share(&extremes[0], &|v| v >= 0.6),
+        share(&extremes[1], &|v| v <= -0.6),
+        share(&extremes[2], &|v| v >= 1.2),
+        share(&extremes[3], &|v| v <= 0.7),
+    );
+    Ok(())
+}
+
+/// GDD 2.8：跑完整的推演，每世結算後印一行慢變量，最後印各變量的範圍。
+fn evolve(seed: u64, yun: u32, era: EraArg) -> Result<(), String> {
+    let mut params = WorldParams::new(seed);
+    params.era = era_of(era);
+    let mut s = Sim::new(&params).map_err(|e| e.to_string())?;
+    let e = s.world().evolution.clone();
+    println!(
+        "最終種子 {}　開局時代 {:?}　寒暖週期 {} 年與 {} 年　靈潮週期 {} 年",
+        s.world().params.seed,
+        s.world().params.era,
+        e.warmth_periods[0],
+        e.warmth_periods[1],
+        e.tide_period
+    );
+    println!("{:>6} {:>8} {:>10} {:>7}", "年", "寒暖", "海平面", "靈潮");
+    println!("{:>6} {:>8.3} {:>10.4} {:>7.3}", 0, e.warmth, e.sea_shift, e.tide);
+    let mut range = [(e.warmth, e.warmth), (e.sea_shift, e.sea_shift), (e.tide, e.tide)];
+    while s.world().tick < yun * MONTHS_PER_YUN {
+        s.step();
+        if s.world().tick % MONTHS_PER_SHI != 0 {
+            continue;
+        }
+        let e = &s.world().evolution;
+        println!("{:>6} {:>8.3} {:>10.4} {:>7.3}", s.world().tick / 12, e.warmth, e.sea_shift, e.tide);
+        for (r, v) in range.iter_mut().zip([e.warmth, e.sea_shift, e.tide]) {
+            *r = (r.0.min(v), r.1.max(v));
+        }
+    }
+    println!(
+        "範圍　寒暖 {:.3}..{:.3}　海平面 {:.4}..{:.4}　靈潮 {:.3}..{:.3}",
+        range[0].0, range[0].1, range[1].0, range[1].1, range[2].0, range[2].1
+    );
+    Ok(())
 }
 
 fn sim(seed: u64, yun: u32, report: Option<PathBuf>) -> Result<(), String> {
