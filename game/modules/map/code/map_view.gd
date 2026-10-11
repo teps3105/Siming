@@ -11,10 +11,13 @@ const FLATTEN_START_FRAC := 0.6
 ## 星球視角下，江在這個鏡頭高度（地圖寬的比例）以上淡出。
 const RIVER_GLOBE_Z_FRAC := 0.5
 const FOCUS_MAX_LAT_DEG := 75.0
-## 星球視角拉遠後的地形高度倍率，與倍率開始、到頂的鏡頭高度（地圖寬的比例）。
-const GLOBE_RELIEF := 0.6
+## 星球視角的地形高度倍率：湊近時的值、拉遠後的值，與兩者之間的鏡頭高度（地圖寬的比例）。
+const GLOBE_RELIEF_NEAR := 0.3
+const GLOBE_RELIEF_FAR := 1.0
 const GLOBE_RELIEF_NEAR_FRAC := 0.08
-const GLOBE_RELIEF_FAR_FRAC := 0.5
+const GLOBE_RELIEF_FAR_FRAC := 0.6
+## 星球視角的高度壓縮係數：低地照原樣，越高壓得越多（著色器同值）。
+const GLOBE_COMPRESS := 2.0
 const FRONTIER_FRAC := 0.05
 ## GDD 5.3「河流」：大河、小河出現的鏡頭高度（地圖寬的比例）與淡入區間。
 const RIVER_BIG_Z_FRAC := 0.5
@@ -43,10 +46,17 @@ static func height_scale(z: float, map_w: float) -> float:
 	return lerpf(1.0, 0.05, flatten_weight(z, map_w))
 
 
-## 星球視角的地形高度倍率：湊近（z ≤ 地圖寬 × 0.08）時與平面地圖相同，
-## 拉遠到地圖寬 × 0.5 以上時放大到 GLOBE_RELIEF，整顆星球的山勢才看得出來。
+## 星球視角的地形高度倍率：比例尺越小（拉遠）誇張越多，湊近（z ≤ 地圖寬 × 0.08）時最少。
 static func globe_relief(z: float, map_w: float) -> float:
-	return lerpf(1.0, GLOBE_RELIEF, smoothstep(map_w * GLOBE_RELIEF_NEAR_FRAC, map_w * GLOBE_RELIEF_FAR_FRAC, z))
+	return lerpf(GLOBE_RELIEF_NEAR, GLOBE_RELIEF_FAR, smoothstep(map_w * GLOBE_RELIEF_NEAR_FRAC, map_w * GLOBE_RELIEF_FAR_FRAC, z))
+
+
+## 星球視角的高度壓縮：h 為地表高度、top 為全圖最高的地表高度。
+## 坡度在海平面為 1、隨高度遞減，最高峰壓到 top × (1 − e^−K) / K。
+static func globe_compress(h: float, top: float) -> float:
+	if top <= 0.0:
+		return h
+	return top * (1.0 - exp(-GLOBE_COMPRESS * h / top)) / GLOBE_COMPRESS
 
 
 ## 河流各等級的不透明度（x 小河、y 大河、z 江）：門檻上下各 10% 線性淡入淡出；江在星球視角拉遠後淡出。

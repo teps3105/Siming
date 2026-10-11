@@ -35,6 +35,7 @@ uniform float fog_end = 2.0e6;
 uniform float globe_morph = 0.0;      // 0 平面、1 球面
 uniform float globe_radius = 1.0;
 uniform float globe_relief = 1.0;
+uniform float globe_top = 1.0;         // 全圖最高的地表高度
 uniform mat4 globe_xform;
 uniform vec3 light_dir = vec3(-0.50, 0.62, -0.60); // 指向光源（西北上方）
 uniform float emboss_strength = 1.0;     // 浮雕暈渲的強度
@@ -53,6 +54,12 @@ const float NO_PROVINCE = 65535.0;
 // 地形高度：相對高度 × 地圖寬 × 此係數（GDD 5.3）。
 const float HEIGHT_GAIN = 0.04;
 
+// 星球視角的高度壓縮（map_view.gd 的 globe_compress）：低地照原樣，越高壓得越多。
+const float GLOBE_COMPRESS = 2.0;
+float globe_lift(float h) {
+	return globe_top * (1.0 - exp(-GLOBE_COMPRESS * h / max(globe_top, 1e-4))) / GLOBE_COMPRESS * globe_relief;
+}
+
 varying vec3 v_wpos;
 varying vec2 v_lpos;
 varying vec3 v_sdir;
@@ -69,8 +76,8 @@ void vertex() {
 	float h1 = max(e, 0.0) * map_size.x * HEIGHT_GAIN * inside;
 	vec3 wp = vec3(VERTEX.x, h1 * height_scale, VERTEX.z);
 	if (globe_morph > 0.0) {
-		// 星球視角的山沿法線凸出球面，高度另乘 globe_relief；球緣不收，山勢在輪廓上看得見。
-		float r = globe_radius + h1 * height_scale * globe_relief;
+		// 星球視角的山沿法線凸出球面：高度先壓縮再乘 globe_relief；球緣不收，山勢在輪廓上看得見。
+		float r = globe_radius + globe_lift(h1 * height_scale);
 		vec3 sph = (globe_xform * vec4(dir * r, 1.0)).xyz;
 		wp = mix(wp, sph, globe_morph);
 	}

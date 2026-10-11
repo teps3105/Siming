@@ -11,8 +11,15 @@ uniform vec2 map_size;
 uniform float globe_morph = 0.0;
 uniform float globe_radius = 1.0;
 uniform float globe_relief = 1.0;
+uniform float globe_top = 1.0;
 uniform mat4 globe_xform;
 instance uniform float copy_offset = 0.0;
+
+// 星球視角的高度壓縮（map_view.gd 的 globe_compress）：低地照原樣，越高壓得越多。
+const float GLOBE_COMPRESS = 2.0;
+float globe_lift(float h) {
+	return globe_top * (1.0 - exp(-GLOBE_COMPRESS * h / max(globe_top, 1e-4))) / GLOBE_COMPRESS * globe_relief;
+}
 
 varying float v_edge_px;
 varying float v_half_px;
@@ -25,7 +32,7 @@ vec3 place(vec3 p, vec3 cam) {
 		float lon = (p.x - copy_offset) / map_size.x * TAU;
 		float lat = (0.5 - p.z / map_size.y) * PI;
 		vec3 dir = vec3(cos(lat) * cos(lon), sin(lat), -cos(lat) * sin(lon));
-		float r = globe_radius + p.y * height_scale * globe_relief;
+		float r = globe_radius + globe_lift(p.y * height_scale);
 		world = mix(flat_pos, (globe_xform * vec4(dir * r, 1.0)).xyz, globe_morph);
 	}
 	// 朝鏡頭拉近 1.5%，避免與地形深度相爭；拉近量與距離成正比，遠近都有效。

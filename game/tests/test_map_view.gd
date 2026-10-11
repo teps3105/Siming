@@ -21,10 +21,24 @@ func test_gdd_5_2_flatten_starts_above_sixty_percent_of_map_width() -> void:
 	assert_true(is_equal_approx(MapView.height_scale(MAP_W * 1.1, MAP_W), 0.05))
 
 
-func test_gdd_5_3_globe_relief_eases_from_flat_scale_to_the_far_scale() -> void:
-	assert_eq(MapView.globe_relief(MAP_W * 0.04, MAP_W), 1.0)
-	assert_eq(MapView.globe_relief(MAP_W * 0.5, MAP_W), MapView.GLOBE_RELIEF)
-	assert_eq(MapView.globe_relief(MAP_W * 1.1, MAP_W), MapView.GLOBE_RELIEF)
+func test_gdd_5_3_globe_relief_grows_as_the_camera_pulls_back() -> void:
+	assert_eq(MapView.globe_relief(MAP_W * 0.04, MAP_W), MapView.GLOBE_RELIEF_NEAR)
+	assert_eq(MapView.globe_relief(MAP_W * 0.6, MAP_W), MapView.GLOBE_RELIEF_FAR)
+	assert_eq(MapView.globe_relief(MAP_W * 1.1, MAP_W), MapView.GLOBE_RELIEF_FAR)
+	assert_true(MapView.globe_relief(MAP_W * 0.2, MAP_W) < MapView.globe_relief(MAP_W * 0.4, MAP_W))
+	assert_true(MapView.GLOBE_RELIEF_NEAR < MapView.GLOBE_RELIEF_FAR)
+
+
+func test_gdd_5_3_globe_compress_keeps_lowlands_and_squeezes_peaks() -> void:
+	var top := 40.0
+	assert_eq(MapView.globe_compress(0.0, top), 0.0)
+	assert_true(absf(MapView.globe_compress(0.4, top) - 0.4) < 0.01)
+	assert_true(MapView.globe_compress(top, top) < top * 0.5)
+	var prev := 0.0
+	for i in range(1, 11):
+		var h := MapView.globe_compress(top * i / 10.0, top)
+		assert_true(h > prev)
+		prev = h
 
 
 func test_gdd_5_3_far_view_shows_only_the_largest_rivers() -> void:

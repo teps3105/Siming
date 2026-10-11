@@ -45,11 +45,14 @@ var _province_colors: ImageTexture
 var _blank_colors: ImageTexture
 var _height_scale := 1.0
 var _globe_relief := 1.0
+## 全圖最高的地表高度（建圖時取一次；每次查詢要掃整張地圖）。
+var _top_height := 1.0
 
 
 ## 以世界資料建立地圖。世界改變地形後再呼叫一次即可重建。
 func build(world: SimWorld) -> void:
 	_world = world
+	_top_height = world.terrain_max_height()
 	for copy in _terrain_copies + _river_copies + _ley_copies:
 		copy.queue_free()
 	_terrain_copies.clear()
@@ -116,7 +119,7 @@ func update_view(z: float, focus: Vector2, camera_basis: Basis, delta: float, gl
 	globe_morph = move_toward(globe_morph, target, delta / GLOBE_MORPH_SECONDS)
 	var eased := smoothstep(0.0, 1.0, globe_morph)
 	globe_xform = MapView.globe_frame(focus, map_size, camera_basis)
-	# 古地圖化只屬於平面地圖：星球視角不壓平高度，拉遠後反而放大。
+	# 古地圖化只屬於平面地圖：星球視角的高度另由 globe_relief 與高度壓縮決定。
 	_height_scale = lerpf(MapView.height_scale(z, map_size.x), 1.0, eased)
 	_globe_relief = MapView.globe_relief(z, map_size.x)
 	var radius := MapView.globe_radius(map_size.x)
@@ -125,6 +128,7 @@ func update_view(z: float, focus: Vector2, camera_basis: Basis, delta: float, gl
 		material.set_shader_parameter("globe_relief", _globe_relief)
 		material.set_shader_parameter("globe_morph", eased)
 		material.set_shader_parameter("globe_radius", radius)
+		material.set_shader_parameter("globe_top", _top_height)
 		material.set_shader_parameter("globe_xform", globe_xform)
 	_terrain_material.set_shader_parameter("flatten", MapView.flatten_weight(z, map_size.x) * (1.0 - eased))
 	_terrain_material.set_shader_parameter("fog_start", z * 3.0)
@@ -148,7 +152,8 @@ func world_position(pos: Vector2, near_x: float) -> Vector3:
 	if globe_morph > 0.5:
 		var lon := pos.x / map_size.x * TAU
 		var lat := (0.5 - pos.y / map_size.y) * PI
-		var lift := _world.terrain_height_at(pos.x, pos.y) * _height_scale * _globe_relief
+		var height := _world.terrain_height_at(pos.x, pos.y) * _height_scale
+		var lift := MapView.globe_compress(height, _top_height) * _globe_relief
 		return globe_xform * (MapView.sphere_dir(lon, lat) * (MapView.globe_radius(map_size.x) + lift))
 	return Vector3(MapView.nearest_copy_x(pos.x, near_x, map_size.x), surface_height(pos.x, pos.y), pos.y)
 
@@ -168,7 +173,7 @@ func pick(origin: Vector3, dir: Vector3) -> Vector2:
 		return MapView.ray_globe(globe_xform, MapView.globe_radius(map_size.x), map_size, origin, dir)
 	if dir.y >= -1e-4:
 		return Vector2.INF
-	var top := _world.terrain_max_height() * _height_scale
+	var top := _top_height * _height_scale
 	var t := maxf((top - origin.y) / dir.y, 0.0)
 	var t_end := -origin.y / dir.y
 	var step := maxf((t_end - t) / 96.0, 0.05)
