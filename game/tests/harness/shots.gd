@@ -33,7 +33,20 @@ func _main() -> void:
 		await _game_pages(layout[0], layout[1], layout[2])
 		await _title_pages(layout[0], layout[1], layout[2])
 	await _suite._finish_case()
+	_wipe(Suite.TEST_STORAGE)
 	quit(0)
+
+
+## 刪掉截圖時寫下的存檔與設定。
+func _wipe(dir: String) -> void:
+	var path := ProjectSettings.globalize_path(dir)
+	if not DirAccess.dir_exists_absolute(path):
+		return
+	for sub in DirAccess.get_directories_at(path):
+		_wipe(dir.path_join(sub))
+	for file in DirAccess.get_files_at(path):
+		DirAccess.remove_absolute(path.path_join(file))
+	DirAccess.remove_absolute(path)
 
 
 func _shot(name: String) -> void:
@@ -44,10 +57,11 @@ func _shot(name: String) -> void:
 
 ## 讓畫面認得目前用的是哪一種輸入裝置。
 func _use_device(pad: bool) -> void:
+	# 用不會動到地圖的鍵，引導簽才停在第一句。
 	if pad:
-		await _suite.joy_axis(JOY_AXIS_LEFT_X, 1.0, 0.4)
+		await _suite.joy_button(JOY_BUTTON_B)
 	else:
-		await _suite.key(KEY_D)
+		await _suite.key(KEY_SHIFT)
 
 
 func _menu_device(panel: MenuPanel, pad: bool) -> void:

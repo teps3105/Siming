@@ -228,8 +228,8 @@ func _set_mode(mode: TerrainMap.Mode) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if _sim == null or _menu != null:
 		return
-	if event.is_action_pressed(InputActions.MENU) or (event.is_action_pressed(InputActions.CANCEL) and not _card.visible):
-		# Esc／B：有卡片開著先關卡片，否則開選單；Start 一律開選單。
+	if event.is_action_pressed(InputActions.MENU) or (event is InputEventKey and event.is_action_pressed(InputActions.CANCEL) and not _card.visible):
+		# Esc：有卡片開著先關卡片，否則開選單；Start 一律開選單。搖桿的 B 只取消與關卡片（GDD 5.9）。
 		open_menu()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed(InputActions.PAUSE):

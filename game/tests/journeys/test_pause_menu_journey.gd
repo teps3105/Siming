@@ -97,6 +97,8 @@ func test_map_ignores_input_while_the_menu_is_open() -> void:
 
 
 func test_gamepad_saves_into_a_slot_and_overwriting_asks_first() -> void:
+	await joy_button(JOY_BUTTON_B)
+	assert_false(_hud.menu_open(), "B 只取消與關卡片，不開選單")
 	await joy_button(JOY_BUTTON_START)
 	assert_true(_hud.menu_open(), "Start 開選單")
 	var deck := _hud.menu()
