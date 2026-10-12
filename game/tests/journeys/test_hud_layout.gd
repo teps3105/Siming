@@ -237,12 +237,12 @@ func test_map_labels_keep_clear_of_the_instruments() -> void:
 	_hud._card.show_province(0)
 	await wait(0.5)
 	var reserved: Array[Rect2] = _hud._overlay.reserved
-	assert_eq(reserved.size(), 5, "圓盤、兩張簽、模式鈕、視角鈕與開著的命簿")
+	assert_eq(reserved.size(), 6, "圓盤、兩張簽、傳聞簽、模式鈕、視角鈕與開著的命簿")
 	var card := Rect2(_hud._card.position, _hud._card.size)
 	assert_true(reserved[3].encloses(card), "命簿的範圍在避讓區內")
 	_hud._card.close()
 	await wait(0.5)
-	assert_eq(_hud._overlay.reserved.size(), 4, "命簿收起後不再佔位")
+	assert_eq(_hud._overlay.reserved.size(), 5, "命簿收起後不再佔位")
 
 
 func test_card_title_is_written_vertically_on_a_side_strip() -> void:

@@ -9,6 +9,8 @@ signal time_state_changed
 signal slowed_down
 ## GDD 2.8 世界大事：change 是大事代號（ColdBegan…），era 是它開啟的紀元名（沒改元為空字串）。
 signal world_changed(change: String, era: String)
+## GDD 6.4 每一筆新事件（SimWorld.drain_events 的字典）；傳聞簽等器物由此取得，事件佇列只在這裡取走。
+signal event_posted(event: Dictionary)
 
 ## GDD 2.6 速度：1×、5×、10×、20×；1× 每秒 2 個月。
 const SPEED_MULTIPLIERS: Array[int] = [1, 5, 10, 20]
@@ -94,8 +96,9 @@ func _process(delta: float) -> void:
 		slowed_down.emit()
 
 
-## 取走這次推進新增的事件，把世界大事發出去。
+## 取走這次推進新增的事件，逐筆發出去，世界大事另發 world_changed。
 func _announce() -> void:
 	for event: Dictionary in world.drain_events():
 		if event["kind"] == "WorldChanged":
 			world_changed.emit(event["change"], event["era"])
+		event_posted.emit(event)

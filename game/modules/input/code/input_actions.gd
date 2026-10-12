@@ -34,6 +34,8 @@ const MODE_TIANXIA := &"map_mode_tianxia"
 const MODE_LINGMAI := &"map_mode_lingmai"
 ## 星球視角與平面地圖互換：鍵盤 G、搖桿按下右搖桿。
 const VIEW_TOGGLE := &"map_view_toggle"
+## 傳聞簽（GDD 5.7）：展開近 50 則的清單、收回清單。搖桿沒有專屬鍵，以游標點簽頭（5.9）。
+const RUMOR_LIST := &"rumor_list"
 ## 選單（GDD 9.1）：上下選列、左右調整、確定，與該列的第二個動作（刪除存檔）。選單開著時地圖不收輸入。
 const MENU_UP := &"menu_up"
 const MENU_DOWN := &"menu_down"
@@ -75,6 +77,7 @@ static func bindings() -> Dictionary:
 		MODE_TIANXIA: [KEY_F2],
 		MODE_LINGMAI: [KEY_F4],
 		VIEW_TOGGLE: [KEY_G, "joy:%d" % JOY_BUTTON_RIGHT_STICK],
+		RUMOR_LIST: [KEY_T],
 		MENU_UP: [KEY_UP, KEY_W, "joy:%d" % JOY_BUTTON_DPAD_UP, "axis:%d:-1" % JOY_AXIS_LEFT_Y],
 		MENU_DOWN: [KEY_DOWN, KEY_S, "joy:%d" % JOY_BUTTON_DPAD_DOWN, "axis:%d:1" % JOY_AXIS_LEFT_Y],
 		MENU_LEFT: [KEY_LEFT, KEY_A, "joy:%d" % JOY_BUTTON_DPAD_LEFT, "axis:%d:-1" % JOY_AXIS_LEFT_X],

@@ -409,3 +409,68 @@ func test_gdd_5_3_elevation_comes_as_half_floats_with_mipmaps() -> void:
 		var y := (i * 104729) % size.y
 		worst = maxf(worst, absf(image.get_pixel(x, y).r - raw[y * size.x + x]))
 	assert_lt(worst, 0.001, "半精度的誤差")
+
+
+func test_gdd_6_4_events_carry_what_the_templates_need() -> void:
+	var world := SimWorld.new()
+	world.create(SEED, "small")
+	world.drain_events()
+	var kinds := {}
+	var located := 0
+	var named := 0
+	for step in 40:
+		world.step(120)
+		for event: Dictionary in world.drain_events():
+			for key in ["id", "tick", "kind", "importance", "province", "cell", "souls", "a", "b", "f", "g", "p", "q", "x", "n", "m", "year"]:
+				assert_true(event.has(key), "事件帶有「%s」" % key)
+			assert_true(event["souls"] is PackedInt32Array)
+			assert_gt(event["year"], 0, "年份從 1 起算")
+			if event.has("pos"):
+				located += 1
+				var pos: Vector2 = event["pos"]
+				assert_true(pos.x >= 0.0 and pos.y >= 0.0, "地點在地圖內")
+				assert_true(event["province"] >= 0 or event["cell"] >= 0, "有地點的事件有州郡或格")
+			if event["cell"] >= 0:
+				var grid := world.grid_size()
+				assert_eq(event["pos"], Vector2(event["cell"] % grid.x + 0.5, event["cell"] / grid.x + 0.5), "有格的事件地點是格中心")
+			if event["a"] != "":
+				named += 1
+			kinds[event["kind"]] = true
+			var line := EventText.line(event)
+			assert_false(line.contains("{") or line.begins_with("event_") or line == Locale.t("event_unknown"), "「%s」有對應的模板：%s" % [event["kind"], line])
+			assert_eq(EventText.seal(event["kind"]).length(), 1, "印是單字")
+	assert_gt(kinds.size(), 8, "四百年裡出現多種事件")
+	assert_gt(located, 0, "有地點的事件帶 pos")
+	assert_gt(named, 0, "人物事件帶人名")
+
+
+func test_gdd_7_2_event_text_fills_each_template() -> void:
+	var base := {"id": 1, "tick": 10, "importance": 3, "province": 0, "cell": -1, "souls": PackedInt32Array(), "a": "沈青霜", "b": "韓烈", "f": "玄清宗", "g": "赤霄門", "p": "青州", "q": "雲州", "x": "", "n": 0, "m": 0, "year": 1}
+	var cases := [
+		["Died", {"x": "Age", "n": 83}, "沈青霜壽終，享年83"],
+		["Breakthrough", {"n": 2}, "沈青霜突破至金丹"],
+		["Tribulation", {"n": 3, "x": "Passed"}, "沈青霜渡四九雷劫，安然度過"],
+		["Tribulation", {"n": 3, "x": "Perished"}, "沈青霜渡四九雷劫，形神俱滅"],
+		["ThreadCreated", {"x": "Feud"}, "沈青霜與韓烈結下殺業"],
+		["ThreadResolved", {"x": "Love", "n": 3}, "歷經3次轉世，沈青霜與韓烈的情緣了結"],
+		["ComeOfAge", {}, "沈青霜入玄清宗"],
+		["ComeOfAge", {"f": "", "x": "Monk"}, "沈青霜自行出家"],
+		["Traveled", {"x": "Out"}, "沈青霜出外遊歷雲州"],
+		["Traveled", {"x": "Back"}, "沈青霜遊歷歸來"],
+		["SectSplit", {}, "玄清宗內亂，沈青霜率眾另立赤霄門"],
+		["SectWar", {"x": "太虛洞天"}, "玄清宗與赤霄門爭奪太虛洞天，玄清宗勝"],
+		["NodeShifted", {"x": "太虛洞天", "n": 0, "m": 2}, "太虛洞天靈氣枯竭，就此沉寂"],
+		["NodeShifted", {"x": "太虛洞天", "n": 2, "m": 0}, "太虛洞天靈氣回復，升為洞天"],
+		["SeatMoved", {"x": "臨海鎮"}, "青州治所為海所淹，遷治"],
+		["ProvinceLost", {}, "青州沒入海中，遺民徙往雲州"],
+		["ProvinceLost", {"q": ""}, "青州沒入海中"],
+		["ProvinceLost", {"n": 12}, "青州沒入海中，遺民徙往雲州，溺斃12人"],
+		["LandLinked", {"x": "Joined"}, "海退，青州與雲州陸路相通"],
+		["LandLinked", {"x": "Parted"}, "海進，青州與雲州陸路斷絕"],
+		["BookEntry", {"x": "ThreeLivesFeud"}, "天書添一頁：三世血仇"],
+	]
+	for c in cases:
+		var event := base.duplicate()
+		event["kind"] = c[0]
+		event.merge(c[1], true)
+		assert_eq(EventText.line(event), c[2], "「%s」的一句話" % c[0])

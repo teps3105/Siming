@@ -14,6 +14,12 @@ static func t(key: String) -> String:
 	return _ui.get(key, key)
 
 
+## 有沒有這個鍵的字串。
+static func has(key: String) -> bool:
+	t("")
+	return _ui.has(key)
+
+
 ## 人口等大數：一萬以上以「萬」為單位，保留一位小數。
 static func count(value: float) -> String:
 	if value >= 10000.0:
