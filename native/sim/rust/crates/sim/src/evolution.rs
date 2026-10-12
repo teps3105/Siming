@@ -52,6 +52,8 @@ pub enum WorldChange {
     DeclineEnded,
     RevivalBegan,
     RevivalEnded,
+    CataclysmBegan,
+    CataclysmEnded,
 }
 
 impl WorldChange {
@@ -62,6 +64,7 @@ impl WorldChange {
             WorldChange::WarmBegan => Some(EraKind::Warm),
             WorldChange::DeclineBegan => Some(EraKind::Decline),
             WorldChange::RevivalBegan => Some(EraKind::Revival),
+            WorldChange::CataclysmBegan => Some(EraKind::Cataclysm),
             _ => None,
         }
     }
@@ -95,18 +98,19 @@ pub struct Evolution {
 
 impl Evolution {
     /// 開天第 0 年的天地：週期由種子定；歷史的長度與靈潮在開局時的位置由開局時代定。
-    fn at_genesis(seed: u64, era: Era) -> Self {
+    fn at_genesis(seed: u64, era: Era, open_years: u32) -> Self {
         let pick = |tag: u64, lo: u32, hi: u32| lo + (mix(seed ^ (tag << 48)) % u64::from(hi - lo + 1)) as u32;
         let phase = |tag: u64| (mix(seed ^ (tag << 48)) >> 40) as f32 / (1u64 << 24) as f32;
-        let (history, opening_turn) = match era {
-            Era::Ancient => (EVO_HISTORY_ANCIENT, EVO_TIDE_TURN_ANCIENT),
-            Era::Middle => (EVO_HISTORY_MIDDLE, EVO_TIDE_TURN_MIDDLE),
-            Era::Decline => (EVO_HISTORY_DECLINE, EVO_TIDE_TURN_DECLINE),
+        let opening_turn = match era {
+            Era::Ancient => EVO_TIDE_TURN_ANCIENT,
+            Era::Middle => EVO_TIDE_TURN_MIDDLE,
+            Era::Decline => EVO_TIDE_TURN_DECLINE,
         };
-        let history_years = pick(6, history.0 / 30, history.1 / 30) * 30;
+        // 開天即第 0 年，沒有開局前的歷史；`open_years` 是預跑的總年數，相位據此定在接手那一年的靈潮位置。
+        let history_years = 0;
         let tide_period = pick(5, EVO_TIDE_PERIOD_MIN, EVO_TIDE_PERIOD_MAX);
         // 相位取使開局那一年的靈潮正好落在開局時代指定的位置。
-        let elapsed = (history_years % tide_period) as f32 / tide_period as f32;
+        let elapsed = (open_years % tide_period) as f32 / tide_period as f32;
         let tide_phase = opening_turn - elapsed;
         let mut out = Self {
             history_years,
@@ -223,9 +227,9 @@ impl Evolution {
 }
 
 /// 開局時的天地與紀元年表：自開天第 0 年起，每世結算一次，推演到開局那一年（GDD 2.8）。
-pub fn genesis(seed: u64, era: Era) -> (Evolution, Vec<CalendarEra>) {
+pub fn genesis(seed: u64, era: Era, open_years: u32) -> (Evolution, Vec<CalendarEra>) {
     let lexicon = Lexicon::builtin();
-    let mut evolution = Evolution::at_genesis(seed, era);
+    let mut evolution = Evolution::at_genesis(seed, era, open_years);
     let mut eras = vec![CalendarEra { name: lexicon.name(seed, 0, EraKind::Genesis, &[]), start_year: 1, kind: EraKind::Genesis }];
     let mut year = 30;
     while year <= evolution.history_years {
@@ -295,15 +299,9 @@ pub fn shift_nodes(seed: u64, year: u32, tide: f32, nodes: &mut [LeyNode]) -> Ve
 
 /// 開局前的歷史裡洞天福地的升降：自開天第 0 年起每世擲一次，推演到開局那一年；
 /// 回傳開局那一年的靈潮（世界生成用它算格點靈氣）。
-pub fn history_nodes(seed: u64, era: Era, nodes: &mut [LeyNode]) -> f32 {
-    let mut evolution = Evolution::at_genesis(seed, era);
-    let mut year = 30;
-    while year <= evolution.history_years {
-        evolution.settle(year);
-        shift_nodes(seed, year, evolution.tide, nodes);
-        year += 30;
-    }
-    evolution.tide
+pub fn history_nodes(seed: u64, era: Era, open_years: u32, _nodes: &mut [LeyNode]) -> f32 {
+    // 分期預跑後開天即第 0 年，沒有開局前的歷史；洞天福地的升降在預跑中由每世結算自然發生。
+    Evolution::at_genesis(seed, era, open_years).tide
 }
 
 /// 依目前的靈潮與洞天福地的等級，重算靈脈強度、格點靈氣與州郡靈氣（GDD 2.4）。
@@ -428,7 +426,7 @@ mod tests {
     /// 開局後再推演 `years` 年的紀元年表與每世的慢變量。
     fn play(seed: u64, era: Era, years: u32) -> (Evolution, Vec<CalendarEra>, Vec<Evolution>) {
         let lexicon = Lexicon::builtin();
-        let (mut e, mut eras) = genesis(seed, era);
+        let (mut e, mut eras) = genesis(seed, era, 0);
         let mut curve = Vec::new();
         let mut year = e.history_years + 30;
         while year <= e.history_years + years {
@@ -443,12 +441,11 @@ mod tests {
     #[test]
     fn gdd_2_8_periods_and_history_are_within_range() {
         for seed in 0..40u64 {
-            for (era, range) in ERAS.into_iter().zip([EVO_HISTORY_ANCIENT, EVO_HISTORY_MIDDLE, EVO_HISTORY_DECLINE]) {
-                let e = Evolution::at_genesis(seed * 7919 + 1, era);
+            for era in ERAS {
+                let e = Evolution::at_genesis(seed * 7919 + 1, era, 0);
                 assert!((EVO_WARMTH_P1_MIN..=EVO_WARMTH_P1_MAX).contains(&e.warmth_periods[0]));
                 assert!((EVO_WARMTH_P2_MIN..=EVO_WARMTH_P2_MAX).contains(&e.warmth_periods[1]));
                 assert!((EVO_TIDE_PERIOD_MIN..=EVO_TIDE_PERIOD_MAX).contains(&e.tide_period));
-                assert!((range.0..=range.1).contains(&e.history_years), "歷史 {} 年", e.history_years);
                 assert_eq!(e.history_years % 30, 0, "歷史是整數世");
                 for p in e.warmth_phases.into_iter().chain([e.tide_phase]) {
                     assert!((0.0..1.0).contains(&p), "相位 {p}");
@@ -460,26 +457,23 @@ mod tests {
     #[test]
     fn gdd_2_8_seeds_differ_in_period() {
         let periods: std::collections::BTreeSet<u32> =
-            (1..=20u64).map(|s| Evolution::at_genesis(s, Era::Middle).warmth_periods[0]).collect();
+            (1..=20u64).map(|s| Evolution::at_genesis(s, Era::Middle, 0).warmth_periods[0]).collect();
         assert!(periods.len() > 10, "20 個種子只有 {} 種週期", periods.len());
     }
 
     #[test]
-    fn gdd_2_8_opening_tide_follows_the_opening_era() {
+    fn gdd_2_8_takeover_tide_follows_the_opening_era() {
+        // 開天沒有開局前的歷史；預跑 `open_years` 年後（玩家接手那一年）的靈潮落在開局時代指定的位置。
         for seed in 1..=30u64 {
-            let (ancient, _) = genesis(seed, Era::Ancient);
-            let (middle, _) = genesis(seed, Era::Middle);
-            let (decline, _) = genesis(seed, Era::Decline);
-            assert!((ancient.tide - 1.3).abs() < 0.01, "上古開局靈潮 {}", ancient.tide);
-            assert!((middle.tide - 1.0).abs() < 0.01, "中古開局靈潮 {}", middle.tide);
-            assert!((decline.tide - 0.6).abs() < 0.01, "末法開局靈潮 {}", decline.tide);
-            assert_eq!(ancient.aura, AuraAge::Revival, "上古開局正值靈氣復甦");
-            assert_eq!(middle.aura, AuraAge::Plain);
-            assert_eq!(decline.aura, AuraAge::Decline, "末法開局正值末法");
-            // 上古與中古正在退，末法在谷底、之後回升。
-            assert!(ancient.tide_cycle(ancient.history_years + 30) < ancient.tide);
-            assert!(middle.tide_cycle(middle.history_years + 30) < middle.tide);
-            assert!(decline.tide_cycle(decline.history_years + 30) >= decline.tide);
+            for open in [0u32, 1_000, 11_000] {
+                let (ancient, _) = genesis(seed, Era::Ancient, open);
+                let (middle, _) = genesis(seed, Era::Middle, open);
+                let (decline, _) = genesis(seed, Era::Decline, open);
+                assert!((ancient.tide_cycle(open) - 1.3).abs() < 0.01, "上古接手靈潮 {}", ancient.tide_cycle(open));
+                assert!((middle.tide_cycle(open) - 1.0).abs() < 0.01, "中古接手靈潮 {}", middle.tide_cycle(open));
+                assert!((decline.tide_cycle(open) - 0.6).abs() < 0.01, "末法接手靈潮 {}", decline.tide_cycle(open));
+                assert_eq!(ancient.history_years, 0, "開天沒有開局前的歷史");
+            }
         }
     }
 
@@ -498,7 +492,7 @@ mod tests {
 
     #[test]
     fn gdd_2_8_sea_follows_warmth_one_step_behind() {
-        let (mut e, _) = genesis(11, Era::Middle);
+        let (mut e, _) = genesis(11, Era::Middle, 0);
         for shi in 1..=36 {
             let before = e.sea_shift;
             e.settle(e.history_years + shi * 30);
@@ -510,7 +504,7 @@ mod tests {
     #[test]
     fn gdd_2_8_tide_reaches_both_decline_and_revival() {
         // 一個靈潮週期內末法與靈氣復甦各出現一次。
-        let (mut e, _) = genesis(5, Era::Middle);
+        let (mut e, _) = genesis(5, Era::Middle, 0);
         let mut seen = std::collections::BTreeSet::new();
         let mut year = e.history_years;
         while year <= e.history_years + e.tide_period + 60 {
@@ -528,7 +522,7 @@ mod tests {
     fn gdd_2_8_hysteresis_no_flapping() {
         // 同一個時期不會在相鄰兩世開始又結束再開始。
         for seed in 1..=30u64 {
-            let (mut e, _) = genesis(seed, Era::Middle);
+            let (mut e, _) = genesis(seed, Era::Middle, 0);
             let mut last_begin: std::collections::BTreeMap<String, u32> = Default::default();
             let mut year = e.history_years;
             while year <= e.history_years + THREE_YUN {
@@ -569,19 +563,23 @@ mod tests {
     }
 
     #[test]
-    fn gdd_2_8_history_gives_a_chronicle_before_the_opening() {
-        let mut names = std::collections::BTreeSet::new();
+    fn gdd_2_8_genesis_chronicle_starts_with_one_era() {
         for seed in 1..=30u64 {
-            let (e, eras) = genesis(seed, Era::Middle);
+            let (e, eras) = genesis(seed, Era::Middle, 0);
+            assert_eq!(e.history_years, 0);
+            assert_eq!(eras.len(), 1, "開天只有開天一個紀元");
             assert_eq!(eras[0].kind, EraKind::Genesis);
             assert_eq!(eras[0].start_year, 1);
-            assert!(eras.len() >= 3, "種子 {seed}：開局前只有 {} 個紀元", eras.len());
-            assert!(eras.iter().all(|x| x.start_year <= e.history_years + 1));
+        }
+        // 往後推演，同一張年表不重名。
+        let mut names = std::collections::BTreeSet::new();
+        for seed in 1..=30u64 {
+            let (_, eras, _) = play(seed, Era::Middle, THREE_YUN);
             let unique: std::collections::BTreeSet<&str> = eras.iter().map(|x| x.name.as_str()).collect();
             assert_eq!(unique.len(), eras.len(), "同一張年表不重名");
             names.insert(eras.last().unwrap().name.clone());
         }
-        assert!(names.len() > 15, "30 個種子的開局紀元只有 {} 種名字", names.len());
+        assert!(names.len() > 10, "30 個種子的末代紀元只有 {} 種名字", names.len());
     }
 
     #[test]
@@ -642,28 +640,6 @@ mod tests {
             }
         }
         assert_eq!(nodes, before);
-    }
-
-    #[test]
-    fn gdd_2_8_opening_nodes_carry_the_history() {
-        let fresh: Vec<LeyNode> = [1.0, 0.75, 0.5].into_iter().cycle().take(22).map(node).collect();
-        let (mut ancient_down, mut decline_down) = (0usize, 0usize);
-        for seed in 1..=40u64 {
-            let mut a = fresh.clone();
-            let mut d = fresh.clone();
-            assert!((history_nodes(seed, Era::Ancient, &mut a) - 1.3).abs() < 0.01);
-            assert!((history_nodes(seed, Era::Decline, &mut d) - 0.6).abs() < 0.01);
-            ancient_down += a.iter().filter(|n| n.strength < n.origin).count();
-            decline_down += d.iter().filter(|n| n.strength < n.origin).count();
-            let mut again = fresh.clone();
-            history_nodes(seed, Era::Decline, &mut again);
-            assert_eq!(again, d, "同種子同結果");
-        }
-        let total = 40 * fresh.len();
-        // 實測 40 個種子：上古 19%、末法 53%（上古的歷史不滿一個靈潮週期，早年降的還沒全部回復）。
-        assert!(ancient_down * 4 < total, "上古開局降級中的節點 {ancient_down}/{total}");
-        assert!(decline_down * 10 > total * 4, "末法開局降級中的節點 {decline_down}/{total}");
-        assert!(decline_down * 10 < total * 7, "末法開局降級中的節點 {decline_down}/{total}");
     }
 
     #[test]

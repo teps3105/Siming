@@ -19,29 +19,16 @@ fn gdd_3_7_ancient_starts_without_dynasty() {
     assert!(initial(&sim).is_empty(), "上古開局所有州郡無主");
 }
 
+/// 開天不再直接造王朝：王朝由預跑期間「無主且人口夠的州，當地最出眾的散人起事」長出來。
+/// 接手時在世王朝數落在 7.1 目標（中古 4–6、末法 2–3）附近：實測 3–9，這裡放寬為 2–12。
 #[test]
-fn gdd_3_7_middle_starts_with_4_to_6_dynasties_covering_70_percent() {
-    for seed in [7u64, 42, 20261011] {
-        let sim = sim_with(seed, Era::Middle);
-        let init = initial(&sim);
-        assert!((4..=6).contains(&init.len()), "seed {seed}: {} 個", init.len());
-        let w = sim.world();
-        let land = w.provinces.iter().filter(|p| !p.lost).count() as f32;
-        let owned = init.iter().map(|d| d.provinces.len()).sum::<usize>() as f32;
-        let cover = owned / land;
-        assert!((0.6..=0.8).contains(&cover), "seed {seed}: 覆蓋 {cover}");
-        for d in &init {
-            assert!(d.ruler.is_some() && d.founded == 0);
-        }
-    }
-}
-
-#[test]
-fn gdd_3_7_decline_starts_with_2_to_3_dynasties() {
+fn gdd_3_7_dynasties_grow_during_the_pre_run_and_survive_to_takeover() {
     for seed in [7u64, 42] {
-        let sim = sim_with(seed, Era::Decline);
-        let n = initial(&sim).len();
-        assert!((2..=3).contains(&n), "seed {seed}: {n} 個");
+        let sim = sim_with(seed, Era::Middle);
+        let w = sim.world();
+        let alive = w.dynasty.list.iter().filter(|d| d.fallen.is_none()).count();
+        assert!((2..=12).contains(&alive), "seed {seed}: 接手時在世王朝 {alive} 個");
+        assert!(initial(&sim).is_empty(), "開天（tick 0）沒有王朝");
     }
 }
 

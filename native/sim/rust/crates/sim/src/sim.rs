@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::model::*;
 use crate::rng::RngStreams;
-use crate::types::{FineGeography, Geography, Province, Tick, WorldGenError, WorldParams};
+use crate::types::{FineGeography, Geography, Province, ProvinceId, Tick, WorldGenError, WorldParams};
 
 /// 世界狀態（GDD 6.2）。只能經由 [`Sim`] 改變。
 #[derive(Debug, Clone)]
@@ -55,6 +55,10 @@ pub struct World {
     /// 宿緣線依債務方判定月分的 12 桶（效能快取，GDD 6.8；不納入雜湊與存檔）。宿緣只增不減、債務方建線後不變，
     /// 所以只需追加新線；線數比已建的少時（測試換了線表）重建。
     pub thread_months: ThreadMonths,
+    /// GDD 4.6 第一批聚落的落點（州郡、格）。開天時依種子灑落，之後不再改變。世界雜湊附加在最後。
+    pub settlements: Vec<(ProvinceId, u32)>,
+    /// 天地負荷與大劫的狀態（GDD 3.11）。
+    pub calamity: crate::cataclysm::Calamity,
     pub rng: RngStreams,
 }
 
@@ -84,7 +88,7 @@ impl World {
     /// 只有世界生成結果、尚未開天的世界（測試與 `Sim::from_parts` 用）。
     pub fn empty(params: WorldParams, geo: Geography, provinces: Vec<Province>) -> Self {
         let rng = RngStreams::new(params.seed);
-        let (evolution, eras) = crate::evolution::genesis(params.seed, params.era);
+        let (evolution, eras) = crate::evolution::genesis(params.seed, params.era, params.pop_years + params.prerun_years);
         let dynasty = crate::dynasty::DynastyState::new(provinces.len());
         Self {
             params,
@@ -113,6 +117,8 @@ impl World {
             range_cache: Default::default(),
             alive_months: Default::default(),
             thread_months: Default::default(),
+            settlements: Vec::new(),
+            calamity: Default::default(),
             rng,
         }
     }
@@ -229,12 +235,21 @@ impl Sim {
 
     /// 同 [`Sim::new`]，但世界生成每次品質檢查失敗時回呼 `diag(種子, 原因)`（工具用）。
     pub fn new_with_diag(params: &WorldParams, diag: &mut dyn FnMut(u64, &str)) -> Result<Self, WorldGenError> {
+        Self::new_with_progress(params, diag, &mut |_, _| {})
+    }
+
+    /// 同 [`Sim::new_with_diag`]，並在開天的各階段回報進度：`progress(階段, 0..1)`。
+    pub fn new_with_progress(
+        params: &WorldParams,
+        diag: &mut dyn FnMut(u64, &str),
+        progress: &mut dyn FnMut(crate::genesis::Stage, f32),
+    ) -> Result<Self, WorldGenError> {
         let g = crate::worldgen::generate_with(params, diag)?;
         let mut sim = Self::from_parts(g.params, g.geo, g.provinces);
         sim.world.fine = g.fine;
         crate::evolution::prepare_aura(&mut sim.world);
         crate::landform::prepare(&mut sim.world);
-        crate::genesis::run(&mut sim);
+        crate::genesis::run_with_progress(&mut sim, progress);
         crate::flora::prepare(&mut sim.world);
         Ok(sim)
     }
@@ -298,7 +313,8 @@ impl Sim {
                 crate::evolution::shi_settle(w);
             }
             // 21 每世：天機（M5）
-            // 22–24 量劫（M6）
+            // 22–24 天地負荷與大劫（GDD 3.11）
+            crate::cataclysm::yearly(w);
             // 25 因果帳修剪
             crate::ledger::prune(w);
         }

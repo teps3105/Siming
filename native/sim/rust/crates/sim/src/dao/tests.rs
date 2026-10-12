@@ -20,7 +20,7 @@ fn province(id: u16, neighbors: Vec<u16>, aura: f32) -> Province {
         terrain_mix: [0; Terrain::COUNT],
         habitability: 1.0,
         capacity: 1000.0,
-        population: 1000.0,
+        population: 1_000_000.0,
         aura,
         karma_qi: 0.0,
         merit: 0.0,

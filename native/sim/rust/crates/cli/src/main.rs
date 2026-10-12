@@ -347,7 +347,7 @@ fn evolve_survey(seed: u64, yun: u32, era: EraArg, seeds: u32) -> Result<(), Str
     let mut opening_kinds = std::collections::BTreeMap::<&str, u32>::new();
     for i in 0..seeds {
         let s = seed + u64::from(i);
-        let (mut e, mut eras) = evolution::genesis(s, era_of(era));
+        let (mut e, mut eras) = evolution::genesis(s, era_of(era), 0);
         let opening = e.history_years + 1;
         let current = eras.last().expect("年表不空");
         *opening_kinds.entry(current.kind.key()).or_default() += 1;
@@ -678,7 +678,7 @@ fn sim(seed: u64, yun: u32, report: Option<PathBuf>) -> Result<(), String> {
 /// 2. 每個已崩潰的王朝，崩潰前 50 年天命 ΔM 各項的逐王朝年平均，再對王朝平均。
 fn dynasty_probe(seed: u64, yun: u32) -> Result<(), String> {
     use siming_sim::dynasty::{probe_start, probe_take};
-    use siming_sim::params::{DYN_FOUND_POP, DYN_FOUND_TALENT, OFFICIAL_MIN_AGE};
+    use siming_sim::params::{DYN_FOUND_POP, OFFICIAL_MIN_AGE};
     probe_start();
     let mut s = Sim::new(&WorldParams::new(seed)).map_err(|e| e.to_string())?;
     let mut records = probe_take();
@@ -691,7 +691,7 @@ fn dynasty_probe(seed: u64, yun: u32) -> Result<(), String> {
             if p.power.is_none()
                 && matches!(p.role, Role::Commoner | Role::GeneralCandidate)
                 && p.age(w.tick) >= OFFICIAL_MIN_AGE
-                && p.attrs.talent >= DYN_FOUND_TALENT
+                && p.attrs.talent >= 0.0
             {
                 if let Some(h) = has.get_mut(p.province as usize) {
                     *h = true;

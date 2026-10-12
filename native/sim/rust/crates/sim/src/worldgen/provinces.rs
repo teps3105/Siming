@@ -74,13 +74,21 @@ fn step_cost(t: Terrain, river: u8) -> f32 {
 
 /// GDD 2.2 步驟 7 種子點：以宜居度加權的 Poisson-disk 取樣（最小間距 `0.8 × sqrt(陸地面積 / 目標)`，球面距離）。
 /// 若候選用盡而數量未達目標，將間距縮為 0.9 倍後繼續。
-fn poisson_seeds(sp: &Sphere, cand: &[u32], hab: &[f64], land_area: f32, target: usize, rng: &mut ChaCha8Rng) -> Vec<u32> {
+pub(crate) fn poisson_seeds(
+    sp: &Sphere,
+    cand: &[u32],
+    hab: &[f64],
+    land_area: f32,
+    target: usize,
+    spacing: f32,
+    rng: &mut ChaCha8Rng,
+) -> Vec<u32> {
     let (w, h) = (sp.w, sp.h);
     let mut seeds: Vec<u32> = Vec::new();
     if cand.is_empty() || target == 0 {
         return seeds;
     }
-    let mut r = WG_PROV_SPACING * (land_area / target as f32).sqrt();
+    let mut r = spacing * (land_area / target as f32).sqrt();
     let mut alive: Vec<bool> = vec![true; cand.len()];
     let mut pos_of = vec![NONE; w * h];
     for (i, &c) in cand.iter().enumerate() {
@@ -539,7 +547,7 @@ pub fn build(sp: &Sphere, terrain: &[Terrain], river: &[u8], target: usize, rng:
     let (cl, csz) = components(w, h, &land, false);
     let carea = component_area(sp, &cl, csz.len());
     let cand: Vec<u32> = (0..n).filter(|&c| land[c] && carea[cl[c] as usize] >= WG_ISLAND_MIN as f32).map(|c| c as u32).collect();
-    let seeds = poisson_seeds(sp, &cand, &hab, land_area, target, rng);
+    let seeds = poisson_seeds(sp, &cand, &hab, land_area, target, WG_PROV_SPACING, rng);
     let mut lab = grow(w, h, terrain, river, &seeds);
     let mut n_labels = seeds.len();
 

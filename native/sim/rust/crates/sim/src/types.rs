@@ -88,6 +88,19 @@ pub struct WorldParams {
     pub relief: f32,
     pub humidity: f32,
     pub era: Era,
+    /// GDD 4.6 人口期的長度（年）：開天時天地間沒有人，人口從第一批聚落成長、擴散。上限 [`crate::params::GENESIS_POP_YEARS_MAX`]。
+    #[serde(default = "default_pop_years")]
+    pub pop_years: u32,
+    /// GDD 4.6 人物期的長度（年）：接在人口期之後逐月完整推演，修士、宗門、王朝在其間累積。
+    #[serde(default = "default_prerun_years")]
+    pub prerun_years: u32,
+}
+
+fn default_pop_years() -> u32 {
+    crate::params::GENESIS_POP_YEARS
+}
+fn default_prerun_years() -> u32 {
+    crate::params::GENESIS_PRERUN_YEARS
 }
 
 impl WorldParams {
@@ -101,6 +114,8 @@ impl WorldParams {
             relief: crate::params::WG_RELIEF,
             humidity: crate::params::WG_HUMIDITY,
             era: Era::Middle,
+            pop_years: crate::params::GENESIS_POP_YEARS,
+            prerun_years: crate::params::GENESIS_PRERUN_YEARS,
         }
     }
 }

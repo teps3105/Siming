@@ -2,6 +2,7 @@
 
 pub mod book;
 pub mod calendar;
+pub mod cataclysm;
 pub mod command;
 pub mod dao;
 pub mod dynasty;

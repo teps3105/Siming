@@ -4,9 +4,17 @@ use siming_sim::calendar;
 use siming_sim::schedule::{judge_month, Domain};
 use siming_sim::{EventKind, Sim, WorldParams};
 
+/// 測試用的短開天：人口期 600 年、人物期 200 年（預設長度太慢，且測試要看的是其中一段規則）。
+fn quick(seed: u64) -> WorldParams {
+    let mut p = WorldParams::new(seed);
+    p.pop_years = 600;
+    p.prerun_years = 200;
+    p
+}
+
 /// 固定種子跑 30 年（預跑之後），重要度 ≥ 2 的事件依發生月份統計。
 fn month_histogram(seed: u64) -> [u32; 12] {
-    let mut sim = Sim::new(&WorldParams::new(seed)).unwrap();
+    let mut sim = Sim::new(&quick(seed)).unwrap();
     let start = sim.world().tick;
     for _ in 0..360 {
         sim.step();
@@ -51,7 +59,7 @@ fn gdd_6_3_died_famine_and_dynasty_events_spread_across_months() {
     ];
     let (mut died, mut famine, mut dynasty) = ([0u32; 12], [0u32; 12], [0u32; 12]);
     for seed in [7u64, 42, 20261011] {
-        let mut sim = Sim::new(&WorldParams::new(seed)).unwrap();
+        let mut sim = Sim::new(&quick(seed)).unwrap();
         let start = sim.world().tick;
         for _ in 0..360 {
             sim.step();
@@ -80,15 +88,16 @@ fn gdd_6_3_died_famine_and_dynasty_events_spread_across_months() {
 /// 入道事件發生在人物自己的判定月（補足宗門的新弟子不經入道判定，以出生時間排除）。
 #[test]
 fn gdd_6_3_come_of_age_happens_in_own_judge_month() {
-    let mut sim = Sim::new(&WorldParams::new(42)).unwrap();
+    let mut sim = Sim::new(&quick(42)).unwrap();
     let seed = sim.world().params.seed;
-    for _ in 0..240 {
+    let start = sim.world().tick;
+    for _ in 0..600 {
         sim.step();
     }
     let w = sim.world();
     let mut checked = 0;
     let mut seen = std::collections::BTreeSet::new();
-    for e in w.ledger.events.iter().filter(|e| e.kind == EventKind::ComeOfAge && e.tick > 120) {
+    for e in w.ledger.events.iter().filter(|e| e.kind == EventKind::ComeOfAge && e.tick > start) {
         let pid = e.persons[0];
         let p = &w.persons[pid as usize];
         // 補足的新弟子出生即 12 歲整；自然入道者的出生月與入道月不會剛好相差 12 年整。

@@ -48,13 +48,21 @@ use crate::params::*;
 use crate::sim::World;
 use crate::types::{ProvinceId, Tick, WorldSize};
 
+/// 一州的有名之人名額：每 `1 / NOTABLE_PER_POP` 人口一名（有人就至少一名），無人的州為 0。
+pub fn province_quota(p: &crate::types::Province) -> f64 {
+    (p.population.max(0.0) * NOTABLE_PER_POP).ceil()
+}
+
 /// 在世有名之人上限 `NOTABLE_CAP`（依世界尺寸，GDD 7.1）。
 pub fn notable_cap(w: &World) -> u32 {
-    NOTABLE_CAP[match w.params.size {
+    let cap = NOTABLE_CAP[match w.params.size {
         WorldSize::Small => 0,
         WorldSize::Medium => 1,
         WorldSize::Large => 2,
-    }]
+    }];
+    // 名額按各州人口比例（GDD 3.4、4.6）：每州 floor(人口 × 比例)，無人的州沒有名額；全世界再頂到效能上限。
+    let quota: f64 = w.provinces.iter().map(province_quota).sum();
+    cap.min(quota as u32)
 }
 
 /// 在世有名之人數（含幼年者）。
@@ -366,9 +374,23 @@ pub fn yearly_refill(w: &mut World) {
     }
     let want = ((floor - living as f32) * REFILL_RATE).ceil() as u32;
     let n = want.min(cap.saturating_sub(living));
-    let dist = pull::population_dist(w);
+    // 各州名額（隨該州人口）扣掉該州在世有名之人，剩餘名額作為出生地的權重；無人口的州不出人。
+    let mut room: Vec<f64> = w.provinces.iter().map(province_quota).collect();
+    for &i in &w.alive_ids {
+        if let Some(p) = w.persons.get(i as usize).filter(|p| p.alive()) {
+            if let Some(r) = room.get_mut(p.province as usize) {
+                *r -= 1.0;
+            }
+        }
+    }
+    let mut weights: Vec<f64> = room.iter().map(|r| r.max(0.0)).collect();
     for _ in 0..n {
+        if weights.iter().sum::<f64>() <= 0.0 {
+            break;
+        }
+        let dist = pull::normalized(weights.clone());
         let province = pull::sample_dist(w, &dist);
         spawn_new_life(w, SoulOrigin::New, province);
+        weights[province as usize] = (weights[province as usize] - 1.0).max(0.0);
     }
 }

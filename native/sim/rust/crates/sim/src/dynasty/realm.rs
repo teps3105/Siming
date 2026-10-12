@@ -222,9 +222,12 @@ pub fn yearly_found(w: &mut World, round: Round) {
         if pr.lost || w.dynasty.owner_of(p).is_some() || pr.population < DYN_FOUND_POP {
             continue;
         }
-        let founder = table.get_or_insert_with(|| best_commoners(w, DYN_FOUND_TALENT)).get(p as usize).copied().flatten();
+        let founder = table.get_or_insert_with(|| best_commoners(w, 0.0)).get(p as usize).copied().flatten();
         let Some(founder) = founder else { continue };
-        if w.rng.dynasty.gen::<f32>() >= DYN_FOUND_CHANCE {
+        // 取當地最出眾者起事：才略越高成功率越高（曲線見 7.1 `DYN_FOUND_TALENT_REF`、`DYN_FOUND_TALENT_EXP`）。
+        let talent = w.persons[founder as usize].attrs.talent.max(0.0);
+        let chance = (DYN_FOUND_CHANCE * (talent / DYN_FOUND_TALENT_REF).powf(DYN_FOUND_TALENT_EXP)).min(DYN_FOUND_CHANCE_MAX);
+        if w.rng.dynasty.gen::<f32>() >= chance {
             continue;
         }
         let mut provs = free_neighbors(w, &[p]);

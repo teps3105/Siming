@@ -53,6 +53,9 @@ fn params(h: &mut FxHasher, p: &WorldParams) {
         Era::Middle => 1,
         Era::Decline => 2,
     });
+    // 預跑長度（分期預跑後新增）：附加在最後。
+    h.write_u32(p.pop_years);
+    h.write_u32(p.prerun_years);
 }
 
 fn geo(h: &mut FxHasher, g: &Geography) {
@@ -196,6 +199,20 @@ pub fn world_hash(world: &World) -> u64 {
             h.write_u32(st);
         }
     }
+    // 第一批聚落的落點（分期預跑後新增）：附加在最後。
+    h.write_usize(world.settlements.len());
+    for &(p, c) in &world.settlements {
+        h.write_u16(p);
+        h.write_u32(c);
+    }
+    // 天地負荷與大劫（分期預跑後新增）：附加在最後。
+    h.write_usize(world.calamity.history.len());
+    for &(y, r) in &world.calamity.history {
+        h.write_u32(y);
+        h.write_u32(r);
+    }
+    h.write_u32(world.calamity.ends.unwrap_or(u32::MAX));
+    h.write_u32(world.calamity.slow_until);
     h.finish()
 }
 

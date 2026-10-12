@@ -144,8 +144,22 @@ fn prune_one(w: &mut World, p: EventId) {
     ev.args = EventArgs::None;
 }
 
+/// 這筆重要度 1 的舊事件現在可不可以修剪：在世者的歷程（降生、入道等）與未了線的建線事件要留著。
+fn prunable(w: &World, e: &Event) -> bool {
+    if e.persons.iter().any(|&p| w.persons.get(p as usize).is_some_and(|p| p.alive())) {
+        return false;
+    }
+    if let EventArgs::Thread { thread, .. } = e.args {
+        if w.threads.get(thread as usize).is_some_and(crate::thread::is_open) {
+            return false;
+        }
+    }
+    true
+}
+
 /// GDD 3.3 修剪 importance 1 且超過 100 年的事件（6.3 步驟 25）。
 /// 事件依 ID 升冪即依 tick 升冪，因此只需從修剪游標掃到「剛好滿 100 年」的位置。
+/// 在世者從降生起的歷程與未了線的建線事件不修剪，改記入 `prune_deferred`，每十年複查一次，條件解除才修剪。
 /// 修剪後，`Person::last_event` 若指向被修剪的事件，改指向最近保留的祖先。
 pub fn prune(w: &mut World) {
     let keep = LEDGER_TRIVIAL_KEEP_YEARS * 12;
@@ -159,12 +173,29 @@ pub fn prune(w: &mut World) {
             break;
         }
         if e.importance == 1 {
-            prune_one(w, i);
-            any = true;
+            if prunable(w, e) {
+                prune_one(w, i);
+                any = true;
+            } else {
+                w.ledger.prune_deferred.push(i);
+            }
         }
         i += 1;
     }
     w.ledger.prune_cursor = i;
+    if now.is_multiple_of(120) && !w.ledger.prune_deferred.is_empty() {
+        let list = std::mem::take(&mut w.ledger.prune_deferred);
+        let mut kept = Vec::with_capacity(list.len());
+        for id in list {
+            if w.ledger.events[id as usize].importance == 1 && !prunable(w, &w.ledger.events[id as usize]) {
+                kept.push(id);
+            } else if w.ledger.events[id as usize].importance == 1 {
+                prune_one(w, id);
+                any = true;
+            }
+        }
+        w.ledger.prune_deferred = kept;
+    }
     if any {
         for k in 0..w.persons.len() {
             if let Some(le) = w.persons[k].last_event {

@@ -293,6 +293,10 @@ pub fn create(
         t.woven |= woven;
         return tid;
     }
+    // 大劫之後一段時間，新的宿緣線不易長出（司命牽線不受影響）。
+    if !woven && !crate::cataclysm::thread_allowed(w) {
+        return ThreadId::MAX;
+    }
     insert_thread(w, kind, debtor, creditor, strength, woven, cause)
 }
 
@@ -340,7 +344,7 @@ pub fn resolve(w: &mut World, tid: ThreadId, how: Resolution, cause: Option<Even
 }
 
 /// 強度降到 0：線消散（不算了結），寫入 `ThreadFaded`。
-fn fade(w: &mut World, tid: ThreadId) {
+pub(crate) fn fade(w: &mut World, tid: ThreadId) {
     let t = w.threads[tid as usize].clone();
     w.threads[tid as usize].strength = 0.0;
     let n = lives(w, &t);

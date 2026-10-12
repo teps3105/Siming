@@ -76,6 +76,26 @@ pub fn yearly_with(provinces: &mut [Province], growth_mult: &[f64]) -> Vec<(Prov
             delta[i] -= moved;
             delta[n] += moved;
         }
+        // 渡海：沿岸州人口過了門檻，才以遠低於陸路的速率流向海路鄰州中承載比最低者。
+        if pop > POP_SEA_MIGRATE_THRESHOLD * k {
+            let mut best: Option<(usize, f64)> = None;
+            for &n in &p.sea_neighbors {
+                let n = n as usize;
+                let (np, nk) = snapshot[n];
+                if nk <= 0.0 {
+                    continue;
+                }
+                let ratio = np / nk;
+                if best.is_none_or(|(bid, br)| ratio < br || (ratio == br && n < bid)) {
+                    best = Some((n, ratio));
+                }
+            }
+            if let Some((n, _)) = best.filter(|&(_, br)| br < pop / k) {
+                let moved = pop * POP_SEA_MIGRATE_RATE;
+                delta[i] -= moved;
+                delta[n] += moved;
+            }
+        }
     }
 
     for (p, d) in provinces.iter_mut().zip(delta) {
@@ -127,6 +147,28 @@ pub fn monthly_with(provinces: &mut [Province], growth_mult: &[f64], seed: u64, 
             }
             if let Some((n, _)) = best.filter(|&(_, br)| br < pop / k) {
                 let moved = pop * POP_MIGRATE_RATE;
+                provinces[i].population -= moved;
+                provinces[n].population += moved;
+                provinces[n].city_level = city_level(provinces[n].population);
+            }
+        }
+        // 渡海（同年版）。
+        let (pop, k) = (provinces[i].population, provinces[i].capacity);
+        if pop > POP_SEA_MIGRATE_THRESHOLD * k {
+            let mut best: Option<(usize, f64)> = None;
+            for &n in &provinces[i].sea_neighbors {
+                let n = n as usize;
+                let nk = capacity(&provinces[n]).max(0.0);
+                if nk <= 0.0 {
+                    continue;
+                }
+                let ratio = provinces[n].population / nk;
+                if best.is_none_or(|(bid, br)| ratio < br || (ratio == br && n < bid)) {
+                    best = Some((n, ratio));
+                }
+            }
+            if let Some((n, _)) = best.filter(|&(_, br)| br < pop / k) {
+                let moved = pop * POP_SEA_MIGRATE_RATE;
                 provinces[i].population -= moved;
                 provinces[n].population += moved;
                 provinces[n].city_level = city_level(provinces[n].population);
