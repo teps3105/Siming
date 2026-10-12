@@ -465,6 +465,70 @@ pub fn adjacency(sp: &Sphere, terrain: &[Terrain], of: &[u16], count: usize) -> 
     }
 
     // 海鄰：隔海、球面距離 ≤ WG_SEA_LANE 的沿岸州郡（兩者連線須經過海格；陸鄰不算）。
+    // 每個沿海格只看方框內的沿海格（各列的沿海格先依 x 排好，用二分找範圍）；
+    // 已判定的州對（陸鄰或已是海鄰）先跳過，再算距離與連線。
+    let mut lanes: Vec<BTreeSet<u16>> = vec![BTreeSet::new(); count];
+    let r2 = (WG_SEA_LANE * WG_SEA_LANE) as f32;
+    let mut settled = vec![false; count * count];
+    for (p, set) in nbr.iter().enumerate() {
+        for &q in set {
+            settled[p * count + q as usize] = true;
+        }
+    }
+    let rows: Vec<Vec<u32>> = (0..h).map(|y| (0..w).filter(|&x| sea_coast[y * w + x]).map(|x| x as u32).collect()).collect();
+    let ry = WG_SEA_LANE as i32;
+    for a in 0..n {
+        if !sea_coast[a] {
+            continue;
+        }
+        let pa = of[a];
+        let (cx, cy) = ((a % w) as i32, (a / w) as i32);
+        for y in (cy - ry).max(0) as usize..=(cy + ry).min(h as i32 - 1) as usize {
+            let rx = sp.box_half_width(y, WG_SEA_LANE as f32);
+            let (lo, hi) = (cx - rx, cx + rx);
+            let wi = w as i32;
+            // x 環繞：方框跨過左右邊界時拆成兩段。
+            let spans: [(i32, i32); 2] = if hi - lo + 1 >= wi {
+                [(0, wi - 1), (1, 0)]
+            } else if lo < 0 {
+                [(lo + wi, wi - 1), (0, hi)]
+            } else if hi >= wi {
+                [(lo, wi - 1), (0, hi - wi)]
+            } else {
+                [(lo, hi), (1, 0)]
+            };
+            let row = &rows[y];
+            for (from, to) in spans {
+                if from > to {
+                    continue;
+                }
+                let start = row.partition_point(|&x| (x as i32) < from);
+                for &x in row[start..].iter().take_while(|&&x| x as i32 <= to) {
+                    let b = y * w + x as usize;
+                    let pb = of[b];
+                    if pb <= pa || settled[pa as usize * count + pb as usize] || sp.dist2(a, b) > r2 {
+                        continue;
+                    }
+                    if line_crosses_sea(w, terrain, a, b) {
+                        lanes[pa as usize].insert(pb);
+                        lanes[pb as usize].insert(pa);
+                        settled[pa as usize * count + pb as usize] = true;
+                    }
+                }
+            }
+        }
+    }
+    Adjacency { land: nbr, sea: lanes, coast_cells }
+}
+
+/// 海鄰原本的逐格算法，留作 [`adjacency`] 的對照。
+#[cfg(test)]
+fn sea_lanes_reference(sp: &Sphere, terrain: &[Terrain], of: &[u16], count: usize, nbr: &[BTreeSet<u16>]) -> Vec<BTreeSet<u16>> {
+    let (w, h) = (sp.w, sp.h);
+    let n = w * h;
+    let sea_coast: Vec<bool> = (0..n)
+        .map(|c| of[c] != u16::MAX && nb8(w, h, c).any(|(nb, _)| terrain[nb] == Terrain::Sea))
+        .collect();
     let mut lanes: Vec<BTreeSet<u16>> = vec![BTreeSet::new(); count];
     let r2 = (WG_SEA_LANE * WG_SEA_LANE) as f32;
     for a in 0..n {
@@ -486,7 +550,7 @@ pub fn adjacency(sp: &Sphere, terrain: &[Terrain], of: &[u16], count: usize) -> 
             }
         }
     }
-    Adjacency { land: nbr, sea: lanes, coast_cells }
+    lanes
 }
 
 /// GDD 2.2 步驟 7：完整的州郡生成。
@@ -646,3 +710,29 @@ pub fn build(
     }
     Provinces { of, list }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Sim, WorldParams};
+
+    /// 海鄰的快算法與原本的逐格算法結果相同：開局的世界，以及海岸移動過幾世之後的世界。
+    #[test]
+    fn gdd_2_2_sea_lanes_match_the_reference() {
+        for seed in [7u64, 42, 20261011] {
+            let mut sim = Sim::new(&WorldParams::new(seed)).unwrap();
+            for round in 0..3 {
+                let w = sim.world();
+                let sp = Sphere::new(w.geo.w as usize, w.geo.h as usize);
+                let found = adjacency(&sp, &w.geo.terrain, &w.geo.province_of, w.provinces.len());
+                let expected = sea_lanes_reference(&sp, &w.geo.terrain, &w.geo.province_of, w.provinces.len(), &found.land);
+                assert!(expected.iter().any(|set| !set.is_empty()), "種子 {seed} 應有海鄰");
+                assert_eq!(found.sea, expected, "種子 {seed} 第 {round} 輪");
+                for _ in 0..360 * 4 {
+                    sim.step();
+                }
+            }
+        }
+    }
+}
+

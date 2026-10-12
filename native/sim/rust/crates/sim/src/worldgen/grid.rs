@@ -211,6 +211,12 @@ impl Sphere {
         d * self.r_cells * self.r_cells
     }
 
+    /// 第 `y` 列上，半徑 `r`（赤道格寬）的外接方框往左右各取幾格。
+    pub fn box_half_width(&self, y: usize, r: f32) -> i32 {
+        let cl = self.cos_lat[y].max(1e-3);
+        ((r / cl).ceil() as i32).min(self.w as i32 / 2)
+    }
+
     /// 以格 `c` 為中心、半徑 `r`（赤道格寬）的外接方框內所有格（x 環繞、y 截斷），固定順序。
     pub fn box_cells(&self, c: usize, r: f32) -> Vec<usize> {
         let (cx, cy) = ((c % self.w) as i32, (c / self.w) as i32);
@@ -221,8 +227,7 @@ impl Sphere {
             if y < 0 || y >= self.h as i32 {
                 continue;
             }
-            let cl = self.cos_lat[y as usize].max(1e-3);
-            let rx = ((r / cl).ceil() as i32).min(self.w as i32 / 2);
+            let rx = self.box_half_width(y as usize, r);
             for dx in -rx..=rx {
                 out.push(y as usize * self.w + wrap_x(self.w, cx + dx));
             }
