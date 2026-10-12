@@ -49,6 +49,7 @@ uniform sampler2D lake_tex : repeat_enable, filter_linear_mipmap;
 uniform sampler2D climate_tex : repeat_enable, filter_linear, source_color;
 uniform sampler2D cover_tex : repeat_enable, filter_linear;
 uniform sampler2D paper_tex : repeat_enable, filter_linear_mipmap;
+uniform sampler2D water_tex : repeat_enable, filter_linear_mipmap;  // 可平鋪的雜訊：R 波紋、G 泡沫的形狀
 uniform sampler2D field_tex : repeat_enable, filter_linear;
 uniform sampler2D pid_tex : filter_nearest;   // RG8：州郡 ID 低、高位元組
 uniform sampler2D pcol_tex : filter_nearest;  // 256×1：州郡 ID → 淡彩（sRGB）
@@ -213,42 +214,37 @@ vec3 ramp5(vec3 colors[5], float t) {
 	return mix(colors[i], colors[i + 1], x - float(i));
 }
 
-// 魚鱗紋（海）：一排排半圓的鱗，南邊的一排壓住北邊的。p 以一片鱗的寬為 1，回傳到所在那片鱗的邊緣的距離。
-float scale_edge(vec2 p) {
-	float row = floor(p.y / 0.25);
-	for (int k = 2; k >= 1; k--) {
-		float r = row + float(k);
-		float x = p.x - 0.5 * mod(r, 2.0);
-		float gap = 0.5 - length(vec2(x - round(x), r * 0.25 - p.y));
-		if (gap > 0.0) {
-			return gap;
-		}
-	}
-	return 1.0;
+// 水面的波紋與泡沫：移植自 binbun「Godot Water」卡通版（CC0，8.10）的 sample_wave 與泡沫算法。
+// 原作以深度貼圖取水深、以獨立的水面網格打光；這裡水深取高度貼圖，顏色接在海深色階上，不打光。
+const float WATER_TILE_PX = 230.0;                // 一張波紋貼圖在畫面上約佔的寬度（像素）到兩倍
+const vec2 WAVE_VELOCITY = vec2(0.012, 0.007);    // 每秒流過幾張貼圖
+const float WAVE_LAYER_SCALE = 1.5;               // 反向那一層的縮放
+const vec2 WAVE_STRETCH = vec2(1.0, 2.0);  // 波線橫向拉長
+const float WAVE_HIGHLIGHT = 0.26;                // 波光混入淺水色的比例
+const float WAVE_FOAM_AMOUNT = 0.50;              // 浪頭算進泡沫的比例
+const float FOAM_START = 0.15;
+const float FOAM_END = 0.30;
+const float FOAM_EXPONENT = 2.0;
+const float EDGE_FOAM_DEPTH = 0.007;              // 岸邊泡沫帶的水深（高度單位）
+
+// 兩層波紋反向流動，第一層擾動第二層的取樣位置。p 以一張貼圖的寬為 1；回傳 x 波紋、y 泡沫的形狀。
+vec2 sample_wave(vec2 p, float lod) {
+	vec2 drift = TIME * WAVE_VELOCITY;
+	vec2 q = p * WAVE_STRETCH;
+	float wave1 = textureLod(water_tex, q * WAVE_LAYER_SCALE - drift, lod).r;
+	float wave2 = textureLod(water_tex, q + drift - wave1 * 0.1, lod).r;
+	return vec2(wave2, textureLod(water_tex, p * 2.0, lod + 1.0).g);
 }
 
-// 水波紋（湖）：一道道橫向的波線。p 的單位同上，回傳到最近一道線的距離。
-float ripple_edge(vec2 p) {
-	return abs(fract(p.y * 3.0 + 0.14 * sin(p.x * TAU)) - 0.5) / 3.0;
-}
-
-// 水紋的墨線（0..1）：紋樣畫在地圖上，大小取地圖寬的 2 的次方分之一（東西接縫才接得上），
-// 隨縮放在相鄰兩級之間淡入淡出，畫面上一片鱗始終約 WAVE_PX 到兩倍寬。
-const float WAVE_PX = 26.0;
-float wave_ink(vec2 wp, float pxw, float lake) {
-	float n = log2(map_size.x / (pxw * WAVE_PX));
+// 波紋畫在地圖上，貼圖的寬取地圖寬的 2 的次方分之一（東西接縫才接得上），
+// 隨縮放在相鄰兩級之間淡入淡出，畫面上的波紋大小大致不變。
+vec2 water_surface(vec2 wp, float pxw) {
+	float n = max(log2(map_size.x / (pxw * WATER_TILE_PX)), 1.0);
 	float fine = map_size.x / exp2(ceil(n));
-	float f = ceil(n) - n;
-	float ink_fine = 0.0;
-	float ink_coarse = 0.0;
-	for (int i = 0; i < 2; i++) {
-		float cell = fine * (i == 0 ? 1.0 : 2.0);
-		vec2 p = wp / cell;
-		float edge = mix(scale_edge(p), ripple_edge(p), lake) * cell / pxw;
-		float line = 1.0 - smoothstep(0.4, 1.5, edge);
-		if (i == 0) { ink_fine = line; } else { ink_coarse = line; }
-	}
-	return mix(ink_fine, ink_coarse, f);
+	float texels = float(textureSize(water_tex, 0).x);
+	vec2 near = sample_wave(wp / fine, max(log2(pxw / fine * texels), 0.0));
+	vec2 far = sample_wave(wp / (fine * 2.0), max(log2(pxw / fine * texels) - 1.0, 0.0));
+	return mix(near, far, ceil(n) - n);
 }
 
 vec3 field_ramp(float t) {
@@ -344,11 +340,22 @@ void fragment() {
 	vec3 lake = mix(sea_colors[0], sea_colors[1], 0.6);
 	float is_lake = lake_mask * (1.0 - sea_mask);
 	vec3 water = mix(sea, lake, is_lake);
-	// 水紋：海畫魚鱗紋、湖畫波線，墨色取同色系的深色；近岸最清楚，外海淡去。岸邊留一圈近乎紙色的淺水。
+	// 水面：波光把水色帶向淺水色，外海減半；泡沫是岸邊一圈加上近岸的浪頭，再由雜訊切出形狀，取紙色。
 	float off_shore = smoothstep(0.03, 0.35, depth) * (1.0 - is_lake);
-	water = mix(water, sea_colors[4] * 0.72, wave_ink(wp, pxw, is_lake) * mix(0.55, 0.22, off_shore));
+	vec2 surface = water_surface(wp, pxw);
+	float wave = smoothstep(0.0, 1.0, surface.x);
+	water = mix(water, sea_colors[0], wave * WAVE_HIGHLIGHT * mix(1.0, 0.35, off_shore));
+	float edge_foam = mix(clamp(1.0 + e / EDGE_FOAM_DEPTH, 0.0, 1.0), 1.0 - smoothstep(0.5, 0.56, lake_v), is_lake);
+	float near_shore = (1.0 - smoothstep(0.0, 0.10, depth)) * (1.0 - is_lake);
+	float foam = max(edge_foam, wave * WAVE_FOAM_AMOUNT * near_shore);
+	float foam_shape = 1.0 - surface.y;
+	foam = clamp((foam - FOAM_START) / (FOAM_END - FOAM_START), 0.0, 1.0);
+	foam = clamp((foam - foam_shape) / max(1.0 - foam_shape, 1e-3), 0.0, 1.0);
+	foam = pow(foam, FOAM_EXPONENT);
+	// 岸邊留一圈近乎紙色的淺水。
 	float shallows = mix(1.0 - smoothstep(0.0, 0.008, -e), 1.0 - smoothstep(0.5, 0.8, lake_v), is_lake);
 	water = mix(water, paper, shallows * 0.5);
+	water = mix(water, paper, foam * 0.8);
 
 	vec3 col = mix(land, water, wmask);
 

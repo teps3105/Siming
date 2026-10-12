@@ -107,3 +107,31 @@ func test_gdd_5_3_globe_pick_returns_the_focus_under_the_camera() -> void:
 func test_gdd_5_3_nearest_copy_wraps_across_the_seam() -> void:
 	assert_eq(MapView.nearest_copy_x(380.0, 2.0, MAP_W), -4.0)
 	assert_eq(MapView.nearest_copy_x(10.0, 700.0, MAP_W), 778.0)
+
+
+## GDD 5.3「水」：水面的雜訊貼圖有波紋與泡沫兩個頻道，四邊接得上，兩個頻道都有起伏。
+func test_gdd_5_3_water_texture_tiles_and_carries_two_channels() -> void:
+	var texture := TerrainMap.water_texture()
+	assert_eq(texture, TerrainMap.water_texture(), "只做一次")
+	var image := texture.get_image()
+	var size := image.get_width()
+	assert_eq(image.get_size(), Vector2i(TerrainMap.WATER_TEXTURE_SIZE, TerrainMap.WATER_TEXTURE_SIZE))
+	assert_eq(image.get_format(), Image.FORMAT_RG8)
+	assert_true(image.has_mipmaps())
+	var low := Vector2(1.0, 1.0)
+	var high := Vector2.ZERO
+	var seam := 0.0
+	var inner := 0.0
+	for i in size:
+		var edge := image.get_pixel(size - 1, i)
+		var wrap := image.get_pixel(0, i)
+		var next := image.get_pixel(1, i)
+		seam += absf(edge.r - wrap.r) + absf(edge.g - wrap.g)
+		inner += absf(next.r - wrap.r) + absf(next.g - wrap.g)
+		for x in [0, size / 3, size * 2 / 3]:
+			var pixel := image.get_pixel(x, i)
+			low = Vector2(minf(low.x, pixel.r), minf(low.y, pixel.g))
+			high = Vector2(maxf(high.x, pixel.r), maxf(high.y, pixel.g))
+	assert_gt(high.x - low.x, 0.4, "波紋頻道有起伏")
+	assert_gt(high.y - low.y, 0.4, "泡沫頻道有起伏")
+	assert_lt(seam, inner * 3.0 + 1.0, "左右兩邊接得上：跨邊的差和相鄰兩行的差同一個量級")

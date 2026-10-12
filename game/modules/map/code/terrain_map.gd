@@ -11,6 +11,7 @@ enum Mode { SHANHE = 0, TIANXIA = 1, LINGMAI = 3 }
 const TERRAIN_SHADER := preload("res://modules/map/code/terrain_relief.gdshader")
 const RIVER_SHADER := preload("res://modules/map/code/river_line.gdshader")
 const COPIES := 3
+const WATER_TEXTURE_SIZE := 256
 ## GDD 5.3 過渡時間：平面 ↔ 球面 0.6 秒。
 const GLOBE_MORPH_SECONDS := 0.6
 
@@ -31,6 +32,8 @@ const SEA_RAMP: Array[Color] = [
 const SAND := Color("D9C59A")
 ## 高度色階（青綠山水）：山腳赭 → 山腰石綠 → 高山石青 → 雪。
 const ROCK_RAMP: Array[Color] = [Color("C9B58C"), Color("9FB08A"), Color("7397A3"), Color("F2F1EC")]
+
+static var _water_texture: ImageTexture
 
 var map_size := Vector2.ZERO
 var mode: Mode = Mode.SHANHE
@@ -307,6 +310,7 @@ func _make_terrain_material(world: SimWorld) -> ShaderMaterial:
 	material.set_shader_parameter("rock_colors", _lin_array(ROCK_RAMP))
 	material.set_shader_parameter("map_size", Vector2(grid))
 	material.set_shader_parameter("paper_tex", _texture(512, 512, Image.FORMAT_RGBA8, SimWorld.paper_texture(), true))
+	material.set_shader_parameter("water_tex", water_texture())
 	_set_relief_textures(material, world, world.relief_textures())
 	_set_data_textures(material, world, world.data_textures())
 	var blank := PackedByteArray()
@@ -387,6 +391,35 @@ func _ley_arrays(world: SimWorld) -> Dictionary:
 			var a := base + i * 2
 			indices.append_array([a, a + 1, a + 2, a + 1, a + 3, a + 2])
 	return {"positions": positions, "tangents": tangents, "side_level": side_level, "taper": taper, "indices": indices}
+
+
+## 水面的雜訊貼圖（GDD 5.3「水」）：R 是波紋（脊狀雜訊的脊線），G 是切出泡沫形狀的雜訊；四邊接得上，可以平鋪。
+## 與世界無關，整個程式只做一次。
+static func water_texture() -> ImageTexture:
+	if _water_texture != null:
+		return _water_texture
+	var wave := FastNoiseLite.new()
+	wave.seed = 7
+	wave.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	wave.fractal_type = FastNoiseLite.FRACTAL_RIDGED
+	wave.fractal_octaves = 2
+	wave.frequency = 4.0 / WATER_TEXTURE_SIZE
+	var foam := FastNoiseLite.new()
+	foam.seed = 11
+	foam.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	foam.fractal_type = FastNoiseLite.FRACTAL_FBM
+	foam.fractal_octaves = 3
+	foam.frequency = 10.0 / WATER_TEXTURE_SIZE
+	var waves := wave.get_seamless_image(WATER_TEXTURE_SIZE, WATER_TEXTURE_SIZE).get_data()
+	var foams := foam.get_seamless_image(WATER_TEXTURE_SIZE, WATER_TEXTURE_SIZE).get_data()
+	var data := PackedByteArray()
+	data.resize(waves.size() * 2)
+	for i in waves.size():
+		# 脊狀雜訊的脊線取三次方，收成細長的波線。
+		data[i * 2] = int(255.0 * pow(waves[i] / 255.0, 3.0))
+		data[i * 2 + 1] = foams[i]
+	_water_texture = _texture(WATER_TEXTURE_SIZE, WATER_TEXTURE_SIZE, Image.FORMAT_RG8, data, true)
+	return _water_texture
 
 
 static func _texture(width: int, height: int, format: Image.Format, data: PackedByteArray, mipmaps: bool) -> ImageTexture:

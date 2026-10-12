@@ -136,11 +136,11 @@ func test_gdd_9_1_credits_list_only_what_ships_by_name_and_licence() -> void:
 			third = row["label"] == Locale.t("credits_third")
 		elif third:
 			lines.append(row["label"])
-	assert_eq(lines.size(), 4, "第三方只列隨遊戲發佈的四項：內文字型、標誌用的行書字型、引擎、橋接")
+	assert_eq(lines.size(), 5, "第三方只列隨遊戲發佈的五項：內文字型、標誌用的行書字型、水面著色的出處、引擎、橋接")
 	for text in lines:
 		var parts := text.split("／")
 		assert_true(parts.size() == 2 or parts.size() == 3, "每列是名稱、（作者）、授權：%s" % text)
-		assert_true(parts[parts.size() - 1] in ["SIL OFL 1.1", "MIT", "MPL-2.0", "作者許可商用"], "每列以授權條款收尾：%s" % text)
+		assert_true(parts[parts.size() - 1] in ["SIL OFL 1.1", "MIT", "MPL-2.0", "CC0", "作者許可商用"], "每列以授權條款收尾：%s" % text)
 
 
 func test_gdd_9_1_title_sits_above_the_menu_on_the_right_and_the_gathering_on_the_left() -> void:
