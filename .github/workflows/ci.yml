@@ -50,11 +50,8 @@ jobs:
         working-directory: native/sim/rust
         continue-on-error: true
         run: cargo fmt --all --check
-      # 現有程式在 clippy 1.96 下有 3 項警告（landform.rs 的 is_multiple_of、兩處 needless_range_loop），
-      # 修掉前只記錄不擋；修完後移除 continue-on-error。
       - name: cargo clippy
         working-directory: native/sim/rust
-        continue-on-error: true
         run: cargo clippy --release --workspace --all-targets -- -D warnings
 
       # 世界生成效能預算（gdd_6_8_medium_generation_within_budget）在測試並行時會因爭用 CPU 超時，

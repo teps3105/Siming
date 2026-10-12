@@ -152,7 +152,7 @@ impl LandBasis {
         }
         let sea = counts[Terrain::Sea as usize];
         let half = (scale * scale / 2) as u32;
-        if sea > half || (sea == half && (x + y) % 2 == 0) {
+        if sea > half || (sea == half && (x + y).is_multiple_of(2)) {
             return (Terrain::Sea, 0);
         }
         let most = |skip_lake: bool| {
@@ -378,6 +378,7 @@ fn recompute_provinces(w: &mut World, basis: &LandBasis, coast_moved: bool, shif
         p.terrain_mix = [0; Terrain::COUNT];
         p.habitability = 0.0;
     }
+    #[allow(clippy::needless_range_loop)]
     for c in 0..geo.terrain.len() {
         let Some(p) = w.provinces.get_mut(geo.province_of[c] as usize) else { continue };
         p.cells.push(c as u32);
@@ -403,6 +404,7 @@ fn recompute_provinces(w: &mut World, basis: &LandBasis, coast_moved: bool, shif
     }
 
     // 州郡的格全數沒入海中：人口移往原本的陸鄰與海鄰（承載比低的先收，收到滿為止），容不下的折損。
+    #[allow(clippy::needless_range_loop)]
     for id in 0..w.provinces.len() {
         if !had_cells[id] || !w.provinces[id].cells.is_empty() {
             continue;
