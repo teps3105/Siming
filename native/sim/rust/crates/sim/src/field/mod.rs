@@ -3,7 +3,8 @@
 //! 場的儲存不另起一套結構，仍住在 `Geography` 與 `Province`；本模組只提供統一入口
 //! （[`get`]、[`get_cell`]、[`add`]、[`gather`]、[`scatter`]）、傳輸運算子（[`kernel`]）與衍生場（[`derive`]）。
 //!
-//! 目前州郡尚無儲存欄位的維：`CapMod`、`Incense`、`Owner`、`Bond`、`KalpaLocal`、`BeastQi`，
+//! `Owner` 的儲存在 `World::dynasty`（3.7），只能經 [`get`] 讀（編碼：王朝 ID + 1，0 為無主）；
+//! 目前州郡尚無儲存欄位的維：`CapMod`、`Incense`、`Bond`、`KalpaLocal`、`BeastQi`，
 //! 以及順流所需的 `downstream`。這些維在 [`FieldId`] 與 [`FIELD_SPECS`] 照樣列出，
 //! 讀取回 0，[`add`]、[`scatter`] 不動作；待各自的里程碑補上儲存欄位後再接入。
 //! `Bond` 依規格是衍生場，但其輸入（宿緣）不在 `Province`，同樣暫回 0。
@@ -247,6 +248,10 @@ pub fn add_to(p: &mut Province, id: FieldId, delta: f32) {
 
 /// 讀州郡的某一維（州域與衍生場）；格域場與尚無儲存的維回 0。
 pub fn get(w: &World, id: FieldId, province: ProvinceId) -> f32 {
+    // 歸屬（GDD 3.7）住在 `World::dynasty`：編碼為王朝 ID + 1，0 為無主。
+    if id == FieldId::Owner {
+        return w.dynasty.owner_of(province).map_or(0.0, |o| o as f32 + 1.0);
+    }
     w.provinces.get(province as usize).map_or(0.0, |p| get_of(p, id))
 }
 

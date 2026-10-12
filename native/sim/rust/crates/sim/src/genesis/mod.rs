@@ -318,6 +318,9 @@ fn build_people(w: &mut World) {
         w.powers[sect as usize].prestige = pr;
     }
 
+    // GDD 3.7 開國：中古、末法的初始王朝（上古無）。君主是新建的先天魂，計入下面的有名之人名額。
+    crate::dynasty::found_initial(w);
+
     // 其餘有名之人：依人口分布出生，依 3.4 入道規則決定身分。
     let target = notable_count(era, size) as usize;
     while living_count(w) < target {

@@ -40,6 +40,8 @@ pub struct World {
     pub aura_basis: Option<crate::worldgen::ley::AuraBasis>,
     /// 生成時的地形，寒暖與海平面改地形時的基準（GDD 2.8；不納入雜湊與存檔，讀檔重播時在開天當下重建）。
     pub land_basis: Option<crate::landform::LandBasis>,
+    /// GDD 3.7 王朝與州郡歸屬。新狀態，世界雜湊附加在最後。
+    pub dynasty: crate::dynasty::DynastyState,
     pub rng: RngStreams,
 }
 
@@ -48,6 +50,7 @@ impl World {
     pub fn empty(params: WorldParams, geo: Geography, provinces: Vec<Province>) -> Self {
         let rng = RngStreams::new(params.seed);
         let (evolution, eras) = crate::evolution::genesis(params.seed, params.era);
+        let dynasty = crate::dynasty::DynastyState::new(provinces.len());
         Self {
             params,
             tick: 0,
@@ -69,6 +72,7 @@ impl World {
             alive_ids: Vec::new(),
             aura_basis: None,
             land_basis: None,
+            dynasty,
             rng,
         }
     }
@@ -147,7 +151,8 @@ impl Sim {
         // 6 每季：氣場擴散（M4）
         if is_yearly(tick) {
             // 7 州郡人口
-            let famines = crate::population::yearly(&mut w.provinces);
+            let mult = crate::dynasty::growth_mult(w);
+            let famines = crate::population::yearly_with(&mut w.provinces, &mult);
             crate::ledger::record_famines(w, &famines);
             // 8、9 氣場與勢力的年度效果（M3、M4）
             // 10 年齡與壽元
@@ -165,7 +170,8 @@ impl Sim {
             crate::thread::yearly(w);
             // 15–18 勢力
             crate::dao::yearly_sects(w);
-            // 19、20 王朝、魔勢（M3、M4）
+            // 19 王朝與天命（GDD 3.7）；20 魔勢（M4）
+            crate::dynasty::yearly(w, &famines);
             // 每世：天地演變（GDD 2.8），在天機收入之前
             if is_shi(tick) {
                 crate::evolution::shi_settle(w);

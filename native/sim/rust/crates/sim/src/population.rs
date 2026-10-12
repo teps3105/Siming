@@ -28,13 +28,19 @@ fn city_level(pop: f64) -> u8 {
 ///
 /// 假設 `provinces[i].id == i`。回傳本年饑荒的州郡與死亡人數（GDD 2.3，供寫入「饑荒」事件）。
 pub fn yearly(provinces: &mut [Province]) -> Vec<(ProvinceId, u32)> {
+    yearly_with(provinces, &[])
+}
+
+/// 同 [`yearly`]，但各州成長率乘上 `growth_mult[州 ID]`（GDD 3.7 盛世 +50%；缺項視為 1）。
+pub fn yearly_with(provinces: &mut [Province], growth_mult: &[f64]) -> Vec<(ProvinceId, u32)> {
     let mut famines = Vec::new();
     // 成長與饑荒：各州獨立，依 id 順序。M1 無盛世，r 不乘倍率。
     for p in provinces.iter_mut() {
         let k = capacity(p).max(0.0);
         p.capacity = k;
         if k > 0.0 {
-            p.population += p.population * POP_GROWTH * (1.0 - p.population / k);
+            let mult = growth_mult.get(p.id as usize).copied().unwrap_or(1.0);
+            p.population += p.population * POP_GROWTH * mult * (1.0 - p.population / k);
         }
         if p.population > FAMINE_THRESHOLD * k {
             let deaths = (p.population - k) * FAMINE_DEATH_RATE;

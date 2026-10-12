@@ -38,8 +38,9 @@ fn gdd_4_6_middle_era_counts() {
     assert_eq!(live_sects(&w).len(), 10);
     assert_eq!(w.persons.len(), 3000);
     assert!(w.persons.iter().all(|p| p.alive()));
-    // M2 沒有王朝、寺院、書院。
+    // 勢力（powers）只有宗門；王朝另存於 `World::dynasty`（3.7，開天時建立 4–6 個），寺院、書院尚未實作。
     assert_eq!(w.powers.len(), 10);
+    assert!((4..=6).contains(&w.dynasty.list.len()));
     // 每個宗門有掌門且在 SECT_SIZE 規模內補滿。
     for s in live_sects(&w) {
         assert!(s.leader.is_some());
@@ -54,9 +55,9 @@ fn gdd_4_6_middle_era_counts() {
     assert!(w
         .persons
         .iter()
-        .all(|p| matches!(p.role, Role::Cultivator | Role::Demonic | Role::Monk | Role::Scholar | Role::Commoner)),
+        .all(|p| matches!(p.role, Role::Cultivator | Role::Demonic | Role::Monk | Role::Scholar | Role::Commoner | Role::Ruler | Role::GeneralCandidate)),
         "{:?}",
-        w.persons.iter().map(|p| p.role).find(|r| !matches!(r, Role::Cultivator | Role::Demonic | Role::Monk | Role::Scholar | Role::Commoner))
+        w.persons.iter().map(|p| p.role).find(|r| !matches!(r, Role::Cultivator | Role::Demonic | Role::Monk | Role::Scholar | Role::Commoner | Role::Ruler | Role::GeneralCandidate))
     );
 }
 

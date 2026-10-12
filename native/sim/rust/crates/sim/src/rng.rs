@@ -21,6 +21,8 @@ pub enum Stream {
     Cosmos = 8,
     Command = 9,
     Evolution = 10,
+    /// GDD 3.7 王朝與天命專用子流（只供 `dynasty` 模組使用，不借用其他系統的子流）。
+    Dynasty = 11,
 }
 
 pub fn stream(seed: u64, s: Stream) -> ChaCha8Rng {
@@ -39,6 +41,7 @@ pub struct RngStreams {
     pub field: ChaCha8Rng,
     pub command: ChaCha8Rng,
     pub evolution: ChaCha8Rng,
+    pub dynasty: ChaCha8Rng,
 }
 
 impl RngStreams {
@@ -51,6 +54,7 @@ impl RngStreams {
             field: stream(seed, Stream::Field),
             command: stream(seed, Stream::Command),
             evolution: stream(seed, Stream::Evolution),
+            dynasty: stream(seed, Stream::Dynasty),
         }
     }
 }

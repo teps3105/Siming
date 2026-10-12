@@ -15,6 +15,8 @@ pub type PersonId = u32;
 pub type PowerId = u32;
 pub type ThreadId = u32;
 pub type EventId = u32;
+/// GDD 3.7 王朝 ID：`World::dynasty.list` 的索引。
+pub type DynastyId = u16;
 
 /// GDD 3.1：0 號魂保留給「天道」（4.4）。
 pub const HEAVEN_SOUL: SoulId = 0;
@@ -386,6 +388,28 @@ pub enum EventKind {
     ForestCleared,
     /// GDD 2.8 一州開始沙化。
     Desertified,
+    /// GDD 3.7 立國（7.2 `DynastyFounded`）。
+    DynastyFounded,
+    /// GDD 3.7 開疆（7.2 `Annexed`）。
+    Annexed,
+    /// GDD 3.7 宣戰判定成立（7.2 `WarDeclared`；戰鬥屬 3.9）。
+    WarDeclared,
+    /// GDD 3.7 天命 < 40 的起義判定（7.2 `Rebellion`；叛軍與戰鬥屬 3.9）。
+    Rebellion,
+    /// GDD 3.7 割據：武將據州自立（7.2 `Secession`）。
+    Secession,
+    /// GDD 3.7 篡位（7.2 `Usurpation`）。
+    Usurpation,
+    /// GDD 3.7 內戰分裂（7.2 `CivilWar`）。
+    CivilWar,
+    /// GDD 3.7 天命耗盡，土崩瓦解（7.2 `DynastyCollapsed`）。
+    DynastyCollapsed,
+    /// GDD 3.7 封禪（7.2 `Fengshan`）。
+    Fengshan,
+    /// GDD 3.7 賑災（7.2 `Relief`）。
+    Relief,
+    /// GDD 3.7 禁道詔令（7.2 `BanTao`）。
+    BanTao,
 }
 
 /// GDD 3.5 天劫結果。
@@ -420,6 +444,9 @@ pub enum EventArgs {
     Lost { refuge: Option<ProvinceId>, perished: u32 },
     /// GDD 2.8：與 `other` 成為陸鄰（`joined`）或不再是陸鄰。
     Link { other: ProvinceId, joined: bool },
+    /// GDD 3.7 王朝事件：`dynasty` 為主角王朝，`other` 為對手或新生的王朝，`n` 為依事件而定的數值
+    /// （賑災為救活人數；其餘 0）。
+    Dynasty { dynasty: DynastyId, other: Option<DynastyId>, n: u32 },
 }
 
 /// GDD 3.3 因果帳中的一筆事件。文字不存在模擬中（由介面依 7.2 模板產生）。

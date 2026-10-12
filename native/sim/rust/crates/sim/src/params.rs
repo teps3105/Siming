@@ -1220,3 +1220,158 @@ pub const BOOK_THREE_LIVES_MIN: u16 = 2;
 pub const BOOK_REUNITED_MIN_LIVES: u16 = 2;
 /// 7.1 `TEACH_MERIT` 師父每收一徒的功德 +2（GDD 3.1 傳道授業）。
 pub const MASTER_TEACH_MERIT: f32 = 2.0;
+
+// ---- 王朝與天命（GDD 3.7）----
+
+/// 7.1 `DYN_FOUND` 立國：州人口下限 50,000（GDD 3.7 開國）。
+pub const DYN_FOUND_POP: f64 = 50_000.0;
+/// 7.1 `DYN_FOUND` 立國：散人或武將候補的才略下限 8。
+pub const DYN_FOUND_TALENT: f32 = 8.0;
+/// 7.1 `DYN_FOUND` 立國：每年機率 2%。
+pub const DYN_FOUND_CHANCE: f32 = 0.02;
+/// 7.1 `GENERAL_CANDIDATE` 武將候補的才略下限 6（GDD 3.4 入道判定）。
+pub const GENERAL_CANDIDATE_TALENT: f32 = 6.0;
+/// 7.1 `DYN_COVER` 中古開局王朝數下限 4（GDD 3.7 開國）。
+pub const DYN_INIT_MIDDLE_MIN: u32 = 4;
+/// 7.1 `DYN_COVER` 中古開局王朝數上限 6。
+pub const DYN_INIT_MIDDLE_MAX: u32 = 6;
+/// 7.1 `DYN_COVER` 末法開局王朝數下限 2。
+pub const DYN_INIT_DECLINE_MIN: u32 = 2;
+/// 7.1 `DYN_COVER` 末法開局王朝數上限 3。
+pub const DYN_INIT_DECLINE_MAX: u32 = 3;
+/// 7.1 `DYN_COVER` 開局王朝覆蓋的陸地比例 0.7（以州郡數計）。
+pub const DYN_INIT_COVER: f32 = 0.7;
+/// 7.1 `MANDATE_INIT` 新王朝天命初值 60。
+pub const MANDATE_INIT: f32 = 60.0;
+/// 7.1 `MANDATE_RANGE` 天命上限 100（下限 0）。
+pub const MANDATE_MAX: f32 = 100.0;
+/// 7.1 `MANDATE_TERMS` 君主德行係數 0.5（德行 − 5）。
+pub const MANDATE_VIRTUE_COEF: f32 = 0.5;
+/// 7.1 `MANDATE_TERMS` 文臣平均德行係數 0.4（德行 − 5）。
+pub const MANDATE_OFFICIAL_COEF: f32 = 0.4;
+/// 7.1 `MANDATE_TERMS` 德行的中點 5。
+pub const MANDATE_VIRTUE_MID: f32 = 5.0;
+/// 7.1 `MANDATE_TERMS` 疆域平均正氣係數 10。
+pub const MANDATE_RIGHT_COEF: f32 = 10.0;
+/// 7.1 `MANDATE_TERMS` 疆域平均業氣係數 −15。
+pub const MANDATE_KARMA_COEF: f32 = -15.0;
+/// 7.1 `MANDATE_TERMS` 都城靈氣（風水）係數 4。
+pub const MANDATE_AURA_COEF: f32 = 4.0;
+/// 7.1 `MANDATE_TERMS` 都城靈氣的中點 0.5。
+pub const MANDATE_AURA_MID: f32 = 0.5;
+/// 7.1 `MANDATE_TERMS` 每個饑荒州 −0.5。
+pub const MANDATE_FAMINE_COEF: f32 = -0.5;
+/// 7.1 `MANDATE_TERMS` 每新得一州 +1。
+pub const MANDATE_GAIN_COEF: f32 = 1.0;
+/// 7.1 `MANDATE_TERMS` 每失去一州 −3。
+pub const MANDATE_LOSS_COEF: f32 = -3.0;
+/// 7.1 `MANDATE_TERMS` 王朝週期 −min(3, 立國年數 / 100) 的上限 3。
+pub const MANDATE_CYCLE_MAX: f32 = 3.0;
+/// 7.1 `MANDATE_TERMS` 王朝週期的年數單位 100。
+pub const MANDATE_CYCLE_YEARS: f32 = 100.0;
+/// 7.1 `MANDATE_USURP` 篡位天命 −20。
+pub const MANDATE_USURP: f32 = -20.0;
+/// 7.1 `MANDATE_BROKE` 國庫不足每年天命 −5。
+pub const MANDATE_BROKE: f32 = -5.0;
+/// 7.1 `GOLDEN_AGE` 盛世：天命 ≥ 80，疆域人口成長率乘 `POP_GROWTH_PROSPEROUS_MULT`。
+pub const GOLDEN_AGE_MANDATE: f32 = 80.0;
+/// 7.1 `REBEL` 起義：天命 < 40，每州每年機率 (40 − M) / 400。
+pub const REBEL_MANDATE: f32 = 40.0;
+/// 7.1 `REBEL` 起義機率的分母 400。
+pub const REBEL_DIV: f32 = 400.0;
+/// 7.1 `REBEL_AGE` 起義首領新魂的年齡 25 歲（GDD 3.7）。
+pub const REBEL_AGE: u32 = 25;
+/// 7.1 `SECEDE` 割據：天命 < 20，每位駐守非都城州的武將每年機率 (20 − M) / 200。
+pub const SECEDE_MANDATE: f32 = 20.0;
+/// 7.1 `SECEDE` 割據機率的分母 200。
+pub const SECEDE_DIV: f32 = 200.0;
+/// 7.1 `CIVIL_WAR` 內戰：前兩名候選人才略差 ≤ 1。
+pub const CIVIL_WAR_GAP: f32 = 1.0;
+/// 7.1 `CIVIL_WAR` 內戰機率 35%。
+pub const CIVIL_WAR_CHANCE: f32 = 0.35;
+/// 7.1 `CIVIL_WAR` 內戰後雙方互相的關係值（規格只說互相宣戰，取最低 −100）。
+pub const CIVIL_WAR_RELATION: i8 = -100;
+/// 7.1 `OFFICIALS` 文臣員額 2 + 州數 / 5。
+pub const OFFICIALS_BASE: u32 = 2;
+/// 7.1 `OFFICIALS` 文臣員額的州數除數 5。
+pub const OFFICIALS_DIV: u32 = 5;
+/// 7.1 `OFFICIALS` 文臣員額上限 10。
+pub const OFFICIALS_MAX: u32 = 10;
+/// 7.1 `GENERALS` 武將員額 1 + 州數 / 4。
+pub const GENERALS_BASE: u32 = 1;
+/// 7.1 `GENERALS` 武將員額的州數除數 4。
+pub const GENERALS_DIV: u32 = 4;
+/// 7.1 `GENERALS` 武將員額上限 12。
+pub const GENERALS_MAX: u32 = 12;
+/// 7.1 `OFFICIALS` 文臣、武將、立國者的最低年齡 18（取用現有人物時不取幼年者；規格未寫，沿用婚配的成年線）。
+pub const OFFICIAL_MIN_AGE: u32 = 18;
+/// 7.1 `BAN_TAO` 禁道：君主道緣中道 < 0.15。
+pub const BAN_TAO_AFFINITY: f32 = 0.15;
+/// 7.1 `BAN_TAO` 禁道：疆域內宗門聲望 ≥ 100。
+pub const BAN_TAO_PRESTIGE: f32 = 100.0;
+/// 7.1 `BAN_TAO` 禁道每年機率 5%。
+pub const BAN_TAO_CHANCE: f32 = 0.05;
+/// 7.1 `BAN_TAO` 禁道期間宗門聲望修正每年 −5。
+pub const BAN_TAO_SECT_MOD: f32 = -5.0;
+/// 7.1 `BAN_TAO` 禁道頒布時宗門與王朝的關係 −100。
+pub const BAN_TAO_RELATION: i8 = -100;
+/// 7.1 `REVERE_TAO` 尊道：疆域內宗門聲望修正每年 +2。
+pub const REVERE_TAO_SECT_MOD: f32 = 2.0;
+/// 7.1 `REVERE_RU` 尊儒：疆域正氣每年 +0.01。
+pub const REVERE_RU_RIGHT: f32 = 0.01;
+/// 7.1 `DYN_ARMY` 常備軍 = 疆域人口 × 0.005（GDD 2.3、3.7）。
+pub const STANDING_ARMY_RATE: f64 = 0.005;
+/// 7.1 `UPKEEP_TROOP` 軍費：每千兵每年 20。
+pub const UPKEEP_TROOP_PER_1000: f64 = 20.0;
+/// 7.1 `OFFICER` 官俸：每位文臣、武將每年 5。
+pub const UPKEEP_OFFICER: f64 = 5.0;
+/// 7.1 `COURT` 宮廷：收入的 10%。
+pub const UPKEEP_COURT: f64 = 0.1;
+/// 7.1 `TREASURY_CAP` 國庫上限 = 5 年收入。
+pub const TREASURY_CAP_YEARS: f64 = 5.0;
+/// 7.1 `RELIEF` 賑災：天命 ≥ 40。
+pub const RELIEF_MANDATE: f32 = 40.0;
+/// 7.1 `RELIEF` 賑災支出 = 饑荒死者 × 0.001。
+pub const RELIEF_SPEND_PER_DEATH: f64 = 0.001;
+/// 7.1 `RELIEF` 賑災救回饑荒死者的一半。
+pub const RELIEF_SAVED_RATIO: f64 = 0.5;
+/// 7.1 `EXPAND` 擴張：天命 ≥ 50。
+pub const EXPAND_MANDATE: f32 = 50.0;
+/// 7.1 `EXPAND` 擴張：國庫 ≥ 2 年支出。
+pub const EXPAND_TREASURY_YEARS: f64 = 2.0;
+/// 7.1 `EXPAND` 開疆每年機率 20%。
+pub const EXPAND_ANNEX_CHANCE: f32 = 0.2;
+/// 7.1 `EXPAND` 宣戰每年機率 10%。
+pub const EXPAND_WAR_CHANCE: f32 = 0.1;
+/// 7.1 `EXPAND` 宣戰：我方軍力 ≥ 對方 1.3 倍。
+pub const EXPAND_WAR_RATIO: f64 = 1.3;
+/// 7.1 `MOBILIZE` 可動員兵力 P × 0.02 × min(1, M / 100 + 0.5)（GDD 3.9）。
+pub const MOBILIZE_RATE: f64 = 0.02;
+/// 7.1 `MOBILIZE` 動員係數中天命的偏移 0.5。
+pub const MOBILIZE_MANDATE_OFFSET: f64 = 0.5;
+/// 7.1 `RELATION_DRIFT` 關係每年向 0 回歸 10%。
+pub const RELATION_DRIFT_RATE: i32 = 10;
+/// 7.1 `RELATION_DRIFT` 接壤每年 −5。
+pub const RELATION_BORDER: i32 = -5;
+/// 7.1 `RELATION_DRIFT` 同國策每年 +5。
+pub const RELATION_SAME_POLICY: i32 = 5;
+/// 7.1 `FENGSHAN` 封禪：天命 ≥ 90。
+pub const FENGSHAN_MANDATE: f32 = 90.0;
+/// 7.1 `FENGSHAN` 封禪：天命 ≥ 90 須持續 30 年。
+pub const FENGSHAN_YEARS: u16 = 30;
+/// 7.1 `FENGSHAN` 封禪：君主德行 ≥ 8。
+pub const FENGSHAN_VIRTUE: f32 = 8.0;
+/// 7.1 `FENGSHAN` 封禪：君主的魂 G + 300。
+pub const FENGSHAN_MERIT: f32 = 300.0;
+/// 7.1 `FENGSHAN` 封禪：天命 + 10。
+pub const FENGSHAN_MANDATE_BONUS: f32 = 10.0;
+/// 7.1 `FENGSHAN` 封禪：都城正氣 + 0.2。
+pub const FENGSHAN_RIGHT: f32 = 0.2;
+/// 7.1 `DYN_PRESTIGE` 王朝聲望 = 州數 × 10 + M。
+pub const DYN_PRESTIGE_PER_PROVINCE: f32 = 10.0;
+/// 7.1 `ROYAL_BIRTH` 王族生育每年 15%（GDD 3.4）。
+pub const ROYAL_BIRTH: f32 = 0.15;
+/// 7.1 `ROYAL_MAX` 王族子女至多 5 名（GDD 3.4）。
+pub const ROYAL_MAX: usize = 5;
+/// 7.1 `MANDATE_BROKE` 國庫不足時，才略最高的武將叛離自立的機率 50%（GDD 3.7 財政）。
+pub const BROKE_DEFECT_CHANCE: f32 = 0.5;
