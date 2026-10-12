@@ -56,6 +56,7 @@ func setup(sim: SimHost, map: TerrainMap, camera: MapCamera) -> void:
 		_card.show_province(id)
 		if id >= 0:
 			_guide.notify(&"select"))
+	camera.soul_selected.connect(_on_soul_selected)
 	camera.globe_changed.connect(func(on: bool) -> void:
 		_view.globe = on
 		_guide.notify(&"globe"))
@@ -74,7 +75,8 @@ func setup(sim: SimHost, map: TerrainMap, camera: MapCamera) -> void:
 		_person_card.refresh()
 		_overlay.refresh_seats()
 		_overlay.refresh_sects()
-		_map.refresh_faith())
+		_map.refresh_faith()
+		_map.refresh_karma())
 	# 地圖換貼圖的那一幀已經有上傳的工作，標籤留到下一幀再重讀。
 	map.refreshed.connect(func(_terrain: bool) -> void:
 		await get_tree().process_frame
@@ -142,6 +144,7 @@ func _build() -> void:
 	_overlay = MapOverlay.new()
 	add_child(_overlay)
 	_overlay.setup(_sim.world, _map, _camera, _unit)
+	_map.set_ui_unit(_unit)
 
 	_dial = TimeDial.new()
 	add_child(_dial)
@@ -173,6 +176,7 @@ func _build() -> void:
 	_person_card.back_requested.connect(go_back)
 	_person_card.closed.connect(func() -> void:
 		_back_stack.clear()
+		_map.clear_karma_highlight()
 		_map.set_selected(-1))
 	_back_stack = stack
 	if shown_person >= 0:
@@ -424,6 +428,16 @@ func _apply_device() -> void:
 	_rumor.gamepad = _camera.use_crosshair
 
 
+## 因果模式下點了魂光（GDD 5.4）：開那位的人物卡，地圖只留他的線並標出前世所在，鏡頭落在他的魂光上。
+func _on_soul_selected(person: int) -> void:
+	_map.set_selected(-1)
+	open_person(person)
+	_map.select_karma_soul(person)
+	var spot := _map.karma_layer().glow_position_of(person)
+	if spot != Vector2.INF:
+		_camera.look_at_map(spot)
+
+
 func _set_mode(mode: TerrainMap.Mode) -> void:
 	if mode != _map.mode:
 		_guide.notify(&"mode")
@@ -460,6 +474,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		_set_mode(TerrainMap.Mode.SANJIAO)
 	elif event.is_action_pressed(InputActions.MODE_LINGMAI):
 		_set_mode(TerrainMap.Mode.LINGMAI)
+	elif event.is_action_pressed(InputActions.MODE_YINGUO):
+		_set_mode(TerrainMap.Mode.KARMA)
 	elif event.is_action_pressed(InputActions.CANCEL):
 		go_back()
 	elif event.is_action_pressed(InputActions.CARD_CENTER):

@@ -6,7 +6,7 @@ extends Node3D
 ## 世界的一世結算改了地圖後發出（GDD 2.8「畫面」）：terrain 為真表示高度場也換了，否則只換了州界、靈氣與靈脈。
 signal refreshed(terrain: bool)
 
-enum Mode { SHANHE = 0, TIANXIA = 1, SANJIAO = 2, LINGMAI = 3 }
+enum Mode { SHANHE = 0, TIANXIA = 1, SANJIAO = 2, LINGMAI = 3, KARMA = 4 }
 
 const TERRAIN_SHADER := preload("res://modules/map/code/terrain_relief.gdshader")
 const RIVER_SHADER := preload("res://modules/map/code/river_line.gdshader")
@@ -21,6 +21,11 @@ const GLOBE_MORPH_SECONDS := 0.6
 ## 天地演變換圖後，新舊地形之間漸變的秒數（GDD 2.8「畫面」）。
 const TERRAIN_FADE_SECONDS := 3.0
 const RELIEF_TEXTURES: Array[String] = ["elevation", "lake", "climate", "cover"]
+## GDD 5.3 因果模式後處理：轉墨的漸變秒數；地形著色器的 ink_wash 由 0 走到 1。
+const INK_WASH_SECONDS := 0.35
+## 因果模式把亮度乘、彩度乘的係數（GDD 5.3），河流色用同一組換算。
+const WASH_LIGHT := 0.35
+const WASH_SATURATION := 0.2
 
 ## GDD 5.1 色票（sRGB）。
 const PAPER := Color("EDE4CF")
@@ -60,6 +65,10 @@ var _blank_colors: ImageTexture
 ## 三教模式的州郡著色表（道的教化濃度），隨教化變動更新。
 var _faith_colors: ImageTexture
 var _ring_count := 0
+## 因果模式的魂光與因果線圖層（GDD 5.4）；轉墨程度 0 是原樣、1 是全轉墨。
+var _karma: KarmaLayer
+var _ink_wash := 0.0
+var _ui_unit := 1.0
 ## 高度消失點（MapView.lean）：鏡頭焦點、地面上由焦點指向鏡頭的方向與眼高；眼高為 0 時不位移。
 var _view_focus := Vector2.ZERO
 var _toward := Vector2(0.0, 1.0)
@@ -81,6 +90,9 @@ func build(world: SimWorld) -> void:
 	_world = world
 	for copy in _terrain_copies + _river_copies + _old_river_copies + _ley_copies:
 		copy.queue_free()
+	if _karma != null:
+		_karma.queue_free()
+		_karma = null
 	_terrain_copies.clear()
 	_river_copies.clear()
 	_old_river_copies.clear()
@@ -106,6 +118,11 @@ func build(world: SimWorld) -> void:
 		_river_copies.append(_add_copy("River%d" % i, river_mesh, _river_material, bounds))
 		_old_river_copies.append(_add_copy("RiverOld%d" % i, null, _river_material, bounds))
 		_ley_copies.append(_add_copy("Ley%d" % i, ley_mesh, _ley_material, bounds))
+	_karma = KarmaLayer.new()
+	_karma.name = "Karma"
+	add_child(_karma)
+	_karma.setup(self, world)
+	_karma.set_unit(_ui_unit)
 	_shown_map = world.map_revision()
 	_shown_terrain = world.terrain_revision()
 	_fade_from = _fade_to
@@ -121,6 +138,10 @@ func _process(delta: float) -> void:
 		return
 	if _fade < 1.0:
 		_apply_fade(minf(_fade + delta / TERRAIN_FADE_SECONDS, 1.0))
+	var wash_target := 1.0 if mode == Mode.KARMA else 0.0
+	if _ink_wash != wash_target:
+		_ink_wash = move_toward(_ink_wash, wash_target, delta / INK_WASH_SECONDS)
+		_terrain_material.set_shader_parameter("ink_wash", smoothstep(0.0, 1.0, _ink_wash))
 	_world.poll_terrain()
 	if _world.map_revision() == _shown_map:
 		return
@@ -145,6 +166,7 @@ func _process(delta: float) -> void:
 	for copy in _ley_copies:
 		copy.mesh = ley_mesh
 	set_mode(mode)
+	refresh_karma()
 	refreshed.emit(terrain)
 
 
@@ -177,6 +199,8 @@ func recenter(focus_x: float) -> void:
 		for copy: MeshInstance3D in [_terrain_copies[i], _river_copies[i], _old_river_copies[i], _ley_copies[i]]:
 			copy.position.x = offset
 			copy.set_instance_shader_parameter("copy_offset", offset)
+		if _karma != null:
+			_karma.set_copy_offset(i, offset)
 
 
 func set_mode(new_mode: Mode) -> void:
@@ -192,9 +216,14 @@ func set_mode(new_mode: Mode) -> void:
 			_terrain_material.set_shader_parameter("pcol_tex", _blank_colors)
 	# GDD 5.3「河流」設色：山河、天下用 water 色；靈脈等以場為主的模式改用 ink-light。
 	var line := WATER.darkened(0.25) if mode != Mode.LINGMAI else INK_LIGHT
+	if mode == Mode.KARMA:
+		line = wash_color(line)
 	_river_material.set_shader_parameter("line_color", _lin(line))
 	for copy in _ley_copies:
 		copy.visible = mode == Mode.LINGMAI
+	# 因果模式的轉墨由 _process 漸變（進入走向 1、離開走回 0）；魂光與因果線圖層隨模式顯示或全部隱藏。
+	if _karma != null:
+		_karma.set_active(mode == Mode.KARMA)
 
 
 ## 三教模式：重新讀取各州郡的主教化著色表（GDD 5.4 F3）。教化每年變動；其他模式不動作。
@@ -266,7 +295,9 @@ func update_view(z: float, focus: Vector2, camera_basis: Basis, delta: float, gl
 	_eye = MapView.eye_height(z, _top_height)
 	_globe_relief = MapView.globe_relief(z, map_size.x)
 	var radius := MapView.globe_radius(map_size.x)
-	for material: ShaderMaterial in [_terrain_material, _river_material, _ley_material]:
+	var shaded: Array[ShaderMaterial] = [_terrain_material, _river_material, _ley_material]
+	shaded.append_array(_karma.materials())
+	for material: ShaderMaterial in shaded:
 		material.set_shader_parameter("vanish_focus", _view_focus)
 		material.set_shader_parameter("vanish_toward", _toward / tan(MapView.pitch()))
 		material.set_shader_parameter("vanish_eye", _eye)
@@ -361,9 +392,61 @@ func pick(origin: Vector3, dir: Vector3) -> Vector2:
 ## 可以鎖定的目標（地圖座標）：各州郡的治所。M2 起加入人物與建築。
 func lock_targets() -> PackedVector2Array:
 	var out := PackedVector2Array()
+	if mode == Mode.KARMA:
+		return _karma.glow_positions()
 	for id in _world.province_count():
 		out.append(_world.province_info(id)["seat"])
 	return out
+
+
+## 因果模式（GDD 5.4）的公開接點。
+
+## 高亮一組人物與宿緣（事件卡的溯因視圖用）：只畫這些宿緣的線，這些人以外的魂光淡去；focus 給定時另標選取環與前世所在地點。
+## 只在因果模式畫出；不在因果模式時先記著，切進來時生效。
+func highlight_karma(people: PackedInt32Array, threads: PackedInt32Array, focus := -1) -> void:
+	_karma.highlight(people, threads, focus)
+
+
+## 選取一位的魂光：高亮他的魂牽著的全部未了宿緣與線另一端的人，並標出前世所在地點。
+func select_karma_soul(person: int) -> void:
+	_karma.select_soul(person)
+
+
+func clear_karma_highlight() -> void:
+	_karma.clear_highlight()
+
+
+## 推進時間或換圖後重讀因果資料（只在因果模式有動作）。
+func refresh_karma() -> void:
+	if _karma != null:
+		_karma.refresh()
+
+
+## 因果模式下螢幕點 screen 最近的魂光所屬的人物編號；沒有為 -1。
+func karma_soul_at(camera: MapCamera, screen: Vector2) -> int:
+	return _karma.soul_at(camera, screen) if mode == Mode.KARMA else -1
+
+
+func karma_layer() -> KarmaLayer:
+	return _karma
+
+
+## 介面單位改變時（Hud 重排）通知圖層，線寬與魂光大小跟著放大。
+func set_ui_unit(unit: float) -> void:
+	_ui_unit = unit
+	if _karma != null:
+		_karma.set_unit(unit)
+
+
+## 目前轉墨的程度（0 原樣、1 全轉墨）。
+func ink_wash() -> float:
+	return _ink_wash
+
+
+## 把顏色換算成因果模式的墨色調（GDD 5.3：亮度 × 0.35、彩度 × 0.2）。
+static func wash_color(color: Color) -> Color:
+	var luma := color.get_luminance()
+	return Color(Color(luma, luma, luma).lerp(color, WASH_SATURATION) * WASH_LIGHT, color.a)
 
 
 func province_at(map_pos: Vector2) -> int:

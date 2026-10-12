@@ -117,7 +117,7 @@ func test_clicking_instruments_does_not_leak_to_the_map() -> void:
 	assert_eq(_hud._card.province, 0, "點器物不應改變地圖的選取")
 	await click(_hud._seals.position + _hud._seals._seal_rect(1).get_center())
 	assert_eq(_map.mode, TerrainMap.Mode.TIANXIA, "點「國」印切到天下")
-	await click(_hud._seals.position + _hud._seals._seal_rect(4).get_center())
+	await click(_hud._seals.position + _hud._seals._seal_rect(5).get_center())
 	assert_eq(_map.mode, TerrainMap.Mode.TIANXIA, "尚未開放的印不切換模式")
 	await click(_hud._card.position + _hud._card._close_rect().get_center())
 	assert_eq(_hud._card.province, -1, "點「閉」印收卷")

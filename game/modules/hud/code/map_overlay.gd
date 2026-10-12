@@ -418,7 +418,7 @@ func _draw_sects(taken: Array[Rect2]) -> void:
 		if not screen.has_point(point):
 			continue
 		var evil: bool = sect["evil"]
-		_draw_gate(point, scale, evil)
+		_draw_gate(point, scale, evil, _map.mode == TerrainMap.Mode.KARMA)
 		var mark := Rect2(point + Vector2(-8.0, -24.0) * scale, Vector2(16.0, 27.0) * scale)
 		if show_name:
 			var extent := Ink.text_size(sect["name"], size)
@@ -430,10 +430,13 @@ func _draw_sects(taken: Array[Rect2]) -> void:
 
 
 ## 山門圖樣：base 是山徑的落腳點（山門位置），scale 是每個圖樣單位的像素。
-func _draw_gate(base: Vector2, scale: float, evil: bool) -> void:
+func _draw_gate(base: Vector2, scale: float, evil: bool, outline_only := false) -> void:
 	var wall := SECT_WALL_EVIL if evil else Ink.PAPER_LIGHT
 	var roof := SECT_ROOF_EVIL if evil else SECT_ROOF_GOOD
 	var line := maxf(1.0, scale * 1.1)
+	if outline_only:
+		_draw_gate_outline(base, scale, line)
+		return
 	# 襯底的紙色暈，讓圖樣在山色上看得清楚。
 	draw_circle(base + Vector2(0.0, -10.0) * scale, 13.0 * scale, Color(Ink.PAPER_LIGHT, 0.55))
 	# 山徑：由牌坊下蜿蜒下山。
@@ -466,6 +469,27 @@ func _draw_gate(base: Vector2, scale: float, evil: bool) -> void:
 		draw_colored_polygon(cap, roof)
 		draw_polyline(body + PackedVector2Array([body[0]]), Ink.INK, line * 0.8, true)
 		draw_polyline(cap + PackedVector2Array([cap[0]]), Ink.INK, line * 0.8, true)
+
+
+## 因果模式的山門只留輪廓（GDD 5.3「因果模式後處理」）：牌坊與三重殿的外框，淡紙色細線，不填色。
+func _draw_gate_outline(base: Vector2, scale: float, line: float) -> void:
+	var color := Color(Ink.PAPER_LIGHT, 0.8)
+	for x in [-4.0, 4.0]:
+		draw_line(base + Vector2(x, -1.0) * scale, base + Vector2(x, -7.0) * scale, color, line)
+	draw_line(base + Vector2(-6.0, -7.0) * scale, base + Vector2(6.0, -7.0) * scale, color, line)
+	for tier: Array in [[5.0, 8.5, 11.5, 4.0], [3.6, 12.5, 15.5, 3.2], [2.2, 16.5, 19.0, 2.6]]:
+		var half: float = tier[0]
+		var foot: float = tier[1]
+		var eave: float = tier[2]
+		var rise: float = tier[3]
+		var shape := PackedVector2Array([
+			Vector2(-half, -foot), Vector2(half, -foot), Vector2(half, -eave + 1.0), Vector2(half + 1.8, -eave + 1.0),
+			Vector2(half - 0.6, -eave - rise + 1.0), Vector2(-half + 0.6, -eave - rise + 1.0), Vector2(-half - 1.8, -eave + 1.0),
+			Vector2(-half, -eave + 1.0), Vector2(-half, -foot),
+		])
+		for i in shape.size():
+			shape[i] = base + shape[i] * scale
+		draw_polyline(shape, color, line * 0.8, true)
 
 
 ## 三教模式、鏡頭高過中景而不畫山門圖樣時，在山門位置畫一個小圓點（圈的圈心），

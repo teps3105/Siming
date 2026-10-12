@@ -24,6 +24,15 @@ uniform int map_mode = 0;             // 0 山河、1 天下、3 靈脈
 uniform float hover_province = -1.0;
 uniform float selected_province = -1.0;
 uniform float tint_opacity = 0.0;     // 州郡疊色不透明度
+// 因果模式後處理（GDD 5.3）：在感知（伽瑪）空間把亮度乘 0.35、彩度乘 0.2。
+const float INK_LIGHT_MUL = 0.35;
+const float INK_SAT_MUL = 0.2;
+vec3 to_ink(vec3 c) {
+	vec3 g = pow(max(c, vec3(0.0)), vec3(1.0 / 2.2));
+	float l = dot(g, vec3(0.2126, 0.7152, 0.0722));
+	return pow(mix(vec3(l), g, INK_SAT_MUL) * INK_LIGHT_MUL, vec3(2.2));
+}
+uniform float ink_wash = 0.0;         // 因果模式的轉墨程度（GDD 5.3「因果模式後處理」）：0 原樣、1 全轉墨
 // 三教模式的宗門勢力範圍圈（GDD 5.4）：(圈心 x、y，半徑，虛線段數)，單位為遊戲格；顏色為 sRGB。
 const int RING_MAX = 96;
 uniform int ring_count = 0;
@@ -422,6 +431,11 @@ void fragment() {
 		col = mix(col, field_ramp(fv) * mix(0.75, 1.0, clamp(0.5 + shade, 0.0, 1.0)), field_opacity * (1.0 - wmask));
 	}
 
+	// 5.4 因果模式後處理（GDD 5.3）：地形底色與疊色轉墨；州界、停留與選取、紙紋與霧在其上，墨線仍看得見。
+	if (ink_wash > 0.0) {
+		col = mix(col, to_ink(col), ink_wash);
+	}
+
 	// 5.5 宗門勢力範圍圈：以山門為心的虛線，沿圈每段約同樣的螢幕長度。
 	if (ring_count > 0) {
 		float polar_f = 1.0 - smoothstep(0.883, 0.978, abs(d.y));
@@ -476,12 +490,13 @@ void fragment() {
 	vec3 pap = texture(paper_tex, wp / 22.0).rgb / 0.96;
 	col *= mix(vec3(1.0), pap, 0.5);
 	float dist = length(CAMERA_POSITION_WORLD - v_wpos);
-	col = mix(col, paper, smoothstep(fog_start, fog_end, dist) * 0.85);
+	vec3 paper_now = ink_wash > 0.0 ? mix(paper, to_ink(paper), ink_wash) : paper;
+	col = mix(col, paper_now, smoothstep(fog_start, fog_end, dist) * 0.85);
 
 	// 9 南北緣之外的邊疆帶淡成紙色。
 	float out_y = max(-wp.y, wp.y - map_size.y);
 	float fade_y = smoothstep(-2.0, 0.05 * map_size.x, out_y) * (1.0 - globe_morph);
-	col = mix(col, paper, fade_y);
+	col = mix(col, paper_now, fade_y);
 
 	ALBEDO = col;
 }

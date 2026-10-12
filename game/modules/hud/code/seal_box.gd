@@ -15,7 +15,7 @@ const SEALS := [
 	{"key": "tianxia", "mode": TerrainMap.Mode.TIANXIA, "action": InputActions.MODE_TIANXIA},
 	{"key": "sanjiao", "mode": TerrainMap.Mode.SANJIAO, "action": InputActions.MODE_SANJIAO},
 	{"key": "lingmai", "mode": TerrainMap.Mode.LINGMAI, "action": InputActions.MODE_LINGMAI},
-	{"key": "yinguo", "mode": -1, "action": &""},
+	{"key": "yinguo", "mode": TerrainMap.Mode.KARMA, "action": InputActions.MODE_YINGUO},
 	{"key": "yeqi", "mode": -1, "action": &""},
 ]
 const ICON_RADIUS := 9.0
@@ -188,6 +188,10 @@ func legend_entries(for_mode: int) -> Dictionary:
 			lines = [["legend_sanjiao_tao", "tao"], ["legend_sanjiao_range", "ring"]]
 		TerrainMap.Mode.LINGMAI:
 			lines = [["legend_lingmai", "ramp"]]
+		TerrainMap.Mode.KARMA:
+			lines = [["legend_karma_soul", "soul"]]
+			for kind in KarmaLayer.KIND_KEYS.size():
+				lines.append(["kind_%s" % KarmaLayer.KIND_KEYS[kind], "karma_line", kind])
 		_:
 			lines = [["mode_disabled_hint", ""]]
 	return {"lines": lines, "places": places}
@@ -266,12 +270,36 @@ func _draw_legend_lines(lines: Array, origin: Vector2, column_width: float, colu
 			for k in 8:
 				draw_arc(mid, 8.0 * _unit, TAU * k / 8.0, TAU * (k + 0.6) / 8.0, 4, MapOverlay.RING_COLOR, 1.5, true)
 			text_x = 3 * 14.0 * _unit + 6.0 * _unit
+		elif swatch == "soul":
+			# 魂光：金（淨業力為正）與赤（為負）兩點。
+			for k in 2:
+				var mid := pos + Vector2((6.0 + 14.0 * k) * _unit, 9.0 * _unit)
+				var tone: Color = KarmaLayer.GOLD if k == 0 else KarmaLayer.RED
+				draw_circle(mid, 6.0 * _unit, Color(tone, 0.28))
+				draw_circle(mid, 3.5 * _unit, tone)
+			text_x = 2 * 14.0 * _unit + 6.0 * _unit
+		elif swatch == "karma_line":
+			_draw_karma_swatch(pos + Vector2(0.0, 9.0 * _unit), lines[i][2])
+			text_x = 3 * 14.0 * _unit + 6.0 * _unit
 		elif swatch == "terrain":
 			TerrainSwatches.chip(self, Rect2(pos + Vector2(0.0, (note_size - 12.0 * _unit) * 0.5 + 2.0), Vector2(13.0, 12.0) * _unit), lines[i][0])
 			text_x = 19.0 * _unit
 		elif swatch == "place":
 			ink = MapOverlay.KIND_COLORS[lines[i][2]]
 		Ink.text(self, pos + Vector2(text_x, 0.0), Locale.t(lines[i][0]), note_size, ink)
+
+
+## 因果線的圖例線樣：顏色與線型（線型是不靠顏色的區別，5.1）同地圖上的因果線；origin 是線樣左端的中線。
+func _draw_karma_swatch(origin: Vector2, kind: int) -> void:
+	var color := KarmaLayer.KIND_COLORS[kind]
+	# 每種線型的 [起, 止] 劃段（像素），週期見 karma_line.gdshader 的 pattern。
+	var runs: Array = [[[0.0, 40.0]], [[0.0, 16.0], [22.0, 38.0]], [[0.0, 3.0], [9.0, 12.0], [18.0, 21.0], [27.0, 30.0], [36.0, 39.0]], [[0.0, 12.0], [17.0, 20.0], [28.0, 40.0]], [[0.0, 6.0], [12.0, 18.0], [24.0, 30.0], [36.0, 40.0]]][kind]
+	var width := 3.0 * _unit
+	for run: Array in runs:
+		var a := origin + Vector2(run[0] * _unit, 0.0)
+		var b := origin + Vector2(run[1] * _unit, 0.0)
+		draw_line(a, b, Color(KarmaLayer.CASING, 0.9), width + 2.0 * _unit)
+		draw_line(a, b, color, width)
 
 
 func _gui_input(event: InputEvent) -> void:

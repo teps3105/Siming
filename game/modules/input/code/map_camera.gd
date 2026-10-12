@@ -10,6 +10,8 @@ extends Camera3D
 signal province_hovered(province: int)
 signal province_selected(province: int)
 signal globe_changed(on: bool)
+## 因果模式下點到了魂光（GDD 5.4）；參數是人物編號。
+signal soul_selected(person: int)
 
 ## 臨界阻尼平滑的時間常數（秒）。
 const SMOOTH_SECONDS := 0.12
@@ -475,6 +477,13 @@ func _province_under(screen: Vector2) -> int:
 
 
 func _select_at(screen: Vector2) -> void:
+	# 因果模式：點到魂光就選取那位（密集處取最近的一個），不選州郡。
+	var soul := _map.karma_soul_at(self, screen)
+	if soul >= 0:
+		soul_selected.emit(soul)
+		return
+	if _map.mode == TerrainMap.Mode.KARMA:
+		_map.clear_karma_highlight()
 	var province := _province_under(screen)
 	_map.set_selected(province)
 	province_selected.emit(province)
