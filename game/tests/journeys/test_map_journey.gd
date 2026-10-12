@@ -405,3 +405,35 @@ func test_a_locks_on_to_the_nearest_target_and_cycles() -> void:
 	await joy_button(JOY_BUTTON_A)
 	assert_eq(_hud._card.province, 0, "動過右搖桿後重新從最近的算起")
 
+
+
+## GDD 2.8「畫面」：一世結算改了水陸後，高度場在背景重算，算好後地圖換上新的貼圖與河流，地形網格不重建。
+func test_map_swaps_textures_after_the_land_changes() -> void:
+	var terrain: MeshInstance3D = _map.get_node("Terrain0")
+	var river: MeshInstance3D = _map.get_node("River0")
+	var material: ShaderMaterial = terrain.material_override
+	var mesh := terrain.mesh
+	var elevation: Texture2D = material.get_shader_parameter("elevation_tex")
+	var borders: Texture2D = material.get_shader_parameter("pid_tex")
+	var river_mesh := river.mesh
+	var heard: Array[bool] = []
+	var listen := func(changed: bool) -> void: heard.append(changed)
+	_map.refreshed.connect(listen)
+	var shi := 0
+	while not _sim.world.terrain_pending() and shi < 40:
+		_sim.advance(360)
+		shi += 1
+	assert_true(_sim.world.terrain_pending(), "40 世內水陸應有變動")
+	var waited := 0
+	while not heard.has(true) and waited < 600:
+		await frames(1)
+		waited += 1
+	_map.refreshed.disconnect(listen)
+	assert_true(heard.has(true), "高度場算好後地圖應通知換了地形")
+	assert_false(_sim.world.terrain_pending())
+	assert_eq(terrain.mesh, mesh, "地形網格不重建")
+	assert_eq(terrain.material_override, material, "材質沿用")
+	assert_ne(material.get_shader_parameter("elevation_tex"), elevation, "高度貼圖換新")
+	assert_ne(material.get_shader_parameter("pid_tex"), borders, "州界貼圖換新")
+	assert_ne(river.mesh, river_mesh, "河流網格換新")
+	assert_eq(_map.mode, TerrainMap.Mode.SHANHE)

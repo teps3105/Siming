@@ -279,3 +279,86 @@ func test_gdd_4_8_bad_save_text_reports_an_error() -> void:
 	assert_ne(result["error"], "", "雜湊被改過的存檔讀不進來")
 	assert_false(world.is_ready())
 
+
+
+## 推進到水陸變了、背景開始重算為止；回傳過了幾世（40 世內沒變就回傳 -1）。
+func _step_until_rebake(world: SimWorld) -> int:
+	for shi in range(1, 41):
+		world.step(360)
+		if world.terrain_pending():
+			return shi
+	return -1
+
+
+func test_gdd_2_8_terrain_is_rebaked_off_the_main_thread_after_the_land_changes() -> void:
+	var world := SimWorld.new()
+	assert_eq(world.create(SEED, "small"), "")
+	var before := world.map_textures()
+	var terrain := world.terrain_revision()
+	var shown := world.map_revision()
+	assert_false(world.terrain_pending(), "剛開天不必重算")
+	assert_gt(_step_until_rebake(world), 0, "40 世內水陸應有變動")
+	assert_eq(world.terrain_revision(), terrain, "算好之前用的還是舊的高度場")
+	assert_eq(world.map_textures()["climate"], before["climate"], "算好之前貼圖不變")
+	world.flush_terrain()
+	assert_false(world.terrain_pending())
+	assert_eq(world.terrain_revision(), terrain + 1)
+	assert_gt(world.map_revision(), shown)
+	var after := world.map_textures()
+	assert_eq(after["elevation_size"], before["elevation_size"])
+	var changed := false
+	for key: String in ["elevation", "lake", "climate", "cover"]:
+		changed = changed or after[key] != before[key]
+	assert_true(changed, "水陸變了，貼圖應跟著變")
+
+
+func test_gdd_2_8_rebaked_terrain_equals_the_one_built_on_load() -> void:
+	var world := SimWorld.new()
+	assert_eq(world.create(SEED, "small"), "")
+	assert_gt(_step_until_rebake(world), 0)
+	world.flush_terrain()
+	var loaded := SimWorld.new()
+	assert_eq(loaded.load_begin(world.save_text()), "")
+	while not loaded.load_step(3600)["done"]:
+		pass
+	assert_true(loaded.is_ready())
+	var here := world.map_textures()
+	var there := loaded.map_textures()
+	for key: String in ["elevation", "lake", "climate", "cover", "province_id"]:
+		assert_true(here[key] == there[key], "%s 應與讀檔後重建的相同" % key)
+	assert_true(world.river_mesh()["positions"] == loaded.river_mesh()["positions"], "河流網格應與讀檔後重建的相同")
+
+
+func test_gdd_2_8_every_settlement_gives_the_map_a_new_batch() -> void:
+	var world := SimWorld.new()
+	assert_eq(world.create(SEED, "small"), "")
+	var shown := world.map_revision()
+	# 開天時預跑過一段，離下一次結算不一定是整整一世。
+	world.step(359 - world.tick() % 360)
+	assert_false(world.map_pending(), "一世結算之前不重算")
+	world.step(1)
+	assert_true(world.map_pending(), "結算後在背景重算靈氣與州界")
+	assert_eq(world.map_revision(), shown, "算好之前不換")
+	assert_false(world.poll_terrain() and world.map_pending())
+	world.flush_terrain()
+	assert_false(world.map_pending())
+	assert_eq(world.map_revision(), shown + 1)
+
+
+func test_gdd_5_3_elevation_comes_as_half_floats_with_mipmaps() -> void:
+	var world := _small_world()
+	var textures := world.relief_textures()
+	var size: Vector2i = textures["elevation_size"]
+	var image := Image.create_from_data(size.x, size.y, true, Image.FORMAT_RH, textures["elevation_half"])
+	assert_true(image != null and image.has_mipmaps(), "位元組數應符合整串多級縮圖")
+	var raw: PackedFloat32Array = world.map_textures()["elevation"]
+	var theirs := Image.create_from_data(size.x, size.y, false, Image.FORMAT_RF, raw.to_byte_array())
+	theirs.convert(Image.FORMAT_RH)
+	theirs.generate_mipmaps()
+	assert_eq(image.get_data().size(), theirs.get_data().size(), "級數與引擎自己產生的相同")
+	var worst := 0.0
+	for i in 400:
+		var x := (i * 7919) % size.x
+		var y := (i * 104729) % size.y
+		worst = maxf(worst, absf(image.get_pixel(x, y).r - raw[y * size.x + x]))
+	assert_lt(worst, 0.001, "半精度的誤差")

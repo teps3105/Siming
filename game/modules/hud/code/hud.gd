@@ -53,6 +53,11 @@ func setup(sim: SimHost, map: TerrainMap, camera: MapCamera) -> void:
 	sim.advanced.connect(func(_months: int) -> void:
 		_card.refresh()
 		_overlay.refresh_seats())
+	# 地圖換貼圖的那一幀已經有上傳的工作，標籤留到下一幀再重讀。
+	map.refreshed.connect(func(_terrain: bool) -> void:
+		await get_tree().process_frame
+		_overlay.reload()
+		_card.refresh())
 	var paper := Image.create_from_data(512, 512, false, Image.FORMAT_RGBA8, SimWorld.paper_texture())
 	Ink.paper_texture = ImageTexture.create_from_image(paper)
 	get_viewport().size_changed.connect(_layout)

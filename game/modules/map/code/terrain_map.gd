@@ -3,6 +3,9 @@ extends Node3D
 ## GDD 5.3 地圖：由 SimWorld 的資料建立地形網格、世界貼圖與河流製圖線，
 ## 並依鏡頭狀態更新著色參數。東西向以三份副本接成無縫。
 
+## 世界的一世結算改了地圖後發出（GDD 2.8「畫面」）：terrain 為真表示高度場也換了，否則只換了州界、靈氣與靈脈。
+signal refreshed(terrain: bool)
+
 enum Mode { SHANHE = 0, TIANXIA = 1, LINGMAI = 3 }
 
 const TERRAIN_SHADER := preload("res://modules/map/code/terrain_relief.gdshader")
@@ -50,6 +53,9 @@ var _eye := 0.0
 var _globe_relief := 1.0
 ## 全圖最高的地表高度（建圖時取一次；每次查詢要掃整張地圖）。
 var _top_height := 1.0
+## 目前畫面依據的是世界的第幾版資料（SimWorld.map_revision、terrain_revision）。
+var _shown_map := 0
+var _shown_terrain := 0
 
 
 ## 以世界資料建立地圖。世界改變地形後再呼叫一次即可重建。
@@ -81,8 +87,34 @@ func build(world: SimWorld) -> void:
 		_terrain_copies.append(_add_copy("Terrain%d" % i, terrain_mesh, _terrain_material, bounds))
 		_river_copies.append(_add_copy("River%d" % i, river_mesh, _river_material, bounds))
 		_ley_copies.append(_add_copy("Ley%d" % i, ley_mesh, _ley_material, bounds))
+	_shown_map = world.map_revision()
+	_shown_terrain = world.terrain_revision()
 	recenter(map_size.x * 0.5)
 	set_mode(mode)
+
+
+## 世界在背景重算好高度場，或一世結算後州界與靈氣變了，就換上新的貼圖與線；地形網格不必重建。
+func _process(_delta: float) -> void:
+	if _world == null or not _world.is_ready():
+		return
+	_world.poll_terrain()
+	if _world.map_revision() == _shown_map:
+		return
+	var terrain := _world.terrain_revision() != _shown_terrain
+	_shown_map = _world.map_revision()
+	_shown_terrain = _world.terrain_revision()
+	if terrain:
+		_top_height = _world.terrain_max_height()
+		_set_relief_textures(_terrain_material, _world, _world.relief_textures())
+		var river_mesh := _mesh_from(_world.river_mesh(), "tangents", "side_level", "taper")
+		for copy in _river_copies:
+			copy.mesh = river_mesh
+	_set_data_textures(_terrain_material, _world, _world.data_textures())
+	var ley_mesh := _mesh_from(_ley_arrays(_world), "tangents", "side_level", "taper")
+	for copy in _ley_copies:
+		copy.mesh = ley_mesh
+	set_mode(mode)
+	refreshed.emit(terrain)
 
 
 ## 把三份副本排在鏡頭焦點所在的那一份與其東西兩側。
@@ -262,7 +294,6 @@ func _mesh_from(data: Dictionary, normal_key: String, uv_key: String, uv2_key: S
 
 func _make_terrain_material(world: SimWorld) -> ShaderMaterial:
 	var grid := world.grid_size()
-	var textures := world.map_textures()
 	var material := ShaderMaterial.new()
 	material.shader = TERRAIN_SHADER
 	material.set_shader_parameter("paper", _lin(PAPER))
@@ -275,17 +306,25 @@ func _make_terrain_material(world: SimWorld) -> ShaderMaterial:
 	material.set_shader_parameter("sand_color", _lin(SAND))
 	material.set_shader_parameter("rock_colors", _lin_array(ROCK_RAMP))
 	material.set_shader_parameter("map_size", Vector2(grid))
+	material.set_shader_parameter("paper_tex", _texture(512, 512, Image.FORMAT_RGBA8, SimWorld.paper_texture(), true))
+	_set_relief_textures(material, world, world.relief_textures())
+	_set_data_textures(material, world, world.data_textures())
+	var blank := PackedByteArray()
+	blank.resize(256 * 4)
+	_blank_colors = _texture(256, 1, Image.FORMAT_RGBA8, blank, false)
+	return material
+
+
+## 跟著高度場換的參數：高度、湖面、植被底色、地表覆蓋。
+func _set_relief_textures(material: ShaderMaterial, world: SimWorld, textures: Dictionary) -> void:
+	var grid := world.grid_size()
 	material.set_shader_parameter("sea_level", textures["sea_level"])
 	material.set_shader_parameter("max_elevation", world.terrain_max_height() / (grid.x * 0.04))
-
-	# 高度：32 位元浮點轉成 16 位元半精度（可線性取樣）。
+	# 高度：16 位元半精度（可線性取樣），多級縮圖由橋接層在背景算好——頂點高度與水深取平滑後的級別。
 	var elevation_size: Vector2i = textures["elevation_size"]
 	var elevation := Image.create_from_data(
-		elevation_size.x, elevation_size.y, false, Image.FORMAT_RF, (textures["elevation"] as PackedFloat32Array).to_byte_array()
+		elevation_size.x, elevation_size.y, true, Image.FORMAT_RH, textures["elevation_half"]
 	)
-	elevation.convert(Image.FORMAT_RH)
-	# 多級縮圖：頂點高度與水深取平滑後的級別。
-	elevation.generate_mipmaps()
 	material.set_shader_parameter("elevation_tex", ImageTexture.create_from_image(elevation))
 	material.set_shader_parameter(
 		"lake_tex", _texture(elevation_size.x, elevation_size.y, Image.FORMAT_R8, textures["lake"], false)
@@ -297,17 +336,17 @@ func _make_terrain_material(world: SimWorld) -> ShaderMaterial:
 	material.set_shader_parameter(
 		"cover_tex", _texture(climate_size.x, climate_size.y, Image.FORMAT_RG8, textures["cover"], false)
 	)
-	material.set_shader_parameter("paper_tex", _texture(512, 512, Image.FORMAT_RGBA8, SimWorld.paper_texture(), true))
+
+
+## 每世結算後換的參數：靈氣場、州郡 ID 與州郡的淡彩。
+func _set_data_textures(material: ShaderMaterial, world: SimWorld, textures: Dictionary) -> void:
+	var grid := world.grid_size()
 	var aura_scale: int = textures["aura_scale"]
 	material.set_shader_parameter(
 		"field_tex", _texture(grid.x * aura_scale, grid.y * aura_scale, Image.FORMAT_R8, textures["aura"], false)
 	)
 	material.set_shader_parameter("pid_tex", _texture(grid.x, grid.y, Image.FORMAT_RG8, textures["province_id"], false))
 	_province_colors = _texture(256, 1, Image.FORMAT_RGBA8, world.province_colors(), false)
-	var blank := PackedByteArray()
-	blank.resize(256 * 4)
-	_blank_colors = _texture(256, 1, Image.FORMAT_RGBA8, blank, false)
-	return material
 
 
 func _make_line_material() -> ShaderMaterial:

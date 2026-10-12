@@ -64,8 +64,13 @@ func setup(world: SimWorld, map: TerrainMap, camera: MapCamera, unit: float) -> 
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 	set_anchors_preset(Control.PRESET_FULL_RECT)
-	_labels.assign(world.map_labels())
-	_nodes.assign(world.ley_nodes())
+	reload()
+
+
+## 重新讀取文字標籤、洞天福地與治所（開局，以及一世結算改了地圖之後）。
+func reload() -> void:
+	_labels.assign(_world.map_labels())
+	_nodes.assign(_world.ley_nodes())
 	_labels.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["rank"] > b["rank"])
 	refresh_seats()
 

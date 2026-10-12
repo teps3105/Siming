@@ -42,6 +42,51 @@ const MOUNTAIN_CALM: f32 = 0.75;
 /// 平地上的最小細節振幅（遠小於 `SHORE_EPS`，不會憑空生出島或湖）。
 const DETAIL_FLOOR: f32 = 0.0002;
 
+/// 32 位元浮點轉 16 位元半精度的位元（就近捨入；超出範圍成無限大，極小值成 0）。
+fn half_bits(value: f32) -> u16 {
+    let bits = value.to_bits();
+    let sign = ((bits >> 16) & 0x8000) as u16;
+    let exponent = ((bits >> 23) & 0xff) as i32 - 127 + 15;
+    let mantissa = bits & 0x007f_ffff;
+    if exponent >= 31 {
+        return sign | 0x7c00;
+    }
+    if exponent <= 0 {
+        if exponent < -10 {
+            return sign;
+        }
+        let whole = mantissa | 0x0080_0000;
+        let shift = (14 - exponent) as u32;
+        let half = (whole >> shift) as u16;
+        return sign | (half + ((whole >> (shift - 1)) & 1) as u16);
+    }
+    let half = sign | ((exponent as u16) << 10) | (mantissa >> 13) as u16;
+    half + ((mantissa >> 12) & 1) as u16
+}
+
+/// 一張浮點圖轉成半精度並接上整串多級縮圖（每級長寬減半到 1×1，取 2×2 的平均），位元組順序與 Godot 的 `FORMAT_RH` 相同。
+pub fn half_mips(grid: &[f32], w: usize, h: usize) -> Vec<u8> {
+    let mut out = Vec::with_capacity(grid.len() * 8 / 3 + 16);
+    let mut push = |level: &[f32]| level.iter().for_each(|&v| out.extend_from_slice(&half_bits(v).to_le_bytes()));
+    push(grid);
+    let (mut level, mut lw, mut lh) = (grid.to_vec(), w, h);
+    while lw > 1 || lh > 1 {
+        let (nw, nh) = ((lw / 2).max(1), (lh / 2).max(1));
+        let mut next = vec![0.0f32; nw * nh];
+        for y in 0..nh {
+            let (y0, y1) = ((y * 2).min(lh - 1), (y * 2 + 1).min(lh - 1));
+            for x in 0..nw {
+                let (x0, x1) = ((x * 2).min(lw - 1), (x * 2 + 1).min(lw - 1));
+                next[y * nw + x] =
+                    (level[y0 * lw + x0] + level[y0 * lw + x1] + level[y1 * lw + x0] + level[y1 * lw + x1]) * 0.25;
+            }
+        }
+        push(&next);
+        (level, lw, lh) = (next, nw, nh);
+    }
+    out
+}
+
 /// 烘焙結果。
 pub struct Relief {
     /// 高度貼圖尺寸。
@@ -667,6 +712,51 @@ mod tests {
         let mut p = WorldParams::new(20261011);
         p.size = WorldSize::Small;
         Sim::new(&p).unwrap()
+    }
+
+    /// 量重建一次高度場要多久（GDD 2.8「畫面」的重烘）；平時不跑：
+    /// `cargo test --release -p siming-gdext relief_rebuild_time -- --ignored --nocapture`。
+    #[test]
+    fn half_bits_match_the_ieee_half_format() {
+        assert_eq!(half_bits(0.0), 0x0000);
+        assert_eq!(half_bits(1.0), 0x3c00);
+        assert_eq!(half_bits(-2.0), 0xc000);
+        assert_eq!(half_bits(65504.0), 0x7bff);
+        assert_eq!(half_bits(1.0e9), 0x7c00);
+        assert_eq!(half_bits(2.0f32.powi(-14)), 0x0400);
+        assert_eq!(half_bits(2.0f32.powi(-15)), 0x0200);
+        assert_eq!(half_bits(-(2.0f32.powi(-24))), 0x8001);
+        assert_eq!(half_bits(1.0e-12), 0x0000);
+        // 1 + 2⁻¹¹ 落在兩個半精度值的正中間以上一點，進位。
+        assert_eq!(half_bits(1.0 + 3.0 * 2.0f32.powi(-12)), 0x3c01);
+    }
+
+    #[test]
+    fn half_mips_hold_every_level_down_to_one_texel() {
+        // 4×2 → 2×1 → 1×1。
+        let grid = [1.0, 3.0, 5.0, 7.0, 1.0, 3.0, 5.0, 7.0];
+        let bytes = half_mips(&grid, 4, 2);
+        assert_eq!(bytes.len(), (8 + 2 + 1) * 2);
+        let texel = |i: usize| u16::from_le_bytes([bytes[i * 2], bytes[i * 2 + 1]]);
+        assert_eq!(texel(0), half_bits(1.0));
+        assert_eq!((texel(8), texel(9)), (half_bits(2.0), half_bits(6.0)));
+        assert_eq!(texel(10), half_bits(4.0));
+        // 奇數邊長：3×1 → 1×1，取得到的格平均。
+        assert_eq!(half_mips(&[2.0, 4.0, 9.0], 3, 1).len(), (3 + 1) * 2);
+    }
+
+    #[test]
+    #[ignore]
+    fn relief_rebuild_time() {
+        for size in [WorldSize::Small, WorldSize::Medium, WorldSize::Large] {
+            let mut p = WorldParams::new(20261011);
+            p.size = size;
+            let sim = Sim::new(&p).unwrap();
+            let w = sim.world();
+            let start = std::time::Instant::now();
+            let r = build_relief(&w.geo, &w.fine);
+            println!("{size:?}：{}×{}，{:.1} ms", r.w, r.h, start.elapsed().as_secs_f64() * 1000.0);
+        }
     }
 
     #[test]
