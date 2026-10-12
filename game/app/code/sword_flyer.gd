@@ -1,14 +1,14 @@
 class_name SwordFlyer
 extends Control
-## 標題畫面的御劍修士（GDD 9.1）：一個墨色剪影踩著飛劍，從畫面右邊的天上飛向左上的遠處，衣袖、髮帶與腰帶隨風擺動，
+## 標題畫面的御劍修士（GDD 9.1）：一個墨色剪影踩著飛劍，從畫面左邊的天上飛向中間上方的遠處，衣袖、髮帶與腰帶隨風擺動，
 ## 劍後拖一道淡淡的劍光；飛遠了變小、沒入雲裡，隔一會兒再來一趟，每一趟是另一名修士（CultivatorFigure）。
 
 ## 飛一趟的秒數與兩趟之間的間隔。
 const FLIGHT_SECONDS := 34.0
 const REST_SECONDS := 7.0
 ## 起點與終點（畫面的比例）、近處與遠處的身高（1080 高畫面上的像素）。
-const FROM := Vector2(1.05, 0.20)
-const TO := Vector2(0.46, 0.07)
+const FROM := Vector2(-0.05, 0.22)
+const TO := Vector2(0.50, 0.06)
 const NEAR_HEIGHT := 64.0
 const FAR_HEIGHT := 22.0
 ## 劍光的長度（身高的倍數）與段數。
@@ -65,9 +65,9 @@ func _draw() -> void:
 	var at := _point(t)
 	var heading := (_point(t + 0.01) - at).normalized()
 	_draw_trail(at, heading, height, alpha)
-	# 人物朝左；劍身順著飛行方向微微上揚。
-	var tilt := clampf(heading.angle_to(Vector2.LEFT) * -0.6, -0.5, 0.5)
-	draw_set_transform(at, tilt, Vector2(height, height))
+	# 人物朝右（剪影本身朝左，左右翻過來）；劍身順著飛行方向微微上揚。
+	var tilt := clampf(heading.angle_to(Vector2.RIGHT) * -0.6, -0.5, 0.5)
+	draw_set_transform(at, tilt, Vector2(-height, height))
 	_draw_figure(Color(Ink.INK, 0.88 * alpha))
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 

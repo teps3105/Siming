@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="880" height="1520" viewBox="0 0 880 1520">
+  <title>whiskers.svg</title>
+  <g id="ref-frame" data-reference="1">
+    <path d="M240 320 L640 320 L640 720 L240 720 Z" fill="none" stroke="#3399cc" stroke-width="2"/>
+  </g>
+  <g id="ref-head" data-reference="1">
+    <path d="M440 320 C380 316 316 352 280 410 C264 440 260 500 270 560 C272 592 280 616 292 630 C308 672 324 696 344 708 C368 720 392 722 412 720 C452 716 484 700 508 680 C540 656 564 632 580 604 C608 568 624 532 624 500 C624 456 620 424 610 400 C596 364 568 340 540 336 C508 324 472 320 440 320 Z" fill="#f0d8c4" stroke="#999999" stroke-width="2"/>
+    <path d="M316 644 C336 652 356 652 372 644" fill="none" stroke="#aa5555" stroke-width="2"/>
+    <path d="M40 720 L840 720" fill="none" stroke="#3399cc" stroke-width="2" stroke-dasharray="12 12"/>
+  </g>
+  <g id="long" data-hang-y="1" data-hang="3">
+    <g data-layer="BEARD" data-part="BEARD">
+      <path data-role="fill" d="M540 612 C520 644 472 692 440 692 C408 696 344 698 320 692 C304 682 292 672 284 656 C278 736 300 876 320 1000 C328 928 340 962 346 950 C350 1010 360 1140 380 1320 C396 1140 412 1070 416 1010 C422 1034 440 1036 452 1108 C472 988 528 958 524 838 C532 758 544 688 540 612 Z" fill="#bdbdb8" stroke="#222222" stroke-width="4"/>
+      <path data-role="band" data-part="SHADE" data-width="0.035" d="M316 696 C316 790 316 862 320 952" fill="none" stroke="#777777" stroke-width="7"/>
+      <path data-role="band" data-part="SHADE" data-width="0.035" d="M360 710 C352 890 362 1050 372 1230" fill="none" stroke="#777777" stroke-width="7"/>
+      <path data-role="band" data-part="SHADE" data-width="0.035" d="M400 712 C408 892 396 1068 386 1248" fill="none" stroke="#777777" stroke-width="7"/>
+      <path data-role="band" data-part="SHADE" data-width="0.035" d="M464 704 C468 824 462 928 452 1048" fill="none" stroke="#777777" stroke-width="7"/>
+      <path data-role="band" data-part="SHADE" data-width="0.035" d="M512 680 C512 750 504 880 480 940" fill="none" stroke="#777777" stroke-width="7"/>
+    </g>
+  </g>
+</svg>

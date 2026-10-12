@@ -49,6 +49,54 @@ func test_gdd_5_8_given_identity_is_kept_and_shapes_the_look() -> void:
 		assert_eq(F.traits(i, {"prop": F.Prop.LOTUS})["prop"], F.Prop.LOTUS, "持物可以指定")
 
 
+func test_gdd_5_8_a_woman_reads_as_a_woman_at_a_glance() -> void:
+	# 第一眼的辨識靠剪影與大色塊：上襦下裙兩色、裙自胸下繫起往下放開、披帛掛在身外、高髻與垂到背後的長髮。
+	for i in 24:
+		var given := {"sex": F.Sex.FEMALE, "age": F.Age.ADULT, "school": F.School.NONE, "wealth": F.Wealth.RICH if i % 2 == 0 else F.Wealth.PLAIN, "hair": F.Hair.HIGH_BUN}
+		var woman := F.traits(200 + i, given)
+		given["sex"] = F.Sex.MALE
+		given.erase("hair")
+		var man := F.traits(200 + i, given)
+		assert_true(F.pieces(man, F.Pose.STAND, F.SKIRT).is_empty(), "男子穿袍，沒有裙")
+		var skirt := F.bounds_of(F.pieces(woman, F.Pose.STAND, F.SKIRT))
+		var radius: float = 0.5 / woman["heads"]
+		assert_lt(skirt.position.y, -0.66, "裙繫在胸下，腰線高：%s" % skirt)
+		var waist := 0.0
+		for piece in F.pieces(woman, F.Pose.STAND, F.SKIRT):
+			var low := INF
+			var high := -INF
+			for point in piece:
+				if point.y < skirt.position.y + 0.04:
+					low = minf(low, point.x)
+					high = maxf(high, point.x)
+			waist = maxf(waist, high - low)
+		assert_gt(skirt.size.x, waist * 2.0, "上窄下寬：裙擺比腰寬一倍以上（腰 %s、擺 %s）" % [waist, skirt.size.x])
+		var colors: Dictionary = woman["colors"]
+		assert_gt(colors[F.SKIRT].s, colors[F.ROBE].s + 0.1, "上襦淡、裙色濃，一眼看得出上下兩截")
+		var shawl := F.bounds_of(F.pieces(woman, F.Pose.STAND, F.SHAWL))
+		assert_gt(shawl.size.y, 0.4, "披帛長長垂下")
+		assert_gt(shawl.end.x, 0.28, "披帛靠外的一端飄在身後，輪廓外緣看得到：%s" % shawl)
+		assert_lt(shawl.position.x, -0.1, "披帛朝前的一端垂在身前：%s" % shawl)
+		var hair := F.bounds_of(F.pieces(woman, F.Pose.STAND, F.HAIR))
+		var his := F.bounds_of(F.pieces(man, F.Pose.STAND, F.HAIR))
+		assert_gt(hair.size.y, radius * 5.0, "高髻加上垂到背後的長髮：%s" % hair)
+		if man["hair"] != F.Hair.LOOSE:
+			assert_gt(hair.size.y, his.size.y * 1.5, "髮的剪影比束髮戴冠的男子長得多")
+	var seated := F.traits(7, {"sex": F.Sex.FEMALE, "age": F.Age.ADULT, "school": F.School.NONE})
+	assert_false(F.pieces(seated, F.Pose.MEDITATE, F.SKIRT).is_empty(), "坐著也看得到裙")
+	var nun := F.traits(7, {"sex": F.Sex.FEMALE, "school": F.School.SHI})
+	assert_true(F.pieces(nun, F.Pose.STAND, F.SKIRT).is_empty(), "僧尼穿僧衣")
+
+
+func test_gdd_5_8_a_sword_rider_of_any_seed_draws_as_valid_polygons() -> void:
+	# 封面的御劍者每次開遊戲換一個種子：取許多種子、幾個時刻，沒有一塊畫不出來。
+	for seed_value in 400:
+		var look := F.traits(seed_value)
+		for step in 3:
+			for polygon in F.shapes(look, F.Pose.RIDE, step * 0.37 + seed_value * 0.11):
+				assert_false(Geometry2D.triangulate_polygon(polygon).is_empty(), "御劍者畫得出來：種子 %d" % seed_value)
+
+
 func test_gdd_5_8_every_identity_and_pose_draws_as_valid_polygons_within_reach() -> void:
 	var index := 0
 	for sex: int in F.Sex.values():

@@ -107,14 +107,6 @@ func set_mode(new_mode: Mode) -> void:
 		copy.visible = mode == Mode.LINGMAI
 
 
-## 當成佈景用（標題畫面）：不畫州界與水紋，整幅收成淡墨，低處起雲霧；veil 是畫面左側另加的霧。
-func set_scenery(mist: float, veil: float) -> void:
-	_terrain_material.set_shader_parameter("border_opacity", 0.0)
-	for material: ShaderMaterial in [_terrain_material, _river_material]:
-		material.set_shader_parameter("mist", mist)
-		material.set_shader_parameter("mist_veil", veil)
-
-
 func set_hover(province: int) -> void:
 	_terrain_material.set_shader_parameter("hover_province", float(province))
 

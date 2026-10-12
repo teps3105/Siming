@@ -11,11 +11,10 @@
 Godot 的位置取自環境變數 GODOT_PATH，或以 --godot 指定執行檔。
 """
 import argparse
-import subprocess
 import sys
 from pathlib import Path
 
-from run import GAME, REPO, find_godot
+from run import GAME, REPO, find_godot, run_bounded
 
 RUNNER = "res://tests/harness/shots.gd"
 
@@ -25,6 +24,7 @@ def main(argv=None):
     ap.add_argument("--godot", type=Path, help="Godot 執行檔；預設取自環境變數 GODOT_PATH")
     ap.add_argument("--out", type=Path, default=REPO / ".shiftblame" / "tmp" / "shots", help="截圖存放的資料夾")
     ap.add_argument("--position", default="2600,40", help="視窗左上角的實體像素座標")
+    ap.add_argument("--timeout", type=float, default=600.0, help="最多跑幾秒；逾時結束 Godot，結束碼 124")
     args = ap.parse_args(argv)
 
     godot = args.godot or find_godot()
@@ -35,7 +35,7 @@ def main(argv=None):
     args.out.mkdir(parents=True, exist_ok=True)
     cmd = [str(godot), "--audio-driver", "Dummy", "--path", str(GAME), "--position", args.position,
            "--resolution", "1920x1080", "--script", RUNNER, "--", f"--out={args.out.resolve().as_posix()}"]
-    return subprocess.run(cmd).returncode
+    return run_bounded(cmd, args.timeout)[0]
 
 
 if __name__ == "__main__":

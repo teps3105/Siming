@@ -28,9 +28,7 @@ uniform float tint_opacity = 0.0;     // 州郡疊色不透明度
 uniform vec2 vanish_focus;
 uniform vec2 vanish_toward;
 uniform float vanish_eye = 0.0;
-uniform float border_opacity = 1.0;   // 州界與國界的不透明度（當佈景用時為 0）
-uniform float mist = 0.0;             // 雲霧的濃度（當佈景用時才有）
-uniform float mist_veil = 0.0;        // 畫面左側另加的霧（題字與選單後面）
+uniform float border_opacity = 1.0;   // 州界與國界的不透明度
 uniform vec2 map_size;                // 地圖寬、高（格）
 uniform float sea_level = 0.4;        // 海平面（高度 0..1），用來正規化水深
 uniform float max_elevation = 0.3;    // 陸地最高點的相對高度
@@ -115,7 +113,7 @@ vec4 bicubic(sampler2D tex, vec2 uv) {
 		+ (textureLod(tex, vec2(h0.x, h1.y), 0.0) * g0.x + textureLod(tex, vec2(h1.x, h1.y), 0.0) * g1.x) * g1.y;
 }
 
-// 三維梯度雜訊（球面座標求值，接縫與極點連續）。用於紋素以下的微細節與雲霧。
+// 三維梯度雜訊（球面座標求值，接縫與極點連續）。用於紋素以下的微細節。
 vec3 hash33(ivec3 i) {
 	uvec3 q = uvec3(i) * uvec3(1597334673u, 3812015801u, 2798796415u);
 	q = (q.x ^ q.y ^ q.z) * uvec3(1597334673u, 3812015801u, 2798796415u);
@@ -135,18 +133,6 @@ float gnoise(vec3 p) {
 	float n011 = dot(hash33(i + ivec3(0, 1, 1)), f - vec3(0.0, 1.0, 1.0));
 	float n111 = dot(hash33(i + ivec3(1, 1, 1)), f - vec3(1.0, 1.0, 1.0));
 	return mix(mix(mix(n000, n100, u.x), mix(n010, n110, u.x), u.y), mix(mix(n001, n101, u.x), mix(n011, n111, u.x), u.y), u.z);
-}
-
-// 雲紋：四層梯度雜訊，0..1。
-float cloud(vec3 p) {
-	float sum = 0.0;
-	float gain = 0.5;
-	for (int i = 0; i < 4; i++) {
-		sum += gnoise(p) * gain;
-		p = p * 2.03 + vec3(3.1, 1.7, 5.3);
-		gain *= 0.5;
-	}
-	return clamp(sum * 1.5 + 0.5, 0.0, 1.0);
 }
 
 float pid_at(ivec2 t) {
@@ -360,7 +346,7 @@ void fragment() {
 	vec3 water = mix(sea, lake, is_lake);
 	// 水紋：海畫魚鱗紋、湖畫波線，墨色取同色系的深色；近岸最清楚，外海淡去。岸邊留一圈近乎紙色的淺水。
 	float off_shore = smoothstep(0.03, 0.35, depth) * (1.0 - is_lake);
-	water = mix(water, sea_colors[4] * 0.72, wave_ink(wp, pxw, is_lake) * mix(0.55, 0.22, off_shore) * (1.0 - min(mist, 1.0)));
+	water = mix(water, sea_colors[4] * 0.72, wave_ink(wp, pxw, is_lake) * mix(0.55, 0.22, off_shore));
 	float shallows = mix(1.0 - smoothstep(0.0, 0.008, -e), 1.0 - smoothstep(0.5, 0.8, lake_v), is_lake);
 	water = mix(water, paper, shallows * 0.5);
 
@@ -369,7 +355,7 @@ void fragment() {
 	// 4 岸線：海岸與湖岸都勾一道墨線。
 	float coast = px_line(e, fw_e, 1.5) * (1.0 - lake_mask);
 	float lake_coast = px_line(lake_v - 0.5, fw_l, 1.5) * (1.0 - sea_mask);
-	col = mix(col, coast_line, max(coast, lake_coast) * mix(0.9, 0.25, min(mist, 1.0)));
+	col = mix(col, coast_line, max(coast, lake_coast) * 0.9);
 
 	// 5 地圖模式疊色
 	vec3 vt = vote(uv);
@@ -423,24 +409,7 @@ void fragment() {
 	float dist = length(CAMERA_POSITION_WORLD - v_wpos);
 	col = mix(col, paper, smoothstep(fog_start, fog_end, dist) * 0.85);
 
-	// 9 佈景的淡墨與雲霧：成團的雲停在低處與水面，橫雲飄過山腰以下，峰頂穿出；雲紋隨時間流動。
-	if (mist > 0.0) {
-		// 佈景是另一種畫風：收掉設色，只留淡墨的濃淡（水最淡、山的背光面最濃），退到人物後面。
-		float tone = dot(col, vec3(0.2126, 0.7152, 0.0722));
-		vec3 wash = mix(ink_light * vec3(0.92, 1.0, 1.06), paper, smoothstep(0.12, 0.62, tone));
-		col = mix(col, mix(wash, paper, 0.28), 0.86 * min(mist, 1.0));
-		float low = 1.0 - smoothstep(0.04, 0.34, alt);
-		float mid = 1.0 - smoothstep(0.45, 0.75, alt);
-		vec2 q = wp / map_size.x * 26.0;
-		float drift = TIME * 0.035;
-		float bank = cloud(vec3(q.x + drift, q.y * 1.3, drift * 0.6));
-		float wisp = cloud(vec3(q.x * 0.55 + drift * 2.2, q.y * 2.6, 7.0 + drift * 0.4));
-		float veil = (1.0 - smoothstep(0.08, 0.52, SCREEN_UV.x)) * mix(0.55, 1.0, low) * mist_veil;
-		float density = max(veil, max(low * smoothstep(0.42, 0.70, bank) * 0.92, mid * smoothstep(0.58, 0.74, wisp) * 0.65));
-		col = mix(col, paper * mix(0.93, 1.04, bank), density * mist);
-	}
-
-	// 10 南北緣之外的邊疆帶淡成紙色。
+	// 9 南北緣之外的邊疆帶淡成紙色。
 	float out_y = max(-wp.y, wp.y - map_size.y);
 	float fade_y = smoothstep(-2.0, 0.05 * map_size.x, out_y) * (1.0 - globe_morph);
 	col = mix(col, paper, fade_y);

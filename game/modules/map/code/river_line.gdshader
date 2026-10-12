@@ -11,9 +11,6 @@ uniform float vanish_eye = 0.0;
 uniform vec3 level_width_px = vec3(1.0, 1.5, 2.0); // 小河、大河、江
 uniform vec3 level_alpha = vec3(1.0);              // 小河、大河、江
 uniform vec2 map_size;
-// 當佈景用時的雲霧（同 terrain_relief.gdshader）：河線在霧裡淡掉。
-uniform float mist = 0.0;
-uniform float mist_veil = 0.0;
 uniform float globe_morph = 0.0;
 uniform float globe_radius = 1.0;
 uniform float globe_relief = 1.0;
@@ -75,6 +72,5 @@ void vertex() {
 void fragment() {
 	float coverage = clamp(v_half_px - abs(v_edge_px) + 0.5, 0.0, 1.0);
 	ALBEDO = line_color;
-	float veil = (1.0 - smoothstep(0.08, 0.52, SCREEN_UV.x)) * mist_veil;
-	ALPHA = coverage * v_alpha * mix(1.0, 0.45, mist) * (1.0 - veil);
+	ALPHA = coverage * v_alpha;
 }

@@ -128,22 +128,141 @@ func test_keyboard_opens_a_new_world_with_the_chosen_options() -> void:
 	assert_false(is_instance_valid(_title) and _title.is_inside_tree(), "標題畫面已經換掉")
 
 
-func test_gdd_9_1_menu_sits_under_the_logo_on_the_left() -> void:
+func test_gdd_9_1_credits_list_only_what_ships_by_name_and_licence() -> void:
+	var lines: Array[String] = []
+	var third := false
+	for row: Dictionary in _title.deck._credits_rows():
+		if row["kind"] == &"head":
+			third = row["label"] == Locale.t("credits_third")
+		elif third:
+			lines.append(row["label"])
+	assert_eq(lines.size(), 4, "第三方只列隨遊戲發佈的四項：兩套字型、引擎、橋接")
+	for text in lines:
+		var parts := text.split("／")
+		assert_true(parts.size() == 2 or parts.size() == 3, "每列是名稱、（作者）、授權：%s" % text)
+		assert_true(parts[parts.size() - 1] in ["SIL OFL 1.1", "MIT", "MPL-2.0"], "每列以授權條款收尾：%s" % text)
+
+
+func test_gdd_9_1_title_sits_above_the_menu_on_the_right_and_the_gathering_on_the_left() -> void:
 	var logo: Rect2 = _title.logo.logo_rect()
 	var at := _panel.global_position
-	assert_gt(at.y, logo.end.y, "選單在標誌下面")
-	assert_lt(at.x, FLOW_VIEW.x * 0.25, "選單靠左")
+	assert_gt(logo.position.x, FLOW_VIEW.x * 0.5, "標題在右半")
+	assert_lt(logo.end.x, float(FLOW_VIEW.x), "標題在畫面內")
+	assert_gt(at.y, logo.end.y, "選單在標題下面")
+	assert_gt(at.x, FLOW_VIEW.x * 0.5, "選單在右半")
 	assert_false(_panel.paper, "標題畫面的選單直接寫在畫面上，不襯紙")
+	assert_lt(at.x + _panel.size.x, float(FLOW_VIEW.x), "整個選單在畫面內")
 	assert_lt(at.y + _panel.size.y, float(FLOW_VIEW.y), "整個選單在畫面內")
+	for who: Array in TitleGathering.CAST:
+		assert_lt(_title.gathering.place(who[0]).x, logo.position.x, "修士都在標題與選單的左邊")
+
+
+func test_gdd_9_1_three_sit_on_the_terrace_and_the_rest_live_across_the_landscape() -> void:
+	assert_eq(TitleGathering.CAST.size(), 3, "石台上只有對弈兩人與一名觀棋者")
+	assert_gt(TitleGathering.WANDERERS.size(), 3, "其餘的人散在山水裡")
+	var gathering: TitleGathering = _title.gathering
+	var menu := Rect2(_panel.global_position, _panel.size).merge(_title.logo.logo_rect())
+	var doing := {}
+	for i in TitleGathering.WANDERERS.size():
+		var who: Array = TitleGathering.WANDERERS[i]
+		var box := gathering.figure_rect(TitleGathering.CAST.size() + i)
+		doing[who[5]] = true
+		assert_lt(who[1], 0.6, "散在山水裡的人離得遠、畫得小")
+		assert_false(box.intersects(menu), "不擋標題與選單：%s" % box)
+		assert_true(Rect2(Vector2.ZERO, Vector2(FLOW_VIEW)).encloses(box), "整個人在畫面內：%s" % box)
+		for j in TitleGathering.roster().size():
+			if j != TitleGathering.CAST.size() + i:
+				assert_gt(box.get_center().distance_to(gathering.figure_rect(j).get_center()), FLOW_VIEW.y * 0.2, "各在各的地方，不擠在一起：%s 與 %s" % [i, j])
+	assert_eq(doing.size(), TitleGathering.WANDERERS.size(), "各做各的事，腳下的地方都不一樣")
+	var seen := {"sex": {}, "age": {}, "wealth": {}, "school": {}}
+	for who: Array in TitleGathering.roster():
+		for key: String in seen:
+			seen[key][who[4][key]] = true
+	assert_eq(seen["sex"].size(), 2, "男女都有")
+	assert_eq(seen["age"].size(), 3, "老少都有")
+	assert_eq(seen["wealth"].size(), 3, "貧富都有")
+	assert_eq(seen["school"].size(), 4, "儒釋道與無門派都有")
 
 
 func test_gdd_9_1_backdrop_frames_mountain_plain_and_water() -> void:
 	var framing := SceneFraming.new(_title._world)
-	var z: float = _title._map.map_size.x * SceneFraming.VIEW_Z_FRAC
+	var z: float = _title._world.grid_size().x * SceneFraming.VIEW_Z_FRAC
 	var got := framing.shares(_title.backdrop_focus(), SceneFraming.ground_extent(z, float(FLOW_VIEW.x) / FLOW_VIEW.y))
 	assert_gt(got.x, 0.1, "有山：%s" % got)
 	assert_gt(got.y, 0.15, "有平地：%s" % got)
 	assert_gt(got.z, 0.1, "有水：%s" % got)
+
+
+func test_gdd_9_1_cliff_cracks_stay_inside_the_cliff_wall() -> void:
+	var wall := TitleGathering.cliff_wall()
+	var cracks := TitleGathering.cliff_cracks()
+	assert_gt(cracks.size(), 5, "崖壁有幾道裂理")
+	for crack in cracks:
+		for i in crack.size() - 1:
+			var middle := crack[i].lerp(crack[i + 1], 0.5)
+			assert_true(Geometry2D.is_point_in_polygon(middle, wall), "裂理不超出崖壁：%s" % middle)
+
+
+func test_gdd_9_1_pine_is_drawn_back_to_front() -> void:
+	var order := TitleGathering.PINE_ORDER
+	assert_lt(order.find(&"far_needles"), order.find(&"branches"), "遠處的松針在枝後面")
+	assert_lt(order.find(&"branches"), order.find(&"trunk"), "枝從幹後面伸出來，枝根被幹蓋住")
+	assert_lt(order.find(&"trunk"), order.find(&"bark"), "樹皮的鱗畫在幹上")
+	assert_lt(order.find(&"bark"), order.find(&"near_needles"), "近處的松針在最前面")
+	for branch: Array in TitleGathering.BRANCHES:
+		assert_true(Geometry2D.is_point_in_polygon(branch[0], CultivatorFigure.smooth_outline(TitleGathering.TRUNK)), "枝根在幹裡面：%s" % branch[0])
+
+
+func test_gdd_9_1_backdrop_is_layered_ridges_with_the_main_peak_left_of_centre() -> void:
+	var backdrop: TitleBackdrop = _title.backdrop
+	assert_eq(backdrop.ridges.size(), TitleBackdrop.LAYERS, "由近到遠幾層山影")
+	var peak := backdrop.main_peak()
+	assert_gt(peak.x, FLOW_VIEW.x * 0.2, "主峰在中間偏左：%s" % peak)
+	assert_lt(peak.x, FLOW_VIEW.x * 0.58, "主峰在中間偏左：%s" % peak)
+	assert_lt(peak.y, FLOW_VIEW.y * 0.4, "主峰頂在畫面上方：%s" % peak)
+	assert_gt(peak.y, 0.0, "主峰頂在畫面內")
+	var logo: Rect2 = _title.logo.logo_rect()
+	assert_lt(backdrop.tone_at(logo.get_center().x), backdrop.tone_at(FLOW_VIEW.x * 0.4) * 0.8, "標題與選單後面的山影淡下去")
+	for column in range(1, TitleBackdrop.COLUMNS - 1):
+		for layer in TitleBackdrop.LAYERS:
+			var bend := absf(backdrop.crest(layer, column - 1).y + backdrop.crest(layer, column + 1).y - 2.0 * backdrop.crest(layer, column).y)
+			assert_lt(bend, FLOW_VIEW.y * 0.03, "山稜平順，沒有尖刺：第 %s 層第 %s 欄" % [layer, column])
+	for layer in TitleBackdrop.LAYERS - 1:
+		assert_gt(backdrop.foot_y(layer), backdrop.foot_y(layer + 1), "遠的一層山腳比近的一層高")
+
+
+func test_gdd_9_1_backdrop_fog_is_one_field_that_thickens_with_distance() -> void:
+	var backdrop: TitleBackdrop = _title.backdrop
+	for layer in TitleBackdrop.LAYERS:
+		var fog := backdrop.fog_of(layer)
+		assert_eq(fog.shader, TitleBackdrop.FOG, "每層山影用同一片霧場")
+		assert_eq(fog.get_shader_parameter("scale"), TitleBackdrop.FOG_SCALE, "各層的霧團一樣大，是同一片霧")
+		if layer > 0:
+			assert_gt(fog.get_shader_parameter("depth"), backdrop.fog_of(layer - 1).get_shader_parameter("depth"), "越遠的山被霧遮得越多")
+	assert_eq(backdrop.fog_of(0).get_shader_parameter("depth"), 0.0, "最近一層不另外淡掉")
+
+
+func test_gdd_9_1_backdrop_ranges_run_unbroken_across_the_whole_width() -> void:
+	var backdrop: TitleBackdrop = _title.backdrop
+	var tallest := 0.0
+	var rises: Array[float] = []
+	var ranked := 0
+	for segment in 8:
+		var best := 0.0
+		var layers_up := 0
+		for layer in TitleBackdrop.LAYERS:
+			var up := 0.0
+			for column in range(segment * TitleBackdrop.COLUMNS / 8, (segment + 1) * TitleBackdrop.COLUMNS / 8):
+				up = maxf(up, backdrop.foot_y(layer) - backdrop.crest(layer, column).y)
+			best = maxf(best, up)
+			if up > FLOW_VIEW.y * 0.05:
+				layers_up += 1
+		rises.append(best)
+		tallest = maxf(tallest, best)
+		ranked += int(layers_up >= 3)
+	for segment in 8:
+		assert_gt(rises[segment], tallest * 0.4, "山連綿橫過整幅畫面，第 %s 段也有山：%s" % [segment, rises])
+	assert_gt(ranked, 5, "多數地方至少疊著三層山：%s 段" % ranked)
 
 
 func test_gdd_9_1_backdrop_is_the_latest_saved_world() -> void:

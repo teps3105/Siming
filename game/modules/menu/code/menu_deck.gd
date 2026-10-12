@@ -307,7 +307,7 @@ func _share_rows() -> Array[Dictionary]:
 func _credits_rows() -> Array[Dictionary]:
 	var rows: Array[Dictionary] = [MenuPanel.head(Locale.t("credits_made")), MenuPanel.line(Locale.t("credits_author"))]
 	rows.append(MenuPanel.head(Locale.t("credits_third")))
-	for key: String in ["credits_font", "credits_logo_font", "credits_chars", "credits_engine", "credits_bridge"]:
+	for key: String in ["credits_font", "credits_logo_font", "credits_engine", "credits_bridge"]:
 		rows.append(MenuPanel.line(Locale.t(key)))
 	return rows
 

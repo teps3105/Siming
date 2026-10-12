@@ -48,13 +48,21 @@ const SHOE := 10
 const SHADE := 11
 const BLUSH := 12
 const LIP := 13
+const SKIRT := 14
+const SHAWL := 15
 const OPEN := 32
+## 曲線資料檔裡的部位名稱。
+const PART_NAMES := {
+	"SKIN": SKIN, "ROBE": ROBE, "INNER": INNER, "SASH": SASH, "TRIM": TRIM, "CAPE": CAPE, "HAIR": HAIR,
+	"BEARD": BEARD, "HAT": HAT, "PROP": PROP, "SHOE": SHOE, "SHADE": SHADE, "BLUSH": BLUSH, "LIP": LIP,
+	"SKIRT": SKIRT, "SHAWL": SHAWL,
+}
 ## 前後層次，由後往前。每一塊畫在哪一層寫在這張表上，不靠程式裡出現的先後：
 ## 身後的持物、大氅、披帛、朝前那隻手的上臂、腿腳、袍、垂穗、腦後（披髮與飄帶）、頸、衣領（圍在頸根外面）、臉、
 ## 頷下（冠纓、笠帶、鬢邊垂髮）、鬍鬚、頭髮、冠帽、橫在身前的前臂、靠外那隻手的持物、靠外那隻手、朝前那隻手的持物。
 enum Layer { BACK_PROP, CAPE, SHAWL, FAR_ARM, LEGS, ROBE, TASSEL, BEHIND_HEAD, NECK, COLLAR, FACE, UNDER_CHIN, BEARD, HAIR, HEADWEAR, FOREARM, NEAR_PROP, NEAR_ARM, FRONT_PROP }
 ## 各部位由上往下加深多少。
-const DEPTH := {SKIN: 0.05, ROBE: 0.2, CAPE: 0.24, HAIR: 0.0, SHOE: 0.0}
+const DEPTH := {SKIN: 0.05, ROBE: 0.2, CAPE: 0.24, HAIR: 0.0, SHOE: 0.0, SKIRT: 0.24, SHAWL: 0.04}
 ## 背在身後或掛在腰後的持物；其餘拿在手上，畫在身前。
 const BEHIND_PROPS: Array[int] = [Prop.SWORD_BACK, Prop.GOURD]
 ## 各姿勢的關節：腰、頸，朝前那隻手（_f，離看畫的人遠）與靠外那隻手（_b，離看畫的人近）的肘與手；
@@ -119,7 +127,7 @@ static func traits(figure_seed: int, given := {}) -> Dictionary:
 	elif child:
 		hair_pool = [Hair.TWIN_BUNS, Hair.TWIN_BUNS, Hair.TOPKNOT]
 	elif female:
-		hair_pool = [Hair.HIGH_BUN, Hair.HIGH_BUN, Hair.LOOSE] if not poor else [Hair.LOOSE, Hair.HAT, Hair.HIGH_BUN]
+		hair_pool = [Hair.HIGH_BUN, Hair.HIGH_BUN, Hair.HIGH_BUN, Hair.LOOSE] if not poor else [Hair.HIGH_BUN, Hair.LOOSE, Hair.HAT]
 	elif school == School.RU:
 		hair_pool = [Hair.SCHOLAR_CAP, Hair.SCHOLAR_CAP, Hair.CROWN] if not poor else [Hair.SCHOLAR_CAP, Hair.TOPKNOT]
 	elif school == School.DAO:
@@ -155,7 +163,8 @@ static func traits(figure_seed: int, given := {}) -> Dictionary:
 		"sex": sex, "age": age, "wealth": wealth, "school": school,
 		"heads": rng.randf_range(4.6, 5.3) if child else rng.randf_range(6.5, 7.6),
 		"stature": rng.randf_range(0.60, 0.70) if child else rng.randf_range(0.90, 0.98) * (1.0 if not elder else 0.97) if female else rng.randf_range(0.94, 1.06),
-		"shoulder": rng.randf_range(0.085, 0.13) * slim,
+		# 女子溜肩：肩比男子窄一截。
+		"shoulder": rng.randf_range(0.085, 0.13) * slim * (0.88 if female and not child else 1.0),
 		"girth": rng.randf_range(0.07, 0.115) * slim * (1.12 if rich and not female else 1.0),
 		"flare": rng.randf_range(0.14, 0.24) * (1.2 if female else 1.0),
 		"sleeve": rng.randf_range(0.03, 0.08) if poor else rng.randf_range(0.16, 0.26) if rich else rng.randf_range(0.07, 0.19),
@@ -189,7 +198,8 @@ static func traits(figure_seed: int, given := {}) -> Dictionary:
 	return look
 
 
-## 一名修士各部位的顏色：門派定衣色的色系，女子與孩童另有幾個鮮色；貧者褪成麻布的顏色、沒有緣邊，
+## 一名修士各部位的顏色：門派定衣色的色系，孩童另有幾個鮮色；女子（僧尼除外）上襦取淡色、裙取濃色、披帛另取一色，
+## 一眼看得出上下兩截；貧者褪成麻布的顏色、沒有緣邊，
 ## 富者較鮮、緣邊用金；年老髮白。所有顏色都往紙色靠一點，才和淡墨的背景合得來。
 static func _palette(rng: RandomNumberGenerator, look: Dictionary) -> Dictionary:
 	var paper := Color("f2ebd9")
@@ -202,8 +212,6 @@ static func _palette(rng: RandomNumberGenerator, look: Dictionary) -> Dictionary
 		School.SHI:
 			robes = [Color("99948a"), Color("80664d"), Color("c7a35c")]
 	if look["school"] != School.SHI:
-		if look["sex"] == Sex.FEMALE:
-			robes.append_array([Color("db999e"), Color("9eccb8"), Color("c4a9d1"), Color("e8d9b0")])
 		if look["age"] == Age.CHILD:
 			robes.append_array([Color("cc5447"), Color("6fa873")])
 	var accents: Array = [Color("a8463f"), Color("3f4552"), Color("4d6b85"), Color("c7a35c"), Color("54756a"), Color("6b4a6e")]
@@ -214,16 +222,27 @@ static func _palette(rng: RandomNumberGenerator, look: Dictionary) -> Dictionary
 	var gold := rng.randf() < 0.6
 	var tan := rng.randf()
 	var grey := rng.randf_range(0.5, 1.0)
+	# 女裝的三個顏色：不論男女都先取亂數，其他項的取值才不跟著性別變。
+	var upper: Color = [Color("efe6d2"), Color("f0d9d2"), Color("dfe8d8"), Color("dbe3ea")][rng.randi_range(0, 3)]
+	var skirt: Color = [Color("b8433c"), Color("4f7f66"), Color("46648f"), Color("7d5890"), Color("c99a3a")][rng.randi_range(0, 4)]
+	var shawl: Color = [Color("f3e3b0"), Color("efc0c4"), Color("cfe4d6"), Color("dccdea")][rng.randi_range(0, 3)]
+	var dress: bool = look["sex"] == Sex.FEMALE and look["school"] != School.SHI
+	if dress:
+		robe = upper
+	else:
+		skirt = robe
 	if look["school"] == School.SHI:
 		trim = [Color("b0563a"), Color("c99a3c"), Color("7a4a3a")][rng.randi_range(0, 2)]
 	match look["wealth"]:
 		Wealth.POOR:
-			robe = robe.lerp(Color("a89980"), 0.7)
+			robe = robe.lerp(Color("a89980"), 0.4 if dress else 0.7)
+			skirt = skirt.lerp(Color("a89980"), 0.6 if dress else 0.7)
 			sash = Color("7a6a55")
 			if look["school"] != School.SHI:
 				trim = Color("8f8068")
 		Wealth.RICH:
 			robe.s = minf(robe.s * 1.15, 1.0)
+			skirt.s = minf(skirt.s * 1.15, 1.0)
 			if gold and look["school"] != School.SHI:
 				trim = Color("cca34d")
 	var hair := Color("201e1e")
@@ -249,6 +268,7 @@ static func _palette(rng: RandomNumberGenerator, look: Dictionary) -> Dictionary
 		CAPE: cape.lerp(paper, 0.3), HAIR: hair, BEARD: hair.lerp(Color("e6e4dd"), 0.25), HAT: hat,
 		PROP: props.get(look["prop"], Color("f2eedb")), SHOE: Color("332e2e"),
 		BLUSH: Color(0.86, 0.45, 0.4, 0.3 if soft else 0.12), LIP: Color(0.74, 0.3, 0.28, 0.9 if soft else 0.45),
+		SKIRT: skirt.lerp(paper, 0.1), SHAWL: Color(shawl, 0.92),
 	}
 
 
@@ -314,6 +334,18 @@ static func paint(canvas: CanvasItem, look: Dictionary, pose: Pose, time: float,
 			canvas.draw_polyline(band[0], tint, band[2], true)
 		for i in range(cut[5], cut[6]):
 			_brush(canvas, lines[i], ink, stroke * 0.8)
+
+
+## 這個人某個部位的色塊（由後往前）：看剪影裡哪一塊是裙、哪一塊是披帛用。
+static func pieces(look: Dictionary, pose: Pose, part: int, time := 0.0) -> Array[PackedVector2Array]:
+	var fills: Array[PackedVector2Array] = []
+	var cuts: Array = []
+	_build(look, pose, time, fills, [], [], cuts)
+	var found: Array[PackedVector2Array] = []
+	for cut: Array in _ordered(cuts):
+		if cut[2] % OPEN == part:
+			found.append_array(fills.slice(cut[3], cut[4]))
+	return found
 
 
 ## 這個人由後往前的每一層：[層次, 部位]。
@@ -437,6 +469,8 @@ static func _build(look: Dictionary, pose: Pose, time: float, fills: Array[Packe
 	var female: bool = look["sex"] == Sex.FEMALE
 	var poor: bool = look["wealth"] == Wealth.POOR
 	var monk: bool = look["school"] == School.SHI
+	# 女裝（僧尼除外）：上襦下裙，裙繫在胸下；披帛搭在兩臂、垂在身外。
+	var dress := female and not monk
 	# 重心：腰往一邊送、肩往另一邊回；年老駝背，頸往前、往下。
 	var shift: Vector2 = Vector2(0.024 * float(look["swing"]), 0.0) * (0.3 if seated else 1.0)
 	var hip: Vector2 = joints["hip"] + shift
@@ -455,13 +489,22 @@ static func _build(look: Dictionary, pose: Pose, time: float, fills: Array[Packe
 	var elbow_b: Vector2 = joints["elbow_b"] + lean * 0.6
 	var hand_f: Vector2 = joints["hand_f"] + lean * 0.3
 	var hand_b: Vector2 = joints["hand_b"] + lean * 0.3
+	var blowing: bool = look["prop"] == Prop.FLUTE and pose == Pose.STAND
+	if blowing:
+		# 站著拿笛的人把笛橫在嘴邊吹：兩手抬到臉前，不垂在腰間（垂著的一管看起來像佩劍）。
+		hand_f = head + Vector2(-radius * 1.25, radius * 0.6)
+		elbow_f = neck + Vector2(-0.10, 0.15)
+		hand_b = hand_f + Vector2(0.13, 0.035)
+		elbow_b = neck + Vector2(0.10, 0.15)
 	# 身體半轉：朝前那一肩收窄、靠外那一肩完整；重心偏的那一邊肩略低。
 	var tip: float = 0.012 * float(look["swing"])
-	var far := neck + Vector2(-s * 0.74, 0.05 - tip)
-	var near := neck + Vector2(s * 1.02, 0.058 + tip)
+	# 女子溜肩：兩肩再垂下一點。
+	var slope := 0.014 if dress else 0.0
+	var far := neck + Vector2(-s * 0.74, 0.05 - tip + slope)
+	var near := neck + Vector2(s * 1.02, 0.058 + tip + slope)
 	# 貧者短褐：衣擺只到小腿，底下露出腿腳，下緣破碎。
-	var hem := -0.14 if poor and not seated else 0.0
-	var rag := 0.014 if poor else 0.0
+	var hem := -0.14 if poor and not seated and not dress else 0.0
+	var rag := 0.014 if poor and not dress else 0.0
 	var behind: bool = look["prop"] in BEHIND_PROPS
 
 	# 身後的東西先畫：背著或掛著的持物、披在背後的大氅、女子的披帛、朝前那隻手（上臂在身後）。
@@ -471,24 +514,27 @@ static func _build(look: Dictionary, pose: Pose, time: float, fills: Array[Packe
 	_cut(cuts, fills, lines, bands, PROP)
 	_stage(cuts, Layer.CAPE)
 	if look["cape"] and not seated:
+		# 大氅的肩頭有個最小寬度：肩窄的人兩個點擠在一起，輪廓會打結。
+		var drape := maxf(s, 0.095)
 		fills.append(smooth_outline([
-			neck + Vector2(s * 0.5, 0.02), near + Vector2(0.02, 0.01), hip + Vector2(g + 0.07 + w * 0.6, -0.05),
+			neck + Vector2(drape * 0.2, 0.034), neck + Vector2(drape * 0.7, 0.014), neck + Vector2(drape * 1.02 + 0.02, 0.068 + tip + slope), hip + Vector2(g + 0.07 + w * 0.6, -0.05),
 			Vector2(hip.x + f + 0.07 + w * 2.2, -0.10 - w * 0.5), Vector2(hip.x + f + 0.02 + w * 1.6 + 0.015 * sway, -0.04),
 			Vector2(hip.x + f * 0.6, -0.18), hip + Vector2(g * 0.5, -0.02),
 		]))
 		lines.append(PackedVector2Array([near + Vector2(0.03, 0.12), hip + Vector2(g + 0.08 + w, 0.1), Vector2(hip.x + f + 0.03 + w * 1.6, -0.12)]))
 	_cut(cuts, fills, lines, bands, CAPE)
 	_stage(cuts, Layer.SHAWL)
-	if female:
-		fills.append(_ribbon(elbow_b + Vector2(0.01, 0.0), Vector2(0.16 + w * 1.5, 0.36 if not seated else 0.16), 0.034, time, 1.8))
-		fills.append(_ribbon(elbow_f + Vector2(0.02, 0.02), Vector2(0.20 + w * 1.5, 0.30 if not seated else 0.12), 0.028, time + 0.9, 2.1))
-	_cut(cuts, fills, lines, bands, TRIM)
+	if dress and not poor:
+		# 披帛靠外的一端：自臂彎垂到身後，飄在輪廓外面。
+		fills.append(_ribbon(elbow_b + Vector2(0.03, -0.02), Vector2(0.20 + w * 1.5, 0.50 if not seated else 0.2), 0.055, time, 1.8, 0.45))
+	_cut(cuts, fills, lines, bands, SHAWL)
 	_stage(cuts, Layer.FAR_ARM)
-	_arm(fills, lines, far, elbow_f, hand_f, look["sleeve"], sway, joints["point"], false, bands, cuts)
+	# 吹笛時上臂折在身體後面看不到，只畫前臂（折得太急的整隻袖子輪廓會自己交叉）。
+	_arm(fills, lines, far, elbow_f, hand_f, look["sleeve"], sway, joints["point"], blowing, bands, cuts)
 	_cut(cuts, fills, lines, bands, ROBE)
 	_stage(cuts, Layer.LEGS)
 	if not seated:
-		if poor:
+		if poor and not dress:
 			# 腿腳露在短褐底下，赤足；重心在一腳，另一腳略往前。
 			for leg: float in [-0.05, 0.035]:
 				var ankle := Vector2(hip.x + leg - (0.02 if leg < 0.0 else 0.0), -0.012 + (0.006 if leg < 0.0 else 0.0))
@@ -523,9 +569,29 @@ static func _build(look: Dictionary, pose: Pose, time: float, fills: Array[Packe
 	body.append_array([neck + Vector2(s * 0.98, 0.17), near, neck + Vector2(s * 0.7, 0.018), neck + Vector2(0.03, 0.0)])
 	fills.append(smooth_outline(body))
 
-	# 女子高腰襦裙，腰帶繫在胸下。
-	var waist_y := hip.y - (0.05 if seated else 0.03) - (0.05 if female and not seated else 0.0)
-	var waist_half := g * (0.98 if not female or seated else 1.08)
+	# 腰帶的高度。女裝的裙繫在胸下：裙是另一塊、另一個顏色，蓋在上襦外面，自胸下往下放開。
+	var waist_y := hip.y - (0.05 if seated else 0.03)
+	var waist_half := g * 0.98
+	if dress:
+		waist_y = neck.y + 0.125
+		waist_half = maxf(g, s * 0.84) + 0.004
+		_cut(cuts, fills, lines, bands, ROBE)
+		var skirt: Array[Vector2] = [Vector2(hip.x - waist_half, waist_y)]
+		if seated:
+			skirt.append_array([
+				hip + Vector2(-g - 0.008, -0.06), hip + Vector2(-0.165, -0.026), Vector2(hip.x - 0.295, -0.11), Vector2(hip.x - 0.37, -0.06),
+				Vector2(hip.x - 0.36, -0.01), Vector2(hip.x - 0.29, 0.003), Vector2(hip.x - 0.05, 0.011), Vector2(hip.x + g + f * 0.46, 0.003),
+				Vector2(hip.x + g + f * 0.62 + w, -0.022), Vector2(hip.x + g + 0.064, -0.077), hip + Vector2(g + 0.016, -0.04),
+			])
+		else:
+			skirt.append_array([
+				Vector2(hip.x - g * 1.08 - 0.012, hip.y), Vector2(hip.x - f * 0.62, -0.24), Vector2(hip.x - f * 0.8, -0.045),
+				Vector2(hip.x - f * 0.52, -0.004), Vector2(hip.x - f * 0.05, 0.016 + 0.004 * sway), Vector2(hip.x + f * 0.44, 0.01),
+				Vector2(hip.x + f * 0.84 + w, -0.002 - w * 0.12), Vector2(hip.x + f * 1.06 + w * 1.7 + 0.02 * sway, -0.03 - w * 0.45),
+				Vector2(hip.x + f * 0.86 + w, -0.22), Vector2(hip.x + g * 1.1 + 0.034 + w * 0.3, hip.y + 0.02),
+			])
+		skirt.append(Vector2(hip.x + waist_half, waist_y))
+		fills.append(smooth_outline(skirt))
 	if monk:
 		# 袈裟：自靠外的肩斜披到前腰，兩道邊，中間是袈裟的顏色。
 		bands.append([PackedVector2Array([neck + Vector2(s * 0.82, 0.065), neck + Vector2(-s * 0.05, 0.18), Vector2(hip.x - g * 0.9, waist_y + 0.075)]), TRIM, 0.045])
@@ -538,7 +604,7 @@ static func _build(look: Dictionary, pose: Pose, time: float, fills: Array[Packe
 	else:
 		# 交領：兩襟在胸前交成一個「y」，身體半轉，交點偏向朝前那一邊；領緣是裡衣的顏色，腰帶另一色。
 		# 坐著時兩袖攏在身前，領緣只畫到胸口，不伸到袖子後面。
-		var lapel_end := neck + Vector2(-s * 0.52, 0.2) if seated else Vector2(hip.x - g * 0.58, waist_y)
+		var lapel_end := neck + Vector2(-s * 0.52, 0.2) if seated and not dress else Vector2(hip.x - g * 0.58, waist_y)
 		bands.append([PackedVector2Array([neck + Vector2(0.03, 0.012), neck + Vector2(-s * 0.26, 0.09), neck + Vector2(-s * 0.44, 0.15), lapel_end]), INNER, 0.02])
 		bands.append([PackedVector2Array([Vector2(hip.x - waist_half * 0.96, waist_y + 0.014), Vector2(hip.x, waist_y + 0.022), Vector2(hip.x + waist_half * 0.96, waist_y + 0.014)]), SASH, 0.028])
 		lines.append(PackedVector2Array([neck + Vector2(0.024, 0.006), neck + Vector2(-s * 0.3, 0.085), neck + Vector2(-s * 0.5, 0.15), Vector2(hip.x - g * 0.66, waist_y)]))
@@ -549,7 +615,8 @@ static func _build(look: Dictionary, pose: Pose, time: float, fills: Array[Packe
 			lines.append(PackedVector2Array([Vector2(hip.x - waist_half, waist_y + 0.028), Vector2(hip.x, waist_y + 0.036), Vector2(hip.x + waist_half, waist_y + 0.028)]))
 	if not seated:
 		# 衣褶：自腰帶往衣擺散開，越靠後越被風帶開；長短不一。
-		var pleats: int = look["pleats"]
+		# 裙褶比袍褶密。
+		var pleats: int = look["pleats"] + (3 if dress else 0)
 		for i in pleats:
 			var t := (i + 1.0) / (pleats + 1.0)
 			var top := Vector2(hip.x + lerpf(-g * 0.7, g * 0.8, t), waist_y + 0.04 + 0.1 * (i % 2))
@@ -562,7 +629,7 @@ static func _build(look: Dictionary, pose: Pose, time: float, fills: Array[Packe
 			# 補丁：衣上兩塊方布。
 			for patch: Vector2 in [Vector2(hip.x - g * 0.5, -0.36), Vector2(hip.x + g * 0.6, -0.25)]:
 				lines.append(PackedVector2Array([patch, patch + Vector2(0.035, 0.004), patch + Vector2(0.032, 0.04), patch + Vector2(-0.003, 0.036), patch]))
-		elif not monk:
+		elif not monk and not dress:
 			# 腰間的佩玉：一條絲繩垂一塊玉，再一綹穗。
 			var cord := Vector2(hip.x - g * 0.45, waist_y + 0.03)
 			lines.append(PackedVector2Array([cord, cord + Vector2(0.006 * sway, 0.09)]))
@@ -582,9 +649,18 @@ static func _build(look: Dictionary, pose: Pose, time: float, fills: Array[Packe
 		lines.append(PackedVector2Array([Vector2(hip.x - 0.10, -0.035), Vector2(hip.x - 0.24, -0.075), Vector2(hip.x - 0.345, -0.045)]))
 		lines.append(PackedVector2Array([Vector2(hip.x + g * 0.3, -0.03), Vector2(hip.x + g + f * 0.35, -0.004)]))
 		bands.append([PackedVector2Array([Vector2(hip.x - 0.11, -0.027), Vector2(hip.x - 0.24, -0.065), Vector2(hip.x - 0.335, -0.037)]), SHADE, 0.018])
-	_cut(cuts, fills, lines, bands, ROBE)
+	_cut(cuts, fills, lines, bands, SKIRT if dress else ROBE)
 	_stage(cuts, Layer.TASSEL)
-	if not seated and not monk:
+	if dress:
+		# 胸下繫裙的兩條帶子垂在身前；披帛朝前的一端自臂彎垂在裙前。
+		var knot := Vector2(hip.x - g * 0.3, waist_y + 0.03)
+		fills.append(_ribbon(knot, Vector2(-0.015 + w * 0.6, 0.26 if not seated else 0.12), 0.02, time, 2.1))
+		fills.append(_ribbon(knot + Vector2(0.012, 0.0), Vector2(0.02 + w * 0.8, 0.22 if not seated else 0.1), 0.018, time + 0.5, 2.5))
+		_cut(cuts, fills, lines, bands, SASH)
+		if not poor:
+			fills.append(_ribbon(elbow_f + Vector2(-0.02, 0.03), Vector2(-0.12 + w * 0.5, 0.46 if not seated else 0.14), 0.05, time + 0.9, 2.1, 0.45))
+			_cut(cuts, fills, lines, bands, SHAWL)
+	elif not seated and not monk:
 		# 腰帶的垂穗，往後飄。
 		fills.append(_ribbon(Vector2(hip.x + g * 0.6, waist_y + 0.02), Vector2(0.10 + w, 0.26), 0.03, time, 2.1))
 		if not poor:
@@ -607,6 +683,10 @@ static func _build(look: Dictionary, pose: Pose, time: float, fills: Array[Packe
 	_cut(cuts, fills, lines, bands, collar, Layer.COLLAR)
 	_face(fills, lines, bands, look, head, radius, tilt)
 	_cut(cuts, fills, lines, bands, SKIN)
+	if dress and not poor and look["age"] != Age.CHILD:
+		# 花鈿：眉心一點紅。
+		fills.append(_disc(head + Vector2(-0.36, -0.42).rotated(tilt) * radius, radius * 0.075))
+		_cut(cuts, fills, lines, bands, LIP + OPEN)
 	_whiskers(fills, lines, bands, cuts, look, head, radius, tilt, sway)
 	_stage(cuts, Layer.HEADWEAR)
 	_hair(fills, lines, bands, cuts, look, head, radius, time, w, tilt)
@@ -620,7 +700,7 @@ static func _build(look: Dictionary, pose: Pose, time: float, fills: Array[Packe
 		_held_prop(fills, lines, look, hip, neck, hand_b, time)
 	_cut(cuts, fills, lines, bands, PROP)
 	_stage(cuts, Layer.NEAR_ARM)
-	_arm(fills, lines, near, elbow_b, hand_b, look["sleeve"], sway_slow, false, false, bands, cuts)
+	_arm(fills, lines, near, elbow_b, hand_b, look["sleeve"], sway_slow, false, blowing, bands, cuts)
 	_cut(cuts, fills, lines, bands, ROBE)
 	_stage(cuts, Layer.FRONT_PROP)
 	_front_prop(fills, lines, look, hand_f, time)
@@ -692,6 +772,8 @@ static func _arm(fills: Array[PackedVector2Array], lines: Array[PackedVector2Arr
 	var wrist := hand - along * 0.02
 	# 袖口垂下來，但不垂到地面以下（坐著時袖子攤在腿上）。
 	var drop := Vector2(0.012 * sway, minf(sleeve, maxf(0.02, -0.045 - wrist.y)))
+	# 前臂快要直直舉起時袖子滑向手肘、貼著手臂，不再往下垂（垂下來會跟前臂疊在一起打結）。
+	drop *= 1.0 - 0.85 * smoothstep(0.55, 0.95, -along.y)
 	fills.append(smooth_outline([wrist + across * 0.017, hand + along * 0.03 + across * 0.012, hand + along * 0.036 - across * 0.011, wrist - across * 0.017]))
 	if point:
 		fills.append(_limb(hand + along * 0.02, hand + along * 0.075, 0.008, 0.004))
@@ -847,10 +929,7 @@ static func _whiskers(fills: Array[PackedVector2Array], lines: Array[PackedVecto
 			strokes = [[_on_face(look, head, radius, tilt, -0.3, 0.98), tip]]
 		Whiskers.THREE, Whiskers.FIVE:
 			# 長髯：自遠頰沿下頷到近頰連成一片，下緣分三個尖。輪廓與鬚絲都是曲線資料。
-			var data: Dictionary = part_data("whiskers")["long"]
-			fills.append(bezier(_face_curve(look, head, radius, tilt, data["outline"], length, drift)))
-			for strand: Array in data["strands"]:
-				bands.append([bezier(_face_curve(look, head, radius, tilt, strand, length, drift), false), SHADE, radius * 0.035])
+			_draw_part(part_data("whiskers")["long"]["pieces"], _face_frame(look, head, radius, tilt, length, drift), radius, fills, lines, bands, cuts, false)
 		Whiskers.FULL:
 			# 絡腮：沿著下頷一圈短鬚，下緣參差。
 			var depth := minf(length, 0.07)
@@ -906,18 +985,50 @@ static func bezier(nodes: Array, closed := true) -> PackedVector2Array:
 	return curve
 
 
-## 把臉上部件的曲線資料換成位置。資料裡每個點是 [x, y, 垂x, 垂y]：前兩項是臉上的位置（頭半徑為 1），
-## 後兩項乘 drop（垂下來的長度）；垂得越低的點被 drift 帶得越遠。控制點寫成相對節點的偏移。
-static func _face_curve(look: Dictionary, head: Vector2, radius: float, tilt: float, nodes: Array, drop: float, drift: Vector2) -> Array:
+## 照曲線資料畫一個部件。資料檔的格式：
+##   {"<部件名>": {"pieces": [ <一層>, ... ]}}
+##   一層 = {"layer": 層次表上的名稱, "part": 部位名稱（決定顏色）, "open": 不自動勾輪廓（可省略）,
+##           "fills": [ 封閉曲線, ... ]   —— 同一層的幾塊會併成一個輪廓、勾一道邊,
+##           "lines": [ 開口曲線, ... ]   —— 墨線,
+##           "bands": [ {"curve": 開口曲線, "part": 部位名稱, "width": 寬度} ] —— 色帶；part 寫 SHADE 是這一層底色的暗面 }
+##   曲線 = [ 節點, ... ]；節點 = [進來的控制點偏移, 位置, 出去的控制點偏移]，三項都是 [x, y, 垂x, 垂y]。
+## frame 把 (x, y, 垂x, 垂y) 換成畫面上的位置，由呼叫的一方決定座標怎麼解讀（臉上的部件見 _face_frame，
+## 拿在手上的東西見 _rigid_frame）；unit 是 width 的單位長。seal 為否時最後一層留給呼叫的一方收尾（還要往裡面加東西）。
+static func _draw_part(pieces: Array, frame: Callable, unit: float, fills: Array[PackedVector2Array], lines: Array[PackedVector2Array], bands: Array, cuts: Array, seal := true) -> void:
+	for index in pieces.size():
+		var piece: Dictionary = pieces[index]
+		for nodes: Array in piece.get("fills", []):
+			fills.append(bezier(_placed_nodes(nodes, frame)))
+		for nodes: Array in piece.get("lines", []):
+			lines.append(bezier(_placed_nodes(nodes, frame), false))
+		for band: Dictionary in piece.get("bands", []):
+			bands.append([bezier(_placed_nodes(band["curve"], frame), false), PART_NAMES[band["part"]], float(band["width"]) * unit])
+		if seal or index < pieces.size() - 1:
+			_cut(cuts, fills, lines, bands, PART_NAMES[piece["part"]] + (OPEN if piece.get("open", false) else 0), Layer[piece["layer"]])
+
+
+static func _placed_nodes(nodes: Array, frame: Callable) -> Array:
 	var placed: Array = []
 	for node: Array in nodes:
 		var at: Array = node[1]
 		var trio: Array = []
 		for offset: Array in [node[0], [0.0, 0.0, 0.0, 0.0], node[2]]:
-			var hang: float = at[3] + offset[3]
-			trio.append(_on_face(look, head, radius, tilt, at[0] + offset[0], at[1] + offset[1]) + Vector2(at[2] + offset[2], hang) * drop + drift * hang)
+			trio.append(frame.call(at[0] + offset[0], at[1] + offset[1], at[2] + offset[2], at[3] + offset[3]))
 		placed.append(trio)
 	return placed
+
+
+## 臉上的座標：x、y 是臉上的位置（頭半徑為 1，x 負的是面朝的那一邊，y 往下，見 _on_face），
+## 垂x、垂y 乘 drop（垂下來的長度，例如鬚長）；垂得越低的點被 drift 帶得越遠（隨風擺）。
+static func _face_frame(look: Dictionary, head: Vector2, radius: float, tilt: float, drop := 0.0, drift := Vector2.ZERO) -> Callable:
+	return func(x: float, y: float, hang_x: float, hang_y: float) -> Vector2:
+		return _on_face(look, head, radius, tilt, x, y) + Vector2(hang_x, hang_y) * drop + drift * hang_y
+
+
+## 剛體的座標：x、y 以 origin 為原點、轉 angle、乘 size；垂x、垂y 乘 drop，不跟著轉（往下垂的穗子）。
+static func _rigid_frame(origin: Vector2, angle: float, size: float, drop := 0.0, drift := Vector2.ZERO) -> Callable:
+	return func(x: float, y: float, hang_x: float, hang_y: float) -> Vector2:
+		return origin + Vector2(x, y).rotated(angle) * size + Vector2(hang_x, hang_y) * drop + drift * hang_y
 
 
 ## 髮式，以及從腦後飄出去的髮帶。
@@ -999,7 +1110,7 @@ static func _hair(fills: Array[PackedVector2Array], lines: Array[PackedVector2Ar
 				fills.append(_ribbon(bun + Vector2(radius * 0.2, 0.0), Vector2(look["ribbon"] * (0.3 + wind), look["ribbon"] * 0.35), 0.014, time + side, 3.8))
 			_cut(cuts, fills, lines, bands, HAIR)
 		Hair.HIGH_BUN:
-			# 高髻：頂上一個高高的髻，斜插一支步搖，鬢邊垂一綹髮，腦後一個小髻。
+			# 高髻：頂上一個高高的髻，斜插一支步搖，髻根簪一朵花，鬢邊垂一綹髮，腦後一個小髻，長髮垂到背後。
 			fills.append(smooth_outline([
 				head + Vector2(-radius * 0.35, -radius * 0.85), head + Vector2(-radius * 0.5, -radius * 1.65), head + Vector2(-radius * 0.1, -radius * 2.25),
 				head + Vector2(radius * 0.5, -radius * 2.05), head + Vector2(radius * 0.65, -radius * 1.3), head + Vector2(radius * 0.45, -radius * 0.8),
@@ -1008,8 +1119,19 @@ static func _hair(fills: Array[PackedVector2Array], lines: Array[PackedVector2Ar
 			fills.append(_limb(head + Vector2(-radius * 1.15, -radius * 1.75), head + Vector2(radius * 0.6, -radius * 1.35), 0.004, 0.004))
 			fills.append(_ribbon(head + Vector2(-radius * 1.1, -radius * 1.72), Vector2(-0.006, radius * 0.9), 0.012, time, 3.0))
 			_cut(cuts, fills, lines, bands, HAIR)
+			fills.append(_disc(head + Vector2(-radius * 0.52, -radius * 0.98), radius * 0.2))
+			fills.append(_disc(head + Vector2(-radius * 0.3, -radius * 1.2), radius * 0.13))
+			_cut(cuts, fills, lines, bands, SHAWL)
 			fills.append(_ribbon(_on_face(look, head, radius, tilt, 0.46, -0.1), Vector2(0.006, radius * 2.0), 0.012, time + 0.4, 2.2))
 			_cut(cuts, fills, lines, bands, HAIR, Layer.UNDER_CHIN)
+			var flow := wind * 0.8 + 0.01 * sin(time * 2.2)
+			fills.append(smooth_outline([
+				head + Vector2(radius * 0.2, -radius * 0.7), head + Vector2(radius * 1.0, -radius * 0.2), head + Vector2(radius * 1.25 + flow * 0.4, radius * 1.6),
+				head + Vector2(radius * 1.3 + flow, radius * 3.4), head + Vector2(radius * 0.95 + flow * 1.5, radius * 4.6),
+				head + Vector2(radius * 0.75 + flow, radius * 3.2), head + Vector2(radius * 0.55, radius * 1.5), head + Vector2(radius * 0.35, radius * 0.3),
+			]))
+			_cut(cuts, fills, lines, bands, HAIR, Layer.BEHIND_HEAD)
+			return
 		Hair.SCHOLAR_CAP:
 			# 儒巾：方頂的巾，腦後兩條長帶。
 			fills.append(smooth_outline([
@@ -1070,16 +1192,18 @@ static func _circle(center: Vector2, radius: float) -> PackedVector2Array:
 	return points
 
 
-## 一條飄帶：由 from 伸到 from + reach，越遠越細、擺得越大。
-static func _ribbon(from: Vector2, reach: Vector2, width: float, time: float, speed: float) -> PackedVector2Array:
+## 一條飄帶：由 from 伸到 from + reach，越遠越細、擺得越大；taper 是尾端收掉多少寬度，布帛收得少、尾端是圓的。
+static func _ribbon(from: Vector2, reach: Vector2, width: float, time: float, speed: float, taper := 0.88) -> PackedVector2Array:
 	var side := reach.normalized().orthogonal()
 	var upper := PackedVector2Array()
 	var lower := PackedVector2Array()
 	for i in 11:
 		var t := i / 10.0
 		var centre := from + reach * t + side * sin(time * speed - t * 4.0) * 0.05 * t
-		var half := width * (1.0 - t * 0.88) * 0.5
+		var half := width * (1.0 - t * taper) * 0.5
 		upper.append(centre - side * half)
 		lower.append(centre + side * half)
+	if taper < 0.8:
+		upper.append(from + reach * 1.03 + side * sin(time * speed - 4.0) * 0.05)
 	lower.reverse()
 	return upper + lower
