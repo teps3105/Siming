@@ -116,6 +116,32 @@ static func history_line(event: Dictionary, owner: int) -> String:
 	return template.format(_params(event)) + tail_extra
 
 
+## 歷程去掉同一件事的第二筆：渡劫成功後緊接的突破（新境界 ≥ 金丹）、成婚同時結下的宿緣。
+static func fold_history(history: Array) -> Array:
+	var out: Array = []
+	for entry: Dictionary in history:
+		if not _is_echo(entry, history):
+			out.append(entry)
+	return out
+
+
+static func _is_echo(entry: Dictionary, history: Array) -> bool:
+	var kind: String = entry["kind"]
+	if kind != "ThreadCreated" and not (kind == "Breakthrough" and int(entry.get("n", 0)) >= 2):
+		return false
+	for other: Dictionary in history:
+		if other["tick"] != entry["tick"]:
+			continue
+		if kind == "Breakthrough":
+			if other["kind"] == "Tribulation" and other["a_person"] == entry["a_person"]:
+				return true
+		elif other["kind"] == "Married":
+			var pair := [int(other["a_person"]), int(other["b_person"])]
+			if pair.has(int(entry["a_person"])) and pair.has(int(entry["b_person"])):
+				return true
+	return false
+
+
 ## 歷程的年月：with_era 為真才帶紀元名（同一紀元內只有第一筆與換紀元的那筆帶，由呼叫端判斷）。
 static func history_date(event: Dictionary, with_era: bool) -> String:
 	var key := "card_history_date" if with_era else "card_history_date_short"

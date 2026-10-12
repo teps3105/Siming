@@ -152,7 +152,7 @@ func _relayout() -> void:
 
 	# 歷程各筆。
 	_rows.clear()
-	var history: Array = _world.person_history(person)
+	var history: Array = EventText.fold_history(_world.person_history(person))
 	var list_width := width - 8.0 * u
 	var date_height := LedgerText.line_height(note)
 	var top := 0.0

@@ -142,7 +142,7 @@ func test_history_is_oldest_first_and_matches_the_bridge() -> void:
 		_hud.open_person(id)
 		await wait(0.5)
 		var card := _card()
-		var history: Array = _sim.world.person_history(id)
+		var history: Array = EventText.fold_history(_sim.world.person_history(id))
 		assert_gt(history.size(), 4, "找到歷程 5 筆以上的人")
 		assert_eq(card._rows.size(), history.size(), "歷程筆數與事件帳相符")
 		var last_top := -1.0
@@ -171,7 +171,7 @@ func test_dead_person_card_shows_cause_and_age_at_death() -> void:
 	assert_true(line.contains(Locale.t("death_" + info["death_cause"])), "寫明死因")
 	assert_true(line.contains("享年 %d" % info["age"]), "寫明享年")
 	for row: Dictionary in _card()._rows:
-		assert_true(_sim.world.person_history(dead).size() == _card()._rows.size())
+		assert_true(EventText.fold_history(_sim.world.person_history(dead)).size() == _card()._rows.size())
 	var last: Dictionary = _sim.world.person_history(dead)[-1]
 	assert_true(last["tick"] <= info["died_tick"], "歷程到死為止")
 
@@ -339,7 +339,7 @@ func test_history_sentences_drop_the_protagonist_and_date_the_era_once() -> void
 		_hud.open_person(id)
 		await wait(0.5)
 		var card := _card()
-		var history: Array = _sim.world.person_history(id)
+		var history: Array = EventText.fold_history(_sim.world.person_history(id))
 		var eras := 0
 		var previous_era := ""
 		var with_era := 0
@@ -374,3 +374,19 @@ func test_history_scrolls_with_the_wheel_to_the_end() -> void:
 		if list.scroll >= list.max_scroll():
 			break
 	assert_eq(list.scroll, list.max_scroll(), "滾輪捲到底，最後一筆在眼前")
+
+
+func test_history_folds_the_echo_of_one_happening() -> void:
+	# 渡劫成功後緊接的突破、成婚同時結下的情緣，在歷程裡各是同一件事，只留一筆。
+	var history := [
+		{"kind": "Married", "tick": 30, "a_person": 7, "b_person": 9, "n": 0},
+		{"kind": "ThreadCreated", "tick": 30, "a_person": 9, "b_person": 7, "n": 0},
+		{"kind": "ThreadCreated", "tick": 31, "a_person": 7, "b_person": 11, "n": 0},
+		{"kind": "Breakthrough", "tick": 40, "a_person": 7, "b_person": -1, "n": 1},
+		{"kind": "Tribulation", "tick": 90, "a_person": 7, "b_person": -1, "n": 2},
+		{"kind": "Breakthrough", "tick": 90, "a_person": 7, "b_person": -1, "n": 2},
+	]
+	var kinds: Array[String] = []
+	for entry: Dictionary in EventText.fold_history(history):
+		kinds.append("%s@%d" % [entry["kind"], entry["tick"]])
+	assert_eq(kinds, ["Married@30", "ThreadCreated@31", "Breakthrough@40", "Tribulation@90"] as Array[String], "歷程去掉重複的那一筆")

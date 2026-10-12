@@ -191,6 +191,7 @@ func restore(entries: Array[Dictionary]) -> void:
 
 
 ## 這筆事件是否留下：突破（新境界 ≥ 金丹）緊接在渡劫之後，是同一件事，不另記；
+## 成婚同時結下的宿緣也是同一件事，只留成婚；
 ## 同一魂同一年的異常事件合成一簽，留重要度高的（同級留先到的）。例行事件不併，統計要數得出每個人。
 ## 事件依時間先後到達，所以只從尾端往回找到年份不同為止。
 func _admit(rec: Dictionary) -> bool:
@@ -203,6 +204,17 @@ func _admit(rec: Dictionary) -> bool:
 				break
 			if old["kind"] == "Tribulation" and _share_soul(old["souls"], souls):
 				return false
+	if rec["kind"] == "ThreadCreated" or rec["kind"] == "Married":
+		var twin := "Married" if rec["kind"] == "ThreadCreated" else "ThreadCreated"
+		for i in range(_records.size() - 1, -1, -1):
+			var old := _records[i]
+			if old["tick"] != rec["tick"]:
+				break
+			if old["kind"] == twin and _same_souls(old["souls"], souls):
+				if twin == "Married":
+					return false
+				_records.remove_at(i)
+				break
 	if rec["kind"] == "Died" and rec["category"] != "" and rec["x"] in EventText.TRIBULATION_CAUSES:
 		# 渡劫失敗而亡：緊接在失敗的渡劫之後的身死是同一件事，合進身死的統計，不留那一筆單列的渡劫。
 		for i in range(_records.size() - 1, -1, -1):
@@ -242,6 +254,15 @@ func _share_soul(a: PackedInt32Array, b: PackedInt32Array) -> bool:
 		if a.has(soul):
 			return true
 	return false
+
+
+func _same_souls(a: PackedInt32Array, b: PackedInt32Array) -> bool:
+	if a.size() != b.size() or a.is_empty():
+		return false
+	for soul in b:
+		if not a.has(soul):
+			return false
+	return true
 
 
 func _year_of(entry: Dictionary) -> int:

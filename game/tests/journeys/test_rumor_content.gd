@@ -362,3 +362,22 @@ func test_real_simulation_does_not_flood_with_routine_tribulations() -> void:
 			assert_false(per_month.has(key), "同一個月的例行渡劫只有一則")
 			per_month[key] = true
 		assert_false(String(entry["line"]).contains("{"), "句子沒有留下未填的模板")
+
+
+func test_marriage_and_its_bond_are_one_rumor() -> void:
+	await _boot(FLOW_VIEW)
+	# 成婚同時結下的情緣是同一件事：只留成婚那一則，先到後到都一樣。
+	_post(_event("Married", 2, 100, {"souls": PackedInt32Array([1, 2]), "a": "徐清", "b": "丁磊"}))
+	_post(_event("ThreadCreated", 2, 100, {"souls": PackedInt32Array([1, 2]), "a": "徐清", "b": "丁磊", "x": "Love"}))
+	_post(_event("ThreadCreated", 2, 100, {"souls": PackedInt32Array([4, 3]), "a": "石瑟", "b": "趙遠", "x": "Love"}))
+	_post(_event("Married", 2, 100, {"souls": PackedInt32Array([3, 4]), "a": "趙遠", "b": "石瑟"}))
+	# 沒有成婚的結緣照留。
+	_post(_event("ThreadCreated", 2, 100, {"souls": PackedInt32Array([5, 6]), "a": "余菊", "b": "陳清", "x": "Grace"}))
+	_rumor.expanded = true
+	var kinds: Array[String] = []
+	var people := 0
+	for entry in _rumor.shown():
+		kinds.append(entry["kind"])
+		people += maxi(1, entry["members"].size())
+	assert_eq(kinds.count("ThreadCreated"), 1, "只剩沒成婚的那一筆結緣：" + str(kinds))
+	assert_eq(people, 3, "兩對成婚合成一則統計，加一筆結緣：" + str(kinds))
