@@ -17,6 +17,7 @@ uniform float globe_relief = 1.0;
 uniform float globe_top = 1.0;
 uniform mat4 globe_xform;
 instance uniform float copy_offset = 0.0;
+instance uniform float fade = 1.0;  // 天地演變換河道時，新舊兩份網格一淡入一淡出
 
 // 星球視角的高度壓縮（map_view.gd 的 globe_compress）：低地照原樣，越高壓得越多。
 const float GLOBE_COMPRESS = 2.0;
@@ -72,5 +73,5 @@ void vertex() {
 void fragment() {
 	float coverage = clamp(v_half_px - abs(v_edge_px) + 0.5, 0.0, 1.0);
 	ALBEDO = line_color;
-	ALPHA = coverage * v_alpha;
+	ALPHA = coverage * v_alpha * fade;
 }

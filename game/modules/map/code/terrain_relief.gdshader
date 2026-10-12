@@ -48,6 +48,13 @@ uniform sampler2D elevation_tex : repeat_enable, filter_linear_mipmap;
 uniform sampler2D lake_tex : repeat_enable, filter_linear_mipmap;
 uniform sampler2D climate_tex : repeat_enable, filter_linear, source_color;
 uniform sampler2D cover_tex : repeat_enable, filter_linear;
+// 天地演變的漸變（GDD 2.8「畫面」）：換圖後約 3 秒內，高度、湖面、植被底色與地表覆蓋都在前後兩張貼圖之間內插，
+// 海岸、雪線與森林邊緣因此是移過去的。平時 terrain_blend 為 1，只取新的一張。
+uniform sampler2D elevation_prev_tex : repeat_enable, filter_linear_mipmap;
+uniform sampler2D lake_prev_tex : repeat_enable, filter_linear_mipmap;
+uniform sampler2D climate_prev_tex : repeat_enable, filter_linear, source_color;
+uniform sampler2D cover_prev_tex : repeat_enable, filter_linear;
+uniform float terrain_blend = 1.0;
 uniform sampler2D paper_tex : repeat_enable, filter_linear_mipmap;
 uniform sampler2D water_tex : repeat_enable, filter_linear_mipmap;  // 可平鋪的雜訊：R 波紋、G 泡沫的形狀
 uniform sampler2D field_tex : repeat_enable, filter_linear;
@@ -64,6 +71,14 @@ float globe_lift(float h) {
 	return globe_top * (1.0 - exp(-GLOBE_COMPRESS * h / max(globe_top, 1e-4))) / GLOBE_COMPRESS * globe_relief;
 }
 
+float elevation_lod(vec2 uv, float lod) {
+	float now = textureLod(elevation_tex, uv, lod).r;
+	if (terrain_blend < 1.0) {
+		now = mix(textureLod(elevation_prev_tex, uv, lod).r, now, terrain_blend);
+	}
+	return now;
+}
+
 varying vec3 v_wpos;
 varying vec2 v_lpos;
 varying vec3 v_sdir;
@@ -76,7 +91,7 @@ void vertex() {
 	float inside = step(0.0, VERTEX.z) * step(VERTEX.z, map_size.y);
 	// 網格每個遊戲格四個頂點（頂點間距為 2 個紋素），取第 1.5 級的高度以免取樣不足拉出尖刺；
 	// 更細的起伏交給著色的浮雕暈渲。
-	float e = textureLod(elevation_tex, UV, 1.5).r;
+	float e = elevation_lod(UV, 1.5);
 	float h1 = max(e, 0.0) * map_size.x * HEIGHT_GAIN * inside;
 	vec3 wp = vec3(VERTEX.x, h1, VERTEX.z);
 	if (vanish_eye > wp.y) {
@@ -112,6 +127,22 @@ vec4 bicubic(sampler2D tex, vec2 uv) {
 	vec2 h1 = (base + 1.5 + w3 / g1) / size;
 	return (textureLod(tex, vec2(h0.x, h0.y), 0.0) * g0.x + textureLod(tex, vec2(h1.x, h0.y), 0.0) * g1.x) * g0.y
 		+ (textureLod(tex, vec2(h0.x, h1.y), 0.0) * g0.x + textureLod(tex, vec2(h1.x, h1.y), 0.0) * g1.x) * g1.y;
+}
+
+float elevation_cubic(vec2 uv) {
+	float now = bicubic(elevation_tex, uv).r;
+	if (terrain_blend < 1.0) {
+		now = mix(bicubic(elevation_prev_tex, uv).r, now, terrain_blend);
+	}
+	return now;
+}
+
+float lake_cubic(vec2 uv) {
+	float now = bicubic(lake_tex, uv).r;
+	if (terrain_blend < 1.0) {
+		now = mix(bicubic(lake_prev_tex, uv).r, now, terrain_blend);
+	}
+	return now;
 }
 
 // 三維梯度雜訊（球面座標求值，接縫與極點連續）。用於紋素以下的微細節。
@@ -267,19 +298,19 @@ void fragment() {
 	// 高度：貼圖（三次 B 樣條）加上紋素以下的微細節。微細節的振幅隨像素涵蓋範圍淡出，遠景不閃爍。
 	vec2 texel = 1.0 / vec2(textureSize(elevation_tex, 0));
 	float cells_per_texel = map_size.x * texel.x;
-	float e_c = bicubic(elevation_tex, uv).r;
-	float e_xp = bicubic(elevation_tex, uv + vec2(texel.x, 0.0)).r;
-	float e_xm = bicubic(elevation_tex, uv - vec2(texel.x, 0.0)).r;
-	float e_yp = bicubic(elevation_tex, uv + vec2(0.0, texel.y)).r;
-	float e_ym = bicubic(elevation_tex, uv - vec2(0.0, texel.y)).r;
+	float e_c = elevation_cubic(uv);
+	float e_xp = elevation_cubic(uv + vec2(texel.x, 0.0));
+	float e_xm = elevation_cubic(uv - vec2(texel.x, 0.0));
+	float e_yp = elevation_cubic(uv + vec2(0.0, texel.y));
+	float e_ym = elevation_cubic(uv - vec2(0.0, texel.y));
 	// 細坡向（稜線、谷線）與曲率：每遊戲格的高度變化。
 	vec2 grad = vec2(e_xp - e_xm, e_yp - e_ym) / (2.0 * cells_per_texel);
 	float curvature = (e_xp + e_xm + e_yp + e_ym - 4.0 * e_c) / (cells_per_texel * cells_per_texel);
 	// 粗坡向（整座山的受光面與背光面）：跨 6 個紋素取差。
 	vec2 wide = texel * 6.0;
 	vec2 grad_wide = vec2(
-		textureLod(elevation_tex, uv + vec2(wide.x, 0.0), 2.0).r - textureLod(elevation_tex, uv - vec2(wide.x, 0.0), 2.0).r,
-		textureLod(elevation_tex, uv + vec2(0.0, wide.y), 2.0).r - textureLod(elevation_tex, uv - vec2(0.0, wide.y), 2.0).r
+		elevation_lod(uv + vec2(wide.x, 0.0), 2.0) - elevation_lod(uv - vec2(wide.x, 0.0), 2.0),
+		elevation_lod(uv + vec2(0.0, wide.y), 2.0) - elevation_lod(uv - vec2(0.0, wide.y), 2.0)
 	) / (12.0 * cells_per_texel);
 	float slope = length(grad);
 	vec3 p3 = d * (map_size.x / TAU);
@@ -290,15 +321,19 @@ void fragment() {
 	// 水：海在等值線以下；湖以遮罩（128 為湖岸）。
 	float fw_e = max(fwidth(e), 1e-7);
 	float sea_mask = 1.0 - smoothstep(-0.5 * fw_e, 0.5 * fw_e, e);
-	float lake_v = bicubic(lake_tex, uv).r + micro * 0.03;
+	float lake_v = lake_cubic(uv) + micro * 0.03;
 	float fw_l = max(fwidth(lake_v), 1e-5);
 	float lake_mask = smoothstep(0.5 - 0.5 * fw_l, 0.5 + 0.5 * fw_l, lake_v);
 	float wmask = max(sea_mask, lake_mask);
 
 	// 1 陸地設色：植被底色依高度漸入土色、岩色與雪；雪線隨緯度降低；終年積雪處為冰原，乾熱裸地為沙漠。
 	vec3 veg = texture(climate_tex, uv).rgb;
-	// 地表覆蓋：R 冰雪、G 沙土。沙土蓋在植被底色上（高處照常漸入岩色），冰雪蓋在高度色階上。
 	vec2 cover = texture(cover_tex, uv).rg;
+	if (terrain_blend < 1.0) {
+		veg = mix(texture(climate_prev_tex, uv).rgb, veg, terrain_blend);
+		cover = mix(texture(cover_prev_tex, uv).rg, cover, terrain_blend);
+	}
+	// 地表覆蓋：R 冰雪、G 沙土。沙土蓋在植被底色上（高處照常漸入岩色），冰雪蓋在高度色階上。
 	veg = mix(veg, sand_color, cover.g * 0.9);
 	float alt = clamp(max(e, 0.0) / max(max_elevation, 1e-4) + 0.28 * d.y * d.y, 0.0, 1.0);
 	// 紙墨設色：植被底色只是薄薄一層淡彩，平地近乎紙色，山才上青綠。
@@ -332,7 +367,7 @@ void fragment() {
 
 	// 3 水：水深取平滑後的高度（第 5 級，約 4 個遊戲格的平均），海色隨水深連續變化，沒有分段。
 	// 岸邊由實際高度接手，海岸線兩側的深淺才連續。
-	float e_smooth = textureLod(elevation_tex, uv, 5.0).r;
+	float e_smooth = elevation_lod(uv, 5.0);
 	float e_water = mix(e, min(e_smooth, e), smoothstep(0.0, 0.012, -e));
 	float depth = clamp(-e_water / max(sea_level, 1e-3), 0.0, 1.0);
 	float dither = (fract(sin(dot(FRAGCOORD.xy, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) / 255.0;

@@ -14,6 +14,9 @@ const COPIES := 3
 const WATER_TEXTURE_SIZE := 256
 ## GDD 5.3 過渡時間：平面 ↔ 球面 0.6 秒。
 const GLOBE_MORPH_SECONDS := 0.6
+## 天地演變換圖後，新舊地形之間漸變的秒數（GDD 2.8「畫面」）。
+const TERRAIN_FADE_SECONDS := 3.0
+const RELIEF_TEXTURES: Array[String] = ["elevation", "lake", "climate", "cover"]
 
 ## GDD 5.1 色票（sRGB）。
 const PAPER := Color("EDE4CF")
@@ -45,6 +48,7 @@ var _terrain_material: ShaderMaterial
 var _river_material: ShaderMaterial
 var _terrain_copies: Array[MeshInstance3D] = []
 var _river_copies: Array[MeshInstance3D] = []
+var _old_river_copies: Array[MeshInstance3D] = []
 var _ley_material: ShaderMaterial
 var _ley_copies: Array[MeshInstance3D] = []
 var _province_colors: ImageTexture
@@ -56,6 +60,10 @@ var _eye := 0.0
 var _globe_relief := 1.0
 ## 全圖最高的地表高度（建圖時取一次；每次查詢要掃整張地圖）。
 var _top_height := 1.0
+# 漸變：0 是換圖前、1 是換完；起點與終點各記海平面、最高點的相對高度、最高的地表高度。
+var _fade := 1.0
+var _fade_from := Vector3.ZERO
+var _fade_to := Vector3.ZERO
 ## 目前畫面依據的是世界的第幾版資料（SimWorld.map_revision、terrain_revision）。
 var _shown_map := 0
 var _shown_terrain := 0
@@ -64,11 +72,11 @@ var _shown_terrain := 0
 ## 以世界資料建立地圖。世界改變地形後再呼叫一次即可重建。
 func build(world: SimWorld) -> void:
 	_world = world
-	_top_height = world.terrain_max_height()
-	for copy in _terrain_copies + _river_copies + _ley_copies:
+	for copy in _terrain_copies + _river_copies + _old_river_copies + _ley_copies:
 		copy.queue_free()
 	_terrain_copies.clear()
 	_river_copies.clear()
+	_old_river_copies.clear()
 	_ley_copies.clear()
 
 	var grid := world.grid_size()
@@ -89,17 +97,23 @@ func build(world: SimWorld) -> void:
 	for i in COPIES:
 		_terrain_copies.append(_add_copy("Terrain%d" % i, terrain_mesh, _terrain_material, bounds))
 		_river_copies.append(_add_copy("River%d" % i, river_mesh, _river_material, bounds))
+		_old_river_copies.append(_add_copy("RiverOld%d" % i, null, _river_material, bounds))
 		_ley_copies.append(_add_copy("Ley%d" % i, ley_mesh, _ley_material, bounds))
 	_shown_map = world.map_revision()
 	_shown_terrain = world.terrain_revision()
+	_fade_from = _fade_to
+	_apply_fade(1.0)
 	recenter(map_size.x * 0.5)
 	set_mode(mode)
 
 
 ## 世界在背景重算好高度場，或一世結算後州界與靈氣變了，就換上新的貼圖與線；地形網格不必重建。
-func _process(_delta: float) -> void:
+## 高度場換上後約 3 秒內由舊的漸變到新的，暫停時間時照樣走完。
+func _process(delta: float) -> void:
 	if _world == null or not _world.is_ready():
 		return
+	if _fade < 1.0:
+		_apply_fade(minf(_fade + delta / TERRAIN_FADE_SECONDS, 1.0))
 	_world.poll_terrain()
 	if _world.map_revision() == _shown_map:
 		return
@@ -107,11 +121,18 @@ func _process(_delta: float) -> void:
 	_shown_map = _world.map_revision()
 	_shown_terrain = _world.terrain_revision()
 	if terrain:
-		_top_height = _world.terrain_max_height()
+		# 上一次漸變還沒走完又來一批：沒走完的部分直接到位，從這一批重新開始。
+		_apply_fade(1.0)
+		_fade_from = _fade_to
+		for key in RELIEF_TEXTURES:
+			_terrain_material.set_shader_parameter(key + "_prev_tex", _terrain_material.get_shader_parameter(key + "_tex"))
 		_set_relief_textures(_terrain_material, _world, _world.relief_textures())
 		var river_mesh := _mesh_from(_world.river_mesh(), "tangents", "side_level", "taper")
-		for copy in _river_copies:
-			copy.mesh = river_mesh
+		for i in COPIES:
+			_old_river_copies[i].mesh = _river_copies[i].mesh
+			_old_river_copies[i].visible = true
+			_river_copies[i].mesh = river_mesh
+		_apply_fade(0.0)
 	_set_data_textures(_terrain_material, _world, _world.data_textures())
 	var ley_mesh := _mesh_from(_ley_arrays(_world), "tangents", "side_level", "taper")
 	for copy in _ley_copies:
@@ -120,12 +141,33 @@ func _process(_delta: float) -> void:
 	refreshed.emit(terrain)
 
 
+## 漸變走到 t：貼圖的內插比例、跟著地形變的三個數值、新舊河流的濃淡。走完後放掉舊貼圖與舊河流。
+func _apply_fade(t: float) -> void:
+	_fade = t
+	var eased := smoothstep(0.0, 1.0, t)
+	var now := _fade_from.lerp(_fade_to, eased)
+	_top_height = now.z
+	_terrain_material.set_shader_parameter("terrain_blend", eased)
+	_terrain_material.set_shader_parameter("sea_level", now.x)
+	_terrain_material.set_shader_parameter("max_elevation", now.y)
+	for i in _river_copies.size():
+		_river_copies[i].set_instance_shader_parameter("fade", eased)
+		_old_river_copies[i].set_instance_shader_parameter("fade", 1.0 - eased)
+	if t < 1.0:
+		return
+	for key in RELIEF_TEXTURES:
+		_terrain_material.set_shader_parameter(key + "_prev_tex", _terrain_material.get_shader_parameter(key + "_tex"))
+	for copy in _old_river_copies:
+		copy.visible = false
+		copy.mesh = null
+
+
 ## 把三份副本排在鏡頭焦點所在的那一份與其東西兩側。
 func recenter(focus_x: float) -> void:
 	var base := floorf(focus_x / map_size.x)
 	for i in COPIES:
 		var offset := (base + float(i - 1)) * map_size.x
-		for copy: MeshInstance3D in [_terrain_copies[i], _river_copies[i], _ley_copies[i]]:
+		for copy: MeshInstance3D in [_terrain_copies[i], _river_copies[i], _old_river_copies[i], _ley_copies[i]]:
 			copy.position.x = offset
 			copy.set_instance_shader_parameter("copy_offset", offset)
 
@@ -322,8 +364,7 @@ func _make_terrain_material(world: SimWorld) -> ShaderMaterial:
 ## 跟著高度場換的參數：高度、湖面、植被底色、地表覆蓋。
 func _set_relief_textures(material: ShaderMaterial, world: SimWorld, textures: Dictionary) -> void:
 	var grid := world.grid_size()
-	material.set_shader_parameter("sea_level", textures["sea_level"])
-	material.set_shader_parameter("max_elevation", world.terrain_max_height() / (grid.x * 0.04))
+	_fade_to = Vector3(textures["sea_level"], world.terrain_max_height() / (grid.x * 0.04), world.terrain_max_height())
 	# 高度：16 位元半精度（可線性取樣），多級縮圖由橋接層在背景算好——頂點高度與水深取平滑後的級別。
 	var elevation_size: Vector2i = textures["elevation_size"]
 	var elevation := Image.create_from_data(
