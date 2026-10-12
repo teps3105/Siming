@@ -20,6 +20,7 @@ pub mod people;
 pub mod population;
 pub mod rng;
 pub mod save;
+pub mod schedule;
 pub mod sim;
 pub mod soul;
 pub mod thread;

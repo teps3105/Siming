@@ -190,7 +190,7 @@ fn cultivation_caps_at_realm_exp() {
     let mut w = line_world(2, 2, &[]);
     let a = cult(&mut w, 0, 0, 7.9);
     w.persons[a as usize].last_attempt_block();
-    cultivate::yearly_actions(&mut w);
+    cultivate::yearly_actions(&mut w, crate::schedule::Round::All);
     assert!(exp(&w, a) <= REALM_EXP[0] + 1e-4);
 }
 
@@ -525,7 +525,7 @@ fn yearly_found_creates_sects_with_spacing() {
             cult(&mut w, i, 2, 0.0);
         }
     }
-    sect::yearly_found(&mut w);
+    sect::yearly_found(&mut w, crate::schedule::Round::All);
     let sects: Vec<_> = w.powers.iter().collect();
     assert!(!sects.is_empty());
     for (i, a) in sects.iter().enumerate() {
@@ -569,7 +569,7 @@ fn recruit_masters_fill_and_join() {
     let rogue_near = cult(&mut w, 1, 0, 0.0);
     w.persons[novice as usize].master = None;
     let g0 = 0.0;
-    sect::yearly_recruit(&mut w);
+    sect::yearly_recruit(&mut w, crate::schedule::Round::All, &mut sect::RangeCache::default());
     // 新人拜長老（境界高於自己者），長老無師父 → 拜掌門
     assert!([Some(leader), Some(elder)].contains(&w.persons[novice as usize].master));
     assert_eq!(w.persons[elder as usize].master, Some(leader));
@@ -607,7 +607,7 @@ fn rogues_join_highest_prestige_unfilled_sect_in_range() {
             d
         })
         .collect();
-    sect::join_rogues(&mut w);
+    sect::join_rogues(&mut w, crate::schedule::Round::All, &mut sect::RangeCache::default());
     let joined1 = rogues.iter().filter(|&&r| w.persons[r as usize].power == Some(s1)).count();
     let joined2 = rogues.iter().filter(|&&r| w.persons[r as usize].power == Some(s2)).count();
     // 聲望較高的 s2 先收滿，溢出者才進 s1；兩宗都不超過各自規模
@@ -628,7 +628,7 @@ fn prestige_and_radius() {
         sc.ascended = 2;
     }
     w.powers[s as usize].prestige_mod = 100.0;
-    sect::yearly_prestige(&mut w);
+    sect::yearly_prestige(&mut w, crate::schedule::Round::All);
     let pw = &w.powers[s as usize];
     let expect = people::power_of(&w, l).sqrt() + people::power_of(&w, m).sqrt() + 100.0;
     assert!((pw.prestige - expect).abs() < 1e-4);
@@ -807,7 +807,7 @@ fn yearly_wars_need_shared_node_and_hostility() {
             }
             let PowerKind::Sect(x) = &mut w.powers[sb as usize].kind;
             x.evil = evil;
-            war::yearly_wars(&mut w);
+            war::yearly_wars(&mut w, crate::schedule::Round::All, &mut sect::RangeCache::default());
             fought[case] += count(&w, EventKind::SectWar) as u32;
         }
     }
@@ -878,5 +878,56 @@ fn smoke_three_yun() {
             asc,
             w.persons.iter().filter(|p| p.alive()).count()
         );
+    }
+}
+
+// ── 分月判定（GDD 6.3 判定月）────────────────────────────
+
+/// 每個修士一年內修煉恰好一次：連續 12 個月逐月呼叫個人判定，修為增量落在單次修煉的範圍內；
+/// 年中才建立的人也一樣，從建立當月起算滿 12 個月仍只有一次，不重複也不漏。
+#[test]
+fn gdd_6_3_cultivation_once_per_year_across_monthly_rounds() {
+    let mut w = line_world(31, 2, &[]);
+    w.tick = 1237; // 年中
+    let ids: Vec<_> = (0..60).map(|_| cult(&mut w, 0, 0, 0.0)).collect();
+    for &id in &ids {
+        w.persons[id as usize].last_attempt_block();
+    }
+    let coef: Vec<f32> = ids.iter().map(|&id| cultivation_coefficient(&w, &w.persons[id as usize])).collect();
+    for _ in 0..12 {
+        w.tick += 1;
+        monthly_personal(&mut w);
+    }
+    let mut checked = 0;
+    for (k, &id) in ids.iter().enumerate() {
+        let p = &w.persons[id as usize];
+        if !p.alive() || !matches!(p.role, Role::Cultivator) || !matches!(p.path, PathState::Cultivator { .. }) {
+            continue;
+        }
+        let gain = exp(&w, id);
+        let c = coef[k];
+        assert!(gain >= c * CULT_NOISE_MIN - 1e-4 && gain <= c * CULT_NOISE_MAX + 1e-4, "人 {id} 增量 {gain} 係數 {c}");
+        checked += 1;
+    }
+    assert!(checked >= 50, "多數人應仍在世且為修士，實得 {checked}");
+}
+
+/// 單月輪次只處理判定月輪到的人：同一個月內，沒輪到的人修為不動。
+#[test]
+fn gdd_6_3_monthly_round_touches_only_due_persons() {
+    let mut w = line_world(32, 2, &[]);
+    w.tick = 1200;
+    let ids: Vec<_> = (0..60).map(|_| cult(&mut w, 0, 0, 0.0)).collect();
+    for &id in &ids {
+        w.persons[id as usize].last_attempt_block();
+    }
+    w.tick += 1;
+    let month = crate::schedule::month_of(w.tick);
+    monthly_personal(&mut w);
+    for &id in &ids {
+        let due = crate::schedule::judge_month(w.params.seed, crate::schedule::Domain::Person, id) == month;
+        if w.persons[id as usize].alive() && matches!(w.persons[id as usize].role, Role::Cultivator) {
+            assert_eq!(exp(&w, id) > 0.0, due, "人 {id}");
+        }
     }
 }

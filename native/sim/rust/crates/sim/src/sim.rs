@@ -42,6 +42,11 @@ pub struct World {
     pub land_basis: Option<crate::landform::LandBasis>,
     /// GDD 3.7 王朝與州郡歸屬。新狀態，世界雜湊附加在最後。
     pub dynasty: crate::dynasty::DynastyState,
+    /// GDD 3.3 宿緣相遇的年度戳記（魂）：值為「年序 + 1」，等於本年表示該魂本年已相遇過。各魂在自己的判定月處理相遇，
+    /// 每魂每年的次數上限因此要跨月記帳。世界雜湊附加在最後。
+    pub meet_stamp: Vec<u32>,
+    /// 同上（宿緣線）：本年已判定過的線，一條線的兩端同一年只判定一次。
+    pub thread_stamp: Vec<u32>,
     pub rng: RngStreams,
 }
 
@@ -73,6 +78,8 @@ impl World {
             aura_basis: None,
             land_basis: None,
             dynasty,
+            meet_stamp: Vec::new(),
+            thread_stamp: Vec::new(),
             rng,
         }
     }
@@ -146,29 +153,35 @@ impl Sim {
         // 5 中陰、他道、等待、出生
         crate::soul::monthly(w);
         // 6 每季：氣場擴散（M4）
-        if is_yearly(tick) {
-            // 7 州郡人口
-            let mult = crate::dynasty::growth_mult(w);
-            let famines = crate::population::yearly_with(&mut w.provinces, &mult);
-            crate::ledger::record_famines(w, &famines);
-            // 8、9 氣場與勢力的年度效果（M3、M4）
-            // 10 年齡與壽元
-            crate::people::yearly_aging(w);
-            // 11 依身分行動
-            crate::dao::yearly(w);
-            crate::people::yearly_travel(w);
-            // 12 入道
-            crate::people::yearly_coming_of_age(w);
-            // 13 婚配
-            crate::people::yearly_marriage(w);
+        // 個人、宗門、州郡、王朝的年度判定各在自己的判定月（`schedule`），每月都跑；
+        // 只有補魂與天地演變、因果帳修剪留在年底月（第 12 月）。同一個月內各步的相對順序維持不變。
+        let yearly = is_yearly(tick);
+        // 7 州郡人口與饑荒（州郡在自己的判定月；盛世倍率、賑災與天命的饑荒項當月處理）
+        let mult = crate::dynasty::growth_mult(w);
+        let famines = crate::population::monthly_with(&mut w.provinces, &mult, w.params.seed, crate::schedule::Round::at(tick));
+        crate::ledger::record_famines(w, &famines);
+        crate::dynasty::on_famines(w, &famines);
+        // 8、9 氣場與勢力的年度效果（M3、M4）
+        // 10 年齡與壽元：年齡由 tick 與出生月即時算出（滿一歲落在出生月），壽元已盡者在滿壽元的那個月死亡。
+        crate::people::monthly_aging(w);
+        // 11 依身分行動
+        crate::dao::monthly_personal(w);
+        crate::people::monthly_travel(w);
+        // 12 入道
+        crate::people::monthly_coming_of_age(w);
+        // 13 婚配
+        crate::people::monthly_marriage(w);
+        if yearly {
             //    補魂（GDD 3.4 來源第 3 項）
             crate::soul::yearly_refill(w);
-            // 14 宿緣
-            crate::thread::yearly(w);
-            // 15–18 勢力
-            crate::dao::yearly_sects(w);
-            // 19 王朝與天命（GDD 3.7）；20 魔勢（M4）
-            crate::dynasty::yearly(w, &famines);
+        }
+        // 14 宿緣
+        crate::thread::monthly(w);
+        // 15–18 勢力
+        crate::dao::monthly_sects(w);
+        // 19 王朝與天命（GDD 3.7）：每個王朝在自己的判定月結算；20 魔勢（M4）
+        crate::dynasty::monthly(w);
+        if yearly {
             // 每世：天地演變（GDD 2.8），在天機收入之前
             if is_shi(tick) {
                 crate::evolution::shi_settle(w);
