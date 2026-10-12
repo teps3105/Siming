@@ -346,7 +346,7 @@ fn evolve(seed: u64, yun: u32, era: EraArg) -> Result<(), String> {
         println!("  第 {:>5} 年起　{}紀元（{}）", x.start_year, x.name, x.kind.key());
     }
     println!("開局日期：{}", calendar::full(s.world().tick, e.history_years, &s.world().eras));
-    println!("{:>6} {:>8} {:>10} {:>7}  {}", "年", "寒暖", "海平面", "靈潮", "紀元");
+    println!("{:>6} {:>8} {:>10} {:>7}  紀元", "年", "寒暖", "海平面", "靈潮");
     let line = |s: &Sim| {
         let w = s.world();
         let e = &w.evolution;

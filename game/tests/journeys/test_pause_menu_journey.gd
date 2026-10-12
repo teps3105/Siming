@@ -2,7 +2,7 @@ extends "res://tests/harness/suite.gd"
 ## 流程：遊戲中選單（GDD 9.1）——開關與時間的行止、存檔與讀檔、介面縮放、自動存檔（GDD 4.8）與邊緣捲動（GDD 5.9）。
 ## 存檔與設定寫在使用者資料夾底下另一個目錄，不碰玩家的檔案。
 
-const ROOT := "user://test_pause_menu"
+static var ROOT: String = TEST_STORAGE.path_join("pause_menu")
 
 var _game: Node
 var _sim: SimHost

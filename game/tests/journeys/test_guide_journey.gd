@@ -2,7 +2,7 @@ extends "res://tests/harness/suite.gd"
 ## 流程：引導簽（GDD 5.7、9.1）——一次一句，做到了換下一句，全部做過不再出現，可在設定重看。
 ## 設定寫在使用者資料夾底下另一個目錄，不碰玩家的檔案。
 
-const ROOT := "user://test_guide"
+static var ROOT: String = TEST_STORAGE.path_join("guide")
 
 var _game: Node
 var _sim: SimHost

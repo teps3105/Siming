@@ -1,5 +1,8 @@
 //! GDD 2.8「每世結算」第 3 步：草木——墾殖、復林、沙化與回復。
 
+// 斷言寫成「不小於」的否定式：沒有可比的格時兩邊是 NaN，這時要算通過。
+#![allow(clippy::neg_cmp_op_on_partial_ord)]
+
 use siming_sim::{flora, landform, EventKind, Sim, Terrain, World, WorldParams};
 
 const SEED: u64 = 20261011;
