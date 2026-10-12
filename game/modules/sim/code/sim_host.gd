@@ -7,6 +7,8 @@ signal world_created
 signal advanced(months: int)
 signal time_state_changed
 signal slowed_down
+## GDD 2.8 世界大事：change 是大事代號（ColdBegan…），era 是它開啟的紀元名（沒改元為空字串）。
+signal world_changed(change: String, era: String)
 
 ## GDD 2.6 速度：1×、5×、10×、20×；1× 每秒 2 個月。
 const SPEED_MULTIPLIERS: Array[int] = [1, 5, 10, 20]
@@ -26,6 +28,7 @@ var _backlog := 0.0
 func create_world(world_seed: int, size: String = "medium") -> String:
 	var error := world.create(world_seed, size)
 	if error.is_empty():
+		world.drain_events()
 		world_created.emit()
 	return error
 
@@ -34,6 +37,8 @@ func create_world(world_seed: int, size: String = "medium") -> String:
 func adopt_world(ready_world: SimWorld) -> void:
 	world = ready_world
 	_backlog = 0.0
+	# 開局前的歷史與讀檔重播留下的事件不是新消息。
+	world.drain_events()
 	world_created.emit()
 
 
@@ -42,6 +47,7 @@ func advance(months: int) -> void:
 	if not world.is_ready() or months <= 0:
 		return
 	world.step(months)
+	_announce()
 	advanced.emit(months)
 
 
@@ -80,8 +86,16 @@ func _process(delta: float) -> void:
 		_backlog -= 1.0
 		done += 1
 	if done > 0:
+		_announce()
 		advanced.emit(done)
 	if _backlog > BACKLOG_LIMIT and speed_index > 0:
 		# 推演趕不上：自動降一級並提示（GDD 6.4）。
 		set_speed(speed_index - 1)
 		slowed_down.emit()
+
+
+## 取走這次推進新增的事件，把世界大事發出去。
+func _announce() -> void:
+	for event: Dictionary in world.drain_events():
+		if event["kind"] == "WorldChanged":
+			world_changed.emit(event["change"], event["era"])

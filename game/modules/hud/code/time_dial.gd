@@ -3,10 +3,19 @@ extends Control
 ## GDD 5.7 天時儀：左上圓盤（十二月刻度、朱針、盤心的行止鈕），盤右是寫著日期的題簽，
 ## 題簽下是時速簽——「運行中／已暫停」加暫停鍵、疾徐四筆加倍率（1x、5x…）與調速鍵。
 ## 每個可操作的地方都有圖像、文字與實體鍵圖像（5.7 原則 7）。支援的決定：現在該停還是該快。
+## 圓盤外圈兩道弧（GDD 2.8）：左弧寒暖（下寒上暖）、右弧靈潮（下枯上盛），兩端加粗的一段是大寒、大暖、末法、靈氣復甦的範圍；
+## 朱點是目前的值，朱點旁的箭頭指向下一世結算後的走向；滑鼠停在弧上，題簽右邊出現一張說明簽。
 
 ## 圓盤半徑含綾邊（直徑 56）；盤心鈕直徑 30。
 const DISC_RADIUS := 28.0
 const SEAL_RADIUS := 15.0
+## 外圈：圓盤外加這麼寬的一圈紙面放兩道弧；弧線的半徑、弧的半張角、朱點半徑。
+const ARC_MARGIN := 13.0
+const ARC_RADIUS := 34.5
+const ARC_HALF_SPAN := deg_to_rad(58.0)
+const ARC_DOT := 4.0
+## 下一世的變化量小於這個數就不畫箭頭（寒暖、靈潮）。
+const TREND_DEADBAND := {&"warmth": 0.02, &"tide": 0.01}
 const STROKE_COUNT := 4
 const TITLE_HEIGHT := 30.0
 const SPEED_HEIGHT := 24.0
@@ -34,6 +43,8 @@ var _sim: SimHost
 var _unit := 1.0
 var _hover_stroke := -1
 var _hover_seal := false
+## 滑鼠停在哪一道弧上：&""、&"warmth"、&"tide"。
+var _hover_arc := &""
 ## 正按住的地方（按下的回饋）：-1 沒有、0–3 疾徐的某一筆、PRESSED_PAUSE 行止鈕。
 var _pressed := -1
 
@@ -41,7 +52,7 @@ var _pressed := -1
 func setup(sim: SimHost, unit: float) -> void:
 	_sim = sim
 	_unit = unit
-	custom_minimum_size = Vector2(560.0, DISC_RADIUS * 2.0 + 16.0) * unit
+	custom_minimum_size = Vector2(560.0, (DISC_RADIUS + ARC_MARGIN) * 2.0 + 16.0) * unit
 	size = custom_minimum_size
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
@@ -53,8 +64,100 @@ func _disc_radius() -> float:
 	return DISC_RADIUS * _unit
 
 
+## 連外圈兩道弧在內的半徑。
+func outer_radius() -> float:
+	return (DISC_RADIUS + ARC_MARGIN) * _unit
+
+
 func _disc_center() -> Vector2:
-	return Vector2.ONE * _disc_radius()
+	return Vector2.ONE * outer_radius()
+
+
+## 寒暖或靈潮在弧上的位置（0 在下端、1 在上端）：目前的與下一世結算後的。
+func _arc_levels(kind: StringName) -> Vector2:
+	var c: Dictionary = _sim.world.climate()
+	if kind == &"warmth":
+		return Vector2(inverse_lerp(-1.0, 1.0, c["warmth"]), inverse_lerp(-1.0, 1.0, c["warmth_next"])).clampf(0.0, 1.0)
+	return Vector2(inverse_lerp(c["tide_min"], c["tide_max"], c["tide"]), inverse_lerp(c["tide_min"], c["tide_max"], c["tide_next"])).clampf(0.0, 1.0)
+
+
+## 下一世的走向：1 往上（轉暖、漸漲）、-1 往下、0 持平。
+func trend(kind: StringName) -> int:
+	var c: Dictionary = _sim.world.climate()
+	var delta: float = c[String(kind) + "_next"] - c[String(kind)]
+	return 0 if absf(delta) < TREND_DEADBAND[kind] else signi(int(signf(delta)))
+
+
+## 弧上 level（0..1）那一點的方向角：左弧繞著正左、右弧繞著正右，下端在下。
+func _arc_angle(kind: StringName, level: float) -> float:
+	var swing := ARC_HALF_SPAN * (level * 2.0 - 1.0)
+	return PI + swing if kind == &"warmth" else -swing
+
+
+func _arc_point(kind: StringName, level: float) -> Vector2:
+	return _disc_center() + Vector2.from_angle(_arc_angle(kind, level)) * ARC_RADIUS * _unit
+
+
+## 朱點的位置（本器物座標）。
+func arc_dot(kind: StringName) -> Vector2:
+	return _arc_point(kind, _arc_levels(kind).x)
+
+
+## 滑鼠停在某一道弧上時說明簽寫的字；沒停在弧上是空字串。
+func hover_text() -> String:
+	if _hover_arc == &"" or _sim == null:
+		return ""
+	var c: Dictionary = _sim.world.climate()
+	var warmth := _hover_arc == &"warmth"
+	var state: String = Locale.t("climate_" + c["climate"]) if warmth else Locale.t("aura_" + c["aura"])
+	var way := trend(_hover_arc)
+	var trend_key := "trend_flat"
+	if way > 0:
+		trend_key = "trend_warmer" if warmth else "trend_rising"
+	elif way < 0:
+		trend_key = "trend_colder" if warmth else "trend_falling"
+	return Locale.t("dial_arc_format").format({
+		"title": Locale.t("dial_warmth" if warmth else "dial_tide"), "state": state, "trend": Locale.t(trend_key)})
+
+
+## 說明簽的紙面：題簽右邊。
+func _hover_rect() -> Rect2:
+	var title := _title_rect()
+	var width := Ink.text_size(hover_text(), Ink.font_size(Ink.SIZE_NOTE, _unit)).x + PAD * 2.0 * _unit
+	return Rect2(Vector2(title.end.x + Ink.SLIP_BAND * 2.0 + 6.0 * _unit, title.position.y), Vector2(width, title.size.y))
+
+
+func _arc_at(pos: Vector2) -> StringName:
+	var offset := pos - _disc_center()
+	if offset.length() <= _disc_radius() or offset.length() > outer_radius():
+		return &""
+	return &"warmth" if offset.x < 0.0 else &"tide"
+
+
+func _draw_arc_gauge(kind: StringName) -> void:
+	var c: Dictionary = _sim.world.climate()
+	var center := _disc_center()
+	var radius := ARC_RADIUS * _unit
+	var low: float = inverse_lerp(-1.0, 1.0, -c["warmth_enter"]) if kind == &"warmth" else inverse_lerp(c["tide_min"], c["tide_max"], c["decline_enter"])
+	var high: float = inverse_lerp(-1.0, 1.0, c["warmth_enter"]) if kind == &"warmth" else inverse_lerp(c["tide_min"], c["tide_max"], c["revival_enter"])
+	draw_arc(center, radius, _arc_angle(kind, 0.0), _arc_angle(kind, 1.0), 32, Ink.INK_LIGHT, 1.5 * _unit, true)
+	draw_arc(center, radius, _arc_angle(kind, 0.0), _arc_angle(kind, low), 12, Ink.INK, 3.5 * _unit, true)
+	draw_arc(center, radius, _arc_angle(kind, high), _arc_angle(kind, 1.0), 12, Ink.INK, 3.5 * _unit, true)
+	var levels := _arc_levels(kind)
+	var dot := _arc_point(kind, levels.x)
+	draw_circle(dot, (ARC_DOT + 1.2) * _unit, Ink.PAPER_LIGHT)
+	draw_circle(dot, ARC_DOT * _unit, Ink.SEAL_RED)
+	var way := trend(kind)
+	if way == 0:
+		return
+	# 箭頭貼著朱點、沿弧指向走向；朱點已在弧的那一端時畫在弧端外。
+	var step := (ARC_DOT + 2.5) / ARC_RADIUS / (ARC_HALF_SPAN * 2.0)
+	var base_level := levels.x + way * step
+	var tip_level := base_level + way * step * 1.2
+	var base := _arc_point(kind, base_level)
+	var tip := _arc_point(kind, tip_level)
+	var side := (tip - base).orthogonal().normalized() * 4.2 * _unit
+	draw_colored_polygon(PackedVector2Array([tip, base + side, base - side]), Ink.SEAL_RED)
 
 
 func _state_label() -> String:
@@ -76,12 +179,12 @@ func _speed_keys() -> Array[String]:
 
 ## 題簽的紙面（不含綾邊）。
 func _title_rect() -> Rect2:
-	return Rect2(Vector2(_slip_left(), Ink.SLIP_BAND), Vector2(_slip_width(), TITLE_HEIGHT * _unit))
+	return Rect2(Vector2(_slip_left(), Ink.SLIP_BAND + ARC_MARGIN * 0.5 * _unit), Vector2(_slip_width(), TITLE_HEIGHT * _unit))
 
 
 ## 兩張簽共用的左緣。
 func _slip_left() -> float:
-	return _disc_radius() * 2.0 + 8.0 * _unit + Ink.SLIP_BAND
+	return outer_radius() * 2.0 + 8.0 * _unit + Ink.SLIP_BAND
 
 
 ## 兩張簽共用的寬度：取日期與時速內容中較寬者，與目前的日期、倍速、輸入裝置無關。
@@ -163,6 +266,10 @@ func _draw() -> void:
 	var center := _disc_center()
 	var radius := _disc_radius()
 	var face := radius - Ink.SLIP_BAND
+	# 外圈的紙面與兩道弧，圓盤疊在上面。
+	Ink.paper_disc(self, center, outer_radius())
+	_draw_arc_gauge(&"warmth")
+	_draw_arc_gauge(&"tide")
 	Ink.paper_disc(self, center, radius)
 	# 十二月刻度：正月在正上方，順時針。
 	for month in 12:
@@ -211,6 +318,10 @@ func _draw() -> void:
 	Ink.text(self, Vector2(columns["speed_end"], text_y), Locale.t("dial_speed_unit"), note)
 	var keys := _speed_keys()
 	Ink.key_glyph(self, Vector2(columns["speed_keys"], key_y), keys[0], _unit)
+	if _hover_arc != &"":
+		var hint := _hover_rect()
+		Ink.paper_slip(self, hint)
+		Ink.text(self, hint.position + Vector2(PAD * _unit, (hint.size.y - Ink.text_size(hover_text(), note).y) * 0.5), hover_text(), note)
 
 
 func _gui_input(event: InputEvent) -> void:
@@ -219,9 +330,11 @@ func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		var on_seal: bool = _on_pause((event as InputEventMouseMotion).position)
 		var on_stroke: int = _stroke_at((event as InputEventMouseMotion).position)
-		if on_seal != _hover_seal or on_stroke != _hover_stroke:
+		var on_arc := _arc_at((event as InputEventMouseMotion).position)
+		if on_seal != _hover_seal or on_stroke != _hover_stroke or on_arc != _hover_arc:
 			_hover_seal = on_seal
 			_hover_stroke = on_stroke
+			_hover_arc = on_arc
 			queue_redraw()
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		var stroke: int = _stroke_at((event as InputEventMouseButton).position)
@@ -241,16 +354,17 @@ func _gui_input(event: InputEvent) -> void:
 
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_MOUSE_EXIT and (_hover_seal or _hover_stroke >= 0 or _pressed >= 0):
+	if what == NOTIFICATION_MOUSE_EXIT and (_hover_seal or _hover_stroke >= 0 or _pressed >= 0 or _hover_arc != &""):
 		_pressed = -1
+		_hover_arc = &""
 		_hover_seal = false
 		_hover_stroke = -1
 		queue_redraw()
 
 
-## 滑鼠只在圓盤與時速簽上才攔截，其餘讓地圖收到事件。
+## 滑鼠只在圓盤（連外圈）與時速簽上才攔截，其餘讓地圖收到事件。
 func _has_point(point: Vector2) -> bool:
-	return point.distance_to(_disc_center()) <= _disc_radius() or _speed_rect().grow(Ink.SLIP_BAND).has_point(point)
+	return point.distance_to(_disc_center()) <= outer_radius() or _speed_rect().grow(Ink.SLIP_BAND).has_point(point)
 
 
 ## 游標停在這裡時是否可以按（GDD 5.9 游標圖示）。

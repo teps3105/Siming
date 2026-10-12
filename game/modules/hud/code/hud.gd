@@ -26,6 +26,7 @@ var _card: ProvinceCard
 var _view: ViewToggle
 var _cursor: GameCursor
 var _guide: GuideSlip
+var _notice: NoticeSlip
 var _menu: MenuDeck
 ## 是否顯示引導簽（測試會關掉）；在 setup 之前設定。
 var guide_enabled := true
@@ -50,6 +51,10 @@ func setup(sim: SimHost, map: TerrainMap, camera: MapCamera) -> void:
 	sim.time_state_changed.connect(func() -> void:
 		if not _menu_switching:
 			_guide.notify(&"time"))
+	sim.world_changed.connect(func(change: String, era: String) -> void: _notice.post(_world_notice(change, era)))
+	sim.world_created.connect(func() -> void:
+		if _notice != null:
+			_notice.clear())
 	sim.advanced.connect(func(_months: int) -> void:
 		_card.refresh()
 		_overlay.refresh_seats())
@@ -65,6 +70,12 @@ func setup(sim: SimHost, map: TerrainMap, camera: MapCamera) -> void:
 
 
 ## 依畫面高度決定器物大小；大小改變時重建器物。
+## GDD 7.2 世界大事的那句話；開啟紀元的加上改元。
+static func _world_notice(change: String, era: String) -> String:
+	var event := Locale.t("world_" + change)
+	return event if era.is_empty() else Locale.t("world_new_era").format({"event": event, "era": era})
+
+
 func _layout() -> void:
 	var bounds := get_viewport().get_visible_rect().size
 	var unit := Ink.layout_unit(bounds, GameSettings.ui_scale())
@@ -76,10 +87,14 @@ func _layout() -> void:
 	_seals.position = bounds - _seals.size - Vector2(MARGIN, MARGIN)
 	_place_guide()
 	_card.position = Vector2(bounds.x - _card.size.x - MARGIN, MARGIN)
+	_notice.top_center = Vector2(bounds.x * 0.5, MARGIN)
 
 
 func _build() -> void:
 	var selected := _card.province if _card != null else -1
+	var notices: Array[String] = []
+	if _notice != null:
+		notices = _notice.pending()
 	for child in get_children():
 		if child != _menu:
 			child.queue_free()
@@ -111,13 +126,19 @@ func _build() -> void:
 	_view.setup(_unit)
 	_view.globe = _camera.globe
 	_view.toggled.connect(func() -> void: _camera.toggle_globe())
-	var under_dial := maxf(_dial._disc_radius() * 2.0, _dial._speed_rect().end.y + Ink.SLIP_BAND)
+	var under_dial := maxf(_dial.outer_radius() * 2.0, _dial._speed_rect().end.y + Ink.SLIP_BAND)
 	_view.position = _dial.position + Vector2(0.0, under_dial + 8.0 * _unit)
 
 	_guide = GuideSlip.new()
 	add_child(_guide)
 	_guide.resized.connect(_place_guide)
 	_guide.setup(_camera, _map.map_size.x, _unit, guide_enabled)
+
+	_notice = NoticeSlip.new()
+	add_child(_notice)
+	_notice.setup(_unit)
+	for line in notices:
+		_notice.post(line)
 
 	# 遊戲內游標畫在所有器物之上。
 	_cursor = GameCursor.new()
@@ -201,7 +222,7 @@ func _process(_delta: float) -> void:
 
 ## 器物目前佔住的畫面範圍（地圖標籤要避開）。
 func _occupied() -> Array[Rect2]:
-	var disc := Rect2(_dial.position, Vector2.ONE * _dial._disc_radius() * 2.0)
+	var disc := Rect2(_dial.position, Vector2.ONE * _dial.outer_radius() * 2.0)
 	var slips := _dial._title_rect().merge(_dial._speed_rect())
 	slips.position += _dial.position
 	var seals := _seals._seal_rect(0).merge(_seals._seal_rect(SealBox.SEALS.size() - 1))

@@ -333,6 +333,42 @@ func test_gdd_2_8_rebaked_terrain_equals_the_one_built_on_load() -> void:
 	assert_eq(names_here, _label_lines(loaded), "地圖標籤應與讀檔後的相同")
 
 
+func test_gdd_2_8_climate_reports_where_the_world_is_and_where_it_is_heading() -> void:
+	var world := SimWorld.new()
+	world.create(20261011, "small")
+	for shi in 12:
+		var before: Dictionary = world.climate()
+		assert_true(absf(float(before["warmth"])) <= 1.0)
+		assert_true(float(before["tide"]) >= float(before["tide_min"]) and float(before["tide"]) <= float(before["tide_max"]))
+		assert_true(before["climate"] in ["Cold", "Mild", "Warm"])
+		assert_true(before["aura"] in ["Decline", "Plain", "Revival"])
+		world.step(360 - world.tick() % 360)
+		var after: Dictionary = world.climate()
+		assert_eq(float(before["warmth_next"]), float(after["warmth"]), "預告的寒暖應等於下一世結算後的寒暖")
+		assert_eq(float(before["tide_next"]), float(after["tide"]), "預告的靈潮應等於下一世結算後的靈潮")
+		world.step(7)
+
+
+func test_gdd_2_8_world_changes_come_out_of_the_event_queue_with_their_era() -> void:
+	var world := SimWorld.new()
+	world.create(20261011, "small")
+	world.drain_events()
+	var changes: Array[Dictionary] = []
+	for shi in 60:
+		world.step(360)
+		for event: Dictionary in world.drain_events():
+			if event["kind"] == "WorldChanged":
+				changes.append(event)
+	assert_gt(changes.size(), 0, "六十世裡應有世界大事")
+	var opened := 0
+	for event in changes:
+		assert_true(event["change"] in ["ColdBegan", "ColdEnded", "WarmBegan", "WarmEnded", "DeclineBegan", "DeclineEnded", "RevivalBegan", "RevivalEnded"])
+		if event["era"] != "":
+			opened += 1
+	assert_gt(opened, 0, "六十世裡應有改元")
+	assert_true(world.date_short().begins_with(changes.filter(func(e: Dictionary) -> bool: return e["era"] != "")[-1]["era"]), "題簽的紀元應是最後一次改元的名字")
+
+
 func _label_lines(world: SimWorld) -> Array[String]:
 	var lines: Array[String] = []
 	for label: Dictionary in world.map_labels():

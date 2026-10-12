@@ -155,6 +155,15 @@ func click(pos: Vector2) -> void:
 		await frames(2)
 
 
+## 滑鼠移到螢幕位置 pos（不按鍵）。
+func move_mouse(pos: Vector2) -> void:
+	var event := InputEventMouseMotion.new()
+	event.position = pos
+	event.global_position = pos
+	Input.parse_input_event(event)
+	await frames(2)
+
+
 ## 滾輪在螢幕位置 pos 滾一格；up 為真是往上（拉近）。
 func wheel(pos: Vector2, up: bool) -> void:
 	Input.parse_input_event(_mouse_button(MOUSE_BUTTON_WHEEL_UP if up else MOUSE_BUTTON_WHEEL_DOWN, true, pos))

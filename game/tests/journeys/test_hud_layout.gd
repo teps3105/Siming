@@ -320,3 +320,77 @@ func test_date_is_centred_in_the_title_slip() -> void:
 		assert_lt(absf(date.get_center().x - title.get_center().x), 0.5, "整串日期在題簽裡置中：%s" % _sim.world.date_short())
 		assert_true(title.encloses(date), "日期不超出題簽")
 		_sim.world.step(700)
+
+
+func test_gdd_2_8_dial_carries_two_arcs_with_dots_inside_the_outer_ring() -> void:
+	for view: Vector2i in [FLOW_VIEW, DECK_VIEW]:
+		await _boot(view)
+		var dial := _hud._dial
+		var center := dial._disc_center()
+		assert_gt(center.x - dial.outer_radius(), -0.01, "外圈不超出器物的左上角")
+		for kind: StringName in [&"warmth", &"tide"]:
+			var dot := dial.arc_dot(kind)
+			assert_gt(dot.distance_to(center), dial._disc_radius(), "朱點在圓盤外")
+			assert_lt(dot.distance_to(center) + TimeDial.ARC_DOT * _hud._unit, dial.outer_radius(), "朱點在外圈內")
+		assert_lt(dial.arc_dot(&"warmth").x, center.x, "寒暖在左弧")
+		assert_gt(dial.arc_dot(&"tide").x, center.x, "靈潮在右弧")
+		assert_gt(dial._title_rect().position.x, center.x + dial.outer_radius(), "題簽讓開外圈")
+		assert_gt(_hud._view.position.y, dial.position.y + dial.outer_radius() * 2.0, "視角鈕在外圈之下")
+		assert_gt(TimeDial.ARC_DOT * 2.0 * _hud._unit, 6.9, "朱點直徑至少 7 px")
+
+
+func test_gdd_2_8_arc_dot_and_arrow_follow_the_world() -> void:
+	await _boot(FLOW_VIEW)
+	var dial := _hud._dial
+	var seen := {}
+	for shi in 40:
+		var c: Dictionary = _sim.world.climate()
+		var want := signi(int(signf(float(c["warmth_next"]) - float(c["warmth"])))) if absf(float(c["warmth_next"]) - float(c["warmth"])) >= 0.02 else 0
+		assert_eq(dial.trend(&"warmth"), want)
+		seen[dial.trend(&"warmth")] = true
+		# 左弧下寒上暖：寒暖愈高朱點愈高。
+		var level: float = inverse_lerp(-1.0, 1.0, c["warmth"])
+		assert_lt(absf(dial.arc_dot(&"warmth").y - dial._arc_point(&"warmth", level).y), 0.01)
+		_sim.advance(360)
+	assert_true(seen.has(1) and seen.has(-1), "四十世裡寒暖應有升有降")
+	assert_lt(dial._arc_point(&"warmth", 1.0).y, dial._arc_point(&"warmth", 0.0).y, "暖在上")
+	assert_lt(dial._arc_point(&"tide", 1.0).y, dial._arc_point(&"tide", 0.0).y, "盛在上")
+
+
+func test_gdd_2_8_hovering_an_arc_explains_it() -> void:
+	await _boot(FLOW_VIEW)
+	var dial := _hud._dial
+	assert_eq(dial.hover_text(), "")
+	await move_mouse(dial.position + dial.arc_dot(&"warmth"))
+	assert_true(dial.hover_text().begins_with(Locale.t("dial_warmth")), "停在左弧說寒暖：%s" % dial.hover_text())
+	assert_false(dial.is_hot(dial.arc_dot(&"warmth")), "弧不能按")
+	await move_mouse(dial.position + dial.arc_dot(&"tide"))
+	assert_true(dial.hover_text().begins_with(Locale.t("dial_tide")), "停在右弧說靈潮：%s" % dial.hover_text())
+	await move_mouse(Vector2(900.0, 600.0))
+	assert_eq(dial.hover_text(), "", "移開後說明簽收起")
+
+
+func test_gdd_2_8_a_world_change_posts_a_notice_that_goes_away() -> void:
+	await _boot(FLOW_VIEW)
+	var notice := _hud._notice
+	assert_false(notice.showing(), "開局沒有告示")
+	var heard: Array = []
+	_sim.world_changed.connect(func(change: String, era: String) -> void: heard.append([change, era]))
+	for shi in 60:
+		_sim.advance(360)
+		if not heard.is_empty():
+			break
+	assert_gt(heard.size(), 0, "六十世裡應有世界大事")
+	assert_true(notice.showing(), "世界大事發生時出現告示")
+	assert_eq(notice.text(), Hud._world_notice(heard[0][0], heard[0][1]))
+	var bounds := Vector2(tree.root.get_visible_rect().size)
+	var rect := Rect2(notice.position, notice.size)
+	assert_lt(absf(rect.get_center().x - bounds.x * 0.5), 1.0, "告示在上方中央")
+	await wait(NoticeSlip.HOLD_SECONDS * heard.size() + NoticeSlip.FADE_SECONDS * 2.0 * heard.size() + 0.5)
+	assert_false(notice.showing(), "告示停幾秒後收起")
+
+
+func test_gdd_2_8_notice_text_names_the_new_era() -> void:
+	assert_eq(Hud._world_notice("ColdBegan", "玄冥"), "天下大寒，改元玄冥")
+	assert_eq(Hud._world_notice("ColdEnded", ""), "大寒已過")
+

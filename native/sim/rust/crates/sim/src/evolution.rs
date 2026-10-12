@@ -151,6 +151,13 @@ impl Evolution {
         1.0 + EVO_TIDE_AMPLITUDE * wave(year, self.tide_period, self.tide_phase)
     }
 
+    /// 第 `year` 年結算之後的寒暖與靈潮（畫面的走向箭頭用）；不改動自己。
+    pub fn forecast(&self, year: u32) -> (f32, f32) {
+        let mut ahead = self.clone();
+        ahead.settle(year);
+        (ahead.warmth, ahead.tide)
+    }
+
     /// 每世結算一次（`year` 為開天以來的年數）：寒暖與靈潮取週期值，海平面追寒暖；
     /// 回傳這一世跨過門檻的世界大事，先寒暖後靈潮。
     pub fn settle(&mut self, year: u32) -> Vec<WorldChange> {

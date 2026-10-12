@@ -458,6 +458,33 @@ impl SimWorld {
         }
     }
 
+    /// GDD 2.8 寒暖與靈潮（天時儀的兩道弧）：`warmth`（−1..1）、`tide` 與下一世結算後的 `warmth_next`、`tide_next`；
+    /// 所在時期 `climate`（Cold／Mild／Warm）、`aura`（Decline／Plain／Revival）；靈潮的範圍 `tide_min`、`tide_max`；
+    /// 進入各時期的門檻 `warmth_enter`、`decline_enter`、`revival_enter`。
+    #[func]
+    fn climate(&self) -> VarDictionary {
+        let mut d = VarDictionary::new();
+        let Some(sim) = self.sim.as_ref() else {
+            return d;
+        };
+        let w = sim.world();
+        let e = &w.evolution;
+        let next_tick = (w.tick / 360 + 1) * 360;
+        let (warmth_next, tide_next) = e.forecast(e.history_years + siming_sim::evolution::year_of(next_tick));
+        d.set("warmth", e.warmth);
+        d.set("tide", e.tide);
+        d.set("warmth_next", warmth_next);
+        d.set("tide_next", tide_next);
+        d.set("climate", &GString::from(format!("{:?}", e.climate).as_str()));
+        d.set("aura", &GString::from(format!("{:?}", e.aura).as_str()));
+        d.set("tide_min", siming_sim::params::EVO_TIDE_MIN);
+        d.set("tide_max", siming_sim::params::EVO_TIDE_MAX);
+        d.set("warmth_enter", siming_sim::params::EVO_WARMTH_ENTER);
+        d.set("decline_enter", siming_sim::params::EVO_DECLINE_ENTER);
+        d.set("revival_enter", siming_sim::params::EVO_REVIVAL_ENTER);
+        d
+    }
+
     /// GDD 2.8 開局前已過的年數：開天以來的年數 = 這個數 + 開局後的年數。
     #[func]
     fn history_years(&self) -> i64 {
@@ -879,6 +906,7 @@ impl SimWorld {
     }
 
     /// 取走上次呼叫以來的新事件：每筆有 `id`、`tick`、`kind`（事件代號）、`importance`、`province`（無則 -1）。
+    /// 世界大事（`WorldChanged`）另有 `change`（大事代號）與 `era`（這件大事開啟的紀元名，沒改元為空字串）。
     #[func]
     fn drain_events(&mut self) -> Array<VarDictionary> {
         let mut out = Array::new();
@@ -896,6 +924,14 @@ impl SimWorld {
             d.set("kind", &GString::from(format!("{:?}", e.kind).as_str()));
             d.set("importance", e.importance as i32);
             d.set("province", e.province.map_or(-1, |p| p as i32));
+            if let siming_sim::EventArgs::World { change, new_era } = &e.args {
+                // 紀元的元年是開啟它的那次結算的下一年。
+                let year = sim.world().evolution.history_years + siming_sim::evolution::year_of(e.tick);
+                let era = sim.world().eras.iter().find(|era| era.start_year == year + 1);
+                let name = if *new_era { era.map_or("", |era| era.name.as_str()) } else { "" };
+                d.set("change", &GString::from(format!("{change:?}").as_str()));
+                d.set("era", &GString::from(name));
+            }
             out.push(&d);
         }
         out
