@@ -868,7 +868,8 @@ impl SimWorld {
     /// - `realm`（修士境界，非修士為 -1）、`fruit`（僧的果位，非僧為 -1）；
     /// - `root`、`insight`、`talent`、`virtue`、`ferocity`（資質）；
     /// - `soul`（魂編號）、`life_index`（這是魂的第幾世，從 1 起算）、`lives_total`（魂已有的世數）、
-    ///   `merit`、`sin`、`wisdom`（魂的功德、業障、宿慧）。
+    ///   `merit`、`sin`、`wisdom`（魂的功德、業障、宿慧）；
+    /// - `last_event`：此人最近一則事件的編號（沒有為 -1；修剪後指向最近保留的祖先）。
     #[func]
     fn person(&self, id: i32) -> VarDictionary {
         let mut d = VarDictionary::new();
@@ -911,6 +912,7 @@ impl SimWorld {
         d.set("virtue", p.attrs.virtue);
         d.set("ferocity", p.attrs.ferocity);
         d.set("soul", p.soul as i32);
+        d.set("last_event", p.last_event.map_or(-1, |e| e as i64));
         if let Some(soul) = w.souls.get(p.soul as usize) {
             d.set("life_index", soul.lives.iter().position(|&l| l == p.id).map_or(1, |i| i as i32 + 1));
             d.set("lives_total", soul.lives.len() as i32);
@@ -1110,44 +1112,143 @@ impl SimWorld {
             return out;
         };
         let w = sim.world();
-        let gw = w.geo.w as u32;
-        let cell_pos = |c: u32| Vector2::new((c % gw) as f32 + 0.5, (c / gw) as f32 + 0.5);
         for id in ids {
             let Some(e) = siming_sim::ledger::get(w, id) else {
                 continue;
             };
-            let mut d = self.event_fields(w, e, None);
-            d.set("id", e.id as i64);
-            d.set("tick", e.tick as i64);
-            d.set("kind", &GString::from(format!("{:?}", e.kind).as_str()));
-            d.set("importance", e.importance as i32);
-            d.set("province", e.province.map_or(-1, |p| p as i32));
-            d.set("cell", e.cell.map_or(-1, |c| c as i32));
-            let province = e.province.and_then(|p| w.provinces.get(p as usize));
-            if let Some(c) = e.cell {
-                d.set("pos", cell_pos(c));
-            } else if let Some(p) = province {
-                d.set("pos", cell_pos(p.seat));
-            }
-            let souls: Vec<i32> = e.souls.iter().map(|&s| s as i32).collect();
-            d.set("souls", &PackedInt32Array::from(souls.as_slice()));
-            d.set("year", siming_sim::calendar::era_year(e.tick, w.evolution.history_years, &w.eras).1 as i32);
-            d.set("month", siming_sim::calendar::date(e.tick).month as i32);
-            // 可追對象：牽涉的人物與勢力編號（州郡編號為 province）。
-            let person_ids: Vec<i32> = e.persons.iter().map(|&i| i as i32).collect();
-            let power_ids: Vec<i32> = e.powers.iter().map(|&i| i as i32).collect();
-            d.set("persons", &PackedInt32Array::from(person_ids.as_slice()));
-            d.set("powers", &PackedInt32Array::from(power_ids.as_slice()));
             // 主角（{A}）的身分：事件發生當月月底的樣子；沒有記下（讀檔重播的事件）才取現況。
-            let identity = identities.get(&e.id).cloned().or_else(|| subjects(w, e).0.map(|p| identity_of(w, p)));
-            let identity = identity.unwrap_or(Identity { power: String::new(), role: "", realm: -1 });
-            d.set("a_power", &GString::from(identity.power.as_str()));
-            d.set("a_role", &GString::from(identity.role));
-            d.set("a_realm", identity.realm);
+            let d = self.event_record(w, e, identities.get(&e.id).cloned());
             out.push(&d);
         }
         out
     }
+
+    // ── 事件卡（溯因視圖，GDD 5.8）──────────────────────────────
+
+    /// 一則事件，欄位與 `drain_events` 的每筆相同（身分欄 `a_power`、`a_role`、`a_realm` 取人物現況）；
+    /// 沒有這則事件或已被修剪（墓碑）時回傳空字典。
+    #[func]
+    fn event(&self, id: i64) -> VarDictionary {
+        let Some(sim) = self.sim.as_ref() else { return VarDictionary::new() };
+        let w = sim.world();
+        match event_by_id(w, id) {
+            Some(e) => self.event_record(w, e, None),
+            None => VarDictionary::new(),
+        }
+    }
+
+    /// 事件 `id` 的「因」樹，沿 `causes` 往上最多 `depth` 層，每個節點最多取 `CAUSE_FANOUT` 個因（依重要度，同級取較晚的），
+    /// 同一事件在樹中只出現一次；以先根順序攤平。每筆是 `event` 的欄位再加 `level`（1 為直接因）、
+    /// `parent`（上一層節點在本陣列的位置，直接因為 -1）。事件不存在或已被修剪時為空陣列。
+    #[func]
+    fn event_causes(&self, id: i64, depth: i32) -> Array<VarDictionary> {
+        let mut out = Array::new();
+        let Some(sim) = self.sim.as_ref() else { return out };
+        let w = sim.world();
+        let Some(root) = event_by_id(w, id) else { return out };
+        for node in cause_tree(w, root.id, depth.max(0) as usize, CAUSE_FANOUT) {
+            let Some(e) = siming_sim::ledger::get(w, node.id) else { continue };
+            let mut d = self.event_record(w, e, None);
+            d.set("level", node.level as i32);
+            d.set("parent", node.parent);
+            out.push(&d);
+        }
+        out
+    }
+
+    /// 由事件 `id` 引出的後續事件數（沿反向索引往下，最多 `RIPPLE_CAP` 筆，到頂即為 `RIPPLE_CAP`）。
+    /// 事件不存在或已被修剪為 0。
+    #[func]
+    fn event_ripple(&self, id: i64) -> i32 {
+        let Some(sim) = self.sim.as_ref() else { return 0 };
+        let w = sim.world();
+        event_by_id(w, id).map_or(0, |e| ripple_ids(w, e.id, RIPPLE_CAP).len() as i32)
+    }
+
+    /// 由事件 `id` 引出的後續事件，依時間由舊到新，最多 `RIPPLE_CAP` 筆；每筆欄位同 `event`。
+    #[func]
+    fn event_ripples(&self, id: i64) -> Array<VarDictionary> {
+        let mut out = Array::new();
+        let Some(sim) = self.sim.as_ref() else { return out };
+        let w = sim.world();
+        let Some(root) = event_by_id(w, id) else { return out };
+        for rid in ripple_ids(w, root.id, RIPPLE_CAP) {
+            if let Some(e) = siming_sim::ledger::get(w, rid) {
+                out.push(&self.event_record(w, e, None));
+            }
+        }
+        out
+    }
+}
+
+/// 因樹每個節點最多取幾個因（GDD 5.8）。
+const CAUSE_FANOUT: usize = 4;
+/// 漣漪最多數到幾筆（GDD 5.8）。
+const RIPPLE_CAP: usize = 300;
+
+/// 因樹的一個節點：事件編號、層（1 為直接因）、父節點在攤平陣列的位置（直接因為 -1）。
+#[derive(Debug, PartialEq, Eq)]
+struct CauseNode {
+    id: siming_sim::EventId,
+    level: u32,
+    parent: i32,
+}
+
+fn event_by_id(w: &siming_sim::World, id: i64) -> Option<&siming_sim::Event> {
+    u32::try_from(id).ok().and_then(|i| siming_sim::ledger::get(w, i))
+}
+
+struct TreeWalk<'a> {
+    w: &'a siming_sim::World,
+    depth: usize,
+    fanout: usize,
+    seen: std::collections::HashSet<siming_sim::EventId>,
+    out: Vec<CauseNode>,
+}
+
+impl TreeWalk<'_> {
+    fn walk(&mut self, id: siming_sim::EventId, level: u32, parent: i32) {
+        if level as usize > self.depth {
+            return;
+        }
+        let Some(e) = siming_sim::ledger::get(self.w, id) else { return };
+        let mut causes: Vec<&siming_sim::Event> = e.causes.iter().filter_map(|&c| siming_sim::ledger::get(self.w, c)).collect();
+        causes.sort_by_key(|c| (std::cmp::Reverse(c.importance), std::cmp::Reverse(c.id)));
+        for c in causes.into_iter().take(self.fanout) {
+            if !self.seen.insert(c.id) {
+                continue;
+            }
+            self.out.push(CauseNode { id: c.id, level, parent });
+            let at = self.out.len() as i32 - 1;
+            self.walk(c.id, level + 1, at);
+        }
+    }
+}
+
+/// 沿 `causes` 往上最多 `depth` 層的因樹，先根順序；每個節點最多取 `fanout` 個因，已出現過的事件不重複。
+fn cause_tree(w: &siming_sim::World, root: siming_sim::EventId, depth: usize, fanout: usize) -> Vec<CauseNode> {
+    let mut walk = TreeWalk { w, depth, fanout, seen: std::collections::HashSet::from([root]), out: Vec::new() };
+    walk.walk(root, 1, -1);
+    walk.out
+}
+
+/// 由事件 `root` 沿反向索引往下的後續事件，依事件編號（即時間）升冪，最多 `cap` 筆；不含自己。
+fn ripple_ids(w: &siming_sim::World, root: siming_sim::EventId, cap: usize) -> Vec<siming_sim::EventId> {
+    let mut seen = std::collections::HashSet::from([root]);
+    let mut queue = std::collections::VecDeque::from([root]);
+    let mut out = Vec::new();
+    while let Some(id) = queue.pop_front() {
+        let Some(list) = w.ledger.effects.get(id as usize) else { continue };
+        for &x in list {
+            if siming_sim::ledger::get(w, x).is_some() && seen.insert(x) {
+                out.push(x);
+                queue.push_back(x);
+            }
+        }
+    }
+    out.sort_unstable();
+    out.truncate(cap);
+    out
 }
 
 /// 事件是否算這個人的歷程：他是事件的人物；或事件只記了他的魂，且發生在他在世（或身故當下）之間。
@@ -1181,6 +1282,42 @@ fn belongs_to(e: &siming_sim::Event, p: &siming_sim::Person) -> bool {
 }
 
 impl SimWorld {
+    /// 一則事件的完整記錄：7.2 模板欄位（`event_fields`）、`id`、`tick`、`kind`、`importance`、`province`、`cell`、`pos`、
+    /// `souls`、`year`、`month`、`persons`、`powers` 與主角的身分 `a_power`、`a_role`、`a_realm`。
+    /// `identity` 為事件當時主角的身分；沒有就取人物現況。
+    fn event_record(&self, w: &siming_sim::World, e: &siming_sim::Event, identity: Option<Identity>) -> VarDictionary {
+        let gw = w.geo.w as u32;
+        let cell_pos = |c: u32| Vector2::new((c % gw) as f32 + 0.5, (c / gw) as f32 + 0.5);
+        let mut d = self.event_fields(w, e, None);
+        d.set("id", e.id as i64);
+        d.set("tick", e.tick as i64);
+        d.set("kind", &GString::from(format!("{:?}", e.kind).as_str()));
+        d.set("importance", e.importance as i32);
+        d.set("province", e.province.map_or(-1, |p| p as i32));
+        d.set("cell", e.cell.map_or(-1, |c| c as i32));
+        let province = e.province.and_then(|p| w.provinces.get(p as usize));
+        if let Some(c) = e.cell {
+            d.set("pos", cell_pos(c));
+        } else if let Some(p) = province {
+            d.set("pos", cell_pos(p.seat));
+        }
+        let souls: Vec<i32> = e.souls.iter().map(|&s| s as i32).collect();
+        d.set("souls", &PackedInt32Array::from(souls.as_slice()));
+        d.set("year", siming_sim::calendar::era_year(e.tick, w.evolution.history_years, &w.eras).1 as i32);
+        d.set("month", siming_sim::calendar::date(e.tick).month as i32);
+        // 可追對象：牽涉的人物與勢力編號（州郡編號為 province）。
+        let person_ids: Vec<i32> = e.persons.iter().map(|&i| i as i32).collect();
+        let power_ids: Vec<i32> = e.powers.iter().map(|&i| i as i32).collect();
+        d.set("persons", &PackedInt32Array::from(person_ids.as_slice()));
+        d.set("powers", &PackedInt32Array::from(power_ids.as_slice()));
+        let identity = identity.or_else(|| subjects(w, e).0.map(|p| identity_of(w, p)));
+        let identity = identity.unwrap_or(Identity { power: String::new(), role: "", realm: -1 });
+        d.set("a_power", &GString::from(identity.power.as_str()));
+        d.set("a_role", &GString::from(identity.role));
+        d.set("a_realm", identity.realm);
+        d
+    }
+
     /// 事件的 7.2 模板欄位（`a`、`b`、`f`、`g`、`p`、`q`、`x`、`n`、`m`，世界大事另有 `change`、`era`），
     /// 再加 `a_person`、`b_person`、`q_province`；`drain_events` 與 `person_history` 共用這一套規則。
     /// `back` 指定遊歷是否為歸來；沒給就看人物此刻的故里是不是目的地（`drain_events` 在事件剛發生時如此判斷）。
@@ -1365,4 +1502,109 @@ fn identity_of(w: &siming_sim::World, p: &siming_sim::Person) -> Identity {
     };
     let power_name = if role == "Ruler" { "" } else { power.map_or("", |pw| pw.name.as_str()) };
     Identity { power: power_name.to_string(), role, realm }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use siming_sim::{Sim, WorldParams, WorldSize};
+
+    fn aged_world() -> Sim {
+        let mut p = WorldParams::new(20261011);
+        p.size = WorldSize::Small;
+        let mut sim = Sim::new(&p).unwrap();
+        for _ in 0..12 * 30 {
+            sim.step();
+        }
+        sim
+    }
+
+    /// 挑一則因樹至少兩層的事件。
+    fn deep_event(w: &siming_sim::World) -> siming_sim::EventId {
+        w.ledger
+            .events
+            .iter()
+            .filter(|e| e.importance >= 2)
+            .map(|e| e.id)
+            .find(|&id| cause_tree(w, id, 6, CAUSE_FANOUT).iter().any(|n| n.level >= 2))
+            .expect("三十年內應有因樹兩層以上的事件")
+    }
+
+    #[test]
+    fn gdd_5_8_cause_tree_is_bounded_unique_and_rooted_in_direct_causes() {
+        let sim = aged_world();
+        let w = sim.world();
+        let mut deepest = 0;
+        for e in w.ledger.events.iter().filter(|e| e.importance > 0) {
+            let tree = cause_tree(w, e.id, 6, CAUSE_FANOUT);
+            let mut seen = std::collections::HashSet::new();
+            for (i, n) in tree.iter().enumerate() {
+                assert!(seen.insert(n.id), "同一事件在樹中只出現一次");
+                assert!((1..=6).contains(&n.level));
+                assert!(n.id < e.id, "因必在果之前");
+                if n.level == 1 {
+                    assert_eq!(n.parent, -1);
+                    assert!(e.causes.contains(&n.id), "第一層是直接因");
+                } else {
+                    assert!((n.parent as usize) < i, "先根順序：父節點在前");
+                    assert_eq!(tree[n.parent as usize].level + 1, n.level);
+                }
+            }
+            let first_level = tree.iter().filter(|n| n.level == 1).count();
+            assert!(first_level <= CAUSE_FANOUT);
+            deepest = deepest.max(tree.iter().map(|n| n.level).max().unwrap_or(0));
+        }
+        assert!(deepest >= 2, "三十年內應有兩層以上的因樹");
+        let root = deep_event(w);
+        assert!(cause_tree(w, root, 1, CAUSE_FANOUT).iter().all(|n| n.level == 1), "深度 1 只到直接因");
+        assert!(cause_tree(w, root, 0, CAUSE_FANOUT).is_empty());
+    }
+
+    #[test]
+    fn gdd_5_8_cause_tree_prefers_important_causes() {
+        let sim = aged_world();
+        let w = sim.world();
+        for e in w.ledger.events.iter().filter(|e| e.importance > 0 && e.causes.len() > 1) {
+            let top: Vec<u8> = cause_tree(w, e.id, 1, 1).iter().map(|n| w.ledger.events[n.id as usize].importance).collect();
+            let best = e.causes.iter().filter_map(|&c| siming_sim::ledger::get(w, c)).map(|c| c.importance).max();
+            assert_eq!(top.first().copied(), best, "只取一個因時取重要度最高的");
+        }
+    }
+
+    #[test]
+    fn gdd_5_8_ripple_follows_effects_downward_and_is_capped() {
+        let sim = aged_world();
+        let w = sim.world();
+        let mut any = false;
+        for e in w.ledger.events.iter().filter(|e| e.importance > 0) {
+            let ids = ripple_ids(w, e.id, RIPPLE_CAP);
+            assert!(ids.len() <= RIPPLE_CAP);
+            assert!(ids.iter().all(|&x| x > e.id), "後果必在事件之後");
+            assert!(ids.windows(2).all(|p| p[0] < p[1]));
+            // 直接後果一定在漣漪裡。
+            for &x in w.ledger.effects[e.id as usize].iter().filter(|&&x| siming_sim::ledger::get(w, x).is_some()) {
+                assert!(ids.contains(&x) || ids.len() == RIPPLE_CAP);
+            }
+            any |= !ids.is_empty();
+        }
+        assert!(any);
+        let root = w.ledger.events.iter().find(|e| e.importance > 0 && ripple_ids(w, e.id, RIPPLE_CAP).len() >= 3).map(|e| e.id).unwrap();
+        assert_eq!(ripple_ids(w, root, 2).len(), 2, "cap 截斷");
+    }
+
+    #[test]
+    fn gdd_5_8_pruned_or_missing_event_is_not_found() {
+        let sim = aged_world();
+        let w = sim.world();
+        assert!(event_by_id(w, -1).is_none());
+        assert!(event_by_id(w, i64::from(u32::MAX) + 1).is_none());
+        assert!(event_by_id(w, w.ledger.events.len() as i64).is_none());
+        if let Some(tomb) = w.ledger.events.iter().find(|e| e.importance == 0) {
+            assert!(event_by_id(w, tomb.id as i64).is_none(), "墓碑視為不存在");
+            assert!(cause_tree(w, tomb.id, 6, CAUSE_FANOUT).is_empty());
+            assert!(ripple_ids(w, tomb.id, RIPPLE_CAP).is_empty() || event_by_id(w, tomb.id as i64).is_none());
+        }
+        let root = deep_event(w);
+        assert!(event_by_id(w, root as i64).is_some());
+    }
 }

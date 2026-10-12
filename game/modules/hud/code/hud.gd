@@ -26,9 +26,10 @@ var _dial: TimeDial
 var _seals: SealBox
 var _card: ProvinceCard
 var _person_card: PersonCard
+var _event_card: EventCard
 ## 上一次排命簿時的高度上限。
 var _last_card_limit := 0.0
-## 從別張卡點進來時，回得去的上一張卡：{kind: "province"|"person", id}，最近的在最後。
+## 從別張卡點進來時，回得去的上一張卡：{kind: "province"|"person"|"event", id}，最近的在最後。
 var _back_stack: Array[Dictionary] = []
 var _view: ViewToggle
 var _cursor: GameCursor
@@ -53,6 +54,7 @@ func setup(sim: SimHost, map: TerrainMap, camera: MapCamera) -> void:
 		# 在地圖上另選一處：換成那州郡的卡，從卡點進來的返回記錄作廢。
 		_back_stack.clear()
 		_person_card.suspend()
+		_event_card.suspend()
 		_card.show_province(id)
 		if id >= 0:
 			_guide.notify(&"select"))
@@ -73,6 +75,7 @@ func setup(sim: SimHost, map: TerrainMap, camera: MapCamera) -> void:
 	sim.advanced.connect(func(_months: int) -> void:
 		_card.refresh()
 		_person_card.refresh()
+		_event_card.refresh()
 		_overlay.refresh_seats()
 		_overlay.refresh_sects()
 		_map.refresh_faith()
@@ -82,7 +85,8 @@ func setup(sim: SimHost, map: TerrainMap, camera: MapCamera) -> void:
 		await get_tree().process_frame
 		_overlay.reload()
 		_card.refresh()
-		_person_card.refresh())
+		_person_card.refresh()
+		_event_card.refresh())
 	var paper := Image.create_from_data(512, 512, false, Image.FORMAT_RGBA8, SimWorld.paper_texture())
 	Ink.paper_texture = ImageTexture.create_from_image(paper)
 	get_viewport().size_changed.connect(_layout)
@@ -117,8 +121,10 @@ func _place_cards(bounds: Vector2) -> void:
 	_last_card_limit = limit
 	_card.max_height = limit
 	_person_card.max_height = limit
+	_event_card.max_height = limit
 	_card.position = Vector2(bounds.x - _card.size.x - MARGIN, MARGIN)
 	_person_card.position = Vector2(bounds.x - _person_card.size.x - MARGIN, MARGIN)
+	_event_card.position = Vector2(bounds.x - _event_card.size.x - MARGIN, MARGIN)
 
 
 ## 命簿（含軸頭）最高能到哪裡：印匣與例簽上緣之上一個間距。
@@ -129,6 +135,7 @@ func _card_limit(bounds: Vector2) -> float:
 func _build() -> void:
 	var selected := _card.province if _card != null else -1
 	var shown_person := _person_card.person if _person_card != null else -1
+	var shown_event := _event_card.event if _event_card != null else -1
 	var stack := _back_stack.duplicate()
 	var rumors: Array[Dictionary] = []
 	if _rumor != null:
@@ -173,15 +180,31 @@ func _build() -> void:
 	_person_card.center_requested.connect(func(pos: Vector2) -> void: _camera.look_at_map(pos))
 	_person_card.person_requested.connect(func(id: int) -> void: open_person(id))
 	_person_card.province_requested.connect(func(id: int) -> void: open_province(id))
+	_person_card.event_requested.connect(func(id: int) -> void: open_event(id))
 	_person_card.back_requested.connect(go_back)
 	_person_card.closed.connect(func() -> void:
 		_back_stack.clear()
 		_map.clear_karma_highlight()
 		_map.set_selected(-1))
+
+	_event_card = EventCard.new()
+	add_child(_event_card)
+	_event_card.setup(_sim.world, _unit, _card_width)
+	_event_card.center_requested.connect(func(pos: Vector2) -> void: _camera.look_at_map(pos))
+	_event_card.person_requested.connect(func(id: int) -> void: open_person(id))
+	_event_card.province_requested.connect(func(id: int) -> void: open_province(id))
+	_event_card.event_requested.connect(func(id: int) -> void: open_event(id))
+	_event_card.back_requested.connect(go_back)
+	_event_card.closed.connect(func() -> void:
+		_back_stack.clear()
+		_map.set_selected(-1))
 	_back_stack = stack
 	if shown_person >= 0:
 		_person_card.can_back = not _back_stack.is_empty()
 		_person_card.show_person(shown_person)
+	if shown_event >= 0:
+		_event_card.can_back = not _back_stack.is_empty()
+		_event_card.show_event(shown_event)
 
 	_view = ViewToggle.new()
 	add_child(_view)
@@ -204,6 +227,7 @@ func _build() -> void:
 	_rumor.expanded = rumors_open
 	_rumor.fly_requested.connect(func(map_pos: Vector2) -> void: _camera.look_at_map(map_pos))
 	_rumor.person_requested.connect(func(id: int) -> void: open_person(id))
+	_rumor.trace_requested.connect(func(id: int) -> void: open_event(id))
 	_place_rumor()
 
 	_notice = NoticeSlip.new()
@@ -252,6 +276,8 @@ func _place_rumor() -> void:
 
 ## 目前看得到的命簿（沒有為 null）。
 func _open_card() -> LedgerCard:
+	if _event_card.visible:
+		return _event_card
 	if _person_card.visible:
 		return _person_card
 	if _card.visible:
@@ -267,6 +293,10 @@ func province_card() -> ProvinceCard:
 	return _card
 
 
+func event_card() -> EventCard:
+	return _event_card
+
+
 ## 開某人的人物卡並飛往他所在（GDD 5.8「點了就到」）；已身故的人也開得了。
 ## 目前開著的卡記進返回記錄，Esc／B 回到它。傳聞簽日後的「看人物」接這裡。
 func open_person(id: int) -> void:
@@ -274,6 +304,7 @@ func open_person(id: int) -> void:
 		return
 	_remember_open_card()
 	_card.suspend()
+	_event_card.suspend()
 	_person_card.can_back = not _back_stack.is_empty()
 	_person_card.show_person(id)
 	_camera.look_at_map(_sim.world.person(id)["pos"])
@@ -286,10 +317,35 @@ func open_province(id: int) -> void:
 		return
 	_remember_open_card()
 	_person_card.suspend()
+	_event_card.suspend()
 	_map.set_selected(id)
 	_card.show_province(id)
 	_camera.look_at_map(_sim.world.province_info(id)["seat"])
 	_place_cards(get_viewport().get_visible_rect().size)
+
+
+## 開某則事件的事件卡（溯因視圖，GDD 5.8）；事件已修剪或編號無效時卡仍開，寫明「此事已不可考」。
+## 目前開著的卡記進返回記錄，Esc／B 回到它。有地點的事件不自動飛往（飛往是卡上的動作）。
+func open_event(id: int) -> void:
+	if _sim == null or id < 0:
+		return
+	_remember_open_card()
+	_card.suspend()
+	_person_card.suspend()
+	_event_card.can_back = not _back_stack.is_empty()
+	_event_card.show_event(id)
+	_place_cards(get_viewport().get_visible_rect().size)
+
+
+## 開目前選取人物（人物卡開著的那位）最近一則事件的事件卡（GDD 5.9 的 X）；沒有事件回傳 false。
+func trace_selected_person() -> bool:
+	if _sim == null or not _person_card.is_open():
+		return false
+	var last: int = _sim.world.person(_person_card.person).get("last_event", -1)
+	if last < 0:
+		return false
+	open_event(last)
+	return true
 
 
 ## 回到上一張卡；沒有上一張就收起目前這張。
@@ -300,9 +356,13 @@ func go_back() -> void:
 	var previous: Dictionary = _back_stack.pop_back()
 	_person_card.suspend()
 	_card.suspend()
+	_event_card.suspend()
 	if previous["kind"] == "person":
 		_person_card.can_back = not _back_stack.is_empty()
 		_person_card.show_person(previous["id"])
+	elif previous["kind"] == "event":
+		_event_card.can_back = not _back_stack.is_empty()
+		_event_card.show_event(previous["id"])
 	else:
 		_map.set_selected(previous["id"])
 		_card.show_province(previous["id"])
@@ -312,7 +372,9 @@ func go_back() -> void:
 ## 目前開著的卡先記進返回記錄。
 func _remember_open_card() -> void:
 	var entry := {}
-	if _person_card.is_open():
+	if _event_card.is_open():
+		entry = {"kind": "event", "id": _event_card.event}
+	elif _person_card.is_open():
 		entry = {"kind": "person", "id": _person_card.person}
 	elif _card.is_open():
 		entry = {"kind": "province", "id": _card.province}
@@ -329,6 +391,7 @@ func _remember_open_card() -> void:
 func _close_cards() -> void:
 	_back_stack.clear()
 	_person_card.close()
+	_event_card.close()
 	_card.close()
 
 
@@ -423,6 +486,7 @@ func _apply_device() -> void:
 	_seals.gamepad = _camera.use_crosshair
 	_card.gamepad = _camera.use_crosshair
 	_person_card.gamepad = _camera.use_crosshair
+	_event_card.gamepad = _camera.use_crosshair
 	_view.gamepad = _camera.use_crosshair
 	_guide.gamepad = _camera.use_crosshair
 	_rumor.gamepad = _camera.use_crosshair
@@ -478,8 +542,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		_set_mode(TerrainMap.Mode.KARMA)
 	elif event.is_action_pressed(InputActions.CANCEL):
 		go_back()
+	elif event.is_action_pressed(InputActions.CARD_TRACE):
+		trace_selected_person()
 	elif event.is_action_pressed(InputActions.CARD_CENTER):
-		if _person_card.is_open():
+		if _event_card.is_open():
+			_event_card.request_center()
+		elif _person_card.is_open():
 			_person_card.request_center()
 		else:
 			_card.request_center()

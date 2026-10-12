@@ -22,6 +22,8 @@ const CURSOR_UP := &"pad_cursor_up"
 const CURSOR_DOWN := &"pad_cursor_down"
 const CANCEL := &"ui_back"
 const CARD_CENTER := &"card_center"
+## 溯因（GDD 5.9）：開目前選取人物的最近一則事件。只綁鍵盤 X；搖桿的 X 仍是置中（情境印環實作前），搖桿以游標加 LT 點「溯因」印。
+const CARD_TRACE := &"card_trace"
 const PAUSE := &"time_pause"
 ## 鍵盤的 Tab、搖桿的 Y：切到下一檔速度，到最快再回到最慢。
 const SPEED_CYCLE := &"time_speed_cycle"
@@ -69,6 +71,7 @@ static func bindings() -> Dictionary:
 		PAD_RIGHT: ["axis:%d:1" % JOY_AXIS_TRIGGER_RIGHT],
 		CANCEL: [KEY_ESCAPE, "joy:%d" % JOY_BUTTON_B],
 		CARD_CENTER: [KEY_C, "joy:%d" % JOY_BUTTON_X],
+		CARD_TRACE: [KEY_X],
 		PAUSE: [KEY_SPACE, "joy:%d" % JOY_BUTTON_BACK],
 		SPEED_CYCLE: [KEY_TAB, "joy:%d" % JOY_BUTTON_Y],
 		# 遊戲中選單：搖桿 Start；鍵盤的 Esc 在沒有卡片開著時也開它（hud）。

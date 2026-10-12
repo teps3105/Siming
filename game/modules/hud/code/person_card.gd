@@ -10,6 +10,8 @@ signal center_requested(map_pos: Vector2)
 signal person_requested(person: int)
 ## 點了歷程或基本資料裡的地名。
 signal province_requested(province: int)
+## 點了歷程的一筆（人名、地名以外的部分）：開那則事件的事件卡。
+signal event_requested(event: int)
 signal back_requested
 
 ## 歷程每筆之間的空白。
@@ -173,7 +175,7 @@ func _relayout() -> void:
 		var date := EventText.history_date(entry, entry["era"] != era_shown)
 		era_shown = entry["era"]
 		var height: float = date_height + float(para["height"]) + ROW_GAP * u
-		_rows.append({"top": top, "height": height, "date": date, "seal": EventText.seal(entry["kind"]), "paragraph": para})
+		_rows.append({"top": top, "height": height, "event": int(entry["id"]), "date": date, "seal": EventText.seal(entry["kind"]), "paragraph": para})
 		top += height
 	_rows_height = top
 
@@ -290,6 +292,8 @@ func _paint_history(list: LedgerList) -> void:
 		var top: float = row["top"]
 		if top + float(row["height"]) < first or top > last:
 			continue
+		if list.hover == "event:%d" % int(row["event"]):
+			list.draw_rect(Rect2(Vector2(-2.0, top), Vector2(list.size.x - 4.0 * u, float(row["height"]) - ROW_GAP * u * 0.5)), Color(Ink.INK, 0.07), true)
 		var seal_text: String = row["seal"]
 		var seal_x := Ink.text_size(seal_text, note).x
 		Ink.text(list, Vector2(0.0, top + (date_height - Ink.text_size(seal_text, note).y) * 0.5), seal_text, note, Ink.SEAL_RED)
@@ -307,7 +311,9 @@ func _history_target_at(point: Vector2) -> String:
 	for row: Dictionary in _rows:
 		var top: float = row["top"]
 		if point.y >= top and point.y < top + float(row["height"]):
-			return LedgerText.target_at(Vector2(0.0, top + date_height), row["paragraph"], point)
+			# 人名、地名的連結優先，其餘部分是這一筆事件本身。
+			var link := LedgerText.target_at(Vector2(0.0, top + date_height), row["paragraph"], point)
+			return link if not link.is_empty() else "event:%d" % int(row["event"])
 	return ""
 
 
@@ -316,6 +322,8 @@ func _on_target(target: String) -> void:
 		person_requested.emit(int(target.substr(7)))
 	elif target.begins_with("province:"):
 		province_requested.emit(int(target.substr(9)))
+	elif target.begins_with("event:"):
+		event_requested.emit(int(target.substr(6)))
 
 
 func _activate(target: String) -> void:
