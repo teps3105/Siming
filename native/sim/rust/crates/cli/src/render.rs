@@ -378,9 +378,7 @@ pub fn atlas(geo: &Geography, fine: &FineGeography, scale: usize) -> Canvas {
             if fine.terrain[i] == Terrain::Sea {
                 continue;
             }
-            let coast = [(x + 1) % fw, (x + fw - 1) % fw]
-                .iter()
-                .any(|&nx| fine.terrain[y * fw + nx] == Terrain::Sea)
+            let coast = [(x + 1) % fw, (x + fw - 1) % fw].iter().any(|&nx| fine.terrain[y * fw + nx] == Terrain::Sea)
                 || (y > 0 && fine.terrain[(y - 1) * fw + x] == Terrain::Sea)
                 || (y + 1 < fh && fine.terrain[(y + 1) * fw + x] == Terrain::Sea);
             if coast {
@@ -454,13 +452,7 @@ pub fn render(geo: &Geography, fine: &FineGeography, provinces: &[Province], lay
             province_borders(&mut cv, geo, s, INK);
         }
         Layer::Aura => {
-            fill_cells(&mut cv, geo, s, |i| {
-                if geo.terrain[i].is_water() {
-                    PAPER_DARK
-                } else {
-                    aura_ramp(geo.aura_cell[i])
-                }
-            });
+            fill_cells(&mut cv, geo, s, |i| if geo.terrain[i].is_water() { PAPER_DARK } else { aura_ramp(geo.aura_cell[i]) });
             for e in &geo.ley {
                 for &c in &e.path {
                     let (cx, cy) = cell_center(geo, c, s as i64);

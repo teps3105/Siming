@@ -141,13 +141,7 @@ pub struct FieldSpec {
     pub relax_per_year: f32,
 }
 
-const fn spec(
-    id: FieldId,
-    domain: FieldDomain,
-    kind: FieldKind,
-    range: (f32, f32),
-    transport: (f32, f32, f32, f32),
-) -> FieldSpec {
+const fn spec(id: FieldId, domain: FieldDomain, kind: FieldKind, range: (f32, f32), transport: (f32, f32, f32, f32)) -> FieldSpec {
     FieldSpec {
         id,
         domain,

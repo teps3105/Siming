@@ -73,11 +73,7 @@ fn gdd_2_3_no_famine_below_threshold() {
 fn gdd_2_3_migration_conserves_population_and_targets_lowest_ratio() {
     let k = 10.0 * POP_CAP_PER_HAB;
     // P=0.95K 無饑荒；成長後仍 > 0.9K，觸發遷徙。
-    let mut v = vec![
-        prov(0, 10.0, 0.95 * k, vec![1, 2]),
-        prov(1, 10.0, 0.5 * k, vec![0]),
-        prov(2, 10.0, 0.2 * k, vec![0]),
-    ];
+    let mut v = vec![prov(0, 10.0, 0.95 * k, vec![1, 2]), prov(1, 10.0, 0.5 * k, vec![0]), prov(2, 10.0, 0.2 * k, vec![0])];
     // 先單獨算成長後的人口（無鄰接），以便對照。
     let mut solo = v.clone();
     for p in solo.iter_mut() {
@@ -97,12 +93,7 @@ fn gdd_2_3_migration_conserves_population_and_targets_lowest_ratio() {
 #[test]
 fn gdd_2_3_migration_independent_of_order() {
     let k = 10.0 * POP_CAP_PER_HAB;
-    let mk = || {
-        vec![
-            prov(0, 10.0, 0.95 * k, vec![1]),
-            prov(1, 10.0, 0.95 * k, vec![0]),
-        ]
-    };
+    let mk = || vec![prov(0, 10.0, 0.95 * k, vec![1]), prov(1, 10.0, 0.95 * k, vec![0])];
     let mut v = mk();
     yearly(&mut v);
     // 對稱情境：雙方互相遷出同量，結果對稱。
@@ -111,12 +102,7 @@ fn gdd_2_3_migration_independent_of_order() {
 
 #[test]
 fn gdd_2_3_city_levels() {
-    let cases = [
-        (CITY_LEVEL_TOWN_POP * 0.99, 0),
-        (CITY_LEVEL_TOWN_POP, 1),
-        (CITY_LEVEL_COUNTY_POP, 2),
-        (CITY_LEVEL_STATE_POP, 3),
-    ];
+    let cases = [(CITY_LEVEL_TOWN_POP * 0.99, 0), (CITY_LEVEL_TOWN_POP, 1), (CITY_LEVEL_COUNTY_POP, 2), (CITY_LEVEL_STATE_POP, 3)];
     for (pop, lv) in cases {
         // 以極大承載讓成長可忽略，人口維持於門檻附近。
         let mut p = prov(0, 1.0e6, pop, vec![]);
@@ -148,4 +134,3 @@ fn gdd_2_4_famine_karma_stays_within_the_field_range() {
     assert!(v[0].karma_qi <= 1.0, "業氣 {} 超過值域", v[0].karma_qi);
     assert!(v[0].karma_qi > 0.99);
 }
-

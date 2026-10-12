@@ -164,18 +164,11 @@ pub struct ContinentNamer {
 
 impl Namer {
     pub fn new() -> Self {
-        Self {
-            p: serde_json::from_str(DATA).expect("places.zh-Hant.json"),
-            used: BTreeSet::new(),
-        }
+        Self { p: serde_json::from_str(DATA).expect("places.zh-Hant.json"), used: BTreeSet::new() }
     }
 
     /// 7.3：重名重抽最多 20 次；仍重複則加前綴。
-    fn unique(
-        &mut self,
-        rng: &mut ChaCha8Rng,
-        mut gen: impl FnMut(&mut ChaCha8Rng, &Places) -> String,
-    ) -> String {
+    fn unique(&mut self, rng: &mut ChaCha8Rng, mut gen: impl FnMut(&mut ChaCha8Rng, &Places) -> String) -> String {
         let mut name = gen(rng, &self.p);
         for _ in 0..REDRAW_MAX {
             if !self.used.contains(&name) {
@@ -203,13 +196,7 @@ impl Namer {
     }
 
     /// GDD 7.3 州郡：兩字 + 州（城池等級 ≥ 3 或面積前 25%）或郡；首字依主要地形或方位，次字通用。
-    pub fn provinces(
-        &mut self,
-        rng: &mut ChaCha8Rng,
-        infos: &[ProvinceInfo],
-        w: usize,
-        h: usize,
-    ) -> Vec<String> {
+    pub fn provinces(&mut self, rng: &mut ChaCha8Rng, infos: &[ProvinceInfo], w: usize, h: usize) -> Vec<String> {
         let mut areas: Vec<usize> = infos.iter().map(|i| i.cells).collect();
         areas.sort_unstable_by(|a, b| b.cmp(a));
         let top_n = ((infos.len() as f32 * BIG_PROVINCE_TOP).floor() as usize).max(1);
@@ -237,9 +224,7 @@ impl Namer {
     /// GDD 7.3 江河：一至兩字 + 江（3）、河（2）、水（1）。
     pub fn river(&mut self, rng: &mut ChaCha8Rng, level: u8) -> String {
         let key = level.to_string();
-        self.unique(rng, |rng, p| {
-            format!("{}{}", pick(rng, &p.river_names), p.river_suffix[&key])
-        })
+        self.unique(rng, |rng, p| format!("{}{}", pick(rng, &p.river_names), p.river_suffix[&key]))
     }
 
     /// GDD 7.3 山脈：兩字 + 山、嶺、嶽（最高者）。
@@ -249,11 +234,7 @@ impl Namer {
                 "嶽"
             } else {
                 // 非最高者只用「山」「嶺」。
-                let plain: Vec<&String> = p
-                    .range_suffix
-                    .iter()
-                    .filter(|s| s.as_str() != "嶽")
-                    .collect();
+                let plain: Vec<&String> = p.range_suffix.iter().filter(|s| s.as_str() != "嶽").collect();
                 plain[below(rng, plain.len())].as_str()
             };
             format!("{}{}", pick(rng, &p.range_names), suffix)
@@ -269,18 +250,13 @@ impl Namer {
         } else {
             "0.5"
         };
-        self.unique(rng, |rng, p| {
-            format!("{}{}", pick(rng, &p.node_names), p.node_suffix[key])
-        })
+        self.unique(rng, |rng, p| format!("{}{}", pick(rng, &p.node_names), p.node_suffix[key]))
     }
 
     /// GDD 7.3 大洲命名：起始教由隨機流決定，之後儒、釋、道輪流。
     pub fn continents_start(&self, rng: &mut ChaCha8Rng) -> ContinentNamer {
         ContinentNamer {
-            pools: TEACHINGS
-                .iter()
-                .map(|k| self.p.continent_names[*k].clone())
-                .collect(),
+            pools: TEACHINGS.iter().map(|k| self.p.continent_names[*k].clone()).collect(),
             isles: self.p.continent_names["dao_isles"].clone(),
             start: below(rng, TEACHINGS.len()),
         }
@@ -288,13 +264,7 @@ impl Namer {
 
     /// GDD 7.3 大洲命名：第 `i` 塊（依面積降冪）用第 `(起始 + i) mod 3` 教的字庫不放回抽取；
     /// `zhou` 者稱洲（字庫名已含洲），較小者：道教優先取三神山／五神山之名 + 島，否則字庫名首字 + 島；字庫用盡改用下一教。
-    pub fn continent(
-        &mut self,
-        rng: &mut ChaCha8Rng,
-        st: &mut ContinentNamer,
-        i: usize,
-        zhou: bool,
-    ) -> String {
+    pub fn continent(&mut self, rng: &mut ChaCha8Rng, st: &mut ContinentNamer, i: usize, zhou: bool) -> String {
         let mut t = (st.start + i) % TEACHINGS.len();
         for _ in 0..TEACHINGS.len() {
             let is_dao = TEACHINGS[t] == "dao";
@@ -306,30 +276,18 @@ impl Namer {
             if !st.pools[t].is_empty() {
                 let k = below(rng, st.pools[t].len());
                 let base = st.pools[t].remove(k);
-                let name = if zhou {
-                    base
-                } else {
-                    format!("{}島", base.chars().next().unwrap_or('洲'))
-                };
+                let name = if zhou { base } else { format!("{}島", base.chars().next().unwrap_or('洲')) };
                 return self.unique(rng, |_, _| name.clone());
             }
             t = (t + 1) % TEACHINGS.len();
         }
         // 三教字庫皆用盡：以世界名字庫補。
-        self.unique(rng, |rng, p| {
-            format!("{}{}", pick(rng, &p.world_names), if zhou { "洲" } else { "島" })
-        })
+        self.unique(rng, |rng, p| format!("{}{}", pick(rng, &p.world_names), if zhou { "洲" } else { "島" }))
     }
 
     /// GDD 7.3 世界：兩字 + 界、洲。
     pub fn world(&mut self, rng: &mut ChaCha8Rng) -> String {
-        self.unique(rng, |rng, p| {
-            format!(
-                "{}{}",
-                pick(rng, &p.world_names),
-                pick(rng, &p.world_suffix)
-            )
-        })
+        self.unique(rng, |rng, p| format!("{}{}", pick(rng, &p.world_names), pick(rng, &p.world_suffix)))
     }
 }
 
@@ -346,10 +304,7 @@ fn dominant_group(info: &ProvinceInfo) -> &'static str {
     }
     let m = &info.terrain_mix;
     let groups: [(&'static str, u32); 6] = [
-        (
-            "mountain",
-            m[Terrain::Mountain as usize] + m[Terrain::Hills as usize],
-        ),
+        ("mountain", m[Terrain::Mountain as usize] + m[Terrain::Hills as usize]),
         ("plains", m[Terrain::Plains as usize]),
         ("forest", m[Terrain::Forest as usize]),
         ("desert", m[Terrain::Desert as usize]),

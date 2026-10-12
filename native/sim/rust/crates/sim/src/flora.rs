@@ -169,9 +169,7 @@ pub fn settle(w: &mut World) -> FloraShift {
             if moisture * wet >= EVO_SAND_MOISTURE {
                 continue;
             }
-            plains.sort_by(|&a, &b| {
-                cell_moisture(fine, gw, a as usize).total_cmp(&cell_moisture(fine, gw, b as usize)).then(a.cmp(&b))
-            });
+            plains.sort_by(|&a, &b| cell_moisture(fine, gw, a as usize).total_cmp(&cell_moisture(fine, gw, b as usize)).then(a.cmp(&b)));
             let k = share(plains.len(), EVO_SAND_SHARE).min(room);
             for &c in &plains[..k] {
                 flora.sanded[c as usize] = true;
@@ -182,9 +180,7 @@ pub fn settle(w: &mut World) -> FloraShift {
                 shift.desertified.push(p.id);
             }
         } else if cultivation < EVO_REGROW_BELOW && !sanded.is_empty() {
-            sanded.sort_by(|&a, &b| {
-                cell_moisture(fine, gw, b as usize).total_cmp(&cell_moisture(fine, gw, a as usize)).then(a.cmp(&b))
-            });
+            sanded.sort_by(|&a, &b| cell_moisture(fine, gw, b as usize).total_cmp(&cell_moisture(fine, gw, a as usize)).then(a.cmp(&b)));
             let k = share(sanded.len(), EVO_REGROW_SHARE);
             for &c in &sanded[..k] {
                 flora.sanded[c as usize] = false;

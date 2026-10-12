@@ -34,12 +34,19 @@ pub struct SaveFile {
 pub enum SaveError {
     Parse(String),
     BadMagic,
-    Version { file: u32, current: u32 },
+    Version {
+        file: u32,
+        current: u32,
+    },
     WorldGen(WorldGenError),
     /// 指令紀錄不是依 tick 遞增，或 tick 落在開天之前。
     BadCommandLog(Tick),
     /// 天機紊亂：重播後的雜湊與存檔不符。
-    Desync { expected: u64, got: u64, tick: Tick },
+    Desync {
+        expected: u64,
+        got: u64,
+        tick: Tick,
+    },
 }
 
 impl std::fmt::Display for SaveError {
@@ -105,10 +112,7 @@ impl Sim {
     }
 
     /// 載入，開局由 `build` 提供（測試與開發工具用，須與存檔時的建構方式相同）。
-    pub fn load_with(
-        file: &SaveFile,
-        build: impl FnOnce(&WorldParams) -> Result<Sim, WorldGenError>,
-    ) -> Result<Self, SaveError> {
+    pub fn load_with(file: &SaveFile, build: impl FnOnce(&WorldParams) -> Result<Sim, WorldGenError>) -> Result<Self, SaveError> {
         let mut replay = Replay::start(file.clone(), build)?;
         while !replay.advance(u32::MAX)? {}
         replay.finish()
@@ -126,10 +130,7 @@ pub struct Replay {
 
 impl Replay {
     /// 檢查檔頭並重新開天；之後以 [`Replay::advance`] 重播。
-    pub fn start(
-        file: SaveFile,
-        build: impl FnOnce(&WorldParams) -> Result<Sim, WorldGenError>,
-    ) -> Result<Self, SaveError> {
+    pub fn start(file: SaveFile, build: impl FnOnce(&WorldParams) -> Result<Sim, WorldGenError>) -> Result<Self, SaveError> {
         file.check_header()?;
         let sim = build(&file.params).map_err(SaveError::WorldGen)?;
         let start = sim.world().tick;

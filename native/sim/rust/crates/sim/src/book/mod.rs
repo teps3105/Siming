@@ -42,11 +42,7 @@ pub fn grant(w: &mut World, entry: BookEntryKind, trigger: EventId) -> EventId {
     ne.cell = cell;
     let _ = persons; // 不併入人物：避免改寫人物的最近事件。
     let id = ledger::record(w, ne);
-    w.book
-        .entries
-        .entry(entry)
-        .and_modify(|r| r.count += 1)
-        .or_insert(BookRecord { count: 1, first_tick: tick, first_event: id });
+    w.book.entries.entry(entry).and_modify(|r| r.count += 1).or_insert(BookRecord { count: 1, first_tick: tick, first_event: id });
     // 首次達成給天機（TIANJI_BOOK）：天機在 M5，M2 為空操作。
     id
 }
@@ -78,9 +74,9 @@ pub fn detect(w: &mut World, id: EventId) {
                     let reverse = w.souls.get(t.debtor as usize).is_some_and(|s| {
                         s.threads.iter().any(|&o| {
                             o != thread
-                                && w.threads.get(o as usize).is_some_and(|x| {
-                                    x.kind == ThreadKind::Mentor && x.debtor == t.creditor && x.creditor == t.debtor
-                                })
+                                && w.threads
+                                    .get(o as usize)
+                                    .is_some_and(|x| x.kind == ThreadKind::Mentor && x.debtor == t.creditor && x.creditor == t.debtor)
                         })
                     });
                     if !reverse {
@@ -92,22 +88,14 @@ pub fn detect(w: &mut World, id: EventId) {
             },
             _ => return,
         },
-        EventArgs::Realm { realm } if ek == EventKind::Breakthrough => {
-            reincarnated_master(w, id, &souls, &persons, realm)
-        }
+        EventArgs::Realm { realm } if ek == EventKind::Breakthrough => reincarnated_master(w, id, &souls, &persons, realm),
         // 渡過天劫時 `Tribulation{Passed}` 與緊接著的 `Breakthrough` 帶同一境界；只在 `Breakthrough` 偵測，避免重複計次。
         _ => return,
     };
 }
 
 /// 轉世大能：前世最高境界 ≥ 金丹，今生在 50 歲前再達到該境界。
-fn reincarnated_master(
-    w: &mut World,
-    id: EventId,
-    souls: &[SoulId],
-    persons: &[PersonId],
-    realm: u8,
-) -> EventId {
+fn reincarnated_master(w: &mut World, id: EventId, souls: &[SoulId], persons: &[PersonId], realm: u8) -> EventId {
     let (Some(&sid), Some(&pid)) = (souls.first(), persons.first()) else { return id };
     let (Some(soul), Some(p)) = (w.souls.get(sid as usize), w.persons.get(pid as usize)) else { return id };
     let Some(prev) = soul.best_prev.realm else { return id };

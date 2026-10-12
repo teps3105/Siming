@@ -37,15 +37,12 @@ mod sect;
 mod tests;
 mod war;
 
-pub use breakthrough::{
-    ascension_survival, breakthrough_chance, cooldown_ready, fail_death_chance, tribulation_survival, ASCENSION_REALM,
-};
+pub use breakthrough::{ascension_survival, breakthrough_chance, cooldown_ready, fail_death_chance, tribulation_survival, ASCENSION_REALM};
 pub use cultivate::cultivation_coefficient;
 pub use demon::{fall_to_demon, heart_demon_chance};
 pub use kill::kill;
 pub use sect::{
-    choose_seat, effective_prestige, found_sect, join_sect, provinces_within, resolve_leaders, sect_name, sect_of, sect_range,
-    Seat,
+    choose_seat, effective_prestige, found_sect, join_sect, provinces_within, resolve_leaders, sect_name, sect_of, sect_range, Seat,
 };
 
 use crate::model::*;

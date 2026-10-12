@@ -105,9 +105,7 @@ pub fn pull_distribution(w: &World, soul: &Soul) -> Vec<f64> {
         Some(th) => (0..pop.len())
             .map(|i| PULL_MIX_POP as f64 * pop[i] + PULL_MIX_AFFINITY as f64 * aff[i] + PULL_MIX_THREAD as f64 * th[i])
             .collect(),
-        None => (0..pop.len())
-            .map(|i| PULL_MIX_NO_THREAD_POP as f64 * pop[i] + PULL_MIX_NO_THREAD_AFFINITY as f64 * aff[i])
-            .collect(),
+        None => (0..pop.len()).map(|i| PULL_MIX_NO_THREAD_POP as f64 * pop[i] + PULL_MIX_NO_THREAD_AFFINITY as f64 * aff[i]).collect(),
     }
 }
 
@@ -141,7 +139,11 @@ pub fn sample_near(w: &mut World, anchor: ProvinceId) -> ProvinceId {
     let Some(p) = w.provinces.get(anchor as usize) else { return anchor };
     let n = p.neighbors.len() + 1;
     let k = w.rng.soul.gen_range(0..n);
-    if k == 0 { anchor } else { w.provinces[anchor as usize].neighbors[k - 1] }
+    if k == 0 {
+        anchor
+    } else {
+        w.provinces[anchor as usize].neighbors[k - 1]
+    }
 }
 
 /// 菩薩願（GDD 3.2）：業氣最重的州郡；同值取 ID 小者。

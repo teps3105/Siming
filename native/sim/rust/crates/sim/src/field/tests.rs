@@ -119,8 +119,7 @@ fn gdd_6_9_drift_conserves() {
         let n = 30 + round;
         let v: Vec<f32> = (0..n).map(|_| rng.gen_range(0.0..1.0)).collect();
         // 約三成的州下游為海（None），其餘指向隨機他州。
-        let down: Vec<Option<u16>> =
-            (0..n).map(|_| if rng.gen_bool(0.3) { None } else { Some(rng.gen_range(0..n) as u16) }).collect();
+        let down: Vec<Option<u16>> = (0..n).map(|_| if rng.gen_bool(0.3) { None } else { Some(rng.gen_range(0..n) as u16) }).collect();
         let out = kernel::drift(&v, &down, KARMA_DRIFT);
         assert!((sum(&out) - sum(&v)).abs() <= 1e-5, "順流總和不守恆");
         let mut is_target = vec![false; n];
@@ -146,8 +145,7 @@ fn gdd_6_9_order_independent() {
         let n = 40;
         let nb = random_graph(&mut rng, n, 0.1);
         let v: Vec<f32> = (0..n).map(|_| rng.gen_range(0.0..1.0)).collect();
-        let down: Vec<Option<u16>> =
-            (0..n).map(|_| if rng.gen_bool(0.3) { None } else { Some(rng.gen_range(0..n) as u16) }).collect();
+        let down: Vec<Option<u16>> = (0..n).map(|_| if rng.gen_bool(0.3) { None } else { Some(rng.gen_range(0..n) as u16) }).collect();
         let perm = shuffled_perm(&mut rng, n);
         let (v2, nb2) = renumber(&v, &nb, &perm);
         let mut down2 = vec![None; n];
@@ -210,15 +208,8 @@ fn gdd_6_9_hash_order() {
     // 改雜湊順序會改變所有世界雜湊並須遞增 sim_version，這一項不動雜湊，只把現況釘在這裡；
     // 日後調整雜湊順序時，同步更新此表與 6.9。
     let actual = hash_feed_order();
-    let pinned = [
-        FieldId::Population,
-        FieldId::Aura,
-        FieldId::KarmaQi,
-        FieldId::Merit,
-        FieldId::Righteous,
-        FieldId::Devastation,
-        FieldId::FaithTao,
-    ];
+    let pinned =
+        [FieldId::Population, FieldId::Aura, FieldId::KarmaQi, FieldId::Merit, FieldId::Righteous, FieldId::Devastation, FieldId::FaithTao];
     assert_eq!(actual, pinned, "hash.rs 的 province() 餵入順序已變，請同步本測試與 6.9");
 
     let mut by_field_id: Vec<FieldId> = pinned.to_vec();

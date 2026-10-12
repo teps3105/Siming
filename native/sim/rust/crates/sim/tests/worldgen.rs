@@ -119,11 +119,7 @@ fn gdd_2_2_quality_checks_pass_for_10_seeds() {
         let (w, h, target) = dims(g.params.size);
         assert_eq!((geo.w as usize, geo.h as usize), (w, h));
         assert!(geo.wrap_x);
-        assert!(
-            (land_ratio(geo) - WG_LAND_RATIO).abs() <= 0.02,
-            "seed {seed} 陸地比例 {}",
-            land_ratio(geo)
-        );
+        assert!((land_ratio(geo) - WG_LAND_RATIO).abs() <= 0.02, "seed {seed} 陸地比例 {}", land_ratio(geo));
         let land: Vec<bool> = geo.terrain.iter().map(|&t| t != Terrain::Sea).collect();
         let areas = comp_areas(geo, &land);
         let land_area: f32 = areas.iter().sum();
@@ -132,10 +128,7 @@ fn gdd_2_2_quality_checks_pass_for_10_seeds() {
         let big = areas.iter().filter(|&&a| a >= 0.05 * land_area).count();
         assert!(big >= 2, "seed {seed} 大洲只有 {big} 塊");
         let cnt = g.provinces.len() as f32;
-        assert!(
-            (cnt - target as f32).abs() <= 0.15 * target as f32,
-            "seed {seed} 州郡數 {cnt}"
-        );
+        assert!((cnt - target as f32).abs() <= 0.15 * target as f32, "seed {seed} 州郡數 {cnt}");
         for p in &g.provinces {
             let a: f32 = p.cells.iter().map(|&c| geo.area_weight(c)).sum();
             assert!(a >= 30.0, "seed {seed} 州郡 {} 面積 {a}", p.name);
@@ -221,10 +214,7 @@ fn gdd_2_2_continents_named_by_three_teachings() {
         let g = gen(seed);
         let geo = &g.geo;
         assert!(geo.continents.len() >= 2);
-        let land_area: f32 = (0..geo.len())
-            .filter(|&c| geo.terrain[c] != Terrain::Sea)
-            .map(|c| geo.area_weight(c as u32))
-            .sum();
+        let land_area: f32 = (0..geo.len()).filter(|&c| geo.terrain[c] != Terrain::Sea).map(|c| geo.area_weight(c as u32)).sum();
         let mut teaching: Vec<usize> = Vec::new();
         for (i, c) in geo.continents.iter().enumerate() {
             if i > 0 {
@@ -241,7 +231,10 @@ fn gdd_2_2_continents_named_by_three_teachings() {
                 0
             } else if shi.contains(&c.name.as_str()) || shi.iter().any(|n| c.name == format!("{}島", n.chars().next().unwrap())) {
                 1
-            } else if dao.contains(&c.name.as_str()) || isles.contains(&c.name.as_str()) || dao.iter().any(|n| c.name == format!("{}島", n.chars().next().unwrap())) {
+            } else if dao.contains(&c.name.as_str())
+                || isles.contains(&c.name.as_str())
+                || dao.iter().any(|n| c.name == format!("{}島", n.chars().next().unwrap()))
+            {
                 2
             } else {
                 panic!("seed {seed} 大洲名 {} 不在三教字庫", c.name)
@@ -304,10 +297,7 @@ fn gdd_2_4_nodes_ley_and_aura() {
         let w = geo.w as usize;
         assert!(geo.nodes.len() >= 8);
         for (i, a) in geo.nodes.iter().enumerate() {
-            assert!(matches!(
-                geo.terrain[a.cell as usize],
-                Terrain::Mountain | Terrain::Hills
-            ));
+            assert!(matches!(geo.terrain[a.cell as usize], Terrain::Mountain | Terrain::Hills));
             assert!([1.0, 0.75, 0.5].contains(&a.origin));
             // 開局前的歷史裡可能降過級（GDD 2.8）。
             assert!([1.0, 0.75, 0.5, 0.0].contains(&a.strength) && a.strength <= a.origin);
@@ -341,15 +331,9 @@ fn gdd_2_4_nodes_ley_and_aura() {
         }
         assert!(comp.iter().all(|&c| c == comp[0]), "靈脈網不連通");
         // 格點靈氣在 0..2；節點格的靈氣高於其地形基礎。
-        assert!(geo
-            .aura_cell
-            .iter()
-            .all(|&a| (0.0..=AURA_CELL_MAX).contains(&a)));
+        assert!(geo.aura_cell.iter().all(|&a| (0.0..=AURA_CELL_MAX).contains(&a)));
         for n in &geo.nodes {
-            assert!(
-                geo.aura_cell[n.cell as usize]
-                    > AURA_TERRAIN[geo.terrain[n.cell as usize] as usize]
-            );
+            assert!(geo.aura_cell[n.cell as usize] > AURA_TERRAIN[geo.terrain[n.cell as usize] as usize]);
         }
         for p in &g.provinces {
             assert!((0.0..=1.0).contains(&p.aura));
@@ -368,22 +352,11 @@ fn gdd_2_2_at_least_3_level3_rivers_reach_the_sea() {
         for r in &geo.rivers {
             assert!(!r.cells.is_empty());
             let last = *r.cells.last().unwrap() as usize;
-            assert!(
-                nb8(w, h, last)
-                    .iter()
-                    .any(|&nb| geo.terrain[nb] == Terrain::Sea),
-                "seed {seed} {} 未入海",
-                r.name
-            );
+            assert!(nb8(w, h, last).iter().any(|&nb| geo.terrain[nb] == Terrain::Sea), "seed {seed} {} 未入海", r.name);
             for pair in r.cells.windows(2) {
                 assert!(nb8(w, h, pair[0] as usize).contains(&(pair[1] as usize)));
             }
-            let lv = r
-                .cells
-                .iter()
-                .map(|&c| geo.river[c as usize])
-                .max()
-                .unwrap();
+            let lv = r.cells.iter().map(|&c| geo.river[c as usize]).max().unwrap();
             assert_eq!(lv, r.level);
             let suffix = match r.level {
                 3 => "江",
@@ -457,11 +430,7 @@ fn gdd_2_2_provinces_connected_except_islands() {
             }
             let main = areas.iter().copied().fold(0.0, f32::max);
             for &a in &areas {
-                assert!(
-                    a == main || a < WG_ISLAND_MIN as f32,
-                    "seed {seed} 州郡 {} 不連通",
-                    p.name
-                );
+                assert!(a == main || a < WG_ISLAND_MIN as f32, "seed {seed} 州郡 {} 不連通", p.name);
             }
         }
     }
@@ -496,10 +465,7 @@ fn gdd_2_3_province_fields_are_consistent() {
             assert!((p.population - p.habitability * POP_INIT_PER_HAB * era).abs() < 1e-6);
             assert!((p.capacity - p.habitability * POP_CAP_PER_HAB).abs() < 1e-6);
             assert_eq!(p.faith, [0.0; 3]);
-            assert_eq!(
-                (p.karma_qi, p.merit, p.righteous, p.devastation),
-                (0.0, 0.0, 0.0, 0.0)
-            );
+            assert_eq!((p.karma_qi, p.merit, p.righteous, p.devastation), (0.0, 0.0, 0.0, 0.0));
             // 治所是宜居度最高的格：至少不在水邊以外的低地形上（只檢查地形不為水）。
             assert!(!geo.terrain[p.seat as usize].is_water());
             covered += p.cells.len();
@@ -525,10 +491,7 @@ fn gdd_2_3_ancient_faith_and_era_population() {
         assert!((0.1..0.4).contains(&pr.faith[0]));
         assert!((0.0..0.15).contains(&pr.faith[1]));
         assert!((0.0..0.15).contains(&pr.faith[2]));
-        assert!(
-            (pr.population - pr.habitability * POP_INIT_PER_HAB * POP_INIT_ERA_ANCIENT).abs()
-                < 1e-6
-        );
+        assert!((pr.population - pr.habitability * POP_INIT_PER_HAB * POP_INIT_ERA_ANCIENT).abs() < 1e-6);
     }
     p.era = Era::Decline;
     let d = generate(&p).unwrap();
@@ -545,11 +508,7 @@ fn gdd_8_3_names_are_unique_with_correct_suffixes() {
         let g = gen(seed);
         let mut all: Vec<&str> = Vec::new();
         for p in &g.provinces {
-            assert!(
-                p.name.ends_with('州') || p.name.ends_with('郡'),
-                "{}",
-                p.name
-            );
+            assert!(p.name.ends_with('州') || p.name.ends_with('郡'), "{}", p.name);
             if p.city_level >= 3 {
                 assert!(p.name.ends_with('州'));
             }
@@ -579,11 +538,7 @@ fn gdd_8_3_names_are_unique_with_correct_suffixes() {
         if let Some(first) = g.geo.ranges.first() {
             assert!(first.name.ends_with('嶽'));
             assert!(g.geo.ranges[1..].iter().all(|r| !r.name.ends_with('嶽')));
-            let top = first
-                .cells
-                .iter()
-                .map(|&c| g.geo.height[c as usize])
-                .fold(0.0f32, f32::max);
+            let top = first.cells.iter().map(|&c| g.geo.height[c as usize]).fold(0.0f32, f32::max);
             assert_eq!(g.geo.height[first.peak as usize], top);
         }
         assert!(!g.params.name.is_empty());
@@ -716,20 +671,10 @@ fn composition(g: &Generated) -> Composition {
         *v /= land_area;
     }
     let mountain_area = share[Terrain::Mountain as usize] * land_area;
-    let largest = geo
-        .ranges
-        .iter()
-        .map(|r| r.cells.iter().map(|&c| geo.area_weight(c)).sum::<f32>())
-        .fold(0.0f32, f32::max);
+    let largest = geo.ranges.iter().map(|r| r.cells.iter().map(|&c| geo.area_weight(c)).sum::<f32>()).fold(0.0f32, f32::max);
     let land: Vec<bool> = geo.terrain.iter().map(|&t| t != Terrain::Sea).collect();
     let masses = comp_areas(geo, &land);
-    let big: Vec<u16> = geo
-        .continents
-        .iter()
-        .enumerate()
-        .filter(|(_, c)| c.area >= 0.05 * land_area)
-        .map(|(i, _)| i as u16)
-        .collect();
+    let big: Vec<u16> = geo.continents.iter().enumerate().filter(|(_, c)| c.area >= 0.05 * land_area).map(|(i, _)| i as u16).collect();
     Composition {
         share,
         ranges: geo.ranges.len(),
@@ -781,20 +726,11 @@ fn gdd_2_2_terrain_composition_targets() {
         let seed = i + 1;
         // 每個種子的下限只管地勢項（平原、森林、丘陵、山脈）；雪原、沙漠、沼澤取決於陸地落在哪個氣候帶，只看平均。
         for (t, lo, _) in &targets[..4] {
-            assert!(
-                c.share[*t as usize] >= lo / 2.0,
-                "seed {seed} {} 只有 {:.3}",
-                t.name_zh(),
-                c.share[*t as usize]
-            );
+            assert!(c.share[*t as usize] >= lo / 2.0, "seed {seed} {} 只有 {:.3}", t.name_zh(), c.share[*t as usize]);
         }
         assert!(c.ranges >= 3, "seed {seed} 山脈只有 {} 條", c.ranges);
         assert!(c.largest_range <= 0.5, "seed {seed} 最大山脈占 {:.2}", c.largest_range);
-        assert!(
-            c.major_river_cells >= 3 * WG_SIZE_M_W / 2,
-            "seed {seed} 大河與江只有 {} 格",
-            c.major_river_cells
-        );
+        assert!(c.major_river_cells >= 3 * WG_SIZE_M_W / 2, "seed {seed} 大河與江只有 {} 格", c.major_river_cells);
         assert!(c.big_continents >= 2, "seed {seed} ≥ 5% 的大洲只有 {}", c.big_continents);
         assert!(c.largest_landmass <= 0.70, "seed {seed} 最大陸塊占 {:.2}", c.largest_landmass);
         for (k, r) in c.coast_ratio.iter().enumerate() {
@@ -806,17 +742,18 @@ fn gdd_2_2_terrain_composition_targets() {
     }
     println!(
         "平均: 平{:4.1} 林{:4.1} 丘{:4.1} 山{:4.1} 雪{:4.1} 沙{:4.1} 沼{:4.1} 湖{:4.1}",
-        avg[2] * 100.0, avg[5] * 100.0, avg[3] * 100.0, avg[4] * 100.0,
-        avg[6] * 100.0, avg[7] * 100.0, avg[8] * 100.0, avg[1] * 100.0
+        avg[2] * 100.0,
+        avg[5] * 100.0,
+        avg[3] * 100.0,
+        avg[4] * 100.0,
+        avg[6] * 100.0,
+        avg[7] * 100.0,
+        avg[8] * 100.0,
+        avg[1] * 100.0
     );
     for (t, lo, hi) in &targets {
         let v = avg[*t as usize];
-        assert!(
-            (*lo..=*hi).contains(&v),
-            "{} 平均 {:.3} 不在 {lo}–{hi}",
-            t.name_zh(),
-            v
-        );
+        assert!((*lo..=*hi).contains(&v), "{} 平均 {:.3} 不在 {lo}–{hi}", t.name_zh(), v);
     }
 }
 
@@ -861,9 +798,7 @@ fn coast_fractal_dimension(fine: &siming_sim::FineGeography) -> f32 {
             if is_sea(i) {
                 continue;
             }
-            if is_sea(y * w + (x + 1) % w) || is_sea(y * w + (x + w - 1) % w)
-                || (y > 0 && is_sea(i - w)) || (y + 1 < h && is_sea(i + w))
-            {
+            if is_sea(y * w + (x + 1) % w) || is_sea(y * w + (x + w - 1) % w) || (y > 0 && is_sea(i - w)) || (y + 1 < h && is_sea(i + w)) {
                 coast[i] = true;
             }
         }
@@ -1032,13 +967,7 @@ fn gdd_2_2_atlas_metrics_vs_mature_generators() {
             .unwrap_or(1);
         // 河網：每塊 ≥ 5% 陸地的大洲的最大 Strahler 階；江的長度。
         let order = strahler(fine);
-        let big: Vec<u16> = geo
-            .continents
-            .iter()
-            .enumerate()
-            .filter(|(_, c)| c.area >= 0.05 * land_area)
-            .map(|(i, _)| i as u16)
-            .collect();
+        let big: Vec<u16> = geo.continents.iter().enumerate().filter(|(_, c)| c.area >= 0.05 * land_area).map(|(i, _)| i as u16).collect();
         let mut max_order = vec![0u8; geo.continents.len()];
         for (i, &o) in order.iter().enumerate() {
             if o > 0 {

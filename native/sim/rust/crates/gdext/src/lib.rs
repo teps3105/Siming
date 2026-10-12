@@ -17,10 +17,7 @@ const RANGE_LABEL_SEGMENT: f32 = 4.0;
 /// 治所的全名（GDD 7.3）：兩字名加上城池等級的字（0 村 .. 4 都）。
 fn seat_name(stem: &str, city_level: u8) -> String {
     const SUFFIX: [&str; 5] = ["村", "鎮", "縣", "城", "都"];
-    format!(
-        "{stem}{}",
-        SUFFIX[(city_level as usize).min(SUFFIX.len() - 1)]
-    )
+    format!("{stem}{}", SUFFIX[(city_level as usize).min(SUFFIX.len() - 1)])
 }
 
 struct SimingExtension;
@@ -132,11 +129,7 @@ fn land_stamp(world: &siming_sim::World) -> u64 {
 }
 
 /// 水域名（GDD 7.3）：以生成時的水域為準沿用；沒有生成時地形的手工世界就照目前的地形取名。
-fn water_names(
-    seed: u64,
-    geo: &siming_sim::Geography,
-    origin: Option<&[siming_sim::Terrain]>,
-) -> Vec<siming_sim::worldgen::NamedWater> {
+fn water_names(seed: u64, geo: &siming_sim::Geography, origin: Option<&[siming_sim::Terrain]>) -> Vec<siming_sim::worldgen::NamedWater> {
     match origin {
         Some(origin) => siming_sim::worldgen::name_waters_since(seed, geo, origin),
         None => siming_sim::worldgen::name_waters(seed, geo),
@@ -173,8 +166,7 @@ impl SimWorld {
         self.map_revision += 1;
         let origin = sim.world().land_basis.as_ref().map(|basis| basis.cell_terrain());
         self.waters = water_names(sim.world().params.seed, &sim.world().geo, origin);
-        self.seat_stems =
-            siming_sim::worldgen::seat_stems(sim.world().params.seed, &sim.world().provinces, &sim.world().geo);
+        self.seat_stems = siming_sim::worldgen::seat_stems(sim.world().params.seed, &sim.world().provinces, &sim.world().geo);
         self.sim = Some(sim);
     }
 
@@ -505,9 +497,7 @@ impl SimWorld {
     /// 遊戲格的寬、高。地圖的世界座標以格為單位：x 向東、z 向南。
     #[func]
     fn grid_size(&self) -> Vector2i {
-        self.sim.as_ref().map_or(Vector2i::ZERO, |s| {
-            Vector2i::new(s.world().geo.w as i32, s.world().geo.h as i32)
-        })
+        self.sim.as_ref().map_or(Vector2i::ZERO, |s| Vector2i::new(s.world().geo.w as i32, s.world().geo.h as i32))
     }
 
     /// 陸地最高點的網格高度（高度縮放 = 1）。
@@ -608,17 +598,13 @@ impl SimWorld {
     /// 州郡 ID → 淡彩的 256×1 RGBA8 查表（天下模式，GDD 5.4）。
     #[func]
     fn province_colors(&self) -> PackedByteArray {
-        self.sim.as_ref().map_or_else(PackedByteArray::new, |s| {
-            bytes(&mapbake::province_color_table(&s.world().provinces))
-        })
+        self.sim.as_ref().map_or_else(PackedByteArray::new, |s| bytes(&mapbake::province_color_table(&s.world().provinces)))
     }
 
     /// 三教模式的州郡著色表（GDD 5.4 F3）：州郡 ID → 淡彩的 256×1 RGBA8；alpha 為 0 的州郡不上色。
     #[func]
     fn faith_colors(&self) -> PackedByteArray {
-        self.sim.as_ref().map_or_else(PackedByteArray::new, |s| {
-            bytes(&mapbake::faith_color_table(&s.world().provinces))
-        })
+        self.sim.as_ref().map_or_else(PackedByteArray::new, |s| bytes(&mapbake::faith_color_table(&s.world().provinces)))
     }
 
     /// 世界座標 (x, z) 所在格的州郡 ID；水域或圖外為 -1。
@@ -633,11 +619,7 @@ impl SimWorld {
         if gz < 0 || gz >= h {
             return -1;
         }
-        let gx = if geo.wrap_x {
-            (x.floor() as i32).rem_euclid(w)
-        } else {
-            x.floor() as i32
-        };
+        let gx = if geo.wrap_x { (x.floor() as i32).rem_euclid(w) } else { x.floor() as i32 };
         if gx < 0 || gx >= w {
             return -1;
         }
@@ -649,9 +631,7 @@ impl SimWorld {
 
     #[func]
     fn province_count(&self) -> i32 {
-        self.sim
-            .as_ref()
-            .map_or(0, |s| s.world().provinces.len() as i32)
+        self.sim.as_ref().map_or(0, |s| s.world().provinces.len() as i32)
     }
 
     /// 州郡摘要（GDD 2.3、5.8 州郡卡）：`name`、`population`、`capacity`、`aura`、`karma_qi`、
@@ -679,23 +659,9 @@ impl SimWorld {
         d.set("devastation", p.devastation);
         d.set("city_level", p.city_level as i32);
         d.set("faith", Vector3::new(p.faith[0], p.faith[1], p.faith[2]));
-        d.set(
-            "seat",
-            Vector2::new((p.seat % gw) as f32 + 0.5, (p.seat / gw) as f32 + 0.5),
-        );
+        d.set("seat", Vector2::new((p.seat % gw) as f32 + 0.5, (p.seat / gw) as f32 + 0.5));
         d.set("cells", p.cells.len() as i32);
-        d.set(
-            "seat_name",
-            &GString::from(
-                seat_name(
-                    self.seat_stems
-                        .get(p.id as usize)
-                        .map_or("", |s| s.as_str()),
-                    p.city_level,
-                )
-                .as_str(),
-            ),
-        );
+        d.set("seat_name", &GString::from(seat_name(self.seat_stems.get(p.id as usize).map_or("", |s| s.as_str()), p.city_level).as_str()));
         let mix: Vec<i32> = p.terrain_mix.iter().map(|&n| n as i32).collect();
         d.set("terrain_mix", &PackedInt32Array::from(mix.as_slice()));
         d
@@ -712,35 +678,24 @@ impl SimWorld {
         let w = s.world();
         let (gw, gwf) = (w.geo.w as u32, w.geo.w as f32);
         let centre = |cell: u32| Vector2::new((cell % gw) as f32 + 0.5, (cell / gw) as f32 + 0.5);
-        let mut push =
-            |kind: &str, text: &str, pos: Vector2, rank: f32, path: PackedVector2Array| {
-                let mut d = VarDictionary::new();
-                d.set("kind", &GString::from(kind));
-                d.set("text", &GString::from(text));
-                d.set("pos", pos);
-                d.set("rank", rank);
-                d.set("path", &path);
-                out.push(&d);
-            };
+        let mut push = |kind: &str, text: &str, pos: Vector2, rank: f32, path: PackedVector2Array| {
+            let mut d = VarDictionary::new();
+            d.set("kind", &GString::from(kind));
+            d.set("text", &GString::from(text));
+            d.set("pos", pos);
+            d.set("rank", rank);
+            d.set("path", &path);
+            out.push(&d);
+        };
         let none = PackedVector2Array::new;
         for (i, c) in w.geo.continents.iter().enumerate() {
-            push(
-                "continent",
-                &c.name,
-                centre(continent_label_cell(&w.geo, i)),
-                100.0 + c.area,
-                none(),
-            );
+            push("continent", &c.name, centre(continent_label_cell(&w.geo, i)), 100.0 + c.area, none());
         }
         for p in &w.provinces {
             push(
                 "province",
                 &p.name,
-                centre(mapbake::province_label_cell(
-                    &p.cells,
-                    w.geo.w as usize,
-                    w.geo.h as usize,
-                )),
+                centre(mapbake::province_label_cell(&p.cells, w.geo.w as usize, w.geo.h as usize)),
                 p.city_level as f32,
                 none(),
             );
@@ -767,13 +722,7 @@ impl SimWorld {
                         Vector2::new(x_prev, p.y)
                     })
                     .collect();
-                push(
-                    "river",
-                    &r.name,
-                    centre(mid),
-                    r.level as f32 * 10.0 + r.cells.len() as f32 * 0.01,
-                    path,
-                );
+                push("river", &r.name, centre(mid), r.level as f32 * 10.0 + r.cells.len() as f32 * 0.01, path);
             }
         }
         for r in &w.geo.ranges {
@@ -789,9 +738,7 @@ impl SimWorld {
                 })
                 .collect();
             let n = rel.len().max(1) as f32;
-            let (mx, my) = rel
-                .iter()
-                .fold((0.0, 0.0), |a, p| (a.0 + p.0 / n, a.1 + p.1 / n));
+            let (mx, my) = rel.iter().fold((0.0, 0.0), |a, p| (a.0 + p.0 / n, a.1 + p.1 / n));
             let (mut sxx, mut sxy, mut syy) = (0.0f32, 0.0f32, 0.0f32);
             for p in &rel {
                 let (dx, dy) = (p.0 - mx, p.1 - my);
@@ -817,20 +764,11 @@ impl SimWorld {
                 *cell = (cell.0 + p.0, cell.1 + p.1, cell.2 + 1);
             }
             let path: PackedVector2Array = if hi - lo >= 1.0 {
-                sums.iter()
-                    .filter(|c| c.2 > 0)
-                    .map(|c| Vector2::new(peak.x + c.0 / c.2 as f32, peak.y + c.1 / c.2 as f32))
-                    .collect()
+                sums.iter().filter(|c| c.2 > 0).map(|c| Vector2::new(peak.x + c.0 / c.2 as f32, peak.y + c.1 / c.2 as f32)).collect()
             } else {
                 none()
             };
-            push(
-                "range",
-                &r.name,
-                peak,
-                10.0 + r.cells.len() as f32 * 0.01,
-                path,
-            );
+            push("range", &r.name, peak, 10.0 + r.cells.len() as f32 * 0.01, path);
         }
         for n in &w.geo.nodes {
             push("node", &n.name, centre(n.cell), n.strength * 20.0, none());
@@ -848,11 +786,7 @@ impl SimWorld {
         let geo = &s.world().geo;
         let gw = geo.w as u32;
         for e in &geo.ley {
-            let path: PackedVector2Array = e
-                .path
-                .iter()
-                .map(|&c| Vector2::new((c % gw) as f32 + 0.5, (c / gw) as f32 + 0.5))
-                .collect();
+            let path: PackedVector2Array = e.path.iter().map(|&c| Vector2::new((c % gw) as f32 + 0.5, (c / gw) as f32 + 0.5)).collect();
             let mut d = VarDictionary::new();
             d.set("strength", e.strength);
             d.set("path", &path);
@@ -874,10 +808,7 @@ impl SimWorld {
             let mut d = VarDictionary::new();
             d.set("name", &GString::from(n.name.as_str()));
             d.set("strength", n.strength);
-            d.set(
-                "pos",
-                Vector2::new((n.cell % gw) as f32 + 0.5, (n.cell / gw) as f32 + 0.5),
-            );
+            d.set("pos", Vector2::new((n.cell % gw) as f32 + 0.5, (n.cell / gw) as f32 + 0.5));
             out.push(&d);
         }
         out
@@ -901,18 +832,9 @@ impl SimWorld {
             let mut d = VarDictionary::new();
             d.set("id", p.id as i32);
             d.set("name", &GString::from(p.name.as_str()));
-            d.set(
-                "pos",
-                Vector2::new(
-                    (p.seat_cell % gw) as f32 + 0.5,
-                    (p.seat_cell / gw) as f32 + 0.5,
-                ),
-            );
+            d.set("pos", Vector2::new((p.seat_cell % gw) as f32 + 0.5, (p.seat_cell / gw) as f32 + 0.5));
             d.set("province", p.seat_province as i32);
-            let node = sect
-                .seat_node
-                .and_then(|n| w.geo.nodes.get(n as usize))
-                .map_or("", |n| n.name.as_str());
+            let node = sect.seat_node.and_then(|n| w.geo.nodes.get(n as usize)).map_or("", |n| n.name.as_str());
             d.set("node", &GString::from(node));
             d.set("members", p.members.len() as i32);
             d.set("prestige", siming_sim::dao::effective_prestige(p));
@@ -920,11 +842,7 @@ impl SimWorld {
             let range_ids = siming_sim::dao::sect_range(w, p.id);
             let range: Vec<i32> = range_ids.iter().map(|&q| q as i32).collect();
             // 範圍圈半徑：範圍內各州郡格數之和的等面積圓半徑（格）。
-            let cells: usize = range_ids
-                .iter()
-                .filter_map(|&q| w.provinces.get(q as usize))
-                .map(|q| q.cells.len())
-                .sum();
+            let cells: usize = range_ids.iter().filter_map(|&q| w.provinces.get(q as usize)).map(|q| q.cells.len()).sum();
             d.set("range_radius", (cells as f32 / std::f32::consts::PI).sqrt());
             d.set("range", &PackedInt32Array::from(range.as_slice()));
             d.set("evil", sect.evil);
@@ -938,17 +856,13 @@ impl SimWorld {
 
     #[func]
     fn total_population(&self) -> f64 {
-        self.sim.as_ref().map_or(0.0, |s| {
-            s.world().provinces.iter().map(|p| p.population).sum()
-        })
+        self.sim.as_ref().map_or(0.0, |s| s.world().provinces.iter().map(|p| p.population).sum())
     }
 
     /// 在世有名之人數（GDD 3.4）。
     #[func]
     fn alive_person_count(&self) -> i32 {
-        self.sim
-            .as_ref()
-            .map_or(0, |s| s.world().alive_ids.len() as i32)
+        self.sim.as_ref().map_or(0, |s| s.world().alive_ids.len() as i32)
     }
 
     // ── 指令與事件（GDD 4.7、6.3）───────────────────────────────
@@ -957,10 +871,7 @@ impl SimWorld {
     #[func]
     fn follow(&mut self, soul: i64, on: bool) {
         if let Some(sim) = self.sim.as_mut() {
-            sim.apply(Command::Follow {
-                soul: soul as _,
-                on,
-            });
+            sim.apply(Command::Follow { soul: soul as _, on });
         }
     }
 
@@ -1046,10 +957,7 @@ impl SimWorld {
                     x = format!("{role:?}");
                     // 入宗門的有勢力名，自行修道、出家、治學的沒有。
                     if e.kind == siming_sim::EventKind::ComeOfAge && f.is_empty() {
-                        f = person(0)
-                            .and_then(|p| p.power)
-                            .and_then(|id| w.powers.get(id as usize))
-                            .map_or("", |pw| pw.name.as_str());
+                        f = person(0).and_then(|p| p.power).and_then(|id| w.powers.get(id as usize)).map_or("", |pw| pw.name.as_str());
                     }
                 }
                 siming_sim::EventArgs::Book { entry } => x = format!("{entry:?}"),

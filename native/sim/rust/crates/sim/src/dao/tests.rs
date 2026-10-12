@@ -56,10 +56,7 @@ fn line_world(seed: u64, n: usize, nodes: &[(u16, f32)]) -> World {
         river: vec![],
         province_of: (0..n as u16 * 2).map(|c| c / 2).collect(),
         aura_cell: vec![],
-        nodes: nodes
-            .iter()
-            .map(|&(p, s)| LeyNode { cell: p as u32 * 2, strength: s, origin: s, name: format!("n{p}") })
-            .collect(),
+        nodes: nodes.iter().map(|&(p, s)| LeyNode { cell: p as u32 * 2, strength: s, origin: s, name: format!("n{p}") }).collect(),
         ley: vec![],
         rivers: vec![],
         ranges: vec![],
@@ -238,9 +235,7 @@ fn failed_breakthrough_keeps_85_percent_and_may_kill_from_golden_core() {
         w.persons[i as usize].attrs.insight = 0.0;
     }
     yearly(&mut w);
-    assert!(ids
-        .iter()
-        .all(|&i| !matches!(w.persons[i as usize].died, Some((_, DeathCause::BreakthroughFailed)))));
+    assert!(ids.iter().all(|&i| !matches!(w.persons[i as usize].died, Some((_, DeathCause::BreakthroughFailed)))));
     let failed = ids.iter().filter(|&&i| w.persons[i as usize].alive() && realm(&w, i) == 1).count();
     assert!(failed > 100);
     for &i in &ids {
@@ -257,11 +252,10 @@ fn failed_breakthrough_keeps_85_percent_and_may_kill_from_golden_core() {
         set_soul(&mut w, i, 0.0, 0.0);
     }
     yearly(&mut w);
-    let failed_death = ids
-        .iter()
-        .filter(|&&i| matches!(w.persons[i as usize].died, Some((_, DeathCause::BreakthroughFailed))))
-        .count() as f32;
-    let fails = ids.len() as f32 * (1.0 - 0.35 * 0.8) * 0.0 + ids.iter().filter(|&&i| realm(&w, i) == 2 || !w.persons[i as usize].alive()).count() as f32;
+    let failed_death =
+        ids.iter().filter(|&&i| matches!(w.persons[i as usize].died, Some((_, DeathCause::BreakthroughFailed)))).count() as f32;
+    let fails = ids.len() as f32 * (1.0 - 0.35 * 0.8) * 0.0
+        + ids.iter().filter(|&&i| realm(&w, i) == 2 || !w.persons[i as usize].alive()).count() as f32;
     // 失敗者中的身死比例 ≈ 0.16（含天劫死亡者不在此列）
     let rate = failed_death / (failed_death + ids.iter().filter(|&&i| w.persons[i as usize].alive() && realm(&w, i) == 2).count() as f32);
     assert!((rate - 0.16).abs() < 0.04, "rate {rate} fails {fails}");
@@ -302,14 +296,8 @@ fn tribulation_outcomes_follow_sin() {
         let tol = 4.0 * (0.4f32 * 0.6 / fails).sqrt();
         assert!((shed as f32 / fails - 0.4).abs() < tol, "shed {shed} perished {perished}");
         // 死因與魂印
-        assert_eq!(
-            ids.iter().filter(|&&i| matches!(w.persons[i as usize].died, Some((_, DeathCause::ShedBody)))).count(),
-            shed
-        );
-        assert_eq!(
-            ids.iter().filter(|&&i| matches!(w.persons[i as usize].died, Some((_, DeathCause::Tribulation)))).count(),
-            perished
-        );
+        assert_eq!(ids.iter().filter(|&&i| matches!(w.persons[i as usize].died, Some((_, DeathCause::ShedBody)))).count(), shed);
+        assert_eq!(ids.iter().filter(|&&i| matches!(w.persons[i as usize].died, Some((_, DeathCause::Tribulation)))).count(), perished);
     }
 }
 
@@ -328,11 +316,7 @@ fn passing_tribulation_resets_exp_and_extends_lifespan() {
     assert_eq!(count(&w, EventKind::Tribulation), 1);
     // 事件的境界為新境界
     assert!(w.ledger.events.iter().any(|e| e.kind == EventKind::Breakthrough && e.args == EventArgs::Realm { realm: 2 }));
-    assert!(w
-        .ledger
-        .events
-        .iter()
-        .any(|e| e.args == EventArgs::Tribulation { realm: 2, outcome: TribulationOutcome::Passed }));
+    assert!(w.ledger.events.iter().any(|e| e.args == EventArgs::Tribulation { realm: 2, outcome: TribulationOutcome::Passed }));
 }
 
 /// 轉世大能：渡過天劫同時寫 `Tribulation{Passed}` 與 `Breakthrough`（同境界），天書只計一次。
@@ -378,10 +362,7 @@ fn forced_ascension_liberates_soul_and_counts_for_sect() {
     monthly_forced(&mut w);
     let p = &w.persons[a as usize];
     assert!(matches!(p.died, Some((_, DeathCause::Ascended))));
-    assert!(matches!(
-        w.souls[p.soul as usize].state,
-        SoulState::Liberated { way: Liberation::Ascension, .. }
-    ));
+    assert!(matches!(w.souls[p.soul as usize].state, SoulState::Liberated { way: Liberation::Ascension, .. }));
     assert_eq!(count(&w, EventKind::Ascended), 1);
     let PowerKind::Sect(sc) = &w.powers[s as usize].kind;
     assert_eq!(sc.ascended, 1);
@@ -505,7 +486,7 @@ fn demon_assassination_gains_exp_and_sin() {
         }
         demon::assassinate(&mut w, &index, d);
     }
-    
+
     assert!(!w.persons[victim as usize].alive());
     // 修為 += 對方戰力（1.1）× 2
     assert!((exp(&w, d) - 1.1 * DEMON_KILL_EXP).abs() < 1e-3, "{}", exp(&w, d));

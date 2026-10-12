@@ -112,10 +112,7 @@ impl Sim {
     }
 
     /// 同 [`Sim::new`]，但世界生成每次品質檢查失敗時回呼 `diag(種子, 原因)`（工具用）。
-    pub fn new_with_diag(
-        params: &WorldParams,
-        diag: &mut dyn FnMut(u64, &str),
-    ) -> Result<Self, WorldGenError> {
+    pub fn new_with_diag(params: &WorldParams, diag: &mut dyn FnMut(u64, &str)) -> Result<Self, WorldGenError> {
         let g = crate::worldgen::generate_with(params, diag)?;
         let mut sim = Self::from_parts(g.params, g.geo, g.provinces);
         sim.world.fine = g.fine;

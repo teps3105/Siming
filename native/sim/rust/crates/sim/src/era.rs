@@ -141,11 +141,7 @@ impl Lexicon {
         name.chars()
             .filter_map(|c| {
                 let s = c.to_string();
-                self.first
-                    .values()
-                    .flatten()
-                    .chain(self.second.iter())
-                    .find(|e| e.text == s)
+                self.first.values().flatten().chain(self.second.iter()).find(|e| e.text == s)
             })
             .collect()
     }

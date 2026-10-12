@@ -310,9 +310,7 @@ fn gdd_3_2_waiting_and_pairing_same_month() {
     kill(&mut w, pb);
     w.tick = 11;
     run_to(&mut w, 12);
-    let SoulState::Waiting { until, ref for_souls } = w.souls[a as usize].state else {
-        panic!("{:?}", w.souls[a as usize].state)
-    };
+    let SoulState::Waiting { until, ref for_souls } = w.souls[a as usize].state else { panic!("{:?}", w.souls[a as usize].state) };
     assert_eq!(until, 12 + 360);
     assert_eq!(for_souls.as_slice(), &[b]);
     // b 判定那個月，兩者同月出生，a 在 b 的州或其陸鄰。

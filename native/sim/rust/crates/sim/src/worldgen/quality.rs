@@ -13,9 +13,7 @@ pub(crate) fn check(d: &Draft, sp: &Sphere, land_ratio: f32, target: u32) -> Res
     let land_area: f32 = (0..n).filter(|&c| land[c]).map(|c| sp.area(c)).sum();
     let ratio = land_area / total;
     if (ratio - land_ratio).abs() > WG_QC_LAND_TOL {
-        return Err(format!(
-            "陸地比例 {ratio:.3} 與目標 {land_ratio:.3} 相差過大"
-        ));
+        return Err(format!("陸地比例 {ratio:.3} 與目標 {land_ratio:.3} 相差過大"));
     }
     let (label, sizes) = components(d.w, d.h, &land, true);
     let mut area = vec![0.0f32; sizes.len()];
@@ -28,10 +26,7 @@ pub(crate) fn check(d: &Draft, sp: &Sphere, land_ratio: f32, target: u32) -> Res
     if land_area <= 0.0 || biggest > WG_QC_MAIN_LANDMASS * land_area {
         return Err(format!("最大陸塊占陸地 {:.2}", biggest / land_area.max(1e-6)));
     }
-    let big = area
-        .iter()
-        .filter(|&&a| a >= WG_QC_CONTINENT_SHARE * land_area)
-        .count();
+    let big = area.iter().filter(|&&a| a >= WG_QC_CONTINENT_SHARE * land_area).count();
     if big < WG_QC_CONTINENTS {
         return Err(format!("≥ 5% 陸地的大洲只有 {big} 塊"));
     }
@@ -40,9 +35,9 @@ pub(crate) fn check(d: &Draft, sp: &Sphere, land_ratio: f32, target: u32) -> Res
     if (count - t).abs() > WG_QC_PROVINCE_TOL * t {
         return Err(format!("州郡數 {count} 不在目標 {t} 的 ±15% 內"));
     }
-    if let Some(p) = d.provinces.list.iter().position(|p| {
-        p.cells.iter().map(|&c| sp.area(c as usize)).sum::<f32>() < WG_PROVINCE_MIN_CELLS as f32
-    }) {
+    if let Some(p) =
+        d.provinces.list.iter().position(|p| p.cells.iter().map(|&c| sp.area(c as usize)).sum::<f32>() < WG_PROVINCE_MIN_CELLS as f32)
+    {
         return Err(format!("州郡 {p} 面積不足 {WG_PROVINCE_MIN_CELLS} 格"));
     }
     let jiang = d.rivers.stems.iter().filter(|s| s.level >= 3).count();

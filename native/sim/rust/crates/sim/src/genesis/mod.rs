@@ -174,8 +174,7 @@ fn next_seat(w: &World) -> Option<dao::Seat> {
             *slot = slot.max(node.strength);
         }
     }
-    let mut order: Vec<(f32, f32, ProvinceId)> =
-        w.provinces.iter().map(|p| (best_node[p.id as usize], p.aura, p.id)).collect();
+    let mut order: Vec<(f32, f32, ProvinceId)> = w.provinces.iter().map(|p| (best_node[p.id as usize], p.aura, p.id)).collect();
     order.sort_by(|a, b| b.0.total_cmp(&a.0).then(b.1.total_cmp(&a.1)).then(a.2.cmp(&b.2)));
     order.into_iter().find_map(|(_, _, id)| dao::choose_seat(w, id, None))
 }
@@ -424,11 +423,7 @@ pub fn ensure_high_realm(w: &mut World) -> u32 {
     if w.params.era == Era::Ancient {
         return 0;
     }
-    let have = w
-        .persons
-        .iter()
-        .filter(|p| p.alive() && realm_of(p).is_some_and(|r| r >= GENESIS_HIGH_REALM_MIN_REALM))
-        .count() as u32;
+    let have = w.persons.iter().filter(|p| p.alive() && realm_of(p).is_some_and(|r| r >= GENESIS_HIGH_REALM_MIN_REALM)).count() as u32;
     if have >= GENESIS_HIGH_REALM_COUNT {
         return 0;
     }

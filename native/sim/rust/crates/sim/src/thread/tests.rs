@@ -725,11 +725,7 @@ fn gdd_4_5_reincarnated_master_conditions() {
     let mut w = line_world(1);
     let (sid, pid) = adult(&mut w, 0, 3);
     w.souls[sid as usize].best_prev.realm = Some(3);
-    let mut e = NewEvent::new(
-        EventKind::Tribulation,
-        3,
-        EventArgs::Tribulation { realm: 3, outcome: TribulationOutcome::Passed },
-    );
+    let mut e = NewEvent::new(EventKind::Tribulation, 3, EventArgs::Tribulation { realm: 3, outcome: TribulationOutcome::Passed });
     e.souls = smallvec![sid];
     e.persons = smallvec![pid];
     ledger::record(&mut w, e);

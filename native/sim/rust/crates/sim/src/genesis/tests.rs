@@ -52,12 +52,16 @@ fn gdd_4_6_middle_era_counts() {
         }
     }
     // 中古沒有遊方僧、散儒以外的限定：身分只會是 M2 允許的。
-    assert!(w
-        .persons
-        .iter()
-        .all(|p| matches!(p.role, Role::Cultivator | Role::Demonic | Role::Monk | Role::Scholar | Role::Commoner | Role::Ruler | Role::GeneralCandidate)),
+    assert!(
+        w.persons.iter().all(|p| matches!(
+            p.role,
+            Role::Cultivator | Role::Demonic | Role::Monk | Role::Scholar | Role::Commoner | Role::Ruler | Role::GeneralCandidate
+        )),
         "{:?}",
-        w.persons.iter().map(|p| p.role).find(|r| !matches!(r, Role::Cultivator | Role::Demonic | Role::Monk | Role::Scholar | Role::Commoner | Role::Ruler | Role::GeneralCandidate))
+        w.persons.iter().map(|p| p.role).find(|r| !matches!(
+            r,
+            Role::Cultivator | Role::Demonic | Role::Monk | Role::Scholar | Role::Commoner | Role::Ruler | Role::GeneralCandidate
+        ))
     );
 }
 
@@ -226,12 +230,7 @@ fn gdd_8_3_titles_from_golden_core() {
 fn gdd_8_3_title_updates_on_breakthrough_and_keeps_core() {
     let mut w = built(10, Era::Middle);
     // 找一名境界恰為金丹、有道號者，手動令其突破（走 dao 的 advance 路徑：強制突破）。
-    let pid = w
-        .persons
-        .iter()
-        .find(|p| realm(p) == Some(2) && p.alive())
-        .map(|p| p.id)
-        .expect("有金丹");
+    let pid = w.persons.iter().find(|p| realm(p) == Some(2) && p.alive()).map(|p| p.id).expect("有金丹");
     let before = w.persons[pid as usize].title.clone().unwrap();
     if let PathState::Cultivator { realm, last_attempt, .. } = w.persons[pid as usize].path {
         w.persons[pid as usize].path = PathState::Cultivator { realm, exp: REALM_EXP[realm as usize], last_attempt };
@@ -316,8 +315,7 @@ fn gdd_4_6_prerun_and_opening_guarantee() {
         assert_eq!(dao::effective_prestige(&w.powers[sect as usize]), top_prestige);
         assert!(
             p.power == Some(sect)
-                || (p.power.is_none()
-                    && dao::provinces_within(w, w.powers[sect as usize].seat_province, 2).contains(&p.province))
+                || (p.power.is_none() && dao::provinces_within(w, w.powers[sect as usize].seat_province, 2).contains(&p.province))
         );
         let (pr, cell) = camera_start(w).unwrap();
         assert_eq!((pr, cell), (w.powers[sect as usize].seat_province, w.powers[sect as usize].seat_cell));

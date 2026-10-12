@@ -39,13 +39,7 @@ fn died_importance(p: &Person) -> u8 {
 ///    死者自己的 `spouse`／`master`／`disciples`／`children` 保留作為生平記錄。
 /// 5. 殺業計算與殺業線（3.1、3.3）由呼叫端（衝突、襲殺的處理）負責，本函式不計業。
 /// 6. 會戰統帥（M3）。
-pub fn die(
-    w: &mut World,
-    pid: PersonId,
-    cause: DeathCause,
-    liberation: Option<Liberation>,
-    extra_causes: &[EventId],
-) -> Option<EventId> {
+pub fn die(w: &mut World, pid: PersonId, cause: DeathCause, liberation: Option<Liberation>, extra_causes: &[EventId]) -> Option<EventId> {
     let tick = w.tick;
     let p = w.persons.get_mut(pid as usize)?;
     if !p.alive() {
@@ -62,8 +56,7 @@ pub fn die(
 
     let p = &w.persons[pid as usize];
     let ascended = liberation == Some(Liberation::Ascension);
-    let (kind, importance) =
-        if ascended { (EventKind::Ascended, ASCENDED_IMPORTANCE) } else { (EventKind::Died, died_importance(p)) };
+    let (kind, importance) = if ascended { (EventKind::Ascended, ASCENDED_IMPORTANCE) } else { (EventKind::Died, died_importance(p)) };
     let mut e = NewEvent::new(kind, importance, EventArgs::Death { cause, age: p.age(tick).min(u16::MAX as u32) as u16 });
     e.province = Some(p.province);
     e.cell = Some(p.cell);

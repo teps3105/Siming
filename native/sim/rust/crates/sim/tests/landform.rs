@@ -161,7 +161,8 @@ fn gdd_2_8_new_land_joins_the_adjacent_province_and_starts_as_swamp() {
     pin(sim.world_mut(), 0.0, -0.03);
     landform::settle(sim.world_mut());
     let w = sim.world();
-    let fresh: Vec<usize> = (0..origin_fine.len()).filter(|&f| origin_fine[f] == Terrain::Sea && w.fine.terrain[f] != Terrain::Sea).collect();
+    let fresh: Vec<usize> =
+        (0..origin_fine.len()).filter(|&f| origin_fine[f] == Terrain::Sea && w.fine.terrain[f] != Terrain::Sea).collect();
     assert!(!fresh.is_empty(), "海退一世沒有細格浮出");
     assert!(fresh.iter().all(|&f| w.fine.terrain[f] == Terrain::Swamp), "新地先是沼澤");
     let joined = (0..origin.len())
@@ -312,7 +313,9 @@ fn sea_within_two(terrain: &[Terrain], fw: usize, fh: usize, cell: usize) -> boo
     let (x, y) = ((cell % fw) as i64, (cell / fw) as i64);
     (-2i64..=2).any(|dy| {
         let ny = y + dy;
-        ny >= 0 && ny < fh as i64 && (-2i64..=2).any(|dx| terrain[ny as usize * fw + (x + dx).rem_euclid(fw as i64) as usize] == Terrain::Sea)
+        ny >= 0
+            && ny < fh as i64
+            && (-2i64..=2).any(|dx| terrain[ny as usize * fw + (x + dx).rem_euclid(fw as i64) as usize] == Terrain::Sea)
     })
 }
 

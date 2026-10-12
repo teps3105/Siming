@@ -112,10 +112,7 @@ pub(super) fn return_home(w: &mut World, i: usize) {
         let p = &w.persons[i];
         (p.id, p.province, p.home, p.power)
     };
-    let seat = power
-        .and_then(|id| w.powers.get(id as usize))
-        .filter(|pw| pw.seat_province == home)
-        .map(|pw| pw.seat_cell);
+    let seat = power.and_then(|id| w.powers.get(id as usize)).filter(|pw| pw.seat_province == home).map(|pw| pw.seat_cell);
     let cell = match seat {
         Some(c) => c,
         None => random_cell(w, home),

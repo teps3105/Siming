@@ -10,9 +10,7 @@
 //! - **L5 海床**：大陸棚／坡／深海平原、洋脊、海溝、島弧淺灘、封閉淺海（海平面以下有物理意義）。
 //! - **L6 海平面**：面積加權分位數；最大陸塊過大時沿板塊邊界切海峽（7.4 §3.1 的補救），連通分量驗收在 `quality.rs`。
 
-use super::grid::{
-    below, chord, chord2, cos, dot, normalize, sin, stretch, uniform, Sphere, PI, TAU,
-};
+use super::grid::{below, chord, chord2, cos, dot, normalize, sin, stretch, uniform, Sphere, PI, TAU};
 use super::noise::Noises;
 use crate::params::*;
 use rand_chacha::ChaCha8Rng;
@@ -90,12 +88,7 @@ fn polar_fade(p: [f32; 3]) -> f32 {
 /// GDD 2.2 步驟 2：面積加權分位數，使陸地（`h >= sea`）面積比例等於 `land_ratio`。
 pub fn sea_level(h: &[f32], area: &[f32], land_ratio: f32) -> f32 {
     let mut idx: Vec<u32> = (0..h.len() as u32).collect();
-    idx.sort_by(|&a, &b| {
-        h[b as usize]
-            .partial_cmp(&h[a as usize])
-            .unwrap()
-            .then(a.cmp(&b))
-    });
+    idx.sort_by(|&a, &b| h[b as usize].partial_cmp(&h[a as usize]).unwrap().then(a.cmp(&b)));
     let total: f32 = area.iter().sum();
     let want = land_ratio * total;
     let mut acc = 0.0f32;
@@ -142,16 +135,8 @@ fn offset_point(rng: &mut ChaCha8Rng, c: [f32; 3], dist: f32, r_cells: f32) -> [
 /// 兩板塊之間的邊界類型：相對運動 `v_i − v_j` 在連線方向 `n`（i → j）上的分量 > `WG_PLATE_CONV_FRAC` × 相對速率為聚合，
 /// < −同值為張裂，其餘為轉形。
 fn classify(a: &Plate, b: &Plate) -> Boundary {
-    let n = normalize([
-        b.center[0] - a.center[0],
-        b.center[1] - a.center[1],
-        b.center[2] - a.center[2],
-    ]);
-    let rel = [
-        a.motion[0] - b.motion[0],
-        a.motion[1] - b.motion[1],
-        a.motion[2] - b.motion[2],
-    ];
+    let n = normalize([b.center[0] - a.center[0], b.center[1] - a.center[1], b.center[2] - a.center[2]]);
+    let rel = [a.motion[0] - b.motion[0], a.motion[1] - b.motion[1], a.motion[2] - b.motion[2]];
     let speed = dot(rel, rel).sqrt().max(1e-6);
     let conv = dot(rel, n) / speed;
     if conv > WG_PLATE_CONV_FRAC {
@@ -174,13 +159,7 @@ fn classify(a: &Plate, b: &Plate) -> Boundary {
 /// GDD 2.2 步驟 1.1（L1）：板塊。中心為彼此夾角 ≥ `WG_PLATE_SEP` 的隨機球面點（拒絕取樣，連續失敗 `WG_PLATE_TRIES`
 /// 次後間距乘 `WG_PLATE_SEP_SHRINK`）；隨機順序逐一標為大陸板塊，直到大陸板塊面積 ≥ 陸地比例 × `WG_PLATE_CONT_OVER`：第一輪只取與
 /// 已選者不相鄰的板塊，不足時第二輪每次取與已選者相鄰數最少者。回傳 (板塊, 每格所屬板塊, 每格扭曲後座標)。
-pub fn make_plates(
-    sp: &Sphere,
-    nz: &Noises,
-    count: usize,
-    land_ratio: f32,
-    rng: &mut ChaCha8Rng,
-) -> (Vec<Plate>, Vec<u8>, Vec<[f32; 3]>) {
+pub fn make_plates(sp: &Sphere, nz: &Noises, count: usize, land_ratio: f32, rng: &mut ChaCha8Rng) -> (Vec<Plate>, Vec<u8>, Vec<[f32; 3]>) {
     let n = sp.w * sp.h;
     let mut sep = 2.0 * sin(0.5 * WG_PLATE_SEP * PI / 180.0);
     let mut centers: Vec<[f32; 3]> = Vec::with_capacity(count);
@@ -203,25 +182,13 @@ pub fn make_plates(
         .map(|center| {
             // 運動向量：中心處切平面上的隨機方向 × 隨機速率。
             let east = normalize([-center[1], center[0], 0.0]);
-            let north = normalize([
-                -center[2] * center[0],
-                -center[2] * center[1],
-                center[0] * center[0] + center[1] * center[1],
-            ]);
+            let north = normalize([-center[2] * center[0], -center[2] * center[1], center[0] * center[0] + center[1] * center[1]]);
             let ang = uniform(rng, 0.0, TAU);
             let (ca, sa) = (cos(ang), sin(ang));
             let speed = uniform(rng, WG_PLATE_SPEED_MIN, WG_PLATE_SPEED_MAX);
-            let motion = [
-                speed * (ca * east[0] + sa * north[0]),
-                speed * (ca * east[1] + sa * north[1]),
-                speed * (ca * east[2] + sa * north[2]),
-            ];
-            Plate {
-                center,
-                continental: false,
-                motion,
-                area: 0.0,
-            }
+            let motion =
+                [speed * (ca * east[0] + sa * north[0]), speed * (ca * east[1] + sa * north[1]), speed * (ca * east[2] + sa * north[2])];
+            Plate { center, continental: false, motion, area: 0.0 }
         })
         .collect();
     // 以扭曲後座標判定所屬板塊（邊界曲折）。
@@ -284,9 +251,7 @@ pub fn make_plates(
             if plates[k].continental {
                 continue;
             }
-            let deg = (0..count)
-                .filter(|&m| plates[m].continental && adj[k * count + m])
-                .count();
+            let deg = (0..count).filter(|&m| plates[m].continental && adj[k * count + m]).count();
             if best.is_none_or(|(_, d)| deg < d) {
                 best = Some((k, deg));
             }
@@ -338,14 +303,7 @@ fn continent_field(lobes: &[Lobe], p: [f32; 3], r_cells: f32) -> f32 {
 }
 
 /// GDD 2.2 步驟 1–2：板塊＋噪聲＋模板混合地形與海平面。`relief` 為開局參數「山勢」（0–1，預設 0.5）。
-pub fn generate(
-    sp: &Sphere,
-    relief: f32,
-    land_ratio: f32,
-    plate_count: usize,
-    nz: &Noises,
-    rng: &mut ChaCha8Rng,
-) -> HeightField {
+pub fn generate(sp: &Sphere, relief: f32, land_ratio: f32, plate_count: usize, nz: &Noises, rng: &mut ChaCha8Rng) -> HeightField {
     let n = sp.w * sp.h;
     let area: Vec<f32> = (0..n).map(|c| sp.area(c)).collect();
 
@@ -412,11 +370,7 @@ pub fn generate(
         }
         let (ci, cj) = (plates[i].center, plates[j].center);
         // 沿邊界的座標：邊界大圓的軸 n = ci × cj，dot(p, n) 沿邊界單調。
-        let axis = normalize([
-            ci[1] * cj[2] - ci[2] * cj[1],
-            ci[2] * cj[0] - ci[0] * cj[2],
-            ci[0] * cj[1] - ci[1] * cj[0],
-        ]);
+        let axis = normalize([ci[1] * cj[2] - ci[2] * cj[1], ci[2] * cj[0] - ci[0] * cj[2], ci[0] * cj[1] - ci[1] * cj[0]]);
         let along = ((dot(pw, axis) + 1.0) / seg).floor().clamp(0.0, 255.0) as u32;
         range_key[c] = (((i * k + j) as u32) << 8) | along;
         let cc = chord(ci, cj).max(1e-6);
@@ -440,9 +394,7 @@ pub fn generate(
         } else {
             smoothstep(0.0, edge, b)
         };
-        let cont = continent_field(&lobes, warped[c], sp.r_cells)
-            * gate
-            * (WG_SHAPE_BASE + WG_SHAPE_SPAN * shape[c]);
+        let cont = continent_field(&lobes, warped[c], sp.r_cells) * gate * (WG_SHAPE_BASE + WG_SHAPE_SPAN * shape[c]);
         let ocean = match kind[i * k + j] {
             Boundary::Subduction if !plates[i].continental => -WG_TRENCH * band(b, WG_BAND_TRENCH),
             Boundary::Arc => {
@@ -455,15 +407,11 @@ pub fn generate(
             }
             Boundary::Rift => -WG_RIFT * band(b, WG_BAND_RIFT),
             Boundary::Ridge => WG_OCEAN_RIDGE * band(b, WG_BAND_RIFT),
-            Boundary::Transform if plates[i].continental && plates[j].continental => {
-                -WG_RIFT * WG_TRANSFORM_RIFT * band(b, WG_BAND_RIFT)
-            }
+            Boundary::Transform if plates[i].continental && plates[j].continental => -WG_RIFT * WG_TRANSFORM_RIFT * band(b, WG_BAND_RIFT),
             _ => 0.0,
         };
-        base[c] = WG_CONT_WEIGHT * cont
-            + (1.0 - WG_CONT_WEIGHT) * detail[c]
-            + WG_ISLAND_AMP * smoothstep(WG_ISLAND_LO, 1.0, island[c])
-            + ocean;
+        base[c] =
+            WG_CONT_WEIGHT * cont + (1.0 - WG_CONT_WEIGHT) * detail[c] + WG_ISLAND_AMP * smoothstep(WG_ISLAND_LO, 1.0, island[c]) + ocean;
     }
     let sea0 = sea_level(&base, &area, land_ratio);
 
@@ -585,14 +533,7 @@ pub fn generate(
     }
     let seabed_info = SeabedInfo { bdist, margin, arc_gate, shape, detail };
 
-    HeightField {
-        h: hh,
-        seabed: seabed_info,
-        ridged,
-        uplift,
-        range_key,
-        sea,
-    }
+    HeightField { h: hh, seabed: seabed_info, ridged, uplift, range_key, sea }
 }
 
 /// GDD 2.2 步驟 1 海床（L5）：以最終海平面的陸地遮罩塑形海格高度——大陸棚（被動邊緣寬、海溝側窄；小島的棚更窄）
@@ -646,8 +587,7 @@ pub fn seabed(hh: &mut [f32], sea: f32, info: &SeabedInfo, area: &[f32], w: usiz
         let mut depth = if d <= shelf_w {
             WG_SHELF_DEPTH + (WG_SHELF_EDGE_DEPTH - WG_SHELF_DEPTH) * (d / shelf_w.max(1e-3))
         } else {
-            WG_SHELF_EDGE_DEPTH + (WG_ABYSS_DEPTH - WG_SHELF_EDGE_DEPTH) * deep
-                + WG_ABYSS_NOISE * (2.0 * info.detail[c] - 1.0) * deep
+            WG_SHELF_EDGE_DEPTH + (WG_ABYSS_DEPTH - WG_SHELF_EDGE_DEPTH) * deep + WG_ABYSS_NOISE * (2.0 * info.detail[c] - 1.0) * deep
         };
         match info.margin[c] {
             1 => depth += WG_TRENCH_DEEPEN * band(b, WG_BAND_ARC) * deep,

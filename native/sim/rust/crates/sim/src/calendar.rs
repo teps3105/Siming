@@ -48,14 +48,7 @@ pub fn date(tick: Tick) -> Date {
     let hui_idx = yun_idx / YUN_PER_HUI;
     let yun = yun_idx % YUN_PER_HUI + 1;
     let hui = hui_idx + 1;
-    Date {
-        hui,
-        yun,
-        shi,
-        year,
-        month,
-        total_year,
-    }
+    Date { hui, yun, shi, year, month, total_year }
 }
 
 /// 紀元（GDD 2.6）：世界裡的大事會開啟新的紀元，日期以「某某紀元 N年 M月」表示。
@@ -81,11 +74,7 @@ pub fn total_year(tick: Tick, history: u32) -> u32 {
 /// `eras` 須依起始年遞增排列，且第一個紀元始於第 1 年。
 pub fn era_year(tick: Tick, history: u32, eras: &[Era]) -> (&Era, u32) {
     let total = total_year(tick, history);
-    let era = eras
-        .iter()
-        .rev()
-        .find(|e| e.start_year <= total)
-        .unwrap_or(&eras[0]);
+    let era = eras.iter().rev().find(|e| e.start_year <= total).unwrap_or(&eras[0]);
     (era, total.saturating_sub(era.start_year) + 1)
 }
 
@@ -97,12 +86,7 @@ pub fn era_date(tick: Tick, history: u32, eras: &[Era]) -> String {
 
 /// 完整日期：紀元日期加自開天起的年份，「鴻蒙紀元 12年 11月（開天以來第 12 年）」。
 pub fn full(tick: Tick, history: u32, eras: &[Era]) -> String {
-    format!(
-        "{}（{}以來第 {} 年）",
-        era_date(tick, history, eras),
-        GENESIS,
-        total_year(tick, history)
-    )
+    format!("{}（{}以來第 {} 年）", era_date(tick, history, eras), GENESIS, total_year(tick, history))
 }
 
 /// 天書與卡片中的年份標記：「第 N 年」（自開天起，Arabic 數字；GDD 2.6）。
@@ -116,14 +100,7 @@ mod tests {
 
     #[test]
     fn tick_0_and_1_are_first_month() {
-        let expected = Date {
-            hui: 1,
-            yun: 1,
-            shi: 1,
-            year: 1,
-            month: 1,
-            total_year: 1,
-        };
+        let expected = Date { hui: 1, yun: 1, shi: 1, year: 1, month: 1, total_year: 1 };
         assert_eq!(date(0), expected);
         assert_eq!(date(1), expected);
     }
@@ -180,11 +157,7 @@ mod tests {
     }
 
     fn chronicle() -> Vec<Era> {
-        vec![Era {
-            name: "鴻蒙".to_string(),
-            start_year: 1,
-            kind: crate::era::EraKind::Genesis,
-        }]
+        vec![Era { name: "鴻蒙".to_string(), start_year: 1, kind: crate::era::EraKind::Genesis }]
     }
 
     #[test]
@@ -198,20 +171,13 @@ mod tests {
 
     #[test]
     fn full_form_adds_the_year_since_genesis() {
-        assert_eq!(
-            full(12 * 11 + 11, 0, &chronicle()),
-            "鴻蒙紀元 12年 11月（開天以來第 12 年）"
-        );
+        assert_eq!(full(12 * 11 + 11, 0, &chronicle()), "鴻蒙紀元 12年 11月（開天以來第 12 年）");
     }
 
     #[test]
     fn a_new_era_restarts_the_year_count() {
         let mut eras = chronicle();
-        eras.push(Era {
-            name: "玄冥".to_string(),
-            start_year: 361,
-            kind: crate::era::EraKind::Cold,
-        });
+        eras.push(Era { name: "玄冥".to_string(), start_year: 361, kind: crate::era::EraKind::Cold });
         // 第 360 年還在舊紀元；第 361 年是新紀元元年。
         assert_eq!(era_date(12 * 359 + 12, 0, &eras), "鴻蒙紀元 360年 12月");
         assert_eq!(era_date(12 * 360 + 1, 0, &eras), "玄冥紀元 1年 1月");
@@ -223,11 +189,7 @@ mod tests {
     fn history_before_the_opening_counts_into_the_year() {
         // 開局前已過 1,800 年，目前的紀元始於第 1,741 年：開局第 1 年是該紀元的第 61 年。
         let mut eras = chronicle();
-        eras.push(Era {
-            name: "玄冥".to_string(),
-            start_year: 1741,
-            kind: crate::era::EraKind::Cold,
-        });
+        eras.push(Era { name: "玄冥".to_string(), start_year: 1741, kind: crate::era::EraKind::Cold });
         assert_eq!(era_date(1, 1800, &eras), "玄冥紀元 61年 1月");
         assert_eq!(full(13, 1800, &eras), "玄冥紀元 62年 1月（開天以來第 1802 年）");
     }

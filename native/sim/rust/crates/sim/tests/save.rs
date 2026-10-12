@@ -164,14 +164,20 @@ fn hash_covers_new_fields() {
     assert_ne!(h0, mutate(&|w| w.persons[1].lifespan += 1));
     assert_ne!(h0, mutate(&|w| w.kill_pairs.insert((1, 2), 1).map(|_| ()).unwrap_or(())));
     assert_ne!(h0, mutate(&|w| w.prerun = !w.prerun));
-    assert_ne!(h0, mutate(&|w| {
-        use rand::RngCore;
-        w.rng.command.next_u32();
-    }));
-    assert_ne!(h0, mutate(&|w| {
-        use rand::RngCore;
-        w.rng.people.next_u32();
-    }));
+    assert_ne!(
+        h0,
+        mutate(&|w| {
+            use rand::RngCore;
+            w.rng.command.next_u32();
+        })
+    );
+    assert_ne!(
+        h0,
+        mutate(&|w| {
+            use rand::RngCore;
+            w.rng.people.next_u32();
+        })
+    );
 }
 
 #[test]

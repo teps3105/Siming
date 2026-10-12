@@ -115,10 +115,7 @@ impl Evolution {
             tide: 1.0,
             opening_warmth: 0.0,
             opening_sea_shift: 0.0,
-            warmth_periods: [
-                pick(1, EVO_WARMTH_P1_MIN, EVO_WARMTH_P1_MAX),
-                pick(2, EVO_WARMTH_P2_MIN, EVO_WARMTH_P2_MAX),
-            ],
+            warmth_periods: [pick(1, EVO_WARMTH_P1_MIN, EVO_WARMTH_P1_MAX), pick(2, EVO_WARMTH_P2_MIN, EVO_WARMTH_P2_MAX)],
             warmth_phases: [phase(3), phase(4)],
             tide_period,
             tide_phase: tide_phase - tide_phase.floor(),
@@ -163,8 +160,7 @@ impl Evolution {
     pub fn settle(&mut self, year: u32) -> Vec<WorldChange> {
         self.warmth = self.warmth_cycle(year).clamp(-1.0, 1.0);
         let sea_target = EVO_SEA_RANGE * self.warmth;
-        self.sea_shift = (self.sea_shift + (sea_target - self.sea_shift) * EVO_SEA_APPROACH)
-            .clamp(-EVO_SEA_RANGE, EVO_SEA_RANGE);
+        self.sea_shift = (self.sea_shift + (sea_target - self.sea_shift) * EVO_SEA_APPROACH).clamp(-EVO_SEA_RANGE, EVO_SEA_RANGE);
         self.tide = self.tide_cycle(year).clamp(EVO_TIDE_MIN, EVO_TIDE_MAX);
 
         let mut changes = Vec::new();
@@ -217,9 +213,7 @@ impl Evolution {
     pub fn next_era(&self, changes: &[WorldChange], year: u32, current: &CalendarEra) -> Option<EraKind> {
         let kind = match changes.iter().find_map(|c| c.opens()) {
             Some(kind) => kind,
-            None if !changes.is_empty() && self.climate == Climate::Mild && self.aura == AuraAge::Plain => {
-                EraKind::Peace
-            }
+            None if !changes.is_empty() && self.climate == Climate::Mild && self.aura == AuraAge::Plain => EraKind::Peace,
             None => return None,
         };
         // 新紀元的元年是下一年。
@@ -232,11 +226,7 @@ impl Evolution {
 pub fn genesis(seed: u64, era: Era) -> (Evolution, Vec<CalendarEra>) {
     let lexicon = Lexicon::builtin();
     let mut evolution = Evolution::at_genesis(seed, era);
-    let mut eras = vec![CalendarEra {
-        name: lexicon.name(seed, 0, EraKind::Genesis, &[]),
-        start_year: 1,
-        kind: EraKind::Genesis,
-    }];
+    let mut eras = vec![CalendarEra { name: lexicon.name(seed, 0, EraKind::Genesis, &[]), start_year: 1, kind: EraKind::Genesis }];
     let mut year = 30;
     while year <= evolution.history_years {
         let changes = evolution.settle(year);

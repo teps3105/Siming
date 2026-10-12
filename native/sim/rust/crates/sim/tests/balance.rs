@@ -59,8 +59,7 @@ fn run(seed: u64, yuns: u32) -> (Sim, Vec<YunStats>) {
             .iter()
             .filter(|s| matches!(s.state, SoulState::Liberated { way: siming_sim::Liberation::Ascension, tick } if tick > lo && tick <= hi))
             .count() as u32;
-        let threads_resolved =
-            w.threads.iter().filter(|t| t.resolved.is_some_and(|(rt, _)| rt > lo && rt <= hi)).count() as u32;
+        let threads_resolved = w.threads.iter().filter(|t| t.resolved.is_some_and(|(rt, _)| rt > lo && rt <= hi)).count() as u32;
         out.push(YunStats { notables_min: nmin, notables_max: nmax, realm_mean, ascensions, threads_resolved });
     }
     (sim, out)
@@ -88,7 +87,13 @@ fn balance_three_seeds_three_yun() {
 
         // 在世有名之人 2,000–4,000（第 1 運含成長期，從第 2 運起檢查）。
         for (i, y) in yuns.iter().enumerate().skip(1) {
-            assert!(y.notables_min >= 2_000 && y.notables_max <= 4_000, "seed {seed} 運{} 在世 {}..{}", i + 1, y.notables_min, y.notables_max);
+            assert!(
+                y.notables_min >= 2_000 && y.notables_max <= 4_000,
+                "seed {seed} 運{} 在世 {}..{}",
+                i + 1,
+                y.notables_min,
+                y.notables_max
+            );
         }
         // 境界分布每高一境約 ×0.3–0.6（第 2、3 運）。
         for (i, y) in yuns.iter().enumerate().skip(1) {

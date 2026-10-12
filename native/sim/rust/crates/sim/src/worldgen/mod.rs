@@ -26,8 +26,8 @@ pub(crate) mod terrain;
 use crate::params::*;
 use crate::rng::{stream, Stream};
 use crate::types::{
-    Continent, Era, FineGeography, Geography, NamedRange, NamedRiver, Province, Terrain,
-    WorldGenError, WorldParams, WorldSize, NO_CONTINENT,
+    Continent, Era, FineGeography, Geography, NamedRange, NamedRiver, Province, Terrain, WorldGenError, WorldParams, WorldSize,
+    NO_CONTINENT,
 };
 use grid::{components, uniform, Sphere};
 use rand_chacha::ChaCha8Rng;
@@ -195,12 +195,7 @@ fn coarsen_stems(stems: &[hydrology::Stem], fw: usize, w: usize, scale: usize, t
             out.push(hydrology::Stem { level: lv, cells });
         }
     }
-    out.sort_by(|a, b| {
-        b.level
-            .cmp(&a.level)
-            .then(b.cells.len().cmp(&a.cells.len()))
-            .then(a.cells.last().cmp(&b.cells.last()))
-    });
+    out.sort_by(|a, b| b.level.cmp(&a.level).then(b.cells.len().cmp(&a.cells.len())).then(a.cells.last().cmp(&b.cells.last())));
     out
 }
 
@@ -219,13 +214,7 @@ fn fine_geography(fd: &FineDraft, scale: usize) -> FineGeography {
         terrain: fd.terrain.clone(),
         river: (0..n).map(|c| if fd.terrain[c].is_water() { 0 } else { fd.rivers.level[c] }).collect(),
         flow: (0..n)
-            .map(|c| {
-                if fd.terrain[c].is_water() {
-                    0
-                } else {
-                    (255.0 * (1.0 + fd.rivers.acc[c]).ln() / lmax).round() as u8
-                }
-            })
+            .map(|c| if fd.terrain[c].is_water() { 0 } else { (255.0 * (1.0 + fd.rivers.acc[c]).ln() / lmax).round() as u8 })
             .collect(),
         temperature: fd.t.iter().map(|&v| q8(v)).collect(),
         moisture: fd.q.iter().map(|&v| q8(v)).collect(),
@@ -359,30 +348,13 @@ fn find_ranges(d: &Draft, namer: &mut naming::Namer, rng: &mut ChaCha8Rng) -> Ve
             (peak, g)
         })
         .collect();
-    ranges.sort_by(|a, b| {
-        d.height[b.0 as usize]
-            .partial_cmp(&d.height[a.0 as usize])
-            .unwrap()
-            .then(a.0.cmp(&b.0))
-    });
-    ranges
-        .into_iter()
-        .enumerate()
-        .map(|(i, (peak, cells))| NamedRange {
-            name: namer.range(rng, i == 0),
-            peak,
-            cells,
-        })
-        .collect()
+    ranges.sort_by(|a, b| d.height[b.0 as usize].partial_cmp(&d.height[a.0 as usize]).unwrap().then(a.0.cmp(&b.0)));
+    ranges.into_iter().enumerate().map(|(i, (peak, cells))| NamedRange { name: namer.range(rng, i == 0), peak, cells }).collect()
 }
 
 /// GDD 2.2 步驟 9 大洲：八鄰連通的陸塊（非海格），面積 ≥ `WG_CONTINENT_MIN` 者依面積降冪命名（GDD 7.3 大洲命名）。
 /// 回傳 (大洲表, 每格所屬大洲)。
-fn find_continents(
-    d: &Draft,
-    namer: &mut naming::Namer,
-    rng: &mut ChaCha8Rng,
-) -> (Vec<Continent>, Vec<u16>) {
+fn find_continents(d: &Draft, namer: &mut naming::Namer, rng: &mut ChaCha8Rng) -> (Vec<Continent>, Vec<u16>) {
     let n = d.w * d.h;
     let land: Vec<bool> = d.terrain.iter().map(|&t| t != Terrain::Sea).collect();
     let (label, sizes) = components(d.w, d.h, &land, true);
@@ -400,9 +372,7 @@ fn find_continents(
         }
     }
     let land_area: f32 = area.iter().sum();
-    let mut order: Vec<usize> = (0..sizes.len())
-        .filter(|&l| area[l] >= WG_CONTINENT_MIN)
-        .collect();
+    let mut order: Vec<usize> = (0..sizes.len()).filter(|&l| area[l] >= WG_CONTINENT_MIN).collect();
     order.sort_by(|&a, &b| area[b].partial_cmp(&area[a]).unwrap().then(a.cmp(&b)));
     let mut rank = vec![NO_CONTINENT; sizes.len()];
     for (i, &l) in order.iter().enumerate() {
@@ -435,9 +405,7 @@ fn find_continents(
             centroid: centroid[i],
         })
         .collect();
-    let of: Vec<u16> = (0..n)
-        .map(|c| if land[c] { rank[label[c] as usize] } else { NO_CONTINENT })
-        .collect();
+    let of: Vec<u16> = (0..n).map(|c| if land[c] { rank[label[c] as usize] } else { NO_CONTINENT }).collect();
     (continents, of)
 }
 
@@ -457,21 +425,9 @@ fn finalize(d: Draft, mut rng: ChaCha8Rng, params: &WorldParams, seed: u64) -> G
         let population = rp.habitability * POP_INIT_PER_HAB * era_factor;
         let faith = if params.era == Era::Ancient {
             [
-                uniform(
-                    &mut rng,
-                    FAITH_INIT_ANCIENT_TAO_MIN,
-                    FAITH_INIT_ANCIENT_TAO_MAX,
-                ),
-                uniform(
-                    &mut rng,
-                    FAITH_INIT_ANCIENT_BUDDHA_MIN,
-                    FAITH_INIT_ANCIENT_BUDDHA_MAX,
-                ),
-                uniform(
-                    &mut rng,
-                    FAITH_INIT_ANCIENT_RU_MIN,
-                    FAITH_INIT_ANCIENT_RU_MAX,
-                ),
+                uniform(&mut rng, FAITH_INIT_ANCIENT_TAO_MIN, FAITH_INIT_ANCIENT_TAO_MAX),
+                uniform(&mut rng, FAITH_INIT_ANCIENT_BUDDHA_MIN, FAITH_INIT_ANCIENT_BUDDHA_MAX),
+                uniform(&mut rng, FAITH_INIT_ANCIENT_RU_MIN, FAITH_INIT_ANCIENT_RU_MAX),
             ]
         } else {
             [0.0; 3]
@@ -524,11 +480,7 @@ fn finalize(d: Draft, mut rng: ChaCha8Rng, params: &WorldParams, seed: u64) -> G
         .rivers
         .stems
         .iter()
-        .map(|s| NamedRiver {
-            name: namer.river(&mut rng, s.level),
-            level: s.level,
-            cells: s.cells.clone(),
-        })
+        .map(|s| NamedRiver { name: namer.river(&mut rng, s.level), level: s.level, cells: s.cells.clone() })
         .collect();
     let ranges = find_ranges(&d, &mut namer, &mut rng);
     let mut nodes = d.nodes.clone();
@@ -558,12 +510,7 @@ fn finalize(d: Draft, mut rng: ChaCha8Rng, params: &WorldParams, seed: u64) -> G
         continents,
         continent_of,
     };
-    Generated {
-        params: out_params,
-        geo,
-        fine: d.fine,
-        provinces: provs,
-    }
+    Generated { params: out_params, geo, fine: d.fine, provinces: provs }
 }
 
 /// GDD 2.2 品質檢查的重試種子：第 0 次為原種子，之後為 `splitmix64(seed ⊕ attempt·φ)`——不同輸入種子的重試鏈
@@ -585,10 +532,7 @@ pub fn generate(params: &WorldParams) -> Result<Generated, WorldGenError> {
 }
 
 /// 同 [`generate`]，但每次品質檢查失敗時呼叫 `diag(重試種子, 原因)`（供 siming-cli 的除錯輸出；模擬核心不讀環境變數，6.5）。
-pub fn generate_with(
-    params: &WorldParams,
-    diag: &mut dyn FnMut(u64, &str),
-) -> Result<Generated, WorldGenError> {
+pub fn generate_with(params: &WorldParams, diag: &mut dyn FnMut(u64, &str)) -> Result<Generated, WorldGenError> {
     let mut last_reason = String::new();
     let mut last_seed = params.seed;
     for attempt in 0..=WG_RETRY {
@@ -603,8 +547,5 @@ pub fn generate_with(
             }
         }
     }
-    Err(WorldGenError {
-        last_seed,
-        reason: last_reason,
-    })
+    Err(WorldGenError { last_seed, reason: last_reason })
 }

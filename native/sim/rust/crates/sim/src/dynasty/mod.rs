@@ -226,13 +226,8 @@ pub fn mandate_delta(w: &World, di: usize, famine_n: u32, broke: bool) -> f32 {
     if let Some(r) = d.ruler.and_then(|r| w.persons.get(r as usize)) {
         m += MANDATE_VIRTUE_COEF * (r.attrs.virtue - MANDATE_VIRTUE_MID);
     }
-    let virtues: Vec<f32> = d
-        .officials
-        .iter()
-        .filter_map(|&o| w.persons.get(o as usize))
-        .filter(|p| p.alive())
-        .map(|p| p.attrs.virtue)
-        .collect();
+    let virtues: Vec<f32> =
+        d.officials.iter().filter_map(|&o| w.persons.get(o as usize)).filter(|p| p.alive()).map(|p| p.attrs.virtue).collect();
     if !virtues.is_empty() {
         m += MANDATE_OFFICIAL_COEF * (virtues.iter().sum::<f32>() / virtues.len() as f32 - MANDATE_VIRTUE_MID);
     }
@@ -275,15 +270,10 @@ fn state_finance(w: &mut World, di: usize, famines: &[(ProvinceId, u32)]) -> (Fi
     // 賑災：天命 ≥ 40 且國庫 > 一年支出。
     if mandate >= RELIEF_MANDATE && treasury > fin.expenses {
         // 主事文臣：德行 + 才略最高者（同值取 ID 小者）。
-        let chief = w.dynasty.list[di]
-            .officials
-            .iter()
-            .copied()
-            .filter(|&o| w.persons[o as usize].alive())
-            .max_by(|&a, &b| {
-                let (pa, pb) = (&w.persons[a as usize], &w.persons[b as usize]);
-                (pa.attrs.virtue + pa.attrs.talent).total_cmp(&(pb.attrs.virtue + pb.attrs.talent)).then(b.cmp(&a))
-            });
+        let chief = w.dynasty.list[di].officials.iter().copied().filter(|&o| w.persons[o as usize].alive()).max_by(|&a, &b| {
+            let (pa, pb) = (&w.persons[a as usize], &w.persons[b as usize]);
+            (pa.attrs.virtue + pa.attrs.talent).total_cmp(&(pb.attrs.virtue + pb.attrs.talent)).then(b.cmp(&a))
+        });
         for &(p, deaths) in famines {
             let cost = deaths as f64 * RELIEF_SPEND_PER_DEATH;
             if cost > stock {
@@ -332,8 +322,7 @@ fn year_of(w: &mut World, di: usize, famines: &[(ProvinceId, u32)]) {
         return;
     }
     let id = di as DynastyId;
-    let fam: Vec<(ProvinceId, u32)> =
-        famines.iter().copied().filter(|&(p, _)| w.dynasty.owner_of(p) == Some(id)).collect();
+    let fam: Vec<(ProvinceId, u32)> = famines.iter().copied().filter(|&(p, _)| w.dynasty.owner_of(p) == Some(id)).collect();
     let (fin, broke) = state_finance(w, di, &fam);
     court::policy_effects(w, di);
     court::decree(w, di);

@@ -23,10 +23,7 @@ pub fn cultivation_coefficient(w: &World, p: &Person) -> f32 {
     };
     let sect = match p.power.and_then(|id| w.powers.get(id as usize)) {
         Some(Power { kind: PowerKind::Sect(s), .. }) if p.role == Role::Cultivator => {
-            let node = s
-                .seat_node
-                .and_then(|n| w.geo.nodes.get(n as usize))
-                .map_or(1.0, |n| 1.0 + n.strength * CULT_NODE_COEF);
+            let node = s.seat_node.and_then(|n| w.geo.nodes.get(n as usize)).map_or(1.0, |n| 1.0 + n.strength * CULT_NODE_COEF);
             CULT_SECT * node
         }
         _ => CULT_ROGUE,

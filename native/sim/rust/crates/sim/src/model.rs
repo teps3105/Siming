@@ -65,11 +65,22 @@ pub struct Achievements {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum SoulState {
     Incarnate(PersonId),
-    Bardo { until: Tick },
+    Bardo {
+        until: Tick,
+    },
     /// 天道、畜生道（為獸）、餓鬼道、地獄道。
-    Realm { path: SixPath, until: Tick },
-    Waiting { until: Tick, for_souls: SmallVec<[SoulId; 2]> },
-    Liberated { way: Liberation, tick: Tick },
+    Realm {
+        path: SixPath,
+        until: Tick,
+    },
+    Waiting {
+        until: Tick,
+        for_souls: SmallVec<[SoulId; 2]>,
+    },
+    Liberated {
+        way: Liberation,
+        tick: Tick,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -201,11 +212,22 @@ pub struct Attrs {
 pub enum PathState {
     Child,
     /// 修士、散修、魔修、妖（GDD 3.5、3.10）。境界從 0 起算。
-    Cultivator { realm: u8, exp: f32, last_attempt: Option<Tick> },
+    Cultivator {
+        realm: u8,
+        exp: f32,
+        last_attempt: Option<Tick>,
+    },
     /// 僧（GDD 3.6）。
-    Monk { fruit: u8, practice: f32 },
+    Monk {
+        fruit: u8,
+        practice: f32,
+    },
     /// 儒士（GDD 3.8）：立德、立功、立言。
-    Scholar { virtue: f32, deed: f32, word: f32 },
+    Scholar {
+        virtue: f32,
+        deed: f32,
+        word: f32,
+    },
     /// 散人、武將候補、君主等凡人身分。
     Mortal,
 }
@@ -424,29 +446,74 @@ pub enum TribulationOutcome {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum EventArgs {
     None,
-    Death { cause: DeathCause, age: u16 },
-    Realm { realm: u8 },
-    Tribulation { realm: u8, outcome: TribulationOutcome },
-    Thread { thread: ThreadId, kind: ThreadKind, lives: u16 },
-    Judged { path: SixPath },
-    Travel { from: ProvinceId, to: ProvinceId },
-    Role { role: Role },
-    Book { entry: BookEntryKind },
-    Sect { node: Option<NodeId> },
-    Famine { deaths: u32 },
+    Death {
+        cause: DeathCause,
+        age: u16,
+    },
+    Realm {
+        realm: u8,
+    },
+    Tribulation {
+        realm: u8,
+        outcome: TribulationOutcome,
+    },
+    Thread {
+        thread: ThreadId,
+        kind: ThreadKind,
+        lives: u16,
+    },
+    Judged {
+        path: SixPath,
+    },
+    Travel {
+        from: ProvinceId,
+        to: ProvinceId,
+    },
+    Role {
+        role: Role,
+    },
+    Book {
+        entry: BookEntryKind,
+    },
+    Sect {
+        node: Option<NodeId>,
+    },
+    Famine {
+        deaths: u32,
+    },
     /// GDD 2.8：`new_era` 為真表示這件大事開啟了新紀元（年表的最後一筆）。
-    World { change: crate::evolution::WorldChange, new_era: bool },
+    World {
+        change: crate::evolution::WorldChange,
+        new_era: bool,
+    },
     /// GDD 2.8：節點由 `from` 級變為 `to` 級（0 沉寂、1 福地、2 洞天、3 大洞天）。
-    Node { node: NodeId, from: u8, to: u8 },
+    Node {
+        node: NodeId,
+        from: u8,
+        to: u8,
+    },
     /// GDD 2.8：治所由格 `from` 遷到格 `to`。
-    Seat { from: u32, to: u32 },
+    Seat {
+        from: u32,
+        to: u32,
+    },
     /// GDD 2.8：州郡消失；`refuge` 為收容最多人的鄰州，`perished` 為鄰州容不下而折損的人數。
-    Lost { refuge: Option<ProvinceId>, perished: u32 },
+    Lost {
+        refuge: Option<ProvinceId>,
+        perished: u32,
+    },
     /// GDD 2.8：與 `other` 成為陸鄰（`joined`）或不再是陸鄰。
-    Link { other: ProvinceId, joined: bool },
+    Link {
+        other: ProvinceId,
+        joined: bool,
+    },
     /// GDD 3.7 王朝事件：`dynasty` 為主角王朝，`other` 為對手或新生的王朝，`n` 為依事件而定的數值
     /// （賑災為救活人數；其餘 0）。
-    Dynasty { dynasty: DynastyId, other: Option<DynastyId>, n: u32 },
+    Dynasty {
+        dynasty: DynastyId,
+        other: Option<DynastyId>,
+        n: u32,
+    },
 }
 
 /// GDD 3.3 因果帳中的一筆事件。文字不存在模擬中（由介面依 7.2 模板產生）。

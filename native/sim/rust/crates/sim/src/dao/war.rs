@@ -22,12 +22,8 @@ fn live(w: &World, id: PowerId) -> bool {
 
 /// 戰力前 `n` 名的在世成員 `(ID, 戰力)`，戰力降冪、同值 ID 升冪。
 fn top(w: &World, id: PowerId, n: u32) -> Vec<(PersonId, f32)> {
-    let mut v: Vec<(PersonId, f32)> = w.powers[id as usize]
-        .members
-        .iter()
-        .filter(|&&m| w.persons[m as usize].alive())
-        .map(|&m| (m, power_of(w, m)))
-        .collect();
+    let mut v: Vec<(PersonId, f32)> =
+        w.powers[id as usize].members.iter().filter(|&&m| w.persons[m as usize].alive()).map(|&m| (m, power_of(w, m))).collect();
     v.sort_by(|a, b| b.1.total_cmp(&a.1).then(a.0.cmp(&b.0)));
     v.truncate(n as usize);
     v
@@ -37,17 +33,16 @@ fn top(w: &World, id: PowerId, n: u32) -> Vec<(PersonId, f32)> {
 pub(super) fn yearly_wars(w: &mut World) {
     let ids: Vec<PowerId> = w.powers.iter().filter(|p| p.fallen.is_none() && sect_of(p).is_some()).map(|p| p.id).collect();
     let ranges: Vec<Vec<ProvinceId>> = ids.iter().map(|&id| sect_range(w, id)).collect();
-    let node_prov: Vec<Option<ProvinceId>> =
-        w.geo.nodes.iter().map(|n| w.geo.province_of.get(n.cell as usize).copied()).collect();
+    let node_prov: Vec<Option<ProvinceId>> = w.geo.nodes.iter().map(|n| w.geo.province_of.get(n.cell as usize).copied()).collect();
     for x in 0..ids.len() {
         for y in x + 1..ids.len() {
             let (a, b) = (ids[x], ids[y]);
             if !live(w, a) || !live(w, b) {
                 continue;
             }
-            let Some(node) = (0..node_prov.len()).find(|&n| {
-                node_prov[n].is_some_and(|p| ranges[x].binary_search(&p).is_ok() && ranges[y].binary_search(&p).is_ok())
-            }) else {
+            let Some(node) = (0..node_prov.len())
+                .find(|&n| node_prov[n].is_some_and(|p| ranges[x].binary_search(&p).is_ok() && ranges[y].binary_search(&p).is_ok()))
+            else {
                 continue;
             };
             let (pa, pb) = (&w.powers[a as usize], &w.powers[b as usize]);
@@ -98,12 +93,8 @@ pub(super) fn fight(w: &mut World, a: PowerId, b: PowerId, node: NodeId) {
             continue;
         }
         let pool = if killer_side == win { &tw } else { &tl };
-        let killers: Vec<PersonId> = pool
-            .iter()
-            .take(SECT_WAR_KILLERS as usize)
-            .map(|x| x.0)
-            .filter(|&k| k != victim && w.persons[k as usize].alive())
-            .collect();
+        let killers: Vec<PersonId> =
+            pool.iter().take(SECT_WAR_KILLERS as usize).map(|x| x.0).filter(|&k| k != victim && w.persons[k as usize].alive()).collect();
         if killers.is_empty() {
             crate::people::die(w, victim, DeathCause::War, None, &[war]);
         } else {

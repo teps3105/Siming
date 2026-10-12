@@ -74,14 +74,7 @@ fn step_cost(t: Terrain, river: u8) -> f32 {
 
 /// GDD 2.2 步驟 7 種子點：以宜居度加權的 Poisson-disk 取樣（最小間距 `0.8 × sqrt(陸地面積 / 目標)`，球面距離）。
 /// 若候選用盡而數量未達目標，將間距縮為 0.9 倍後繼續。
-fn poisson_seeds(
-    sp: &Sphere,
-    cand: &[u32],
-    hab: &[f64],
-    land_area: f32,
-    target: usize,
-    rng: &mut ChaCha8Rng,
-) -> Vec<u32> {
+fn poisson_seeds(sp: &Sphere, cand: &[u32], hab: &[f64], land_area: f32, target: usize, rng: &mut ChaCha8Rng) -> Vec<u32> {
     let (w, h) = (sp.w, sp.h);
     let mut seeds: Vec<u32> = Vec::new();
     if cand.is_empty() || target == 0 {
@@ -94,19 +87,13 @@ fn poisson_seeds(
         pos_of[c as usize] = i as u32;
     }
     while seeds.len() < target && r >= 1.0 {
-        let total: f64 = cand
-            .iter()
-            .enumerate()
-            .filter(|(i, _)| alive[*i])
-            .map(|(_, &c)| hab[c as usize])
-            .sum();
+        let total: f64 = cand.iter().enumerate().filter(|(i, _)| alive[*i]).map(|(_, &c)| hab[c as usize]).sum();
         if total <= 0.0 {
             // 候選用盡：縮小間距，重算存活者。
             r *= 0.9;
             let r2 = r * r;
             for (i, &c) in cand.iter().enumerate() {
-                alive[i] = !seeds.iter().any(|&s| sp.dist2(s as usize, c as usize) < r2)
-                    && !seeds.contains(&c);
+                alive[i] = !seeds.iter().any(|&s| sp.dist2(s as usize, c as usize) < r2) && !seeds.contains(&c);
             }
             continue;
         }
@@ -299,13 +286,7 @@ fn label_components(w: usize, h: usize, lab: &[u32]) -> (Vec<u32>, Vec<u32>, Vec
 }
 
 /// GDD 2.2 步驟 7 合併過小者：面積 < 平均 35%（且 < 30 赤道格）的州郡，併入代價最低的陸鄰（共享邊界的平均成長代價最小者）。
-fn merge_small(
-    sp: &Sphere,
-    terrain: &[Terrain],
-    river: &[u8],
-    lab: &mut [u32],
-    n_labels: usize,
-) {
+fn merge_small(sp: &Sphere, terrain: &[Terrain], river: &[u8], lab: &mut [u32], n_labels: usize) {
     let (w, h) = (sp.w, sp.h);
     let n = w * h;
     let land_total: f32 = (0..n).filter(|&c| lab[c] != NONE).map(|c| sp.area(c)).sum();
@@ -331,11 +312,7 @@ fn merge_small(
         }
         let mut pick = NONE;
         for l in 0..n_labels {
-            if area[l] > 0.0
-                && !blocked[l]
-                && area[l] < thresh
-                && (pick == NONE || area[l] < area[pick as usize])
-            {
+            if area[l] > 0.0 && !blocked[l] && area[l] < thresh && (pick == NONE || area[l] < area[pick as usize]) {
                 pick = l as u32;
             }
         }
@@ -353,8 +330,7 @@ fn merge_small(
                 if l == NONE || l == pick {
                     continue;
                 }
-                let cost =
-                    0.5 * (step_cost(terrain[c], river[c]) + step_cost(terrain[nb], river[nb]));
+                let cost = 0.5 * (step_cost(terrain[c], river[c]) + step_cost(terrain[nb], river[nb]));
                 match acc.iter_mut().find(|e| e.0 == l) {
                     Some(e) => {
                         e.1 += cost;
@@ -526,9 +502,7 @@ pub fn adjacency(sp: &Sphere, terrain: &[Terrain], of: &[u16], count: usize) -> 
 fn sea_lanes_reference(sp: &Sphere, terrain: &[Terrain], of: &[u16], count: usize, nbr: &[BTreeSet<u16>]) -> Vec<BTreeSet<u16>> {
     let (w, h) = (sp.w, sp.h);
     let n = w * h;
-    let sea_coast: Vec<bool> = (0..n)
-        .map(|c| of[c] != u16::MAX && nb8(w, h, c).any(|(nb, _)| terrain[nb] == Terrain::Sea))
-        .collect();
+    let sea_coast: Vec<bool> = (0..n).map(|c| of[c] != u16::MAX && nb8(w, h, c).any(|(nb, _)| terrain[nb] == Terrain::Sea)).collect();
     let mut lanes: Vec<BTreeSet<u16>> = vec![BTreeSet::new(); count];
     let r2 = (WG_SEA_LANE * WG_SEA_LANE) as f32;
     for a in 0..n {
@@ -554,13 +528,7 @@ fn sea_lanes_reference(sp: &Sphere, terrain: &[Terrain], of: &[u16], count: usiz
 }
 
 /// GDD 2.2 步驟 7：完整的州郡生成。
-pub fn build(
-    sp: &Sphere,
-    terrain: &[Terrain],
-    river: &[u8],
-    target: usize,
-    rng: &mut ChaCha8Rng,
-) -> Provinces {
+pub fn build(sp: &Sphere, terrain: &[Terrain], river: &[u8], target: usize, rng: &mut ChaCha8Rng) -> Provinces {
     let (w, h) = (sp.w, sp.h);
     let n = w * h;
     let hab = cell_habitability(sp, terrain, river);
@@ -570,10 +538,7 @@ pub fn build(
     // 島嶼（四鄰連通陸塊，面積加權）。
     let (cl, csz) = components(w, h, &land, false);
     let carea = component_area(sp, &cl, csz.len());
-    let cand: Vec<u32> = (0..n)
-        .filter(|&c| land[c] && carea[cl[c] as usize] >= WG_ISLAND_MIN as f32)
-        .map(|c| c as u32)
-        .collect();
+    let cand: Vec<u32> = (0..n).filter(|&c| land[c] && carea[cl[c] as usize] >= WG_ISLAND_MIN as f32).map(|c| c as u32).collect();
     let seeds = poisson_seeds(sp, &cand, &hab, land_area, target, rng);
     let mut lab = grow(w, h, terrain, river, &seeds);
     let mut n_labels = seeds.len();
@@ -735,4 +700,3 @@ mod tests {
         }
     }
 }
-

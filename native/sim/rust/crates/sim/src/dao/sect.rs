@@ -103,11 +103,7 @@ fn org_names() -> &'static OrgNames {
         let pre = &v["prefix_chars_by_type_and_faction"]["修煉"];
         let suffixes = v["type_suffixes"]["修煉"]["suffixes"]
             .as_array()
-            .map(|a| {
-                a.iter()
-                    .filter_map(|x| Some((x["text"].as_str()?.to_owned(), x["weight"].as_u64()? as u32)))
-                    .collect()
-            })
+            .map(|a| a.iter().filter_map(|x| Some((x["text"].as_str()?.to_owned(), x["weight"].as_u64()? as u32))).collect())
             .unwrap_or_default();
         OrgNames {
             good: (strs(&pre["正道"]["first"]), strs(&pre["正道"]["second"])),
@@ -169,10 +165,8 @@ pub fn choose_seat(w: &World, origin: ProvinceId, ignore: Option<PowerId>) -> Op
             blocked.extend(provinces_within(w, p.seat_province, SECT_FOUND_MIN_SPACING_STEPS - 1));
         }
     }
-    let cands: Vec<ProvinceId> = provinces_within(w, origin, SECT_FOUND_MIN_SPACING_STEPS)
-        .into_iter()
-        .filter(|c| !blocked.contains(c))
-        .collect();
+    let cands: Vec<ProvinceId> =
+        provinces_within(w, origin, SECT_FOUND_MIN_SPACING_STEPS).into_iter().filter(|c| !blocked.contains(c)).collect();
     if cands.is_empty() {
         return None;
     }
@@ -236,12 +230,8 @@ pub fn join_sect(w: &mut World, pid: PersonId, sect: PowerId) {
 }
 
 fn init_relations(w: &mut World, id: PowerId, evil: bool) {
-    let others: Vec<(PowerId, bool)> = w
-        .powers
-        .iter()
-        .filter(|p| p.id != id && is_live_sect(p))
-        .map(|p| (p.id, sect_of(p).is_some_and(|s| s.evil)))
-        .collect();
+    let others: Vec<(PowerId, bool)> =
+        w.powers.iter().filter(|p| p.id != id && is_live_sect(p)).map(|p| (p.id, sect_of(p).is_some_and(|s| s.evil))).collect();
     for (oid, oevil) in others {
         if oevil != evil {
             w.powers[id as usize].relations.insert(oid, EVIL_SECT_RELATION as i8);
@@ -346,8 +336,7 @@ pub(super) fn join_rogues(w: &mut World) {
         w.powers.iter().filter(|p| is_live_sect(p)).map(|p| (p.id, sect_range(w, p.id))).collect();
     for i in w.alive_snapshot().into_iter().map(|x| x as usize) {
         let p = &w.persons[i];
-        if !p.alive() || p.role != Role::Cultivator || p.power.is_some() || !matches!(p.path, PathState::Cultivator { .. })
-        {
+        if !p.alive() || p.role != Role::Cultivator || p.power.is_some() || !matches!(p.path, PathState::Cultivator { .. }) {
             continue;
         }
         if w.rng.powers.gen::<f32>() >= SECT_JOIN_ROGUE_CHANCE {
@@ -357,10 +346,7 @@ pub(super) fn join_rogues(w: &mut World) {
         let mut best: Option<(f32, PowerId)> = None;
         for (id, range) in &ranges {
             let pw = &w.powers[*id as usize];
-            if pw.fallen.is_some()
-                || range.binary_search(&prov).is_err()
-                || pw.members.len() >= sect_capacity(effective_prestige(pw))
-            {
+            if pw.fallen.is_some() || range.binary_search(&prov).is_err() || pw.members.len() >= sect_capacity(effective_prestige(pw)) {
                 continue;
             }
             let pr = effective_prestige(pw);
@@ -598,8 +584,7 @@ pub(super) fn yearly_prestige(w: &mut World) {
         pw.prestige = f;
         pw.prestige_mod *= PRESTIGE_MOD_DECAY;
         let eff = pw.prestige + pw.prestige_mod;
-        let r = (SECT_RADIUS_BASE + (1.0 + eff.max(0.0) / SECT_RADIUS_PRESTIGE_DIV).log2().floor() as u32)
-            .min(SECT_RADIUS_MAX);
+        let r = (SECT_RADIUS_BASE + (1.0 + eff.max(0.0) / SECT_RADIUS_PRESTIGE_DIV).log2().floor() as u32).min(SECT_RADIUS_MAX);
         let PowerKind::Sect(s) = &mut pw.kind;
         s.radius = r as u8;
     }

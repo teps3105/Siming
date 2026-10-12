@@ -240,7 +240,10 @@ mod tests {
             continent_of: vec![crate::NO_CONTINENT; 2],
         };
         let rng = crate::rng::RngStreams::new(7);
-        { let _ = rng; World::empty(params, geo, vec![prov(0, 100.0)]) }
+        {
+            let _ = rng;
+            World::empty(params, geo, vec![prov(0, 100.0)])
+        }
     }
 
     #[test]

@@ -177,18 +177,14 @@ fn soul_peak(w: &World, sid: SoulId) -> Achievements {
 /// （師父沒有境界／果位／三不朽，就沒有可超越的基準；`Some(0) > None` 不算超越）。
 fn exceeds(now: Achievements, best: Achievements) -> bool {
     let beats = |n: Option<u8>, b: Option<u8>| matches!((n, b), (Some(n), Some(b)) if n > b);
-    beats(now.realm, best.realm)
-        || beats(now.fruit, best.fruit)
-        || (best.immortality > 0.0 && now.immortality > best.immortality)
+    beats(now.realm, best.realm) || beats(now.fruit, best.fruit) || (best.immortality > 0.0 && now.immortality > best.immortality)
 }
 
 fn open_between(w: &World, kind: ThreadKind, a: SoulId, b: SoulId, directed: bool) -> Option<ThreadId> {
     let s = w.souls.get(a as usize)?;
     s.threads.iter().copied().find(|&tid| {
         w.threads.get(tid as usize).is_some_and(|t| {
-            t.kind == kind
-                && is_open(t)
-                && ((t.debtor == a && t.creditor == b) || (!directed && t.debtor == b && t.creditor == a))
+            t.kind == kind && is_open(t) && ((t.debtor == a && t.creditor == b) || (!directed && t.debtor == b && t.creditor == a))
         })
     })
 }
@@ -234,13 +230,7 @@ fn push_thread(
 /// 開局宿緣（GDD 4.6 步驟 5）：以既有的 `Genesis` 事件為 `created`，不另寫 `ThreadCreated`；
 /// 強度取 [`default_strength`]、`lives` = 0。呼叫端負責挑選雙方並避免重複。
 /// 魂不存在或欠債方＝債主時回傳 `ThreadId::MAX`。
-pub fn create_genesis(
-    w: &mut World,
-    kind: ThreadKind,
-    debtor: SoulId,
-    creditor: SoulId,
-    genesis_event: EventId,
-) -> ThreadId {
+pub fn create_genesis(w: &mut World, kind: ThreadKind, debtor: SoulId, creditor: SoulId, genesis_event: EventId) -> ThreadId {
     if debtor == creditor || debtor as usize >= w.souls.len() || creditor as usize >= w.souls.len() {
         return ThreadId::MAX;
     }
@@ -332,11 +322,8 @@ pub fn resolve(w: &mut World, tid: ThreadId, how: Resolution, cause: Option<Even
     }
     let n = lives(w, &t);
     let (province, cell) = place(w, t.creditor);
-    let mut e = NewEvent::new(
-        EventKind::ThreadResolved,
-        if n >= 2 { 5 } else { 4 },
-        EventArgs::Thread { thread: tid, kind: t.kind, lives: n },
-    );
+    let mut e =
+        NewEvent::new(EventKind::ThreadResolved, if n >= 2 { 5 } else { 4 }, EventArgs::Thread { thread: tid, kind: t.kind, lives: n });
     e.province = province;
     e.cell = cell;
     e.souls = smallvec![t.debtor, t.creditor];

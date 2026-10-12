@@ -56,8 +56,7 @@ fn free_neighbors(w: &World, provs: &[ProvinceId]) -> Vec<ProvinceId> {
 fn names() -> &'static [String] {
     static N: OnceLock<Vec<String>> = OnceLock::new();
     N.get_or_init(|| {
-        let v: serde_json::Value =
-            serde_json::from_str(include_str!("../../data/orgs.zh-Hant.json")).expect("orgs.zh-Hant.json");
+        let v: serde_json::Value = serde_json::from_str(include_str!("../../data/orgs.zh-Hant.json")).expect("orgs.zh-Hant.json");
         v["prefix_chars_by_type_and_faction"]["國家"]["names_1char"]
             .as_array()
             .map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_owned)).collect())
@@ -282,14 +281,7 @@ pub fn collapse(w: &mut World, di: usize) {
     let tick = w.tick;
     let (provs, capital, ruler, heirs, officials, generals) = {
         let d = &w.dynasty.list[di];
-        (
-            d.provinces.clone(),
-            d.capital,
-            d.ruler,
-            d.heirs.clone(),
-            d.officials.clone(),
-            d.generals.iter().map(|g| g.0).collect::<Vec<_>>(),
-        )
+        (d.provinces.clone(), d.capital, d.ruler, d.heirs.clone(), d.officials.clone(), d.generals.iter().map(|g| g.0).collect::<Vec<_>>())
     };
     for &p in &provs {
         set_owner(w, p, NO_OWNER);
@@ -341,12 +333,8 @@ pub fn secede(w: &mut World, di: usize, general: PersonId) -> Option<DynastyId> 
     }
     let hs = hops_in(w, di, station);
     let hc = hops_in(w, di, capital);
-    let set: Vec<ProvinceId> = w.dynasty.list[di]
-        .provinces
-        .iter()
-        .copied()
-        .filter(|&p| hs[p as usize] != FAR && hs[p as usize] < hc[p as usize])
-        .collect();
+    let set: Vec<ProvinceId> =
+        w.dynasty.list[di].provinces.iter().copied().filter(|&p| hs[p as usize] != FAR && hs[p as usize] < hc[p as usize]).collect();
     {
         let d = &mut w.dynasty.list[di];
         d.generals.retain(|g| g.0 != general);
@@ -388,8 +376,7 @@ pub fn civil_war(w: &mut World, di: usize, core_a: ProvinceId, b: PersonId, core
     }
     let cause: Vec<EventId> = w.persons[b as usize].last_event.into_iter().collect();
     // 分家：b 的一邊（含駐在該邊的武將）。
-    let moved: Vec<(PersonId, ProvinceId)> =
-        w.dynasty.list[di].generals.iter().copied().filter(|g| side_b.contains(&g.1)).collect();
+    let moved: Vec<(PersonId, ProvinceId)> = w.dynasty.list[di].generals.iter().copied().filter(|g| side_b.contains(&g.1)).collect();
     let share_a = {
         let d = &mut w.dynasty.list[di];
         d.officials.retain(|&o| o != b);
@@ -429,9 +416,9 @@ pub(super) fn expansion(w: &mut World, di: usize, fin: &Finance) {
     }
     if w.rng.dynasty.gen::<f32>() < EXPAND_ANNEX_CHANCE {
         let cands = free_neighbors(w, &w.dynasty.list[di].provinces.clone());
-        let pick = cands.into_iter().max_by(|&a, &b| {
-            w.provinces[a as usize].population.total_cmp(&w.provinces[b as usize].population).then(b.cmp(&a))
-        });
+        let pick = cands
+            .into_iter()
+            .max_by(|&a, &b| w.provinces[a as usize].population.total_cmp(&w.provinces[b as usize].population).then(b.cmp(&a)));
         if let Some(p) = pick {
             set_owner(w, p, id);
             let d = &mut w.dynasty.list[di];

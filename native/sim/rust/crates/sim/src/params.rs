@@ -533,7 +533,6 @@ pub const AURA_LEY_COEF: f32 = 0.3;
 /// 7.1 `AURA_LEY` 靈脈靈氣的衰減距離 3 格，即 exp(−d/3)（GDD 2.4 格點靈氣）。
 pub const AURA_LEY_DECAY: f32 = 3.0;
 
-
 /// 7.1 `EVO_WARMTH_P1` 寒暖第一週期的長度下限 600 年（GDD 2.8 慢變量）。
 pub const EVO_WARMTH_P1_MIN: u32 = 600;
 /// 7.1 `EVO_WARMTH_P1` 寒暖第一週期的長度上限 900 年（GDD 2.8 慢變量）。

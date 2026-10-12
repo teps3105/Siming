@@ -82,12 +82,8 @@ fn meetings(w: &mut World) {
         let bucket = &flat[off[sid] as usize..off[sid + 1] as usize];
         let all = &w.souls[sid].threads;
         let tail = &all[all.partition_point(|&t| (t as usize) < start_len)..];
-        let mut cands: Vec<ThreadId> = bucket
-            .iter()
-            .chain(tail.iter())
-            .copied()
-            .filter(|&t| w.threads.get(t as usize).is_some_and(is_open))
-            .collect();
+        let mut cands: Vec<ThreadId> =
+            bucket.iter().chain(tail.iter()).copied().filter(|&t| w.threads.get(t as usize).is_some_and(is_open)).collect();
         cands.sort_by(|&a, &b| {
             let (sa, sb) = (w.threads[a as usize].strength, w.threads[b as usize].strength);
             sb.partial_cmp(&sa).unwrap_or(std::cmp::Ordering::Equal).then(a.cmp(&b))
@@ -218,11 +214,7 @@ fn mentor(w: &mut World, tid: ThreadId) {
         PathState::Cultivator { realm, .. } => realm >= SECT_ELDER_MIN_REALM,
         _ => true,
     };
-    if disciple.master.is_some()
-        || master.master == Some(did)
-        || master.disciples.len() as u32 >= MAX_DISCIPLES
-        || !elder_ok
-    {
+    if disciple.master.is_some() || master.master == Some(did) || master.disciples.len() as u32 >= MAX_DISCIPLES || !elder_ok {
         return;
     }
     if !roll(w, MASTER_JOIN_CHANCE) {

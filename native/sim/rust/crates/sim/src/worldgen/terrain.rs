@@ -7,9 +7,8 @@ use crate::types::Terrain;
 /// GDD 2.2 步驟 5 去斑：氣候地形（平原、森林、沙漠、沼澤、雪原、丘陵）面積 < `min_patch` 的八鄰連通斑塊，
 /// 改為斑塊邊界外最多的（非水、非山脈）地形；做 `passes` 輪。山脈、湖、海不動。
 pub fn despeckle(terrain: &mut [Terrain], w: usize, h: usize, min_patch: u32, passes: u32) {
-    let climatic = |t: Terrain| {
-        matches!(t, Terrain::Plains | Terrain::Forest | Terrain::Desert | Terrain::Swamp | Terrain::Snow | Terrain::Hills)
-    };
+    let climatic =
+        |t: Terrain| matches!(t, Terrain::Plains | Terrain::Forest | Terrain::Desert | Terrain::Swamp | Terrain::Snow | Terrain::Hills);
     for _ in 0..passes {
         let n = w * h;
         let member: Vec<bool> = terrain.iter().map(|&t| climatic(t)).collect();

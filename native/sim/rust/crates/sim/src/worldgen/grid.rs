@@ -5,16 +5,7 @@ use rand::RngCore;
 use rand_chacha::ChaCha8Rng;
 
 /// 八方向，固定順序：北、東、南、西，再東北、東南、西南、西北。前四個為正向。
-pub const DIRS8: [(i32, i32); 8] = [
-    (0, -1),
-    (1, 0),
-    (0, 1),
-    (-1, 0),
-    (1, -1),
-    (1, 1),
-    (-1, 1),
-    (-1, -1),
-];
+pub const DIRS8: [(i32, i32); 8] = [(0, -1), (1, 0), (0, 1), (-1, 0), (1, -1), (1, 1), (-1, 1), (-1, -1)];
 
 /// 無效索引。
 pub const NONE: u32 = u32::MAX;
@@ -98,9 +89,7 @@ pub fn stretch(v: &mut [f32]) {
 /// `|x| ≤ π/2` 的正弦：泰勒展開到 x⁹（只用基本運算，GDD 6.5 規則 4）。
 fn sin_half(x: f32) -> f32 {
     let x2 = x * x;
-    x * (1.0
-        + x2 * (-1.0 / 6.0
-            + x2 * (1.0 / 120.0 + x2 * (-1.0 / 5040.0 + x2 * (1.0 / 362_880.0)))))
+    x * (1.0 + x2 * (-1.0 / 6.0 + x2 * (1.0 / 120.0 + x2 * (-1.0 / 5040.0 + x2 * (1.0 / 362_880.0)))))
 }
 
 /// `asin(z)` 的度數（|z| ≤ 1；只用基本運算：以 `atan2` 的多項式近似，誤差 < 0.1°）。
@@ -185,11 +174,7 @@ impl Sphere {
     #[inline]
     pub fn unit(&self, c: usize) -> [f32; 3] {
         let (x, y) = (c % self.w, c / self.w);
-        [
-            self.cos_lat[y] * self.cos_lon[x],
-            self.cos_lat[y] * self.sin_lon[x],
-            self.sin_lat[y],
-        ]
+        [self.cos_lat[y] * self.cos_lon[x], self.cos_lat[y] * self.sin_lon[x], self.sin_lat[y]]
     }
 
     /// 格的面積權重 cos(lat)。

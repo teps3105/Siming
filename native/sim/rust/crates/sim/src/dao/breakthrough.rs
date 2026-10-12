@@ -146,11 +146,7 @@ fn tribulation(w: &mut World, pid: PersonId, new: u8, ascension: bool, forced: b
         TribulationOutcome::Perished
     };
     let p = &w.persons[pid as usize];
-    let mut e = NewEvent::new(
-        EventKind::Tribulation,
-        tribulation_importance(new),
-        EventArgs::Tribulation { realm: new, outcome },
-    );
+    let mut e = NewEvent::new(EventKind::Tribulation, tribulation_importance(new), EventArgs::Tribulation { realm: new, outcome });
     e.province = Some(p.province);
     e.cell = Some(p.cell);
     e.souls = smallvec![p.soul];
@@ -166,8 +162,7 @@ fn tribulation(w: &mut World, pid: PersonId, new: u8, ascension: bool, forced: b
         TribulationOutcome::Passed if ascension => {
             let power = w.persons[pid as usize].power;
             people::die(w, pid, DeathCause::Ascended, Some(Liberation::Ascension), &[te]);
-            if let Some(PowerKind::Sect(s)) = power.and_then(|id| w.powers.get_mut(id as usize)).map(|pw| &mut pw.kind)
-            {
+            if let Some(PowerKind::Sect(s)) = power.and_then(|id| w.powers.get_mut(id as usize)).map(|pw| &mut pw.kind) {
                 s.ascended += 1;
             }
             false

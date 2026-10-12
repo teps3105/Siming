@@ -42,8 +42,7 @@ pub fn crown(w: &mut World, di: usize, pid: PersonId) {
 
 /// 名冊整理：沉沒的州郡、已死或已換身分的人員移出。都城沉沒時遷到人口最多的剩餘州。
 pub(super) fn prune(w: &mut World, di: usize) {
-    let lost: Vec<ProvinceId> =
-        w.dynasty.list[di].provinces.iter().copied().filter(|&p| w.provinces[p as usize].lost).collect();
+    let lost: Vec<ProvinceId> = w.dynasty.list[di].provinces.iter().copied().filter(|&p| w.provinces[p as usize].lost).collect();
     for p in lost {
         w.dynasty.owner[p as usize] = NO_OWNER;
         w.dynasty.list[di].provinces.retain(|&x| x != p);
@@ -78,11 +77,7 @@ pub(super) fn succession(w: &mut World, di: usize) {
         return;
     }
     let cause: Vec<EventId> = ruler.and_then(|r| w.persons[r as usize].last_event).into_iter().collect();
-    let heir = w.dynasty.list[di]
-        .heirs
-        .iter()
-        .copied()
-        .min_by_key(|&h| (w.persons[h as usize].born, h));
+    let heir = w.dynasty.list[di].heirs.iter().copied().min_by_key(|&h| (w.persons[h as usize].born, h));
     let cap = w.dynasty.list[di].capital;
     if let Some(h) = heir {
         crown(w, di, h);
@@ -97,9 +92,7 @@ pub(super) fn succession(w: &mut World, di: usize) {
         .chain(w.dynasty.list[di].generals.iter().copied())
         .filter(|&(p, _)| w.persons[p as usize].alive())
         .collect();
-    cands.sort_by(|a, b| {
-        w.persons[b.0 as usize].attrs.talent.total_cmp(&w.persons[a.0 as usize].attrs.talent).then(a.0.cmp(&b.0))
-    });
+    cands.sort_by(|a, b| w.persons[b.0 as usize].attrs.talent.total_cmp(&w.persons[a.0 as usize].attrs.talent).then(a.0.cmp(&b.0)));
     let Some(&(a, core_a)) = cands.first() else {
         super::collapse(w, di);
         return;
@@ -256,11 +249,8 @@ fn post_generals(w: &mut World, di: usize) {
     posts.extend(free);
     let cap = d.capital;
     let mut gens: Vec<PersonId> = d.generals.iter().map(|g| g.0).collect();
-    gens.sort_by(|&a, &b| {
-        w.persons[b as usize].attrs.talent.total_cmp(&w.persons[a as usize].attrs.talent).then(a.cmp(&b))
-    });
-    let assigned: Vec<(PersonId, ProvinceId)> =
-        gens.iter().enumerate().map(|(k, &g)| (g, posts.get(k).copied().unwrap_or(cap))).collect();
+    gens.sort_by(|&a, &b| w.persons[b as usize].attrs.talent.total_cmp(&w.persons[a as usize].attrs.talent).then(a.cmp(&b)));
+    let assigned: Vec<(PersonId, ProvinceId)> = gens.iter().enumerate().map(|(k, &g)| (g, posts.get(k).copied().unwrap_or(cap))).collect();
     for &(g, p) in &assigned {
         move_to(w, g, p);
     }

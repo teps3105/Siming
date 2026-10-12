@@ -326,8 +326,7 @@ fn advance(fine: &mut FineGeography, basis: &LandBasis, want: &[Terrain]) -> Vec
 /// 一輪以該輪開始時的歸屬判斷，併到沒有可併的為止。生成時就不屬任何州的陸格不併。
 fn adopt(w: usize, h: usize, terrain: &[Terrain], basis: &LandBasis, of: &mut [ProvinceId]) {
     let unowned = |c: usize| !basis.cell_terrain[c].is_water() && basis.cell_province[c] == NO_PROVINCE;
-    let mut orphans: Vec<usize> =
-        (0..of.len()).filter(|&c| of[c] == NO_PROVINCE && !terrain[c].is_water() && !unowned(c)).collect();
+    let mut orphans: Vec<usize> = (0..of.len()).filter(|&c| of[c] == NO_PROVINCE && !terrain[c].is_water() && !unowned(c)).collect();
     while !orphans.is_empty() {
         let mut joins: Vec<(usize, ProvinceId)> = Vec::new();
         for &c in &orphans {

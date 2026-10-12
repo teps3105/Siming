@@ -78,9 +78,7 @@ impl Noise {
         let (ix, iy, iz) = ((f[0] as i32 + off) as usize, (f[1] as i32 + off) as usize, (f[2] as i32 + off) as usize);
         let (fx, fy, fz) = (p[0] - f[0], p[1] - f[1], p[2] - f[2]);
         let (ux, uy, uz) = (fade(fx), fade(fy), fade(fz));
-        let g = |a: usize, b: usize, c: usize| {
-            self.grad(ix + a, iy + b, iz + c, fx - a as f32, fy - b as f32, fz - c as f32)
-        };
+        let g = |a: usize, b: usize, c: usize| self.grad(ix + a, iy + b, iz + c, fx - a as f32, fy - b as f32, fz - c as f32);
         let x00 = lerp(g(0, 0, 0), g(1, 0, 0), ux);
         let x10 = lerp(g(0, 1, 0), g(1, 1, 0), ux);
         let x01 = lerp(g(0, 0, 1), g(1, 0, 1), ux);
@@ -187,77 +185,56 @@ impl Noises {
         let f1 = self.freq(WG_WARP1_CELLS);
         let a1 = WG_WARP1_AMP / self.r_cells;
         let q = [p[0] * f1, p[1] * f1, p[2] * f1];
-        let p1 = [
-            p[0] + self.warp[0].sample(q, 0) * a1,
-            p[1] + self.warp[1].sample(q, 0) * a1,
-            p[2] + self.warp[2].sample(q, 0) * a1,
-        ];
+        let p1 = [p[0] + self.warp[0].sample(q, 0) * a1, p[1] + self.warp[1].sample(q, 0) * a1, p[2] + self.warp[2].sample(q, 0) * a1];
         let f2 = self.freq(WG_WARP2_CELLS);
         let a2 = WG_WARP2_AMP / self.r_cells;
         let q = [p1[0] * f2, p1[1] * f2, p1[2] * f2];
-        [
-            p1[0] + self.warp[3].sample(q, 0) * a2,
-            p1[1] + self.warp[4].sample(q, 0) * a2,
-            p1[2] + self.warp[5].sample(q, 0) * a2,
-        ]
+        [p1[0] + self.warp[3].sample(q, 0) * a2, p1[1] + self.warp[4].sample(q, 0) * a2, p1[2] + self.warp[5].sample(q, 0) * a2]
     }
 
     /// GDD 2.2 步驟 1：海岸與地貌細節 fBm（`WG_FBM`：特徵 48 格、8 八度、增益 0.5）。
     pub fn detail(&self, p: [f32; 3]) -> f32 {
-        self.detail
-            .fbm(p, self.freq(WG_FBM_CELLS), WG_FBM_OCTAVES, WG_FBM_DETAIL_GAIN)
+        self.detail.fbm(p, self.freq(WG_FBM_CELLS), WG_FBM_OCTAVES, WG_FBM_DETAIL_GAIN)
     }
 
     /// GDD 2.2 步驟 1：大陸輪廓調變（`WG_SHAPE`：特徵 70 格、3 八度）。
     pub fn shape(&self, p: [f32; 3]) -> f32 {
-        self.shape
-            .fbm(p, self.freq(WG_SHAPE_CELLS), WG_SHAPE_OCTAVES, WG_FBM_GAIN)
+        self.shape.fbm(p, self.freq(WG_SHAPE_CELLS), WG_SHAPE_OCTAVES, WG_FBM_GAIN)
     }
 
     /// GDD 2.2 步驟 1：島群雜訊（`WG_ISLAND`：特徵 40 格、4 八度）。
     pub fn island(&self, p: [f32; 3]) -> f32 {
-        self.island
-            .fbm(p, self.freq(WG_ISLAND_CELLS), WG_ISLAND_OCTAVES, WG_FBM_GAIN)
+        self.island.fbm(p, self.freq(WG_ISLAND_CELLS), WG_ISLAND_OCTAVES, WG_FBM_GAIN)
     }
 
     /// GDD 2.2 步驟 1：造山雜訊（`WG_OROGENY`：特徵 130 格、3 八度；等值線附近為造山帶）。
     pub fn orogeny(&self, p: [f32; 3]) -> f32 {
-        self.orogeny
-            .fbm(p, self.freq(WG_OROGENY_CELLS), WG_OROGENY_OCTAVES, WG_FBM_GAIN)
+        self.orogeny.fbm(p, self.freq(WG_OROGENY_CELLS), WG_OROGENY_OCTAVES, WG_FBM_GAIN)
     }
 
     /// GDD 2.2 步驟 1：脊狀多重碎形（`WG_RIDGE`：特徵 24 格、5 八度）。
     pub fn ridged(&self, p: [f32; 3]) -> f32 {
-        self.ridge
-            .ridged(p, self.freq(WG_RIDGE_CELLS), WG_RIDGE_OCTAVES, WG_FBM_GAIN)
+        self.ridge.ridged(p, self.freq(WG_RIDGE_CELLS), WG_RIDGE_OCTAVES, WG_FBM_GAIN)
     }
 
     /// GDD 2.2 步驟 1：丘陵帶遮罩（`WG_HILL_MASK`：特徵 110 格、3 八度）。
     pub fn hill_mask(&self, p: [f32; 3]) -> f32 {
-        self.hill_mask
-            .fbm(p, self.freq(WG_HILL_MASK_CELLS), WG_OROGENY_OCTAVES, WG_FBM_GAIN)
+        self.hill_mask.fbm(p, self.freq(WG_HILL_MASK_CELLS), WG_OROGENY_OCTAVES, WG_FBM_GAIN)
     }
 
     /// GDD 2.2 步驟 1：丘陵起伏（`WG_HILL`：特徵 22 格、3 八度）。
     pub fn hills(&self, p: [f32; 3]) -> f32 {
-        self.hill
-            .fbm(p, self.freq(WG_HILL_CELLS), WG_HILL_OCTAVES, WG_FBM_GAIN)
+        self.hill.fbm(p, self.freq(WG_HILL_CELLS), WG_HILL_OCTAVES, WG_FBM_GAIN)
     }
 
     /// GDD 2.2 步驟 4：溫度擾動（`WG_CLIMATE_NOISE`：特徵 110 格、3 八度）。
     pub fn temp(&self, p: [f32; 3]) -> f32 {
-        self.temp
-            .fbm(p, self.freq(WG_CLIMATE_CELLS), WG_CLIMATE_OCTAVES, WG_FBM_GAIN)
+        self.temp.fbm(p, self.freq(WG_CLIMATE_CELLS), WG_CLIMATE_OCTAVES, WG_FBM_GAIN)
     }
 
     /// GDD 2.2 步驟 4：濕度擾動（`WG_CLIMATE_NOISE`：特徵 110 格、4 八度）。
     pub fn humid(&self, p: [f32; 3]) -> f32 {
-        self.humid.fbm(
-            p,
-            self.freq(WG_CLIMATE_CELLS),
-            WG_CLIMATE_OCTAVES + 1,
-            WG_FBM_GAIN,
-        )
+        self.humid.fbm(p, self.freq(WG_CLIMATE_CELLS), WG_CLIMATE_OCTAVES + 1, WG_FBM_GAIN)
     }
 
     /// GDD 2.2 步驟 4：副熱帶乾燥帶的緯度擺動（`WG_DRY_BELT`：特徵 160 格、2 八度）。

@@ -45,10 +45,8 @@ jobs:
       - name: 規範檢查：色票
         run: python tools/checks/check_palette.py
 
-      # 現有程式尚未以 rustfmt 整理（cli、sim 等多處有差異），整理前只記錄不擋；整理完成後移除 continue-on-error。
       - name: cargo fmt
         working-directory: native/sim/rust
-        continue-on-error: true
         run: cargo fmt --all --check
       - name: cargo clippy
         working-directory: native/sim/rust

@@ -2,10 +2,10 @@
 
 mod render;
 
-use siming_sim::{calendar, BookEntryKind, Era, PathState, Role, Sim, SoulState, WorldParams, WorldSize};
 use clap::{Parser, Subcommand, ValueEnum};
 use render::Layer;
 use serde_json::json;
+use siming_sim::{calendar, BookEntryKind, Era, PathState, Role, Sim, SoulState, WorldParams, WorldSize};
 use std::path::PathBuf;
 use std::time::Instant;
 
@@ -176,10 +176,7 @@ fn row(sim: &Sim) -> serde_json::Value {
 }
 
 fn print_row(r: &serde_json::Value) {
-    let lv = r["city_levels"]
-        .as_array()
-        .map(|a| a.iter().map(|v| v.to_string()).collect::<Vec<_>>().join("/"))
-        .unwrap_or_default();
+    let lv = r["city_levels"].as_array().map(|a| a.iter().map(|v| v.to_string()).collect::<Vec<_>>().join("/")).unwrap_or_default();
     println!(
         "{}  人口 {:.0}  州郡 {}（村/鎮/縣/州/都 {}）  hash {}",
         r["date"].as_str().unwrap_or(""),
@@ -452,11 +449,7 @@ fn sim(seed: u64, yun: u32, report: Option<PathBuf>) -> Result<(), String> {
     let t0 = Instant::now();
     let mut s = Sim::new(&WorldParams::new(seed)).map_err(|e| e.to_string())?;
     let setup_ms = t0.elapsed().as_millis();
-    println!(
-        "最終種子 {}　開局時代 {:?}　開天＋預跑 {setup_ms} ms",
-        s.world().params.seed,
-        s.world().params.era
-    );
+    println!("最終種子 {}　開局時代 {:?}　開天＋預跑 {setup_ms} ms", s.world().params.seed, s.world().params.era);
     let mut rows = vec![row(&s)];
     print_row(&rows[0]);
     let shi_per_yun = MONTHS_PER_YUN / MONTHS_PER_SHI;

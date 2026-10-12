@@ -6,10 +6,7 @@ use crate::types::{Province, ProvinceId};
 
 /// 承載上限 K（GDD 2.3）。M1：暫時修正 = 1。
 fn capacity(p: &Province) -> f64 {
-    p.habitability
-        * POP_CAP_PER_HAB
-        * (1.0 - CAP_DEVASTATION * p.devastation as f64)
-        * (1.0 - CAP_KARMA * p.karma_qi as f64)
+    p.habitability * POP_CAP_PER_HAB * (1.0 - CAP_DEVASTATION * p.devastation as f64) * (1.0 - CAP_KARMA * p.karma_qi as f64)
 }
 
 fn city_level(pop: f64) -> u8 {

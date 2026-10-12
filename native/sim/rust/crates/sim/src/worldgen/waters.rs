@@ -201,9 +201,7 @@ fn survey(w: usize, h: usize, terrain: &[Terrain]) -> Survey {
 
     // 種子：由深到淺挑，與已挑的種子至少相隔 spacing 格（東西相接）。
     let spacing = (w / PEAK_SPACING_DIV).max(8);
-    let mut candidates: Vec<usize> = (0..n)
-        .filter(|&c| is_sea(c) && depth[c] != u32::MAX && depth[c] >= PEAK_MIN)
-        .collect();
+    let mut candidates: Vec<usize> = (0..n).filter(|&c| is_sea(c) && depth[c] != u32::MAX && depth[c] >= PEAK_MIN).collect();
     candidates.sort_by(|&a, &b| depth[b].cmp(&depth[a]).then(a.cmp(&b)));
     let apart = |a: usize, b: usize| {
         let dx = (a % w).abs_diff(b % w);

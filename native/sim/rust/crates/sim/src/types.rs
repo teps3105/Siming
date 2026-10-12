@@ -118,12 +118,8 @@ pub struct LeyNode {
 
 impl LeyNode {
     /// 各等級的強度，由沉寂（0）到大洞天（3）。
-    pub const LADDER: [f32; 4] = [
-        0.0,
-        crate::params::WG_NODE_STRENGTH_BLESSED,
-        crate::params::WG_NODE_STRENGTH_CAVE,
-        crate::params::WG_NODE_STRENGTH_GREAT,
-    ];
+    pub const LADDER: [f32; 4] =
+        [0.0, crate::params::WG_NODE_STRENGTH_BLESSED, crate::params::WG_NODE_STRENGTH_CAVE, crate::params::WG_NODE_STRENGTH_GREAT];
 
     /// 強度對應的等級：0 沉寂、1 福地、2 洞天、3 大洞天。
     pub fn grade_of(strength: f32) -> u8 {

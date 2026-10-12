@@ -24,9 +24,9 @@ pub fn sect_capacity(prestige: f32) -> usize {
 
 /// 濁氣（GDD 2.4）：`clamp(業氣 − 0.5·功德 − 0.5·正氣, 0, 1)`。
 fn turbid(w: &World, province: ProvinceId) -> f32 {
-    w.provinces.get(province as usize).map_or(0.0, |p| {
-        (p.karma_qi - TURBID_MIX_MERIT * p.merit - TURBID_MIX_RIGHT * p.righteous).clamp(0.0, 1.0)
-    })
+    w.provinces
+        .get(province as usize)
+        .map_or(0.0, |p| (p.karma_qi - TURBID_MIX_MERIT * p.merit - TURBID_MIX_RIGHT * p.righteous).clamp(0.0, 1.0))
 }
 
 /// 本州或陸鄰有山門的宗門中，聲望最高者（同值取 ID 小者）。

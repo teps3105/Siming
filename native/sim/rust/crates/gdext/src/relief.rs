@@ -77,8 +77,7 @@ pub fn half_mips(grid: &[f32], w: usize, h: usize) -> Vec<u8> {
             let (y0, y1) = ((y * 2).min(lh - 1), (y * 2 + 1).min(lh - 1));
             for x in 0..nw {
                 let (x0, x1) = ((x * 2).min(lw - 1), (x * 2 + 1).min(lw - 1));
-                next[y * nw + x] =
-                    (level[y0 * lw + x0] + level[y0 * lw + x1] + level[y1 * lw + x0] + level[y1 * lw + x1]) * 0.25;
+                next[y * nw + x] = (level[y0 * lw + x0] + level[y0 * lw + x1] + level[y1 * lw + x0] + level[y1 * lw + x1]) * 0.25;
             }
         }
         push(&next);
@@ -114,17 +113,9 @@ impl Relief {
     pub fn elevation_at(&self, x: f32, z: f32) -> f32 {
         let fx = x / self.grid_w as f32 * self.w as f32 - 0.5;
         let fy = (z / self.grid_h as f32 * self.h as f32 - 0.5).clamp(0.0, (self.h - 1) as f32);
-        let fx = if self.wrap_x {
-            fx.rem_euclid(self.w as f32)
-        } else {
-            fx.clamp(0.0, (self.w - 1) as f32)
-        };
+        let fx = if self.wrap_x { fx.rem_euclid(self.w as f32) } else { fx.clamp(0.0, (self.w - 1) as f32) };
         let (x0, y0) = ((fx.floor() as usize).min(self.w - 1), fy.floor() as usize);
-        let x1 = if self.wrap_x {
-            (x0 + 1) % self.w
-        } else {
-            (x0 + 1).min(self.w - 1)
-        };
+        let x1 = if self.wrap_x { (x0 + 1) % self.w } else { (x0 + 1).min(self.w - 1) };
         let y1 = (y0 + 1).min(self.h - 1);
         let (tx, ty) = (fx - x0 as f32, fy - y0 as f32);
         let g = |x: usize, y: usize| self.elevation[y * self.w + x];
@@ -160,9 +151,7 @@ impl Source {
     fn new(geo: &Geography, fine: &FineGeography) -> Self {
         if fine.is_empty() {
             let (w, h) = (geo.w as usize, geo.h as usize);
-            let lat_cos: Vec<f32> = (0..h)
-                .map(|y| (std::f32::consts::PI * (y as f32 + 0.5) / h as f32).sin())
-                .collect();
+            let lat_cos: Vec<f32> = (0..h).map(|y| (std::f32::consts::PI * (y as f32 + 0.5) / h as f32).sin()).collect();
             Self {
                 w,
                 h,
@@ -203,11 +192,7 @@ impl Source {
 
 fn grid_at(grid: &[f32], w: usize, h: usize, wrap: bool, x: i32, y: i32) -> f32 {
     let cy = y.clamp(0, h as i32 - 1) as usize;
-    let cx = if wrap {
-        x.rem_euclid(w as i32)
-    } else {
-        x.clamp(0, w as i32 - 1)
-    } as usize;
+    let cx = if wrap { x.rem_euclid(w as i32) } else { x.clamp(0, w as i32 - 1) } as usize;
     grid[cy * w + cx]
 }
 
@@ -236,15 +221,7 @@ fn grid_cubic(grid: &[f32], w: usize, h: usize, wrap: bool, x: f32, y: f32) -> f
     let mut sum = 0.0;
     for (j, wyj) in wy.iter().enumerate() {
         for (i, wxi) in wx.iter().enumerate() {
-            sum += grid_at(
-                grid,
-                w,
-                h,
-                wrap,
-                x0 as i32 + i as i32 - 1,
-                y0 as i32 + j as i32 - 1,
-            ) * wxi
-                * wyj;
+            sum += grid_at(grid, w, h, wrap, x0 as i32 + i as i32 - 1, y0 as i32 + j as i32 - 1) * wxi * wyj;
         }
     }
     sum
@@ -268,14 +245,8 @@ fn river_valleys(src: &Source, curves: &[RiverCurve], grid_w: usize) -> (Vec<f32
             let a = (prev.0 * per_cell - 0.5, prev.1 * per_cell - 0.5);
             let b = (cur.0 * per_cell - 0.5, cur.1 * per_cell - 0.5);
             let len2 = ((b.0 - a.0).powi(2) + (b.1 - a.1).powi(2)).max(1e-6);
-            let (x0, x1) = (
-                (a.0.min(b.0) - reach).floor() as i32,
-                (a.0.max(b.0) + reach).ceil() as i32,
-            );
-            let (y0, y1) = (
-                (a.1.min(b.1) - reach).floor() as i32,
-                (a.1.max(b.1) + reach).ceil() as i32,
-            );
+            let (x0, x1) = ((a.0.min(b.0) - reach).floor() as i32, (a.0.max(b.0) + reach).ceil() as i32);
+            let (y0, y1) = ((a.1.min(b.1) - reach).floor() as i32, (a.1.max(b.1) + reach).ceil() as i32);
             for y in y0.max(0)..=y1.min(gh as i32 - 1) {
                 for x in x0..=x1 {
                     let xi = if src.wrap {
@@ -286,11 +257,8 @@ fn river_valleys(src: &Source, curves: &[RiverCurve], grid_w: usize) -> (Vec<f32
                         x
                     };
                     let (px, py) = (x as f32, y as f32);
-                    let t = (((px - a.0) * (b.0 - a.0) + (py - a.1) * (b.1 - a.1)) / len2)
-                        .clamp(0.0, 1.0);
-                    let d = ((px - (a.0 + (b.0 - a.0) * t)).powi(2)
-                        + (py - (a.1 + (b.1 - a.1) * t)).powi(2))
-                    .sqrt();
+                    let t = (((px - a.0) * (b.0 - a.0) + (py - a.1) * (b.1 - a.1)) / len2).clamp(0.0, 1.0);
+                    let d = ((px - (a.0 + (b.0 - a.0) * t)).powi(2) + (py - (a.1 + (b.1 - a.1) * t)).powi(2)).sqrt();
                     let profile = 1.0 - smoothstep(0.0, reach, d);
                     let cell = &mut out[y as usize * gw + xi as usize];
                     *cell = cell.max(profile * weight);
@@ -307,14 +275,7 @@ fn river_valleys(src: &Source, curves: &[RiverCurve], grid_w: usize) -> (Vec<f32
 /// 在工作格上讓每個陸格的水流向最陡的鄰格（D8），由高到低累加匯流面積；面積取對數後模糊一次。
 /// 均勻的山坡上水平行而下，刻出的溝谷彼此平行、沿坡向延伸，谷與谷之間的山脊因此有方向。
 /// 回傳（匯流程度、寬、高）。
-fn carve_gullies(
-    src: &Source,
-    signed: &[f32],
-    slope: &[f32],
-    valleys: &[f32],
-    peak: f32,
-    radius: f32,
-) -> (Vec<f32>, usize, usize) {
+fn carve_gullies(src: &Source, signed: &[f32], slope: &[f32], valleys: &[f32], peak: f32, radius: f32) -> (Vec<f32>, usize, usize) {
     let (gw, gh) = (src.w * GULLY_SS, src.h * GULLY_SS);
     let n = gw * gh;
     // 工作格的高度：放大後的高度加第一個倍頻的起伏（與成品一致），再加極小的擾動打破平地的並列。
@@ -327,27 +288,18 @@ fn carve_gullies(
         for x in 0..gw {
             let lon = (x as f32 + 0.5) / gw as f32 * std::f32::consts::TAU;
             let gx = (x as f32 + 0.5) / GULLY_SS as f32 - 0.5;
-            let p = [
-                radius * cos_lat * lon.cos(),
-                radius * sin_lat,
-                -radius * cos_lat * lon.sin(),
-            ];
+            let p = [radius * cos_lat * lon.cos(), radius * sin_lat, -radius * cos_lat * lon.sin()];
             let local_slope = src.cubic(slope, gx, gy).max(0.0);
             let f = 1.0 / wavelength;
             let noise = gradient_noise([p[0] * f, p[1] * f, p[2] * f]);
             let jitter = (hash3(x as i32, y as i32, 77) & 0xffff) as f32 / 65535.0 * 2e-6;
             // 先減去河谷，溝谷的水才會匯向模擬的河流。
-            let river_carve =
-                valleys[y * gw + x] * (local_slope * RIVER_SLOPE_GAIN + peak * RIVER_BASE);
-            height[y * gw + x] = src.cubic(signed, gx, gy)
-                + noise * (local_slope * wavelength * DETAIL_SLOPE_GAIN + DETAIL_FLOOR)
-                - river_carve
-                + jitter;
+            let river_carve = valleys[y * gw + x] * (local_slope * RIVER_SLOPE_GAIN + peak * RIVER_BASE);
+            height[y * gw + x] =
+                src.cubic(signed, gx, gy) + noise * (local_slope * wavelength * DETAIL_SLOPE_GAIN + DETAIL_FLOOR) - river_carve + jitter;
         }
     }
-    let mut order: Vec<u32> = (0..n as u32)
-        .filter(|&i| height[i as usize] > 0.0)
-        .collect();
+    let mut order: Vec<u32> = (0..n as u32).filter(|&i| height[i as usize] > 0.0).collect();
     order.sort_unstable_by(|&a, &b| height[b as usize].total_cmp(&height[a as usize]));
     let mut area = vec![0f32; n];
     for &i in &order {
@@ -366,21 +318,12 @@ fn carve_gullies(
                 if ny < 0 || ny >= gh as i32 {
                     continue;
                 }
-                let nx = if src.wrap {
-                    (x + dx).rem_euclid(gw as i32)
-                } else {
-                    x + dx
-                };
+                let nx = if src.wrap { (x + dx).rem_euclid(gw as i32) } else { x + dx };
                 if nx < 0 || nx >= gw as i32 {
                     continue;
                 }
                 let j = ny as usize * gw + nx as usize;
-                let drop = (height[i] - height[j])
-                    / if dx != 0 && dy != 0 {
-                        std::f32::consts::SQRT_2
-                    } else {
-                        1.0
-                    };
+                let drop = (height[i] - height[j]) / if dx != 0 && dy != 0 { std::f32::consts::SQRT_2 } else { 1.0 };
                 if drop > 0.0 && best.is_none_or(|b| drop > b.1) {
                     best = Some((j, drop));
                 }
@@ -393,16 +336,7 @@ fn carve_gullies(
         }
     }
     let full = GULLY_ACC_FULL.ln();
-    let flow: Vec<f32> = area
-        .iter()
-        .map(|&a| {
-            if a > 1.0 {
-                (a.ln() / full).min(1.0)
-            } else {
-                0.0
-            }
-        })
-        .collect();
+    let flow: Vec<f32> = area.iter().map(|&a| if a > 1.0 { (a.ln() / full).min(1.0) } else { 0.0 }).collect();
     let flow = grid_blur(&flow, gw, gh, src.wrap);
     (flow, gw, gh)
 }
@@ -410,20 +344,13 @@ fn carve_gullies(
 /// 均勻三次 B 樣條在小數位置 t 的四個權重（對應格 −1、0、1、2）。
 fn bspline3(t: f32) -> [f32; 4] {
     let (t2, t3) = (t * t, t * t * t);
-    [
-        (1.0 - 3.0 * t + 3.0 * t2 - t3) / 6.0,
-        (4.0 - 6.0 * t2 + 3.0 * t3) / 6.0,
-        (1.0 + 3.0 * t + 3.0 * t2 - 3.0 * t3) / 6.0,
-        t3 / 6.0,
-    ]
+    [(1.0 - 3.0 * t + 3.0 * t2 - t3) / 6.0, (4.0 - 6.0 * t2 + 3.0 * t3) / 6.0, (1.0 + 3.0 * t + 3.0 * t2 - 3.0 * t3) / 6.0, t3 / 6.0]
 }
 
 // ---------------------------------------------------------------- 三維梯度雜訊
 
 fn hash3(x: i32, y: i32, z: i32) -> u32 {
-    let mut h = (x as u32).wrapping_mul(0x8DA6_B343)
-        ^ (y as u32).wrapping_mul(0xD816_3841)
-        ^ (z as u32).wrapping_mul(0xCB1A_B31F);
+    let mut h = (x as u32).wrapping_mul(0x8DA6_B343) ^ (y as u32).wrapping_mul(0xD816_3841) ^ (z as u32).wrapping_mul(0xCB1A_B31F);
     h ^= h >> 15;
     h = h.wrapping_mul(0x85EB_CA6B);
     h ^= h >> 13;
@@ -456,14 +383,7 @@ fn gradient_noise(p: [f32; 3]) -> f32 {
     let fade = |t: f32| t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
     let (u, v, w) = (fade(fx), fade(fy), fade(fz));
     let (ix, iy, iz) = (x0 as i32, y0 as i32, z0 as i32);
-    let g = |dx: i32, dy: i32, dz: i32| {
-        grad(
-            hash3(ix + dx, iy + dy, iz + dz),
-            fx - dx as f32,
-            fy - dy as f32,
-            fz - dz as f32,
-        )
-    };
+    let g = |dx: i32, dy: i32, dz: i32| grad(hash3(ix + dx, iy + dy, iz + dz), fx - dx as f32, fy - dy as f32, fz - dz as f32);
     let lerp = |a: f32, b: f32, t: f32| a + (b - a) * t;
     let x00 = lerp(g(0, 0, 0), g(1, 0, 0), u);
     let x10 = lerp(g(0, 1, 0), g(1, 1, 0), u);
@@ -487,11 +407,7 @@ const SWAMP: [f32; 3] = [0.561, 0.635, 0.529];
 
 fn mix3(a: [f32; 3], b: [f32; 3], t: f32) -> [f32; 3] {
     let t = t.clamp(0.0, 1.0);
-    [
-        a[0] + (b[0] - a[0]) * t,
-        a[1] + (b[1] - a[1]) * t,
-        a[2] + (b[2] - a[2]) * t,
-    ]
+    [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]
 }
 
 fn smoothstep(a: f32, b: f32, x: f32) -> f32 {
@@ -501,22 +417,11 @@ fn smoothstep(a: f32, b: f32, x: f32) -> f32 {
 
 /// 依溫度（0 寒 .. 1 熱）與濕度（0 乾 .. 1 濕）連續取色。
 fn climate_color(temperature: f32, moisture: f32) -> [f32; 3] {
-    let dry = mix3(
-        TUNDRA,
-        mix3(STEPPE, DESERT, smoothstep(0.55, 0.85, temperature)),
-        smoothstep(0.15, 0.45, temperature),
-    );
+    let dry = mix3(TUNDRA, mix3(STEPPE, DESERT, smoothstep(0.55, 0.85, temperature)), smoothstep(0.15, 0.45, temperature));
     let mid = mix3(TUNDRA, GRASS, smoothstep(0.12, 0.40, temperature));
-    let wet = mix3(
-        TAIGA,
-        mix3(FOREST, RAINFOREST, smoothstep(0.60, 0.85, temperature)),
-        smoothstep(0.25, 0.50, temperature),
-    );
-    let land = if moisture < 0.45 {
-        mix3(dry, mid, smoothstep(0.15, 0.45, moisture))
-    } else {
-        mix3(mid, wet, smoothstep(0.45, 0.75, moisture))
-    };
+    let wet = mix3(TAIGA, mix3(FOREST, RAINFOREST, smoothstep(0.60, 0.85, temperature)), smoothstep(0.25, 0.50, temperature));
+    let land =
+        if moisture < 0.45 { mix3(dry, mid, smoothstep(0.15, 0.45, moisture)) } else { mix3(mid, wet, smoothstep(0.45, 0.75, moisture)) };
     mix3(SNOW, land, smoothstep(0.04, 0.14, temperature))
 }
 
@@ -584,11 +489,7 @@ pub fn build_relief(geo: &Geography, fine: &FineGeography) -> Relief {
         })
         .collect();
     let slope = src.blur(&slope);
-    let lake_mask: Vec<f32> = src
-        .terrain
-        .iter()
-        .map(|&t| if t == Terrain::Lake { 1.0 } else { 0.0 })
-        .collect();
+    let lake_mask: Vec<f32> = src.terrain.iter().map(|&t| if t == Terrain::Lake { 1.0 } else { 0.0 }).collect();
     let lake_mask = src.blur(&lake_mask);
 
     let peak = signed.iter().cloned().fold(0.0, f32::max).max(1e-4);
@@ -610,11 +511,7 @@ pub fn build_relief(geo: &Geography, fine: &FineGeography) -> Relief {
             let base = src.cubic(&signed, gx, gy);
             let local_slope = src.cubic(&slope, gx, gy).max(0.0);
             // 球面座標（單位：赤道上的一個遊戲格）。
-            let p = [
-                radius * cos_lat * lon.cos(),
-                radius * sin_lat,
-                -radius * cos_lat * lon.sin(),
-            ];
+            let p = [radius * cos_lat * lon.cos(), radius * sin_lat, -radius * cos_lat * lon.sin()];
             let mountain = smoothstep(MOUNTAIN_ALT_START, MOUNTAIN_ALT_FULL, base / peak);
             let mut detail = 0.0;
             for (k, wavelength) in DETAIL_WAVELENGTHS.iter().enumerate() {
@@ -622,19 +519,12 @@ pub fn build_relief(geo: &Geography, fine: &FineGeography) -> Relief {
                 let o = k as f32 * 17.3;
                 let n = gradient_noise([p[0] * f + o, p[1] * f - o, p[2] * f + 2.0 * o]);
                 // 山區的短波起伏減弱（紋理過密），由大尺度的稜線承擔山形；海岸附近不受影響。
-                let calm = if k == 0 {
-                    1.0
-                } else {
-                    1.0 - MOUNTAIN_CALM * mountain
-                };
+                let calm = if k == 0 { 1.0 } else { 1.0 - MOUNTAIN_CALM * mountain };
                 detail += n * calm * (local_slope * wavelength * DETAIL_SLOPE_GAIN + DETAIL_FLOOR);
             }
             // 河谷：沿模擬的河流曲線往下刻，河線因此落在谷底；溝谷的水也會匯向它。
             let scale = (RELIEF_SS / GULLY_SS) as f32;
-            let (wx, wy) = (
-                (tx as f32 + 0.5) / scale - 0.5,
-                (ty as f32 + 0.5) / scale - 0.5,
-            );
+            let (wx, wy) = ((tx as f32 + 0.5) / scale - 0.5, (ty as f32 + 0.5) / scale - 0.5);
             let valley = grid_cubic(&valleys, gw, gh, src.wrap, wx, wy).max(0.0);
             let mut carve = valley * (local_slope * RIVER_SLOPE_GAIN + peak * RIVER_BASE);
             // 山區：刻入順坡而下的溝谷；谷與谷之間就是沿坡向延伸的山脊（稜線高度不變）。
@@ -655,23 +545,11 @@ pub fn build_relief(geo: &Geography, fine: &FineGeography) -> Relief {
     // 地表覆蓋：冰雪與沙土各一個通道，由氣候與地形類別（遮罩先模糊）算出，邊緣漸退。
     let mut climate = vec![0u8; sw * sh * 3];
     let mut cover = vec![0u8; sw * sh * 2];
-    let sand_mask: Vec<f32> = src
-        .terrain
-        .iter()
-        .map(|&t| if t == Terrain::Desert { 1.0 } else { 0.0 })
-        .collect();
+    let sand_mask: Vec<f32> = src.terrain.iter().map(|&t| if t == Terrain::Desert { 1.0 } else { 0.0 }).collect();
     let sand_mask = src.blur(&sand_mask);
-    let snow_mask: Vec<f32> = src
-        .terrain
-        .iter()
-        .map(|&t| if t == Terrain::Snow { 1.0 } else { 0.0 })
-        .collect();
+    let snow_mask: Vec<f32> = src.terrain.iter().map(|&t| if t == Terrain::Snow { 1.0 } else { 0.0 }).collect();
     let snow_mask = src.blur(&snow_mask);
-    let class_weight: Vec<f32> = src
-        .terrain
-        .iter()
-        .map(|&t| if class_color(t).is_some() { 1.0 } else { 0.0 })
-        .collect();
+    let class_weight: Vec<f32> = src.terrain.iter().map(|&t| if class_color(t).is_some() { 1.0 } else { 0.0 }).collect();
     let class_weight = src.blur(&class_weight);
     for i in 0..sw * sh {
         let mut c = climate_color(src.temperature[i], src.moisture[i]);
@@ -764,10 +642,7 @@ mod tests {
         let sim = small_world();
         let w = sim.world();
         let r = build_relief(&w.geo, &w.fine);
-        assert_eq!(
-            (r.w, r.h),
-            (w.fine.w as usize * RELIEF_SS, w.fine.h as usize * RELIEF_SS)
-        );
+        assert_eq!((r.w, r.h), (w.fine.w as usize * RELIEF_SS, w.fine.h as usize * RELIEF_SS));
         assert_eq!(r.elevation.len(), r.w * r.h);
         assert_eq!(r.lake.len(), r.w * r.h);
         assert_eq!(r.climate.len(), r.climate_w * r.climate_h * 3);
@@ -786,8 +661,7 @@ mod tests {
         let mut agree = 0usize;
         for y in 0..sh {
             for x in 0..sw {
-                let e = r.elevation
-                    [(y * RELIEF_SS + RELIEF_SS / 2) * r.w + x * RELIEF_SS + RELIEF_SS / 2];
+                let e = r.elevation[(y * RELIEF_SS + RELIEF_SS / 2) * r.w + x * RELIEF_SS + RELIEF_SS / 2];
                 let sea = w.fine.terrain[y * sw + x] == Terrain::Sea;
                 if (e < 0.0) == sea {
                     agree += 1;
@@ -804,12 +678,8 @@ mod tests {
         let sim = small_world();
         let w = sim.world();
         let r = build_relief(&w.geo, &w.fine);
-        let mean = |a: usize, b: usize| {
-            (0..r.h)
-                .map(|y| (r.elevation[y * r.w + a] - r.elevation[y * r.w + b]).abs())
-                .sum::<f32>()
-                / r.h as f32
-        };
+        let mean =
+            |a: usize, b: usize| (0..r.h).map(|y| (r.elevation[y * r.w + a] - r.elevation[y * r.w + b]).abs()).sum::<f32>() / r.h as f32;
         let seam = mean(r.w - 1, 0);
         let inner = mean(r.w / 2, r.w / 2 + 1);
         assert!(seam < inner * 3.0 + 1e-4, "接縫差 {seam}，內部差 {inner}");
@@ -821,9 +691,7 @@ mod tests {
         let sim = small_world();
         let w = sim.world();
         let src = Source::new(&w.geo, &w.fine);
-        let signed: Vec<f32> = (0..src.w * src.h)
-            .map(|i| src.height[i] - src.sea_level)
-            .collect();
+        let signed: Vec<f32> = (0..src.w * src.h).map(|i| src.height[i] - src.sea_level).collect();
         let slope = vec![0.01f32; src.w * src.h];
         let radius = w.geo.w as f32 / std::f32::consts::TAU;
         let valleys = vec![0f32; src.w * GULLY_SS * src.h * GULLY_SS];
@@ -877,8 +745,7 @@ mod tests {
             }
             let (nx, nz) = (-dz / len * 0.8, dx / len * 0.8);
             let centre = r.elevation_at(m.0, m.1);
-            let sides =
-                0.5 * (r.elevation_at(m.0 + nx, m.1 + nz) + r.elevation_at(m.0 - nx, m.1 - nz));
+            let sides = 0.5 * (r.elevation_at(m.0 + nx, m.1 + nz) + r.elevation_at(m.0 - nx, m.1 - nz));
             if centre <= 0.0 {
                 continue;
             }

@@ -28,12 +28,7 @@ struct Pool {
 
 fn texts(v: &serde_json::Value) -> Vec<String> {
     v.as_array()
-        .map(|a| {
-            a.iter()
-                .filter_map(|x| x.get("text").and_then(|t| t.as_str()).or_else(|| x.as_str()))
-                .map(str::to_owned)
-                .collect()
-        })
+        .map(|a| a.iter().filter_map(|x| x.get("text").and_then(|t| t.as_str()).or_else(|| x.as_str())).map(str::to_owned).collect())
         .unwrap_or_default()
 }
 
