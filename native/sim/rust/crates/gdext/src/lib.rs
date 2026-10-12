@@ -1053,6 +1053,15 @@ impl SimWorld {
         d
     }
 
+    /// 兩端的魂都屬於這組人的未了宿緣編號（事件卡溯因視圖用：這些人之間的線）。
+    #[func]
+    fn karma_between(&self, people: PackedInt32Array) -> PackedInt32Array {
+        let Some(s) = self.sim.as_ref() else { return PackedInt32Array::new() };
+        let ids: Vec<u32> = people.as_slice().iter().filter(|&&i| i >= 0).map(|&i| i as u32).collect();
+        let out: Vec<i32> = karma::threads_between(s.world(), &ids).into_iter().map(|t| t as i32).collect();
+        PackedInt32Array::from(out.as_slice())
+    }
+
     /// 選取某人的魂光時要顯示的東西：`threads`（這個魂牽著的未了宿緣編號，強度高者在前）、
     /// `past`（前世所在地點的地圖座標，由近到遠）、`past_height`（各點的地表高度）。
     #[func]

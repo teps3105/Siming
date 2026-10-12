@@ -237,3 +237,84 @@ func test_five_kind_colors_are_the_palette_ones() -> void:
 	assert_eq(KarmaLayer.KIND_COLORS[2], Color("D48A9A"), "情緣 pink")
 	assert_eq(KarmaLayer.KIND_COLORS[3], Color("4F8F9A"), "師徒 cyan")
 	assert_eq(KarmaLayer.KIND_COLORS[4], Color("5B3A6B"), "怨 violet")
+
+
+## 取幾則牽涉兩人以上的事件編號（從在世者的歷程找，確定性）。
+func _some_events(limit: int) -> Array[int]:
+	var out: Array[int] = []
+	_sim.world.step(12 * 30)
+	for entry: Dictionary in _sim.world.drain_events():
+		var id := int(entry.get("id", -1))
+		var info := _sim.world.event(id)
+		if not info.is_empty() and (info["persons"] as PackedInt32Array).size() >= 2 and not out.has(id):
+			out.append(id)
+			if out.size() >= limit:
+				break
+	return out
+
+
+func test_event_card_marks_people_and_threads_only_in_karma_mode() -> void:
+	var events := _some_events(2)
+	assert_gt(events.size(), 0, "三年後有牽涉兩人以上的事件")
+	if events.is_empty():
+		return
+	_hud.open_event(events[0])
+	await frames(3)
+	assert_false(_karma().is_highlighting(), "不在因果模式時事件卡不標地圖")
+	assert_eq(_map.mode, TerrainMap.Mode.SHANHE, "也不切模式")
+	await _enter()
+	await frames(3)
+	assert_true(_karma().is_highlighting(), "切到因果模式才生效")
+	var card := _hud.event_card()
+	var people := card.trace_people()
+	assert_gt(people.size(), 1, "標出事件與因樹的人物")
+	assert_eq(_karma().highlighted_people().size(), people.size(), "地圖強調的人就是事件卡的人物")
+	for id: int in people:
+		assert_true(_karma().highlighted_people().has(id), "人物 %d 被標出" % id)
+	var between := _sim.world.karma_between(people)
+	assert_eq(_karma().highlighted_threads().size(), between.size(), "標出這些人之間的宿緣線")
+	if events.size() > 1:
+		_hud.open_event(events[1])
+		await frames(3)
+		assert_eq(_karma().highlighted_people().size(), card.trace_people().size(), "換一則事件跟著換")
+	_hud._close_cards()
+	await frames(3)
+	assert_false(_karma().is_highlighting(), "卡關掉就還原")
+	assert_eq(_map.mode, TerrainMap.Mode.KARMA, "不改模式")
+
+
+func test_leaving_karma_mode_clears_the_trace_and_person_card_keeps_its_own() -> void:
+	var events := _some_events(1)
+	assert_gt(events.size(), 0, "有牽涉兩人以上的事件")
+	if events.is_empty():
+		return
+	await _enter()
+	_hud.open_event(events[0])
+	await frames(3)
+	assert_true(_karma().is_highlighting())
+	_hud._set_mode(TerrainMap.Mode.SHANHE)
+	await frames(3)
+	assert_false(_karma().is_highlighting(), "離開因果模式就還原")
+	_hud._set_mode(TerrainMap.Mode.KARMA)
+	await frames(3)
+	assert_true(_karma().is_highlighting(), "回到因果模式、卡還開著就再標")
+	var person: int = _hud.event_card().trace_people()[0]
+	_hud.open_person(person)
+	_map.select_karma_soul(person)
+	await frames(3)
+	assert_true(_karma().is_highlighting(), "換成人物卡時，人物自己的強調不被事件卡的還原洗掉")
+
+
+func test_karma_between_returns_only_threads_inside_the_group() -> void:
+	var view := _sim.world.karma_view({"all": true})
+	var lines: PackedInt32Array = view["line_thread"]
+	if lines.is_empty():
+		return
+	var pair := PackedInt32Array()
+	for id: int in [view["line_debtor"][0], view["line_creditor"][0]]:
+		if id >= 0:
+			pair.append(id)
+	var found := _sim.world.karma_between(pair)
+	if pair.size() == 2:
+		assert_true(found.has(lines[0]), "兩端都在組內的宿緣在列")
+	assert_eq(_sim.world.karma_between(PackedInt32Array()).size(), 0, "空組沒有線")

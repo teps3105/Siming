@@ -309,6 +309,24 @@ pub fn threads_of(w: &World, person: PersonId) -> Vec<u32> {
     ids
 }
 
+/// 兩端的魂都屬於 `people` 這組人的未了宿緣編號（事件卡溯因視圖：這些人之間的線），由小到大。
+pub fn threads_between(w: &World, people: &[u32]) -> Vec<u32> {
+    let souls: HashSet<u32> = people.iter().filter_map(|&p| w.persons.get(p as usize)).map(|p| p.soul).collect();
+    let mut ids: Vec<u32> = Vec::new();
+    for &sid in &souls {
+        let Some(s) = w.souls.get(sid as usize) else { continue };
+        for &t in &s.threads {
+            let Some(th) = w.threads.get(t as usize) else { continue };
+            if is_open(th) && souls.contains(&th.debtor) && souls.contains(&th.creditor) {
+                ids.push(t);
+            }
+        }
+    }
+    ids.sort_unstable();
+    ids.dedup();
+    ids
+}
+
 /// 這個人的魂前幾世的所在（前世所在地點，GDD 5.4 選取時以虛線標出），由近到遠；本世不算。
 pub fn past_places(w: &World, person: PersonId) -> Vec<(f32, f32)> {
     let Some(p) = w.persons.get(person as usize) else { return Vec::new() };
@@ -336,6 +354,29 @@ mod tests {
             sim.step();
         }
         sim
+    }
+
+    #[test]
+    fn threads_between_keeps_only_threads_inside_the_group() {
+        let sim = world(36);
+        let w = sim.world();
+        let t = w.threads.iter().position(is_open).expect("三年後該有未了宿緣") as u32;
+        let th = &w.threads[t as usize];
+        let people: Vec<u32> =
+            w.persons.iter().enumerate().filter(|(_, p)| p.soul == th.debtor || p.soul == th.creditor).map(|(i, _)| i as u32).collect();
+        let found = threads_between(w, &people);
+        for &f in &found {
+            let x = &w.threads[f as usize];
+            assert!(people.iter().any(|&p| w.persons[p as usize].soul == x.debtor));
+            assert!(people.iter().any(|&p| w.persons[p as usize].soul == x.creditor));
+        }
+        if people.iter().any(|&p| w.persons[p as usize].soul == th.debtor)
+            && people.iter().any(|&p| w.persons[p as usize].soul == th.creditor)
+        {
+            assert!(found.contains(&t));
+        }
+        assert!(threads_between(w, &[]).is_empty());
+        assert!(threads_between(w, &[u32::MAX]).is_empty());
     }
 
     #[test]

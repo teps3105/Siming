@@ -99,8 +99,8 @@ func test_spec_five_eight_trace_stamp_opens_the_event_card() -> void:
 	assert_true(_card().is_open(), "點溯因小印開事件卡")
 	assert_eq(_card().event, int(event["id"]))
 	assert_false(_card().is_gone())
-	assert_eq(_card().cause_count(), _sim.world.event_causes(int(event["id"]), 6).size(), "因樹節點數與橋接相同")
-	assert_eq(_card().ripple_count(), _sim.world.event_ripple(int(event["id"])), "漣漪數與橋接相同")
+	assert_eq(_card().cause_count(), EventText.fold_tree(_sim.world.event_causes(int(event["id"]), 6), [_sim.world.event(int(event["id"]))]).size(), "因樹節點數與橋接折疊後相同")
+	assert_eq(_card().ripple_count(), EventText.fold_history(_sim.world.event_ripples(int(event["id"]))).size(), "漣漪數與橋接折疊後相同")
 	assert_eq(_card()._title(), "溯因")
 	assert_true(_card().size.y <= _hud._last_card_limit + 0.5, "卡不高過印匣上緣之上")
 	assert_true(_rumor.expanded, "開卡不收清單")
@@ -291,7 +291,7 @@ func test_ripples_expand_into_a_list() -> void:
 	var before := _card()._rows.size()
 	_card().toggle_ripples()
 	assert_true(_card().ripple_open())
-	assert_eq(_card()._rows.size(), before + _sim.world.event_ripple(chosen), "展開後每則後果一列")
+	assert_eq(_card()._rows.size(), before + EventText.fold_history(_sim.world.event_ripples(chosen)).size(), "展開後每則後果一列（成婚同時的結緣等回聲折掉）")
 	_card().toggle_ripples()
 	assert_eq(_card()._rows.size(), before)
 	# 沒有後果的事件寫「尚無後果」，不能展開。
@@ -358,3 +358,61 @@ func test_gamepad_walks_slip_to_card_to_cause_to_person_and_back() -> void:
 	await joy_button(JOY_BUTTON_B)
 	assert_false(_card().is_open(), "B 再收起")
 	assert_false(_hud.menu_open())
+
+
+func _node(id: int, kind: String, tick: int, a: int, b: int, level: int, parent: int, n := 0) -> Dictionary:
+	return {"id": id, "kind": kind, "tick": tick, "a_person": a, "b_person": b, "level": level, "parent": parent, "n": n}
+
+
+func test_cause_tree_folds_echoes_and_reattaches_children() -> void:
+	# 成婚（層 1）底下的結緣（層 2，同月同一對，是成婚的回聲）；結緣的因（層 3）要接到成婚底下。
+	var nodes := [
+		_node(1, "Married", 10, 1, 2, 1, -1),
+		_node(2, "ThreadCreated", 10, 1, 2, 2, 0),
+		_node(3, "Born", 1, 1, -1, 3, 1),
+		_node(4, "Born", 1, 2, -1, 2, 0),
+	]
+	var folded := EventText.fold_tree(nodes)
+	assert_eq(folded.size(), 3, "成婚同時結下的宿緣不另列")
+	assert_eq(folded[0]["kind"], "Married")
+	assert_eq(folded[1]["id"], 3, "被去掉那一筆底下的因留著")
+	assert_eq(folded[1]["parent"], 0, "接到上一層（成婚）")
+	assert_eq(folded[1]["level"], 2, "層級跟著往上一層")
+	assert_eq(folded[2]["parent"], 0)
+	assert_eq(nodes.size(), 4, "不改原陣列")
+	# 渡劫成功後緊接的突破（新境界 ≥ 金丹）也去掉；沒有渡劫的突破留著。
+	var tribulation := [
+		_node(1, "Tribulation", 20, 5, -1, 1, -1),
+		_node(2, "Breakthrough", 20, 5, -1, 2, 0, 2),
+		_node(3, "Breakthrough", 30, 6, -1, 1, -1, 2),
+	]
+	var out := EventText.fold_tree(tribulation)
+	assert_eq(out.size(), 2)
+	assert_eq(out[1]["id"], 3, "沒有渡劫相伴的突破留著")
+	# 根事件也可作對照：根是成婚時，同月結緣的因節點被去掉。
+	var with_root := EventText.fold_tree([_node(7, "ThreadCreated", 10, 1, 2, 1, -1)], [_node(9, "Married", 10, 1, 2, 0, -1)])
+	assert_eq(with_root.size(), 0)
+
+
+func test_event_card_tree_and_ripples_use_the_same_fold_rule() -> void:
+	await _boot(Vector2i(1920, 1080))
+	var checked := 0
+	var ids: Array = _stream.keys()
+	ids.sort()
+	for id: int in ids:
+		var raw: Array = _sim.world.event_causes(id, EventCard.DEPTH)
+		if raw.is_empty():
+			continue
+		var event := _sim.world.event(id)
+		var folded := EventText.fold_tree(raw, [event])
+		_hud.open_event(id)
+		await frames(1)
+		assert_eq(_card().cause_count(), folded.size(), "事件 %d 的因樹筆數與折疊後一致" % id)
+		for i in folded.size():
+			var parent := int(folded[i]["parent"])
+			assert_true(parent < i, "先根順序：上層在前")
+			assert_eq(int(folded[i]["level"]), 1 if parent < 0 else int(folded[parent]["level"]) + 1, "層級連貫")
+		checked += 1
+		if checked >= 8:
+			break
+	assert_gt(checked, 0, "有因樹的事件可驗")

@@ -125,6 +125,33 @@ static func fold_history(history: Array) -> Array:
 	return out
 
 
+## 因樹（先根順序攤平，每筆有 level 與 parent）套同一條規則：去掉的節點，它底下的因接到上一層（level 與 parent 重算）。
+## extra 是不在樹裡、但可作對照的事件（事件卡的根事件）。
+static func fold_tree(nodes: Array, extra: Array = []) -> Array:
+	var reference: Array = nodes + extra
+	var dropped: Array[bool] = []
+	for node: Dictionary in nodes:
+		dropped.append(_is_echo(node, reference))
+	var out: Array = []
+	var new_index := {}
+	for i in nodes.size():
+		if dropped[i]:
+			continue
+		var parent := int(nodes[i].get("parent", -1))
+		while parent >= 0 and dropped[parent]:
+			parent = int(nodes[parent].get("parent", -1))
+		var copy: Dictionary = (nodes[i] as Dictionary).duplicate()
+		if parent >= 0 and new_index.has(parent):
+			copy["parent"] = new_index[parent]
+			copy["level"] = int(out[new_index[parent]]["level"]) + 1
+		else:
+			copy["parent"] = -1
+			copy["level"] = 1
+		new_index[i] = out.size()
+		out.append(copy)
+	return out
+
+
 static func _is_echo(entry: Dictionary, history: Array) -> bool:
 	var kind: String = entry["kind"]
 	if kind != "ThreadCreated" and not (kind == "Breakthrough" and int(entry.get("n", 0)) >= 2):

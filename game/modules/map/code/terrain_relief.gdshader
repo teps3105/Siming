@@ -473,11 +473,13 @@ void fragment() {
 	float hot_cov = px_line(marg, fw_m, 2.6);
 	bool hov_hit = hover_province >= 0.0 && (vt.x == hover_province || vt.y == hover_province);
 	bool sel_hit = selected_province >= 0.0 && (vt.x == selected_province || vt.y == selected_province);
+	// 因果模式（轉墨）下停留與選取的塗面收到一成五：滿強度的淡色塗面會把整州托成淺灰，魂光在上面看不見；州界的描邊照舊。
+	float hot_fill = 1.0 - 0.85 * ink_wash;
 	if (pid != NO_PROVINCE && pid == hover_province) {
-		col = mix(col, paper + vec3(0.1), 0.18 * land_f);
+		col = mix(col, paper + vec3(0.1), 0.18 * land_f * hot_fill);
 	}
 	if (pid != NO_PROVINCE && pid == selected_province) {
-		col = mix(col, gold, 0.22 * land_f);
+		col = mix(col, gold, 0.22 * land_f * hot_fill);
 	}
 	if (has_b && hov_hit) {
 		col = mix(col, ink, 0.75 * hot_cov * land_f);

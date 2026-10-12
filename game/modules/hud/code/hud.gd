@@ -27,6 +27,10 @@ var _seals: SealBox
 var _card: ProvinceCard
 var _person_card: PersonCard
 var _event_card: EventCard
+var _trace_key := ""
+var _trace_on := false
+## 每月推進換一次，讓溯因標示跟著重畫。
+var _trace_stamp := 0
 ## 上一次排命簿時的高度上限。
 var _last_card_limit := 0.0
 ## 從別張卡點進來時，回得去的上一張卡：{kind: "province"|"person"|"event", id}，最近的在最後。
@@ -76,6 +80,7 @@ func setup(sim: SimHost, map: TerrainMap, camera: MapCamera) -> void:
 		_card.refresh()
 		_person_card.refresh()
 		_event_card.refresh()
+		_trace_stamp += 1
 		_overlay.refresh_seats()
 		_overlay.refresh_sects()
 		_map.refresh_faith()
@@ -451,6 +456,7 @@ func close_menu() -> void:
 func _process(_delta: float) -> void:
 	if _camera == null or _dial == null:
 		return
+	_sync_trace()
 	if _menu != null:
 		_camera.use_crosshair = _menu.panel().gamepad
 	if _camera.use_crosshair != _dial.gamepad:
@@ -500,6 +506,25 @@ func _on_soul_selected(person: int) -> void:
 	var spot := _map.karma_layer().glow_position_of(person)
 	if spot != Vector2.INF:
 		_camera.look_at_map(spot)
+
+
+## 事件卡開著且在因果模式時，把這則事件與因樹的人物與其間的宿緣線標在地圖上，其餘淡去；
+## 換事件跟著換，卡關掉或離開因果模式就還原。不切模式。狀態變了才重畫。
+func _sync_trace() -> void:
+	var lit := _event_card != null and _event_card.is_open() and _map.mode == TerrainMap.Mode.KARMA and not _event_card.is_gone()
+	var key := "%d:%s" % [_event_card.event, _trace_stamp] if lit else ""
+	if key == _trace_key:
+		return
+	_trace_key = key
+	if lit:
+		var people := _event_card.trace_people()
+		_map.highlight_karma(people, _sim.world.karma_between(people))
+		_trace_on = true
+	elif _trace_on:
+		_trace_on = false
+		# 換成人物卡時，人物卡自己的強調不能被清掉。
+		if not _person_card.is_open():
+			_map.clear_karma_highlight()
 
 
 func _set_mode(mode: TerrainMap.Mode) -> void:

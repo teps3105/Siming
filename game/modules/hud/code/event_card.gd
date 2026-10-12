@@ -43,6 +43,8 @@ var _rows_height := 0.0
 var _ripple_open := false
 var _ripple_count := 0
 var _cause_count := 0
+## 這則事件與因樹裡出現的人物編號（地圖溯因視圖用）。
+var _trace_people := PackedInt32Array()
 var _layout := {}
 
 
@@ -168,6 +170,7 @@ func _relayout() -> void:
 	_rows.clear()
 	_cause_count = 0
 	_ripple_count = 0
+	_trace_people = PackedInt32Array()
 	_meta = {}
 	_sentence = {}
 	_gone_text = {}
@@ -210,28 +213,46 @@ func _build_rows(list_width: float) -> void:
 	var body := Ink.font_size(Ink.SIZE_BODY, u)
 	var note := Ink.font_size(Ink.SIZE_NOTE, u)
 	var top := 0.0
-	var causes: Array = _world.event_causes(event, DEPTH)
+	var causes: Array = EventText.fold_tree(_world.event_causes(event, DEPTH), [_info])
 	_cause_count = causes.size()
+	_collect_people(_info)
+	for node: Dictionary in causes:
+		_collect_people(node)
 	top = _add_section(top, Locale.t("event_causes_title").format({"N": str(causes.size())}))
 	if causes.is_empty():
 		top = _add_note(top, Locale.t("event_no_causes"), list_width, note)
 	for node: Dictionary in causes:
 		top = _add_event(top, node, (int(node["level"]) - 1) * INDENT * u, list_width, body, note)
 	top = _add_section(top, Locale.t("event_ripples_title"))
-	_ripple_count = _world.event_ripple(event)
+	var raw_ripples := _world.event_ripple(event)
+	var ripples: Array = []
+	if raw_ripples > 0:
+		ripples = EventText.fold_history(_world.event_ripples(event))
+	_ripple_count = ripples.size()
 	if _ripple_count <= 0:
 		_ripple_open = false
 		top = _add_note(top, Locale.t("event_ripples_wait"), list_width, note)
 	else:
-		var key := "event_ripples_count_cap" if _ripple_count >= 300 else "event_ripples_count"
+		var key := "event_ripples_count_cap" if raw_ripples >= 300 else "event_ripples_count"
 		var height := LedgerText.line_height(body) + ROW_GAP * u
 		_rows.append({"kind": "head", "top": top, "height": height, "text": Locale.t(key).format({"N": str(_ripple_count)}),
 			"action": Locale.t("event_ripples_close" if _ripple_open else "event_ripples_open")})
 		top += height
 		if _ripple_open:
-			for node: Dictionary in _world.event_ripples(event):
+			for node: Dictionary in ripples:
 				top = _add_event(top, node, 0.0, list_width, body, note)
 	_rows_height = top
+
+
+func _collect_people(entry: Dictionary) -> void:
+	for id: int in entry.get("persons", PackedInt32Array()):
+		if id >= 0 and not _trace_people.has(id):
+			_trace_people.append(id)
+
+
+## 這則事件與因樹裡出現的人物編號（事件已不可考為空）。
+func trace_people() -> PackedInt32Array:
+	return _trace_people if not _gone else PackedInt32Array()
 
 
 func _add_section(top: float, text: String) -> float:
