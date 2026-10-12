@@ -22,6 +22,7 @@ const KIND_COLORS := {
 	"river": Color("3E6379"),
 	"range": Color("3F5A45"),
 	"node": Color("5B3A6B"),
+	"sect": Color("2F5560"),
 	"water": Color("2E5D62"),
 }
 ## 共用一種顏色的標籤種類：洋、海、湖都算水域。
@@ -41,6 +42,23 @@ const CENTRED_KINDS: Array[String] = ["province", "continent", "ocean", "sea", "
 ## 治所：鏡頭高度低於地圖寬的這個比例才標出；字級。
 const SEAT_Z_MAX := 0.2
 const SEAT_SIZE := 13
+## 山門（GDD 5.5）：中景才畫，鏡頭高度低於地圖寬的這個比例；名字再近一些才寫。
+const SECT_Z_MAX := 0.4
+const SECT_NAME_Z_MAX := 0.3
+const SECT_NAME_SIZE := 13
+## 山門圖樣的縮放（圖樣在 24 單位高的座標裡畫，乘此係數與介面縮放）。
+const SECT_SCALE := 1.0
+## 正道：白牆黛瓦；邪道：黑瓦。
+const SECT_ROOF_GOOD := Color("3C4A52")
+const SECT_ROOF_EVIL := Color("1E1A17")
+const SECT_WALL_EVIL := Color("6B6152")
+## 三教模式（GDD 5.4 F3）：道的淡彩（與州郡著色一致）、宗門勢力範圍虛線圈的顏色。
+const TAO_TINT := Color(0.65, 0.82, 0.86)
+const RING_COLOR := Color("3E7480")
+const RING_COLOR_EVIL := Color("5B3A6B")
+## 範圍圈的取樣段數；每三段畫兩段、空一段成虛線。
+const RING_SEGMENTS := 48
+const RING_WIDTH := 1.6
 
 var _world: SimWorld
 var _map: TerrainMap
@@ -50,6 +68,10 @@ var _labels: Array[Dictionary] = []
 var _nodes: Array[Dictionary] = []
 ## 各州郡的治所：位置與治所名（治所名隨城池等級改變，由 refresh_seats 更新）。
 var _seats: Array[Dictionary] = []
+## 還在的宗門：山門位置、名字與勢力範圍圈（由 refresh_sects 更新）。
+var _sects: Array[Dictionary] = []
+## 範圍圈的取樣點快取：宗門 ID → {radius, pos, spots, heights}；範圍沒變就沿用，地圖換圖時清掉。
+var _rings: Dictionary = {}
 var _hover_province := -1
 var _hover_text := ""
 ## 介面器物佔住的畫面範圍：地圖標籤避開這些地方，不鑽到器物底下露出半截。
@@ -73,6 +95,8 @@ func reload() -> void:
 	_nodes.assign(_world.ley_nodes())
 	_labels.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["rank"] > b["rank"])
 	refresh_seats()
+	_rings.clear()
+	refresh_sects()
 
 
 func set_hover(province: int) -> void:
@@ -91,6 +115,59 @@ func refresh_seats() -> void:
 		_seats.append({"pos": info["seat"], "text": info["seat_name"]})
 
 
+## 重新讀取宗門（新立與覆滅都會改變山門）；只留還在的。
+func refresh_sects() -> void:
+	_sects.clear()
+	for sect: Dictionary in _world.sects():
+		if sect["alive"]:
+			_sects.append(sect)
+			_bake_ring(sect)
+
+
+## 地圖座標 pos 到鏡頭焦點的地面距離（東西相接，取近的一側）。
+func _ground_distance(pos: Vector2) -> float:
+	var dx := absf(pos.x - _camera.focus.x)
+	dx = minf(fposmod(dx, _map.map_size.x), _map.map_size.x - fposmod(dx, _map.map_size.x))
+	return Vector2(dx, pos.y - _camera.focus.y).length()
+
+
+## 範圍圈上各取樣點的地圖座標與地形高度先算好（每幀只做投影）；重讀宗門與地圖換圖後會重算。
+func _bake_ring(sect: Dictionary) -> void:
+	var centre: Vector2 = sect["pos"]
+	var radius: float = sect["range_radius"]
+	var cached: Dictionary = _rings.get(sect["id"], {})
+	if not cached.is_empty() and cached["radius"] == radius and cached["pos"] == centre:
+		sect["ring"] = cached["spots"]
+		sect["ring_height"] = cached["heights"]
+		return
+	var spots := PackedVector2Array()
+	var heights := PackedFloat32Array()
+	for i in RING_SEGMENTS + 1:
+		var angle := TAU * i / RING_SEGMENTS
+		var spot := centre + Vector2(cos(angle), sin(angle)) * radius
+		spot.y = clampf(spot.y, 0.5, _map.map_size.y - 0.5)
+		spots.append(spot)
+		heights.append(_map.surface_height(spot.x, spot.y))
+	sect["ring"] = spots
+	sect["ring_height"] = heights
+	_rings[sect["id"]] = {"radius": radius, "pos": centre, "spots": spots, "heights": heights}
+
+
+## 目前畫面上的山門標記（還在的宗門）。
+func sect_marks() -> Array[Dictionary]:
+	return _sects
+
+
+## 山門此刻是否畫出（中景以內，GDD 5.5）。
+func sect_gates_visible() -> bool:
+	return _camera != null and _camera.z <= _map.map_size.x * SECT_Z_MAX
+
+
+## 目前要畫的勢力範圍圈數（三教模式，GDD 5.4 F3）；其他模式為 0。
+func range_ring_count() -> int:
+	return _sects.size() if _map.mode == TerrainMap.Mode.SANJIAO else 0
+
+
 func _process(_delta: float) -> void:
 	queue_redraw()
 
@@ -100,6 +177,8 @@ func _draw() -> void:
 		return
 	if _map.mode == TerrainMap.Mode.LINGMAI:
 		_draw_ley_nodes()
+	elif _map.mode == TerrainMap.Mode.SANJIAO:
+		_draw_range_rings()
 	_draw_labels()
 	if _camera.use_crosshair:
 		_draw_prompts()
@@ -112,6 +191,7 @@ func _draw_labels() -> void:
 	var z_frac := _camera.z / map_w
 	var screen := get_viewport_rect()
 	var taken: Array[Rect2] = reserved.duplicate()
+	_draw_sects(taken)
 	for label in _labels:
 		var rule: Dictionary = LABEL_RULES[label["kind"]]
 		if z_frac > rule["z_max"] or z_frac < rule["z_min"]:
@@ -295,6 +375,101 @@ func _draw_seats(taken: Array[Rect2]) -> void:
 			continue
 		taken.append(rect)
 		Ink.outlined_text(self, rect.position, seat["text"], size, KIND_COLORS["seat"], LABEL_OUTLINE)
+
+
+## 山門（GDD 5.5）：牌坊、三重殿與山徑；正道白牆黛瓦，邪道黑瓦。中景才畫，名字寫在圖樣下方，
+## 與已放的山門名重疊就只畫圖樣；圖樣與名字的範圍進 taken，其餘標籤與治所名讓開。
+func _draw_sects(taken: Array[Rect2]) -> void:
+	if not sect_gates_visible():
+		return
+	var screen := get_viewport_rect()
+	var show_name := _camera.z <= _map.map_size.x * SECT_NAME_Z_MAX
+	var size := Ink.font_size(SECT_NAME_SIZE, _unit)
+	var scale := SECT_SCALE * _unit
+	for sect in _sects:
+		if not _visible_on_map(sect["pos"]):
+			continue
+		var point := _camera.unproject_position(_world_position(sect["pos"]))
+		if not screen.has_point(point):
+			continue
+		var evil: bool = sect["evil"]
+		_draw_gate(point, scale, evil)
+		var mark := Rect2(point + Vector2(-8.0, -24.0) * scale, Vector2(16.0, 27.0) * scale)
+		if show_name:
+			var extent := Ink.text_size(sect["name"], size)
+			var rect := Rect2(point + Vector2(-extent.x * 0.5, 6.0 * scale), extent)
+			if screen.encloses(rect) and not _blocked(rect, taken):
+				Ink.outlined_text(self, rect.position, sect["name"], size, KIND_COLORS["sect"], LABEL_OUTLINE)
+				taken.append(rect)
+		taken.append(mark)
+
+
+## 山門圖樣：base 是山徑的落腳點（山門位置），scale 是每個圖樣單位的像素。
+func _draw_gate(base: Vector2, scale: float, evil: bool) -> void:
+	var wall := SECT_WALL_EVIL if evil else Ink.PAPER_LIGHT
+	var roof := SECT_ROOF_EVIL if evil else SECT_ROOF_GOOD
+	var line := maxf(1.0, scale * 1.1)
+	# 襯底的紙色暈，讓圖樣在山色上看得清楚。
+	draw_circle(base + Vector2(0.0, -10.0) * scale, 13.0 * scale, Color(Ink.PAPER_LIGHT, 0.55))
+	# 山徑：由牌坊下蜿蜒下山。
+	var path := PackedVector2Array([Vector2(0.0, -1.0), Vector2(2.5, 1.0), Vector2(-1.5, 2.5), Vector2(1.0, 4.0)])
+	for i in path.size():
+		path[i] = base + path[i] * scale
+	draw_polyline(path, Ink.INK_LIGHT, line, true)
+	# 牌坊：兩柱一梁。
+	for x in [-4.0, 4.0]:
+		draw_line(base + Vector2(x, -1.0) * scale, base + Vector2(x, -7.0) * scale, Ink.INK, line * 1.2)
+	draw_line(base + Vector2(-6.0, -7.0) * scale, base + Vector2(6.0, -7.0) * scale, Ink.INK, line * 1.6)
+	# 三重殿：牆身加歇山頂，逐層收小。
+	var tiers := [[5.0, 8.5, 11.5, 4.0], [3.6, 12.5, 15.5, 3.2], [2.2, 16.5, 19.0, 2.6]]
+	for tier: Array in tiers:
+		var half: float = tier[0]
+		var foot: float = tier[1]
+		var eave: float = tier[2]
+		var rise: float = tier[3]
+		var body := PackedVector2Array([
+			Vector2(-half, -foot), Vector2(half, -foot), Vector2(half, -eave + 1.0), Vector2(-half, -eave + 1.0),
+		])
+		var cap := PackedVector2Array([
+			Vector2(-half - 1.8, -eave + 1.0), Vector2(half + 1.8, -eave + 1.0),
+			Vector2(half - 0.6, -eave - rise + 1.0), Vector2(-half + 0.6, -eave - rise + 1.0),
+		])
+		for shape in [body, cap]:
+			for i in shape.size():
+				shape[i] = base + shape[i] * scale
+		draw_colored_polygon(body, wall)
+		draw_colored_polygon(cap, roof)
+		draw_polyline(body + PackedVector2Array([body[0]]), Ink.INK, line * 0.8, true)
+		draw_polyline(cap + PackedVector2Array([cap[0]]), Ink.INK, line * 0.8, true)
+
+
+## 三教模式的宗門勢力範圍（GDD 5.4 F3）：以山門為心的虛線圈，半徑取範圍內最遠的治所；
+## 圈上各點沿地面取樣再投到螢幕，所以平面與星球視角都貼著地形；背對鏡頭的段落不畫。
+func _draw_range_rings() -> void:
+	var width := RING_WIDTH * _unit
+	var screen := get_viewport_rect().grow(width * 4.0)
+	var flat := _map.globe_morph < 0.5
+	for sect in _sects:
+		# 平面視角：圈離畫面太遠的不必投影（取鏡頭高度的兩倍為可見範圍的保守估計）。
+		if flat and absf(_ground_distance(sect["pos"]) - float(sect["range_radius"])) > _camera.z * 2.0:
+			continue
+		var spots: PackedVector2Array = sect["ring"]
+		var heights: PackedFloat32Array = sect["ring_height"]
+		var color := RING_COLOR_EVIL if sect["evil"] else RING_COLOR
+		var points := PackedVector2Array()
+		var shown := PackedByteArray()
+		for i in spots.size():
+			var world_pos := _map.world_position(spots[i], _camera.focus.x, heights[i])
+			var seen := not _camera.is_position_behind(world_pos) and _map.faces_camera(spots[i], _camera.global_position)
+			points.append(_camera.unproject_position(world_pos) if seen else Vector2.ZERO)
+			shown.append(1 if seen else 0)
+		# 每三段畫前兩段；中間有點看不到、或整段都在畫面外就略過。
+		for i in range(0, RING_SEGMENTS, 3):
+			if shown[i] + shown[i + 1] + shown[i + 2] < 3:
+				continue
+			var dash := PackedVector2Array([points[i], points[i + 1], points[i + 2]])
+			if screen.has_point(dash[0]) or screen.has_point(dash[1]) or screen.has_point(dash[2]):
+				draw_polyline(dash, color, width, true)
 
 
 ## 靈脈模式的洞天福地：金點加青環，大小依強度（GDD 5.4）。

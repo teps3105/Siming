@@ -13,7 +13,7 @@ const FLASH_SECONDS := 1.6
 const SEALS := [
 	{"key": "shanhe", "mode": TerrainMap.Mode.SHANHE, "action": InputActions.MODE_SHANHE},
 	{"key": "tianxia", "mode": TerrainMap.Mode.TIANXIA, "action": InputActions.MODE_TIANXIA},
-	{"key": "sanjiao", "mode": -1, "action": &""},
+	{"key": "sanjiao", "mode": TerrainMap.Mode.SANJIAO, "action": InputActions.MODE_SANJIAO},
 	{"key": "lingmai", "mode": TerrainMap.Mode.LINGMAI, "action": InputActions.MODE_LINGMAI},
 	{"key": "yinguo", "mode": -1, "action": &""},
 	{"key": "yeqi", "mode": -1, "action": &""},
@@ -28,7 +28,7 @@ const TERRAIN_LEGEND: Array[String] = [
 	"terrain_desert", "terrain_snow", "terrain_swamp", "terrain_water",
 ]
 ## 例簽列出的地名種類（顏色見 MapOverlay.KIND_COLORS）。
-const PLACE_LEGEND: Array[String] = ["continent", "province", "seat", "water", "river", "range", "node"]
+const PLACE_LEGEND: Array[String] = ["continent", "province", "seat", "water", "river", "range", "node", "sect"]
 ## 地名欄組排幾欄；地形欄組佔例簽內寬的比例。
 const PLACE_COLUMNS := 2
 const LEGEND_SPLIT := 0.5
@@ -150,11 +150,12 @@ func _draw() -> void:
 				_draw_legend(entry)
 
 
-func _draw_legend(entry: Dictionary) -> void:
+## 該模式的圖例：左欄組 lines 與右側並排的第二欄組 places（山河模式列出各種地名在地圖上的顏色）。
+## 每項是 [字串鍵, 色塊種類, 附帶資料]。
+func legend_entries(for_mode: int) -> Dictionary:
 	var lines: Array = []
-	# 右側並排的第二欄組：山河模式列出各種地名在地圖上的顏色。
 	var places: Array = []
-	match entry["mode"]:
+	match for_mode:
 		TerrainMap.Mode.SHANHE:
 			for key in TERRAIN_LEGEND:
 				lines.append([key, "terrain"])
@@ -162,10 +163,28 @@ func _draw_legend(entry: Dictionary) -> void:
 				places.append(["place_%s" % kind, "place", kind])
 		TerrainMap.Mode.TIANXIA:
 			lines = [["legend_tianxia", ""]]
+		TerrainMap.Mode.SANJIAO:
+			lines = [["legend_sanjiao_tao", "tao"], ["legend_sanjiao_range", "ring"]]
 		TerrainMap.Mode.LINGMAI:
 			lines = [["legend_lingmai", "ramp"]]
 		_:
 			lines = [["mode_disabled_hint", ""]]
+	return {"lines": lines, "places": places}
+
+
+## 該模式圖例用到的字串鍵（測試與核對用）。
+func legend_keys(for_mode: int) -> Array:
+	var entries := legend_entries(for_mode)
+	var keys: Array = []
+	for item: Array in entries["lines"] + entries["places"]:
+		keys.append(item[0])
+	return keys
+
+
+func _draw_legend(entry: Dictionary) -> void:
+	var entries := legend_entries(entry["mode"])
+	var lines: Array = entries["lines"]
+	var places: Array = entries["places"]
 	var row := 20.0 * _unit
 	var columns := 2 if lines.size() > 4 else 1
 	var rows := int(ceil(float(lines.size()) / columns))
@@ -201,6 +220,17 @@ func _draw_legend_lines(lines: Array, origin: Vector2, column_width: float, colu
 				var color := Ink.PAPER.lerp(Ink.CYAN, t * 2.0) if t < 0.5 else Ink.CYAN.lerp(Ink.GOLD, (t - 0.5) * 2.0)
 				draw_rect(Rect2(pos + Vector2(k * 14.0 * _unit, 3.0 * _unit), Vector2(13.0, 12.0) * _unit), color, true)
 			text_x = steps * 14.0 * _unit + 6.0 * _unit
+		elif swatch == "tao":
+			# 道的色階：由淡到濃三格。
+			for k in 3:
+				var tint := MapOverlay.TAO_TINT.lerp(Ink.PAPER, 0.6 - 0.3 * k)
+				draw_rect(Rect2(pos + Vector2(k * 14.0 * _unit, 3.0 * _unit), Vector2(13.0, 12.0) * _unit), tint, true)
+			text_x = 3 * 14.0 * _unit + 6.0 * _unit
+		elif swatch == "ring":
+			var mid := pos + Vector2(21.0 * _unit, 9.0 * _unit)
+			for k in 8:
+				draw_arc(mid, 8.0 * _unit, TAU * k / 8.0, TAU * (k + 0.6) / 8.0, 4, MapOverlay.RING_COLOR, 1.5, true)
+			text_x = 3 * 14.0 * _unit + 6.0 * _unit
 		elif swatch == "terrain":
 			TerrainSwatches.chip(self, Rect2(pos + Vector2(0.0, (note_size - 12.0 * _unit) * 0.5 + 2.0), Vector2(13.0, 12.0) * _unit), lines[i][0])
 			text_x = 19.0 * _unit

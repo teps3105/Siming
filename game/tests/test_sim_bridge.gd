@@ -409,3 +409,45 @@ func test_gdd_5_3_elevation_comes_as_half_floats_with_mipmaps() -> void:
 		var y := (i * 104729) % size.y
 		worst = maxf(worst, absf(image.get_pixel(x, y).r - raw[y * size.x + x]))
 	assert_lt(worst, 0.001, "半精度的誤差")
+
+
+func test_gdd_5_5_sects_report_seat_province_and_range() -> void:
+	var world := SimWorld.new()
+	assert_eq(world.sects().size(), 0, "沒有世界時宗門清單為空")
+	assert_eq(world.faith_colors().size(), 0)
+	world.create(SEED, "small")
+	var sects := world.sects()
+	assert_gt(sects.size(), 0, "開天後世界應有宗門")
+	for sect: Dictionary in sects:
+		for key in ["id", "name", "pos", "province", "node", "members", "prestige", "radius", "range", "range_radius", "evil", "alive"]:
+			assert_true(sect.has(key), "宗門欄位 %s" % key)
+		var pos: Vector2 = sect["pos"]
+		assert_eq(world.province_at(pos.x, pos.y), sect["province"], "山門的位置落在山門所在州郡")
+		assert_true((sect["range"] as PackedInt32Array).has(sect["province"]), "勢力範圍含山門所在州郡")
+		assert_gt(sect["range_radius"], 0.0)
+		if sect["alive"]:
+			assert_gt(sect["members"], 0, "還在的宗門有成員")
+	assert_eq(world.sects().size(), sects.size(), "只讀：連呼兩次結果相同")
+
+
+func test_gdd_5_4_faith_colors_tint_only_provinces_led_by_tao() -> void:
+	var world := _small_world()
+	var table := world.faith_colors()
+	assert_eq(table.size(), 256 * 4)
+	var tinted := 0
+	for id in world.province_count():
+		var faith: Vector3 = world.province_info(id)["faith"]
+		var alpha := table[id * 4 + 3]
+		var led_by_tao := faith.x > 0.0 and faith.x >= faith.y and faith.x >= faith.z
+		assert_eq(alpha > 0, led_by_tao, "州郡 %d：道為主教化才上色" % id)
+		tinted += 1 if alpha > 0 else 0
+	assert_true(tinted >= 0)
+
+
+func test_gdd_3_5_sect_list_follows_the_world_over_time() -> void:
+	var world := SimWorld.new()
+	world.create(SEED, "small")
+	var before := world.sects()
+	world.step(12 * 60)
+	var after := world.sects()
+	assert_true(after.size() >= before.size(), "清單只增不減（覆滅者以 alive 標記）")

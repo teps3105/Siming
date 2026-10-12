@@ -117,7 +117,7 @@ func test_clicking_instruments_does_not_leak_to_the_map() -> void:
 	assert_eq(_hud._card.province, 0, "點器物不應改變地圖的選取")
 	await click(_hud._seals.position + _hud._seals._seal_rect(1).get_center())
 	assert_eq(_map.mode, TerrainMap.Mode.TIANXIA, "點「國」印切到天下")
-	await click(_hud._seals.position + _hud._seals._seal_rect(2).get_center())
+	await click(_hud._seals.position + _hud._seals._seal_rect(4).get_center())
 	assert_eq(_map.mode, TerrainMap.Mode.TIANXIA, "尚未開放的印不切換模式")
 	await click(_hud._card.position + _hud._card._close_rect().get_center())
 	assert_eq(_hud._card.province, -1, "點「閉」印收卷")
@@ -447,3 +447,54 @@ func test_map_swaps_textures_after_the_land_changes() -> void:
 	assert_eq(material.get_shader_parameter("elevation_prev_tex"), material.get_shader_parameter("elevation_tex"), "漸變結束後不再留舊貼圖")
 	assert_false(old_river.visible, "舊河流淡完就收起來")
 	assert_eq(_map.mode, TerrainMap.Mode.SHANHE)
+
+
+func _alive_sects() -> Array:
+	return _sim.world.sects().filter(func(sect: Dictionary) -> bool: return sect["alive"])
+
+
+func test_sect_gates_match_the_sects_and_sit_in_their_province() -> void:
+	var alive := _alive_sects()
+	assert_gt(alive.size(), 0, "開局應有宗門")
+	var marks: Array = _hud._overlay.sect_marks()
+	assert_eq(marks.size(), alive.size(), "山門數與還在的宗門數一致")
+	for mark: Dictionary in marks:
+		var pos: Vector2 = mark["pos"]
+		assert_eq(_sim.world.province_at(pos.x, pos.y), mark["province"], "山門落在所在州郡")
+
+
+func test_sect_gate_marks_follow_the_sects_as_time_passes() -> void:
+	_sim.advance(12 * 40)
+	await frames(2)
+	assert_eq(_hud._overlay.sect_marks().size(), _alive_sects().size(), "推進數十年後，山門仍與宗門一致")
+
+
+func test_sect_gates_show_at_mid_range_only() -> void:
+	var seat: Vector2 = _alive_sects()[0]["pos"]
+	_camera.look_at_map(seat, _map.map_size.x * 0.2, true)
+	await frames(2)
+	assert_true(_hud._overlay.sect_gates_visible(), "中景畫山門")
+	_camera.look_at_map(seat, _map.map_size.x * 0.6, true)
+	await frames(2)
+	assert_false(_hud._overlay.sect_gates_visible(), "拉遠到全圖時不畫山門")
+
+
+func test_sanjiao_mode_draws_range_rings_and_legend_then_clears() -> void:
+	assert_eq(_hud._overlay.range_ring_count(), 0, "山河模式沒有範圍圈")
+	await key(KEY_F3)
+	assert_eq(_map.mode, TerrainMap.Mode.SANJIAO, "F3 切到三教")
+	assert_eq(_hud._overlay.range_ring_count(), _alive_sects().size(), "每個還在的宗門一圈")
+	assert_gt(_map.tint_opacity(), 0.0, "州郡依主教化著色")
+	assert_gt(_hud._seals._flash, 0.0, "切換後圖例出現")
+	var legend: Array = _hud._seals.legend_keys(TerrainMap.Mode.SANJIAO)
+	assert_true("legend_sanjiao_tao" in legend and "legend_sanjiao_range" in legend, "圖例列出道的色與範圍圈")
+	await key(KEY_F1)
+	assert_eq(_hud._overlay.range_ring_count(), 0, "切回山河後圈消失")
+	assert_eq(_map.tint_opacity(), 0.0, "切回山河後不再著色")
+
+
+func test_sanjiao_seal_is_clickable_and_cycled_by_the_shoulder_buttons() -> void:
+	await click(_hud._seals.position + _hud._seals._seal_rect(2).get_center())
+	assert_eq(_map.mode, TerrainMap.Mode.SANJIAO, "點「三教」印切到三教")
+	await joy_button(JOY_BUTTON_LEFT_SHOULDER)
+	assert_eq(_map.mode, TerrainMap.Mode.TIANXIA, "LB 回到上一個已開放的模式")

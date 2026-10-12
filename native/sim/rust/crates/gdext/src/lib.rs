@@ -613,6 +613,14 @@ impl SimWorld {
         })
     }
 
+    /// 三教模式的州郡著色表（GDD 5.4 F3）：州郡 ID → 淡彩的 256×1 RGBA8；alpha 為 0 的州郡不上色。
+    #[func]
+    fn faith_colors(&self) -> PackedByteArray {
+        self.sim.as_ref().map_or_else(PackedByteArray::new, |s| {
+            bytes(&mapbake::faith_color_table(&s.world().provinces))
+        })
+    }
+
     /// 世界座標 (x, z) 所在格的州郡 ID；水域或圖外為 -1。
     #[func]
     fn province_at(&self, x: f32, z: f32) -> i32 {
@@ -870,6 +878,57 @@ impl SimWorld {
                 "pos",
                 Vector2::new((n.cell % gw) as f32 + 0.5, (n.cell / gw) as f32 + 0.5),
             );
+            out.push(&d);
+        }
+        out
+    }
+
+    /// 宗門（GDD 3.5、5.5）：每個含 `id`、`name`、`pos`（山門所在格心的世界座標）、`province`（山門所在州郡）、
+    /// `node`（山門所在洞天福地名，無則空字串）、`members`（成員數）、`prestige`（有效聲望）、`radius`（勢力範圍半徑，步）、
+    /// `range`（勢力範圍內的州郡 ID，`PackedInt32Array`）、`range_radius`（範圍圈半徑，格：範圍內州郡格數之和的等面積圓半徑）、`evil`（邪道）、`alive`（是否還在）。已覆滅者也在清單內。
+    #[func]
+    fn sects(&self) -> Array<VarDictionary> {
+        let mut out = Array::new();
+        let Some(s) = self.sim.as_ref() else {
+            return out;
+        };
+        let w = s.world();
+        let gw = w.geo.w as u32;
+        for p in &w.powers {
+            let Some(sect) = siming_sim::dao::sect_of(p) else {
+                continue;
+            };
+            let mut d = VarDictionary::new();
+            d.set("id", p.id as i32);
+            d.set("name", &GString::from(p.name.as_str()));
+            d.set(
+                "pos",
+                Vector2::new(
+                    (p.seat_cell % gw) as f32 + 0.5,
+                    (p.seat_cell / gw) as f32 + 0.5,
+                ),
+            );
+            d.set("province", p.seat_province as i32);
+            let node = sect
+                .seat_node
+                .and_then(|n| w.geo.nodes.get(n as usize))
+                .map_or("", |n| n.name.as_str());
+            d.set("node", &GString::from(node));
+            d.set("members", p.members.len() as i32);
+            d.set("prestige", siming_sim::dao::effective_prestige(p));
+            d.set("radius", sect.radius as i32);
+            let range_ids = siming_sim::dao::sect_range(w, p.id);
+            let range: Vec<i32> = range_ids.iter().map(|&q| q as i32).collect();
+            // 範圍圈半徑：範圍內各州郡格數之和的等面積圓半徑（格）。
+            let cells: usize = range_ids
+                .iter()
+                .filter_map(|&q| w.provinces.get(q as usize))
+                .map(|q| q.cells.len())
+                .sum();
+            d.set("range_radius", (cells as f32 / std::f32::consts::PI).sqrt());
+            d.set("range", &PackedInt32Array::from(range.as_slice()));
+            d.set("evil", sect.evil);
+            d.set("alive", p.fallen.is_none());
             out.push(&d);
         }
         out

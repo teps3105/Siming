@@ -6,12 +6,14 @@ extends Node3D
 ## 世界的一世結算改了地圖後發出（GDD 2.8「畫面」）：terrain 為真表示高度場也換了，否則只換了州界、靈氣與靈脈。
 signal refreshed(terrain: bool)
 
-enum Mode { SHANHE = 0, TIANXIA = 1, LINGMAI = 3 }
+enum Mode { SHANHE = 0, TIANXIA = 1, SANJIAO = 2, LINGMAI = 3 }
 
 const TERRAIN_SHADER := preload("res://modules/map/code/terrain_relief.gdshader")
 const RIVER_SHADER := preload("res://modules/map/code/river_line.gdshader")
 const COPIES := 3
 const WATER_TEXTURE_SIZE := 256
+## 天下、三教模式的州郡疊色不透明度。
+const TINT_OPACITY := 0.45
 ## GDD 5.3 過渡時間：平面 ↔ 球面 0.6 秒。
 const GLOBE_MORPH_SECONDS := 0.6
 ## 天地演變換圖後，新舊地形之間漸變的秒數（GDD 2.8「畫面」）。
@@ -53,6 +55,8 @@ var _ley_material: ShaderMaterial
 var _ley_copies: Array[MeshInstance3D] = []
 var _province_colors: ImageTexture
 var _blank_colors: ImageTexture
+## 三教模式的州郡著色表（道的教化濃度），隨教化變動更新。
+var _faith_colors: ImageTexture
 ## 高度消失點（MapView.lean）：鏡頭焦點、地面上由焦點指向鏡頭的方向與眼高；眼高為 0 時不位移。
 var _view_focus := Vector2.ZERO
 var _toward := Vector2(0.0, 1.0)
@@ -175,13 +179,36 @@ func recenter(focus_x: float) -> void:
 func set_mode(new_mode: Mode) -> void:
 	mode = new_mode
 	_terrain_material.set_shader_parameter("map_mode", int(mode))
-	_terrain_material.set_shader_parameter("tint_opacity", 0.45 if mode == Mode.TIANXIA else 0.0)
-	_terrain_material.set_shader_parameter("pcol_tex", _province_colors if mode == Mode.TIANXIA else _blank_colors)
+	_terrain_material.set_shader_parameter("tint_opacity", TINT_OPACITY if mode in [Mode.TIANXIA, Mode.SANJIAO] else 0.0)
+	match mode:
+		Mode.TIANXIA:
+			_terrain_material.set_shader_parameter("pcol_tex", _province_colors)
+		Mode.SANJIAO:
+			refresh_faith()
+		_:
+			_terrain_material.set_shader_parameter("pcol_tex", _blank_colors)
 	# GDD 5.3「河流」設色：山河、天下用 water 色；靈脈等以場為主的模式改用 ink-light。
 	var line := WATER.darkened(0.25) if mode != Mode.LINGMAI else INK_LIGHT
 	_river_material.set_shader_parameter("line_color", _lin(line))
 	for copy in _ley_copies:
 		copy.visible = mode == Mode.LINGMAI
+
+
+## 三教模式：重新讀取各州郡的主教化著色表（GDD 5.4 F3）。教化每年變動；其他模式不動作。
+func refresh_faith() -> void:
+	if mode != Mode.SANJIAO:
+		return
+	var data := _world.faith_colors()
+	if _faith_colors == null:
+		_faith_colors = _texture(256, 1, Image.FORMAT_RGBA8, data, false)
+	else:
+		_faith_colors.update(Image.create_from_data(256, 1, false, Image.FORMAT_RGBA8, data))
+	_terrain_material.set_shader_parameter("pcol_tex", _faith_colors)
+
+
+## 州郡疊色的不透明度（天下、三教模式；其他為 0）。
+func tint_opacity() -> float:
+	return _terrain_material.get_shader_parameter("tint_opacity")
 
 
 func set_hover(province: int) -> void:
@@ -226,8 +253,9 @@ func surface_height(x: float, z: float) -> float:
 
 
 ## 平面地圖上，地面位置 (x, pos.y)、地圖座標 pos 的地表點畫在哪裡（含高度消失點的位移）。
-func shown_position(x: float, pos: Vector2) -> Vector3:
-	var h := surface_height(pos.x, pos.y)
+## known_height 給定時不再查地形高度（大量取點、高度已快取時用）。
+func shown_position(x: float, pos: Vector2, known_height := NAN) -> Vector3:
+	var h := surface_height(pos.x, pos.y) if is_nan(known_height) else known_height
 	var shown := MapView.lean(Vector2(x, pos.y), h, _view_focus, _toward, _eye)
 	return Vector3(shown.x, h, shown.y)
 
@@ -238,14 +266,15 @@ func ground_position(world: Vector3) -> Vector2:
 
 
 ## 地圖座標 → 世界座標：平面取離 near_x 最近的東西副本並貼地；星球視角換算到球面。
-func world_position(pos: Vector2, near_x: float) -> Vector3:
+## known_height 給定時不再查地形高度。
+func world_position(pos: Vector2, near_x: float, known_height := NAN) -> Vector3:
 	if globe_morph > 0.5:
 		var lon := pos.x / map_size.x * TAU
 		var lat := (0.5 - pos.y / map_size.y) * PI
-		var height := _world.terrain_height_at(pos.x, pos.y)
+		var height := surface_height(pos.x, pos.y) if is_nan(known_height) else known_height
 		var lift := MapView.globe_compress(height, _top_height) * _globe_relief
 		return globe_xform * (MapView.sphere_dir(lon, lat) * (MapView.globe_radius(map_size.x) + lift))
-	return shown_position(MapView.nearest_copy_x(pos.x, near_x, map_size.x), pos)
+	return shown_position(MapView.nearest_copy_x(pos.x, near_x, map_size.x), pos, known_height)
 
 
 ## 該地圖座標是否朝向鏡頭：平面視角恆為真；星球視角只有面向鏡頭的半球為真。

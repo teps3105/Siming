@@ -97,8 +97,8 @@ func test_legend_and_card_use_one_terrain_palette() -> void:
 func test_disabled_seals_stay_readable_and_do_not_switch() -> void:
 	await _boot(FLOW_VIEW)
 	assert_gt(Ink.DISABLED_GLYPH_ALPHA, 0.6, "尚未開放的模式鈕仍看得清字")
-	assert_eq(_hud._seals._key_label(2), "", "尚未開放的模式鈕不掛鍵帽")
-	await click(_hud._seals.position + _hud._seals._seal_rect(2).get_center())
+	assert_eq(_hud._seals._key_label(4), "", "尚未開放的模式鈕不掛鍵帽")
+	await click(_hud._seals.position + _hud._seals._seal_rect(4).get_center())
 	assert_eq(_hud._seals.mode, TerrainMap.Mode.SHANHE, "尚未開放的印不切換模式")
 
 
