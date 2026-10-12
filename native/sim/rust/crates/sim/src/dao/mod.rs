@@ -44,7 +44,7 @@ pub use cultivate::cultivation_coefficient;
 pub use demon::{fall_to_demon, heart_demon_chance};
 pub use kill::kill;
 pub use sect::{
-    choose_seat, effective_prestige, found_sect, join_sect, provinces_within, resolve_leaders, sect_name, sect_range,
+    choose_seat, effective_prestige, found_sect, join_sect, provinces_within, resolve_leaders, sect_name, sect_of, sect_range,
     Seat,
 };
 

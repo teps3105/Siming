@@ -61,7 +61,9 @@ func setup(sim: SimHost, map: TerrainMap, camera: MapCamera) -> void:
 			_rumor.clear())
 	sim.advanced.connect(func(_months: int) -> void:
 		_card.refresh()
-		_overlay.refresh_seats())
+		_overlay.refresh_seats()
+		_overlay.refresh_sects()
+		_map.refresh_faith())
 	# 地圖換貼圖的那一幀已經有上傳的工作，標籤留到下一幀再重讀。
 	map.refreshed.connect(func(_terrain: bool) -> void:
 		await get_tree().process_frame
@@ -316,6 +318,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		_set_mode(TerrainMap.Mode.SHANHE)
 	elif event.is_action_pressed(InputActions.MODE_TIANXIA):
 		_set_mode(TerrainMap.Mode.TIANXIA)
+	elif event.is_action_pressed(InputActions.MODE_SANJIAO):
+		_set_mode(TerrainMap.Mode.SANJIAO)
 	elif event.is_action_pressed(InputActions.MODE_LINGMAI):
 		_set_mode(TerrainMap.Mode.LINGMAI)
 	elif event.is_action_pressed(InputActions.CANCEL):

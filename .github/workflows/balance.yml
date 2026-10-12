@@ -1,0 +1,38 @@
+# 6.6「balance」：siming-cli sim 跑 3 個種子各 1 運，統計報表存為 artifact（不判失敗，只記錄）。
+name: balance
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 18 * * 0"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  balance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native/sim/rust
+      - name: 建置 siming-cli
+        working-directory: native/sim/rust
+        run: cargo build -p siming-cli --release
+      - name: 跑 3 個種子各 1 運
+        working-directory: native/sim/rust
+        run: |
+          mkdir -p ../../../balance-reports
+          for seed in 1 2 3; do
+            ./target/release/siming-cli sim --seed "$seed" --yun 1 --report "../../../balance-reports/seed-$seed.json" | tee "../../../balance-reports/seed-$seed.txt"
+          done
+        continue-on-error: true
+      - name: 上傳統計報表
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: balance-reports
+          path: balance-reports/
+          if-no-files-found: warn

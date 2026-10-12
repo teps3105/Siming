@@ -7,6 +7,7 @@ pub mod dao;
 pub mod era;
 pub mod evolution;
 pub mod flora;
+pub mod field;
 pub mod genesis;
 pub mod hash;
 pub mod landform;

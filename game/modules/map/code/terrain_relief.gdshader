@@ -417,7 +417,7 @@ void fragment() {
 	// 6 州界：ink-light 1 px；國界 ink 2 px 加外側淡暈。墨線在 62°–78° 先行淡出。
 	bool has_b = vt.y != NO_PROVINCE;
 	vec4 pcb = pcol(vt.y);
-	bool realm_diff = has_b && (pc.rgb != pcb.rgb || pc.a != pcb.a);
+	bool realm_diff = map_mode == 1 && has_b && (pc.rgb != pcb.rgb || pc.a != pcb.a);
 	float land_f = (1.0 - wmask) * (1.0 - smoothstep(0.883, 0.978, abs(d.y)));
 	float border_f = land_f * border_opacity;
 	if (realm_diff) {

@@ -2,7 +2,7 @@ extends "res://tests/harness/suite.gd"
 ## GDD 4.8 存檔欄位、自動存檔與分享碼；GDD 9.1 設定。測試寫在使用者資料夾底下另一個目錄，不碰玩家的檔案。
 
 const SEED := 20261011
-const ROOT := "user://test_storage"
+static var ROOT: String = TEST_STORAGE.path_join("storage")
 
 var _world: SimWorld
 

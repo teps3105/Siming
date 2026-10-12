@@ -33,20 +33,8 @@ func _main() -> void:
 		await _game_pages(layout[0], layout[1], layout[2])
 		await _title_pages(layout[0], layout[1], layout[2])
 	await _suite._finish_case()
-	_wipe(Suite.TEST_STORAGE)
+	Suite.wipe_storage()
 	quit(0)
-
-
-## 刪掉截圖時寫下的存檔與設定。
-func _wipe(dir: String) -> void:
-	var path := ProjectSettings.globalize_path(dir)
-	if not DirAccess.dir_exists_absolute(path):
-		return
-	for sub in DirAccess.get_directories_at(path):
-		_wipe(dir.path_join(sub))
-	for file in DirAccess.get_files_at(path):
-		DirAccess.remove_absolute(path.path_join(file))
-	DirAccess.remove_absolute(path)
 
 
 func _shot(name: String) -> void:

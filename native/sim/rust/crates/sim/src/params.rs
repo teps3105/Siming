@@ -656,6 +656,8 @@ pub const KARMA_DIFFUSE: f32 = 0.08;
 pub const MERIT_DIFFUSE: f32 = 0.04;
 /// 7.1 `RIGHT_DIFFUSE` 正氣每季擴散比例 4%（GDD 2.4 州郡氣場）。
 pub const RIGHT_DIFFUSE: f32 = 0.04;
+/// 7.1 `KARMA_DRIFT` 業氣每季順流比例 4%，移往 `downstream` 州；下游為海時不移動（GDD 2.7 清濁雙極與順流）。
+pub const KARMA_DRIFT: f32 = 0.04;
 
 /// 7.1 `TURBID_MIX` 濁氣公式中功德的係數 0.5：turbid = 業氣 − 0.5·功德 − 0.5·正氣（GDD 2.4 濁氣）。
 pub const TURBID_MIX_MERIT: f32 = 0.5;

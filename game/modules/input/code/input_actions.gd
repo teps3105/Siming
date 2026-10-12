@@ -31,6 +31,7 @@ const MODE_NEXT := &"map_mode_next"
 const MODE_PREV := &"map_mode_prev"
 const MODE_SHANHE := &"map_mode_shanhe"
 const MODE_TIANXIA := &"map_mode_tianxia"
+const MODE_SANJIAO := &"map_mode_sanjiao"
 const MODE_LINGMAI := &"map_mode_lingmai"
 ## 星球視角與平面地圖互換：鍵盤 G、搖桿按下右搖桿。
 const VIEW_TOGGLE := &"map_view_toggle"
@@ -75,6 +76,7 @@ static func bindings() -> Dictionary:
 		MODE_PREV: ["joy:%d" % JOY_BUTTON_LEFT_SHOULDER],
 		MODE_SHANHE: [KEY_F1],
 		MODE_TIANXIA: [KEY_F2],
+		MODE_SANJIAO: [KEY_F3],
 		MODE_LINGMAI: [KEY_F4],
 		VIEW_TOGGLE: [KEY_G, "joy:%d" % JOY_BUTTON_RIGHT_STICK],
 		RUMOR_LIST: [KEY_T],

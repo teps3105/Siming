@@ -13,6 +13,10 @@ pub const FRONTIER_FRAC: f32 = 0.05;
 /// `paper` 貼圖的邊長。
 pub const PAPER_SIZE: usize = 512;
 
+/// 三教著色：道教化達到此值即上滿色；道的底色是 5.1 的 cyan（4F8F9A）調淡後的淡彩。
+const FAITH_FULL: f32 = 0.5;
+const FAITH_TAO_COLOR: [f32; 3] = [0.65, 0.82, 0.86];
+
 const PAPER_SEED: u32 = 0x5A17_0001;
 
 // ---------------------------------------------------------------- 雜訊工具
@@ -334,6 +338,29 @@ pub fn province_color_table(provinces: &[Province]) -> Vec<u8> {
             let c = pal[assignment[id]];
             t[id * 4..id * 4 + 4].copy_from_slice(&[q(c[0]), q(c[1]), q(c[2]), 255]);
         }
+    }
+    t
+}
+
+/// 三教模式的州郡著色表（GDD 5.4 F3）：州郡 ID → 淡彩的 256×1 RGBA8（sRGB）。
+/// M2 只有道的教化有來源：道是該州的主教化（不小於釋與儒）且大於 0 時，上道的青色，
+/// alpha 依道教化的濃度（以 `FAITH_FULL` 為滿）；其餘州郡 alpha 為 0，不上色。
+pub fn faith_color_table(provinces: &[Province]) -> Vec<u8> {
+    let mut t = vec![0u8; 256 * 4];
+    for p in provinces {
+        let id = p.id as usize;
+        let [tao, buddha, ru] = p.faith;
+        if id >= 255 || p.id == NO_PROVINCE || tao <= 0.0 || tao < buddha || tao < ru {
+            continue;
+        }
+        let a = (tao / FAITH_FULL).clamp(0.0, 1.0);
+        let q = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
+        t[id * 4..id * 4 + 4].copy_from_slice(&[
+            q(FAITH_TAO_COLOR[0]),
+            q(FAITH_TAO_COLOR[1]),
+            q(FAITH_TAO_COLOR[2]),
+            q(a),
+        ]);
     }
     t
 }
@@ -688,6 +715,19 @@ mod tests {
         assert_eq!(t.province_id.len(), w * h * 2);
         assert_eq!(gen_paper().len(), PAPER_SIZE * PAPER_SIZE * 4);
         assert_eq!(province_color_table(&sim.world().provinces).len(), 256 * 4);
+        let faith = faith_color_table(&sim.world().provinces);
+        assert_eq!(faith.len(), 256 * 4);
+        // 模擬目前沒有教化來源，開天後各州都是 0：不上色。
+        assert!(faith.chunks(4).all(|c| c[3] == 0));
+        // 道為主教化才上色，濃度依道教化；釋或儒較強、或全為 0 的州郡不上色。
+        let mut ps: Vec<Province> = sim.world().provinces[..3].to_vec();
+        ps[0].faith = [0.25, 0.1, 0.0];
+        ps[1].faith = [0.1, 0.3, 0.0];
+        ps[2].faith = [0.0, 0.0, 0.0];
+        let t = faith_color_table(&ps);
+        assert_eq!(t[3], 128);
+        assert_eq!(t[7], 0);
+        assert_eq!(t[11], 0);
     }
 
     #[test]

@@ -8,8 +8,9 @@ const BOOTSTRAP := "res://app/scenes/bootstrap.tscn"
 ## 流程測試用的世界：固定種子、小尺寸（開得快）。
 const TEST_SEED := 20261011
 const TEST_SIZE := "small"
-## 測試期間存檔與設定的位置（預設沒有任何檔案）；需要寫檔的套件在 setup 改到自己的資料夾。
-const TEST_STORAGE := "user://test_run"
+## 測試期間存檔與設定的位置（預設沒有任何檔案）；需要寫檔的套件在 setup 改到它底下自己的資料夾。
+## 每個測試行程一個資料夾：幾個工作樹同時跑測試時不會讀到彼此寫的檔。
+static var TEST_STORAGE := "user://test_run/%d" % OS.get_process_id()
 ## 流程測試的畫面大小。
 const FLOW_VIEW := Vector2i(1920, 1080)
 
@@ -261,6 +262,18 @@ func _same(a: Variant, b: Variant) -> bool:
 
 func _note(msg: String) -> String:
 	return "" if msg.is_empty() else "（%s）" % msg
+
+
+## 刪掉這次測試寫下的存檔與設定（執行程式結束前呼叫）。
+static func wipe_storage(dir: String = TEST_STORAGE) -> void:
+	var path := ProjectSettings.globalize_path(dir)
+	if not DirAccess.dir_exists_absolute(path):
+		return
+	for sub in DirAccess.get_directories_at(path):
+		wipe_storage(dir.path_join(sub))
+	for file in DirAccess.get_files_at(path):
+		DirAccess.remove_absolute(path.path_join(file))
+	DirAccess.remove_absolute(path)
 
 
 ## 執行程式在每個案例前後呼叫。

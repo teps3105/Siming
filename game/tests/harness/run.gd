@@ -53,6 +53,7 @@ func _main() -> void:
 	if args.has("report"):
 		var file := FileAccess.open(args.report, FileAccess.WRITE)
 		file.store_string(JSON.stringify({"results": results, "load_errors": load_errors}, "  "))
+	Suite.wipe_storage()
 	var empty := results.is_empty()
 	if empty:
 		print("✗ 沒有執行任何案例")
