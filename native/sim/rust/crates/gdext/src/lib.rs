@@ -109,6 +109,8 @@ impl Land {
 /// 背景執行緒算好的一批：水陸沒變時 `land` 為空，只有靈氣與州界。
 struct Fresh {
     land: Option<Land>,
+    /// 水陸變了才重取的水域名。
+    waters: Option<Vec<siming_sim::worldgen::NamedWater>>,
     textures: mapbake::WorldTextures,
 }
 
@@ -129,6 +131,37 @@ fn land_stamp(world: &siming_sim::World) -> u64 {
     hash
 }
 
+/// 水域名（GDD 7.3）：以生成時的水域為準沿用；沒有生成時地形的手工世界就照目前的地形取名。
+fn water_names(
+    seed: u64,
+    geo: &siming_sim::Geography,
+    origin: Option<&[siming_sim::Terrain]>,
+) -> Vec<siming_sim::worldgen::NamedWater> {
+    match origin {
+        Some(origin) => siming_sim::worldgen::name_waters_since(seed, geo, origin),
+        None => siming_sim::worldgen::name_waters(seed, geo),
+    }
+}
+
+/// 大洲名標在哪一格：重心還是陸地就用重心；被海淹了就改標在這個大洲離重心最近的陸格。
+fn continent_label_cell(geo: &siming_sim::Geography, index: usize) -> u32 {
+    let centroid = geo.continents[index].centroid as usize;
+    if !geo.terrain[centroid].is_water() {
+        return centroid as u32;
+    }
+    let w = geo.w as usize;
+    let apart = |c: usize| {
+        let dx = (c % w).abs_diff(centroid % w);
+        let dy = (c / w).abs_diff(centroid / w);
+        let dx = dx.min(w - dx);
+        dx * dx + dy * dy
+    };
+    (0..geo.terrain.len())
+        .filter(|&c| geo.continent_of[c] as usize == index && !geo.terrain[c].is_water())
+        .min_by_key(|&c| (apart(c), c))
+        .unwrap_or(centroid) as u32
+}
+
 impl SimWorld {
     /// 接手一個開好的世界：算出呈現端要用的高度場、貼圖與地名。
     fn adopt(&mut self, sim: Sim) {
@@ -138,7 +171,8 @@ impl SimWorld {
         self.rebake = None;
         self.terrain_revision += 1;
         self.map_revision += 1;
-        self.waters = siming_sim::worldgen::name_waters(sim.world().params.seed, &sim.world().geo);
+        let origin = sim.world().land_basis.as_ref().map(|basis| basis.cell_terrain());
+        self.waters = water_names(sim.world().params.seed, &sim.world().geo, origin);
         self.seat_stems =
             siming_sim::worldgen::seat_stems(sim.world().params.seed, &sim.world().provinces, &sim.world().geo);
         self.sim = Some(sim);
@@ -155,10 +189,13 @@ impl SimWorld {
         let with_land = stamp != self.baked;
         let geo = sim.world().geo.clone();
         let fine = with_land.then(|| sim.world().fine.clone());
+        let seed = sim.world().params.seed;
+        let origin = sim.world().land_basis.as_ref().map(|basis| basis.cell_terrain().to_vec());
         let (send, done) = mpsc::channel();
         std::thread::spawn(move || {
+            let waters = fine.is_some().then(|| water_names(seed, &geo, origin.as_deref()));
             let land = fine.map(|fine| Land::build(&geo, &fine));
-            let _ = send.send(Fresh { land, textures: mapbake::build_world_textures(&geo) });
+            let _ = send.send(Fresh { land, waters, textures: mapbake::build_world_textures(&geo) });
         });
         self.rebake = Some(Rebake { stamp, with_land, done });
     }
@@ -167,6 +204,9 @@ impl SimWorld {
         let Some(job) = self.rebake.take() else {
             return;
         };
+        if let Some(waters) = fresh.waters {
+            self.waters = waters;
+        }
         if let Some(land) = fresh.land {
             self.land = Some(land);
             self.baked = job.stamp;
@@ -648,11 +688,11 @@ impl SimWorld {
                 out.push(&d);
             };
         let none = PackedVector2Array::new;
-        for c in &w.geo.continents {
+        for (i, c) in w.geo.continents.iter().enumerate() {
             push(
                 "continent",
                 &c.name,
-                centre(c.centroid),
+                centre(continent_label_cell(&w.geo, i)),
                 100.0 + c.area,
                 none(),
             );

@@ -176,6 +176,13 @@ impl LandBasis {
     }
 }
 
+impl LandBasis {
+    /// 生成時遊戲格的地形（水域名以它為準沿用，GDD 7.3）。
+    pub fn cell_terrain(&self) -> &[Terrain] {
+        &self.cell_terrain
+    }
+}
+
 /// 建立地形的基準（[`LandBasis`]）。必須在世界還是生成時的樣子時呼叫：開天時建好；
 /// 自帶細格、以 `from_parts` 建立的世界在第一次每世結算時建立。回傳這個世界有沒有細格資料。
 pub fn prepare(w: &mut World) -> bool {

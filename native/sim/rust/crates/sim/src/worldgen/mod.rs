@@ -17,7 +17,7 @@ pub(crate) mod ley;
 mod naming;
 pub use naming::{seat_stems, world_name};
 mod waters;
-pub use waters::{name_waters, NamedWater, WaterKind};
+pub use waters::{name_waters, name_waters_since, NamedWater, WaterKind};
 mod noise;
 pub(crate) mod provinces;
 pub(crate) mod quality;

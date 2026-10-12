@@ -327,6 +327,17 @@ func test_gdd_2_8_rebaked_terrain_equals_the_one_built_on_load() -> void:
 	for key: String in ["elevation", "lake", "climate", "cover", "province_id"]:
 		assert_true(here[key] == there[key], "%s 應與讀檔後重建的相同" % key)
 	assert_true(world.river_mesh()["positions"] == loaded.river_mesh()["positions"], "河流網格應與讀檔後重建的相同")
+	# 水域名以生成時的水域為準沿用（GDD 7.3），一路玩下來與讀檔重播得到同樣的名字與位置。
+	var names_here := _label_lines(world)
+	assert_gt(names_here.size(), 0)
+	assert_eq(names_here, _label_lines(loaded), "地圖標籤應與讀檔後的相同")
+
+
+func _label_lines(world: SimWorld) -> Array[String]:
+	var lines: Array[String] = []
+	for label: Dictionary in world.map_labels():
+		lines.append("%s %s %s" % [label["kind"], label["text"], label["pos"]])
+	return lines
 
 
 func test_gdd_2_8_every_settlement_gives_the_map_a_new_batch() -> void:
