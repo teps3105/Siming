@@ -27,6 +27,7 @@ var _view: ViewToggle
 var _cursor: GameCursor
 var _guide: GuideSlip
 var _notice: NoticeSlip
+var _rumor: RumorSlip
 var _menu: MenuDeck
 ## 是否顯示引導簽（測試會關掉）；在 setup 之前設定。
 var guide_enabled := true
@@ -51,10 +52,13 @@ func setup(sim: SimHost, map: TerrainMap, camera: MapCamera) -> void:
 	sim.time_state_changed.connect(func() -> void:
 		if not _menu_switching:
 			_guide.notify(&"time"))
-	sim.world_changed.connect(func(change: String, era: String) -> void: _notice.post(_world_notice(change, era)))
+	sim.world_changed.connect(func(change: String, era: String) -> void: _notice.post(EventText.world_line(change, era)))
+	sim.event_posted.connect(func(event: Dictionary) -> void: _rumor.post(event))
 	sim.world_created.connect(func() -> void:
 		if _notice != null:
-			_notice.clear())
+			_notice.clear()
+		if _rumor != null:
+			_rumor.clear())
 	sim.advanced.connect(func(_months: int) -> void:
 		_card.refresh()
 		_overlay.refresh_seats()
@@ -71,13 +75,12 @@ func setup(sim: SimHost, map: TerrainMap, camera: MapCamera) -> void:
 	_layout()
 
 
-## 依畫面高度決定器物大小；大小改變時重建器物。
 ## GDD 7.2 世界大事的那句話；開啟紀元的加上改元。
 static func _world_notice(change: String, era: String) -> String:
-	var event := Locale.t("world_" + change)
-	return event if era.is_empty() else Locale.t("world_new_era").format({"event": event, "era": era})
+	return EventText.world_line(change, era)
 
 
+## 依畫面高度決定器物大小；大小改變時重建器物。
 func _layout() -> void:
 	var bounds := get_viewport().get_visible_rect().size
 	var unit := Ink.layout_unit(bounds, GameSettings.ui_scale())
@@ -89,11 +92,16 @@ func _layout() -> void:
 	_seals.position = bounds - _seals.size - Vector2(MARGIN, MARGIN)
 	_place_guide()
 	_card.position = Vector2(bounds.x - _card.size.x - MARGIN, MARGIN)
+	_place_rumor()
 	_notice.top_center = Vector2(bounds.x * 0.5, MARGIN)
 
 
 func _build() -> void:
 	var selected := _card.province if _card != null else -1
+	var rumors: Array[Dictionary] = []
+	if _rumor != null:
+		rumors = _rumor.snapshot()
+	var rumors_open := _rumor != null and _rumor.expanded
 	var notices: Array[String] = []
 	if _notice != null:
 		notices = _notice.pending()
@@ -136,6 +144,15 @@ func _build() -> void:
 	_guide.resized.connect(_place_guide)
 	_guide.setup(_camera, _map.map_size.x, _unit, guide_enabled)
 
+	_rumor = RumorSlip.new()
+	add_child(_rumor)
+	_rumor.setup(_unit)
+	_rumor.compact = get_viewport().get_visible_rect().size.y <= Ink.DECK_HEIGHT
+	_rumor.restore(rumors)
+	_rumor.expanded = rumors_open
+	_rumor.fly_requested.connect(func(map_pos: Vector2) -> void: _camera.look_at_map(map_pos))
+	_place_rumor()
+
 	_notice = NoticeSlip.new()
 	add_child(_notice)
 	_notice.setup(_unit)
@@ -161,6 +178,26 @@ func _place_guide() -> void:
 	var seals_top := _seals.position.y + _seals._badge_position(0).y
 	var x := minf((bounds.x - _guide.size.x) * 0.5, _seals.position.x - GUIDE_GAP - _guide.size.x)
 	_guide.position = Vector2(maxf(x, MARGIN), seals_top - GUIDE_GAP - _guide.size.y).round()
+
+
+## 傳聞簽在右上角；命簿開著時讓到它左邊，左邊被天時儀與視角鈕佔住時改放在它們下方（GDD 5.7）。
+func _place_rumor() -> void:
+	if _rumor == null or _seals == null or _view == null:
+		return
+	var bounds := get_viewport().get_visible_rect().size
+	var right := _card.position.x - MARGIN if _card.visible else bounds.x - MARGIN
+	var width := _rumor.size.x - RumorSlip.SHADOW * 2.0
+	var dial_right := _dial.position.x + maxf(_dial._title_rect().end.x, _dial._speed_rect().end.x) + Ink.SLIP_BAND
+	var y := MARGIN
+	if right - width < dial_right + MARGIN:
+		y = _view.position.y + _view.size.y + MARGIN
+	_rumor.max_height = maxf(_seals.position.y - y - MARGIN, 0.0)
+	_rumor.right_edge = right
+	_rumor.top_edge = y
+
+
+func rumor() -> RumorSlip:
+	return _rumor
 
 
 func guide() -> GuideSlip:
@@ -219,6 +256,7 @@ func _process(_delta: float) -> void:
 		_camera.use_crosshair = _menu.panel().gamepad
 	if _camera.use_crosshair != _dial.gamepad:
 		_apply_device()
+	_place_rumor()
 	_overlay.reserved = _occupied()
 
 
@@ -235,6 +273,7 @@ func _occupied() -> Array[Rect2]:
 	if _guide.visible:
 		out.append(Rect2(_guide.position, _guide.size).grow(6.0))
 	out.append(Rect2(_view.position, _view.size).grow(6.0))
+	out.append(_rumor.occupied_rect().grow(6.0))
 	return out
 
 
@@ -244,6 +283,7 @@ func _apply_device() -> void:
 	_card.gamepad = _camera.use_crosshair
 	_view.gamepad = _camera.use_crosshair
 	_guide.gamepad = _camera.use_crosshair
+	_rumor.gamepad = _camera.use_crosshair
 
 
 func _set_mode(mode: TerrainMap.Mode) -> void:
@@ -256,7 +296,12 @@ func _set_mode(mode: TerrainMap.Mode) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if _sim == null or _menu != null:
 		return
-	if event.is_action_pressed(InputActions.MENU) or (event is InputEventKey and event.is_action_pressed(InputActions.CANCEL) and not _card.visible):
+	if event.is_action_pressed(InputActions.RUMOR_LIST):
+		_rumor.expanded = not _rumor.expanded
+	elif _rumor.expanded and event.is_action_pressed(InputActions.CANCEL):
+		_rumor.expanded = false
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed(InputActions.MENU) or (event is InputEventKey and event.is_action_pressed(InputActions.CANCEL) and not _card.visible):
 		# Esc：有卡片開著先關卡片，否則開選單；Start 一律開選單。搖桿的 B 只取消與關卡片（GDD 5.9）。
 		open_menu()
 		get_viewport().set_input_as_handled()

@@ -964,7 +964,13 @@ impl SimWorld {
         }
     }
 
-    /// 取走上次呼叫以來的新事件：每筆有 `id`、`tick`、`kind`（事件代號）、`importance`、`province`（無則 -1）。
+    /// 取走上次呼叫以來的新事件。每筆都有：
+    /// - `id`、`tick`、`kind`（事件代號）、`importance`、`province`（無則 -1）、`cell`（無則 -1）；
+    /// - `pos`：事件地點的地圖座標（格中心，沒有格時取州郡治所；無地點則沒有這個鍵）；
+    /// - `souls`：牽涉的魂（`PackedInt32Array`）；
+    /// - `year`：事件當時的紀元內年份（與題簽同一套，從 1 起算）；
+    /// - 7.2 模板要填的字：`a`、`b`（人名）、`f`、`g`（勢力名）、`p`（州郡名）、`q`（第二個州郡名）、
+    ///   `x`（依事件而定的代號字串）、`n`、`m`（依事件而定的整數），沒有的給空字串或 0。
     /// 世界大事（`WorldChanged`）另有 `change`（大事代號）與 `era`（這件大事開啟的紀元名，沒改元為空字串）。
     #[func]
     fn drain_events(&mut self) -> Array<VarDictionary> {
@@ -977,16 +983,117 @@ impl SimWorld {
             let Some(e) = siming_sim::ledger::get(sim.world(), id) else {
                 continue;
             };
+            let w = sim.world();
+            let gw = w.geo.w as u32;
+            let cell_pos = |c: u32| Vector2::new((c % gw) as f32 + 0.5, (c / gw) as f32 + 0.5);
             let mut d = VarDictionary::new();
             d.set("id", e.id as i64);
             d.set("tick", e.tick as i64);
             d.set("kind", &GString::from(format!("{:?}", e.kind).as_str()));
             d.set("importance", e.importance as i32);
             d.set("province", e.province.map_or(-1, |p| p as i32));
+            d.set("cell", e.cell.map_or(-1, |c| c as i32));
+            let province = e.province.and_then(|p| w.provinces.get(p as usize));
+            if let Some(c) = e.cell {
+                d.set("pos", cell_pos(c));
+            } else if let Some(p) = province {
+                d.set("pos", cell_pos(p.seat));
+            }
+            let souls: Vec<i32> = e.souls.iter().map(|&s| s as i32).collect();
+            d.set("souls", &PackedInt32Array::from(souls.as_slice()));
+            let person = |i: usize| e.persons.get(i).and_then(|&id| w.persons.get(id as usize));
+            let power = |i: usize| e.powers.get(i).and_then(|&id| w.powers.get(id as usize));
+            let province_name = |id: siming_sim::ProvinceId| w.provinces.get(id as usize).map_or("", |p| p.name.as_str());
+            // 判入六道只記了魂，人名取魂最近一世的肉身。
+            let soul_body = e
+                .souls
+                .first()
+                .and_then(|&s| w.souls.get(s as usize))
+                .and_then(|s| s.lives.last())
+                .and_then(|&pid| w.persons.get(pid as usize));
+            let a = person(0).or(soul_body).map_or("", |p| p.name.as_str());
+            let b = person(1).map_or("", |p| p.name.as_str());
+            // 分裂事件的勢力依序是新宗門、原宗門；模板的 {F} 是原宗門、{G} 是新宗門。
+            let (first, second_power) = if e.kind == siming_sim::EventKind::SectSplit { (1, 0) } else { (0, 1) };
+            let mut f = power(first).map_or("", |p| p.name.as_str());
+            let g = power(second_power).map_or("", |p| p.name.as_str());
+            let mut m = 0i64;
+            let mut second = "";
+            let mut x = String::new();
+            let mut n = 0i64;
+            match &e.args {
+                siming_sim::EventArgs::Death { cause, age } => {
+                    x = format!("{cause:?}");
+                    n = *age as i64;
+                }
+                siming_sim::EventArgs::Realm { realm } => n = *realm as i64,
+                siming_sim::EventArgs::Tribulation { realm, outcome } => {
+                    n = *realm as i64;
+                    x = format!("{outcome:?}");
+                }
+                siming_sim::EventArgs::Thread { kind, lives, .. } => {
+                    x = format!("{kind:?}");
+                    n = *lives as i64;
+                }
+                siming_sim::EventArgs::Judged { path } => x = format!("{path:?}"),
+                siming_sim::EventArgs::Travel { to, .. } => {
+                    // 遊歷歸來：目的地是本人的故里。
+                    let home = person(0).is_some_and(|p| p.home == *to);
+                    x = if home { "Back" } else { "Out" }.to_string();
+                    second = province_name(*to);
+                }
+                siming_sim::EventArgs::Role { role } => {
+                    x = format!("{role:?}");
+                    // 入宗門的有勢力名，自行修道、出家、治學的沒有。
+                    if e.kind == siming_sim::EventKind::ComeOfAge && f.is_empty() {
+                        f = person(0)
+                            .and_then(|p| p.power)
+                            .and_then(|id| w.powers.get(id as usize))
+                            .map_or("", |pw| pw.name.as_str());
+                    }
+                }
+                siming_sim::EventArgs::Book { entry } => x = format!("{entry:?}"),
+                siming_sim::EventArgs::Sect { node } => {
+                    if e.kind == siming_sim::EventKind::SectWar {
+                        x = node.and_then(|id| w.geo.nodes.get(id as usize)).map_or(String::new(), |nd| nd.name.clone());
+                    }
+                }
+                siming_sim::EventArgs::Famine { deaths } => n = *deaths as i64,
+                siming_sim::EventArgs::World { .. } | siming_sim::EventArgs::None => {}
+                siming_sim::EventArgs::Node { node, from, to } => {
+                    x = w.geo.nodes.get(*node as usize).map_or(String::new(), |nd| nd.name.clone());
+                    n = *to as i64;
+                    m = *from as i64;
+                }
+                siming_sim::EventArgs::Seat { .. } => {
+                    // 新治所的全名：兩字名加上城池等級的字。
+                    if let (Some(stem), Some(p)) = (e.province.and_then(|p| self.seat_stems.get(p as usize)), province) {
+                        x = seat_name(stem, p.city_level);
+                    }
+                }
+                siming_sim::EventArgs::Lost { refuge, perished } => {
+                    second = refuge.map_or("", province_name);
+                    n = *perished as i64;
+                }
+                siming_sim::EventArgs::Link { other, joined } => {
+                    second = province_name(*other);
+                    x = if *joined { "Joined" } else { "Parted" }.to_string();
+                }
+            }
+            d.set("a", &GString::from(a));
+            d.set("b", &GString::from(b));
+            d.set("f", &GString::from(f));
+            d.set("g", &GString::from(g));
+            d.set("p", &GString::from(province.map_or("", |p| p.name.as_str())));
+            d.set("q", &GString::from(second));
+            d.set("x", &GString::from(x.as_str()));
+            d.set("n", n);
+            d.set("m", m);
+            d.set("year", siming_sim::calendar::era_year(e.tick, w.evolution.history_years, &w.eras).1 as i32);
             if let siming_sim::EventArgs::World { change, new_era } = &e.args {
                 // 紀元的元年是開啟它的那次結算的下一年。
-                let year = sim.world().evolution.history_years + siming_sim::evolution::year_of(e.tick);
-                let era = sim.world().eras.iter().find(|era| era.start_year == year + 1);
+                let year = w.evolution.history_years + siming_sim::evolution::year_of(e.tick);
+                let era = w.eras.iter().find(|era| era.start_year == year + 1);
                 let name = if *new_era { era.map_or("", |era| era.name.as_str()) } else { "" };
                 d.set("change", &GString::from(format!("{change:?}").as_str()));
                 d.set("era", &GString::from(name));
