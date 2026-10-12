@@ -166,7 +166,7 @@ static func _read_json(path: String) -> Dictionary:
 	return json.data
 
 
-## 欄位資訊（不含存檔文字本身），另加 path。檔案不在或讀不懂時是空字典。
+## 欄位資訊（不含存檔文字本身；options 是開局選項），另加 path。檔案不在或讀不懂時是空字典。
 static func _read_entry(path: String) -> Dictionary:
 	var data := _read_json(path)
 	if data.is_empty() or int(data.get("format", 0)) != FORMAT or not data.has("save"):
@@ -180,4 +180,13 @@ static func _read_entry(path: String) -> Dictionary:
 		"tick": int(data.get("tick", 0)),
 		"saved_at": float(data.get("saved_at", 0.0)),
 		"order": float(data.get("order", 0.0)),
+		"options": _options_of(data),
 	}
+
+
+## 存檔裡的開局選項；JSON 讀回的種子是浮點數，轉回整數。
+static func _options_of(data: Dictionary) -> Dictionary:
+	var options: Dictionary = data.get("options", {})
+	if options.has("seed"):
+		options["seed"] = int(options["seed"])
+	return options

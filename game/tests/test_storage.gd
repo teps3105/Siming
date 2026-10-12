@@ -60,6 +60,11 @@ func test_gdd_4_8_manual_save_records_the_world_and_loads_back() -> void:
 	assert_eq(entry["date"], world.date_short())
 	assert_eq(entry["tick"], world.tick())
 	assert_eq(entry["kind"], "manual")
+	# 摘要帶開局選項，標題畫面據此重建同一個世界。
+	var options := world.world_options()
+	assert_eq(entry["options"].size(), options.size())
+	for key: String in options:
+		assert_eq(str(entry["options"][key]), str(options[key]), key)
 	assert_eq(SaveStore.read_text(entry["path"]), world.save_text())
 	assert_eq(SaveStore.latest()["path"], entry["path"])
 

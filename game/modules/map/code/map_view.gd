@@ -1,13 +1,18 @@
 class_name MapView
 extends RefCounted
 ## GDD 5.2、5.3 鏡頭高度決定的畫面參數與星球幾何。純函式，地圖、鏡頭與選取共用。
+## 鏡頭是正交投影、俯角固定：縮放只改比例尺，地面上的平行線到哪裡都平行，地形高度也不隨縮放改變。
+## 高度另有一個消失點：山頂的落點與「從鏡頭軸上眼高處看」的透視相同，所以山朝畫面下方外的同一點放射，
+## 而不是全部朝畫面正上方；眼高與鏡頭高度成正比，消失點因此在任何縮放下都落在畫面的同一個位置。
 
-const FOV_DEG := 30.0
+const PITCH_DEG := 60.0
+## 畫面縱向可見的範圍（正交鏡頭的 size）對鏡頭高度的比例。
+const VIEW_PER_Z := 0.6
+## 眼高對鏡頭高度的比例；另不低於全圖最高峰的 EYE_MIN_TOPS 倍，拉到最近時山才不會倒向鏡頭。
+const EYE_PER_Z := 0.84
+const EYE_MIN_TOPS := 5.0
 const Z_MIN_FRAC := 0.04
-const Z_MAX_FRAC := 1.1
-const PITCH_MIN_DEG := 68.0
-const PITCH_MAX_DEG := 88.0
-const FLATTEN_START_FRAC := 0.6
+const Z_MAX_FRAC := 0.75
 ## 星球視角下，江在這個鏡頭高度（地圖寬的比例）以上淡出。
 const RIVER_GLOBE_Z_FRAC := 0.5
 const FOCUS_MAX_LAT_DEG := 75.0
@@ -29,21 +34,42 @@ static func z_range(map_w: float) -> Vector2:
 	return Vector2(map_w * Z_MIN_FRAC, map_w * Z_MAX_FRAC)
 
 
-## 俯角（弧度）：z_min 時 68°，z_max 時 88°。
-static func pitch(z: float, map_w: float) -> float:
-	var r := z_range(map_w)
-	var t := clampf((z - r.x) / (r.y - r.x), 0.0, 1.0)
-	return deg_to_rad(lerpf(PITCH_MIN_DEG, PITCH_MAX_DEG, t))
+## 俯角（弧度）。
+static func pitch() -> float:
+	return deg_to_rad(PITCH_DEG)
 
 
-## 古地圖化權重：z > 地圖寬 × 0.6 起由 0 漸變到 1。
-static func flatten_weight(z: float, map_w: float) -> float:
-	return smoothstep(map_w * FLATTEN_START_FRAC, map_w * Z_MAX_FRAC, z)
+## 畫面縱向可見的範圍（世界單位）。
+static func view_height(z: float) -> float:
+	return z * VIEW_PER_Z
 
 
-## 地形高度縮放：由 1 漸變到 0.05。
-static func height_scale(z: float, map_w: float) -> float:
-	return lerpf(1.0, 0.05, flatten_weight(z, map_w))
+## 高度消失點的眼高；top 為全圖最高的地表高度。
+static func eye_height(z: float, top: float) -> float:
+	return maxf(z * EYE_PER_Z, top * EYE_MIN_TOPS)
+
+
+## 眼點的世界座標：在鏡頭軸上、離地 eye 高。toward 是地面上由焦點指向鏡頭的單位向量。
+static func eye_position(focus: Vector2, toward: Vector2, eye: float) -> Vector3:
+	var nadir := focus + toward * (eye / tan(pitch()))
+	return Vector3(nadir.x, eye, nadir.y)
+
+
+## 地面位置 ground、高度 h 的點畫在哪裡（世界座標的 x、z；高度照舊）：
+## 位移是 h／(eye−h) 乘上（到焦點的向量 − 鏡頭方向上的 h／tan 俯角），焦點上的點不動。
+static func lean(ground: Vector2, h: float, focus: Vector2, toward: Vector2, eye: float) -> Vector2:
+	if eye <= h:
+		return ground
+	var k := h / (eye - h)
+	return ground + k * (ground - focus - toward * (h / tan(pitch())))
+
+
+## lean 的反算：畫在 shown、高度 h 的點，地面位置在哪裡。
+static func unlean(shown: Vector2, h: float, focus: Vector2, toward: Vector2, eye: float) -> Vector2:
+	if eye <= h:
+		return shown
+	var k := h / (eye - h)
+	return (shown + k * (focus + toward * (h / tan(pitch())))) / (1.0 + k)
 
 
 ## 星球視角的地形高度倍率：比例尺越小（拉遠）誇張越多，湊近（z ≤ 地圖寬 × 0.08）時最少。
@@ -81,13 +107,10 @@ static func focus_row_limits(map_size: Vector2, z: float, globe := false) -> Vec
 	var hi := map_size.y * (1.0 - t)
 	if globe:
 		return Vector2(lo, hi)
-	var p := pitch(z, map_size.x)
-	var half := deg_to_rad(FOV_DEG) * 0.5
-	var north := z * (1.0 / tan(p - half) - 1.0 / tan(p))
-	var south := z * (1.0 / tan(p) - 1.0 / tan(p + half))
+	var reach := view_height(z) * 0.5 / sin(pitch())
 	var allow := map_size.x * FRONTIER_FRAC
-	var lo2 := maxf(lo, north - allow)
-	var hi2 := minf(hi, map_size.y - (south - allow))
+	var lo2 := maxf(lo, reach - allow)
+	var hi2 := minf(hi, map_size.y - (reach - allow))
 	if lo2 > hi2:
 		return Vector2(map_size.y * 0.5, map_size.y * 0.5)
 	return Vector2(lo2, hi2)
@@ -102,10 +125,10 @@ static func globe_radius(map_w: float) -> float:
 	return map_w / TAU
 
 
-## 鏡頭到焦點的距離：平面視角是到地面的距離；星球視角焦點在球心，再加一個半徑，
-## 因此同一個鏡頭高度在兩種視角下看到的地面大小相同。morph 為 0 平面 .. 1 球面。
+## 鏡頭到焦點的距離（正交鏡頭下只影響裁切，不影響畫面大小）：星球視角焦點在球心，再加一個半徑，鏡頭才在球面外。
+## morph 為 0 平面 .. 1 球面。
 static func camera_distance(z: float, map_w: float, morph: float) -> float:
-	return z / sin(pitch(z, map_w)) + globe_radius(map_w) * morph
+	return z / sin(pitch()) + globe_radius(map_w) * morph
 
 
 ## 單位球面上（經度、緯度）的方向，+y 為北。

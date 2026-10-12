@@ -197,7 +197,7 @@ func _path_on_screen(path: PackedVector2Array) -> PackedVector2Array:
 	var shift := MapView.nearest_copy_x(path[0].x, _camera.focus.x, _map.map_size.x) - path[0].x
 	var on_globe := _map.globe_morph > 0.5
 	for p in path:
-		var world_pos := _world_position(p) if on_globe else Vector3(p.x + shift, _map.surface_height(p.x, p.y), p.y)
+		var world_pos := _world_position(p) if on_globe else _map.shown_position(p.x + shift, p)
 		if _camera.is_position_behind(world_pos) or not _map.faces_camera(p, _camera.global_position):
 			return PackedVector2Array()
 		points.append(_camera.unproject_position(world_pos))
@@ -262,10 +262,10 @@ func _is_water_at(screen: Vector2, plane_y: float) -> bool:
 	var dir := _camera.project_ray_normal(screen)
 	if absf(dir.y) < 1e-5:
 		return false
-	var hit := origin + dir * ((plane_y - origin.y) / dir.y)
-	if hit.z < 0.0 or hit.z >= _map.map_size.y:
+	var hit := _map.ground_position(origin + dir * ((plane_y - origin.y) / dir.y))
+	if hit.y < 0.0 or hit.y >= _map.map_size.y:
 		return false
-	return _map.province_at(Vector2(fposmod(hit.x, _map.map_size.x), hit.z)) < 0
+	return _map.province_at(Vector2(fposmod(hit.x, _map.map_size.x), hit.y)) < 0
 
 
 ## 治所（GDD 5.3）：一個墨點，右邊寫治所名；名字與已放的標籤重疊時只畫點。

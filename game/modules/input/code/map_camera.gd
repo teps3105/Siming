@@ -1,6 +1,6 @@
 class_name MapCamera
 extends Camera3D
-## GDD 5.2 鏡頭：透視 30°，以焦點、離地高度 z 與方位角描述；俯角隨高度內插。
+## GDD 5.2 鏡頭：正交投影、俯角固定，以焦點、鏡頭高度 z（決定比例尺）與方位角描述。
 ## 讀 InputMap 動作、滑鼠（拖曳平移、滾輪縮放、右鍵旋轉）、觸控與搖桿（GDD 5.9），並每幀把鏡頭狀態交給地圖。
 ## 星球視角與平面地圖由 globe 切換（按鈕或快捷鍵），兩者的縮放範圍相同。
 ## 搖桿當滑鼠用：右搖桿移動游標，LT 是左鍵，RT 是右鍵；這裡把它們轉成滑鼠事件送回輸入分派，
@@ -27,7 +27,7 @@ const CLICK_SLOP := 6.0
 ## 開場運鏡的秒數（GDD 5.2）。
 const OPENING_SECONDS := 3.5
 ## 開場運鏡降到這個高度（地圖寬的比例）以下，星球攤平成平面地圖。
-const LANDING_Z_FRAC := 0.9
+const LANDING_Z_FRAC := 0.6
 ## 手指按住不動超過這個秒數算長按：提示照常出現，放開不選取（GDD 5.9）。
 const LONG_PRESS_SECONDS := 0.5
 ## 搖桿游標推滿時每秒移動的距離（以 1080 高的畫面計，其他解析度等比）；實際速度再乘輸入量。
@@ -93,7 +93,8 @@ var _flight_lands := false
 ## 綁定地圖並把鏡頭放到指定焦點與高度。
 func attach(map: TerrainMap, start_focus: Vector2, start_z: float) -> void:
 	_map = map
-	fov = MapView.FOV_DEG
+	projection = PROJECTION_ORTHOGONAL
+	keep_aspect = KEEP_HEIGHT
 	focus = start_focus
 	_target_focus = start_focus
 	z = start_z
@@ -350,7 +351,7 @@ func _on_mouse_motion(event: InputEventMouseMotion) -> void:
 		_drag_moved = true
 		var per_pixel := _ground_width() / get_viewport().get_visible_rect().size.x
 		# 星球正對鏡頭，上下拖不必依俯角換算。
-		var foreshorten := 1.0 if globe else sin(MapView.pitch(z, _map.map_size.x))
+		var foreshorten := 1.0 if globe else sin(MapView.pitch())
 		_pan(-Vector2(event.relative.x, event.relative.y / foreshorten).rotated(-yaw) * per_pixel)
 	if _rotating:
 		_target_yaw = clampf(_target_yaw - event.relative.x * 0.005, -deg_to_rad(YAW_LIMIT_DEG), deg_to_rad(YAW_LIMIT_DEG))
@@ -419,7 +420,8 @@ func _apply(delta: float) -> void:
 	z = lerpf(z, _target_z, blend)
 	yaw = lerp_angle(yaw, _target_yaw, blend)
 
-	var tilt := MapView.pitch(z, map_size.x)
+	size = MapView.view_height(z)
+	var tilt := MapView.pitch()
 	var back := Vector3(0.0, 0.0, 1.0).rotated(Vector3.UP, yaw) * (z / tan(tilt))
 	var target := Vector3(focus.x, 0.0, focus.y)
 	# 星球視角焦點在球心：鏡頭沿原方向退一個半徑，拉近時停在球面外，像轉地球儀一樣看。
@@ -459,8 +461,7 @@ func _zoom_about(screen: Vector2, factor: float) -> void:
 ## 畫面中心橫向可見的地面寬度。
 func _ground_width() -> float:
 	var view := get_viewport().get_visible_rect().size
-	var distance := z / sin(MapView.pitch(z, _map.map_size.x))
-	return 2.0 * distance * tan(deg_to_rad(fov) * 0.5) * view.x / view.y
+	return MapView.view_height(z) * view.x / view.y
 
 
 func _pointer() -> Vector2:

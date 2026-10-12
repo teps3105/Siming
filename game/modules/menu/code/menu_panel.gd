@@ -1,6 +1,7 @@
 class_name MenuPanel
 extends Control
-## GDD 5.7 選單紙面：一張裱框的紙，左緣直書題名，右邊一列列的簽；鍵盤、搖桿與滑鼠都能操作，底下一行實體鍵提示。
+## GDD 5.7 選單：一列列的字，沒有題名也沒有框——停留的列底下掃一筆淡墨、左邊一方小朱印，其餘的列底下一道細墨線；
+## 鍵盤、搖桿與滑鼠都能操作，底下一行實體鍵提示。paper 為真時底下襯一張裱框的紙（遊戲中選單），否則直接寫在畫面上（標題畫面）。
 ## 列的種類：action（按了就做）、choice（左右換選項）、slider（左右調數值）、text（可打字）、
 ## bar（進度墨條）、head（節名）、line（一行字，可停留以便捲動）。列以本類別的靜態函式建立。
 
@@ -10,14 +11,16 @@ signal alt_chosen(id: StringName)
 signal changed(id: StringName, value: Variant)
 signal cancelled
 
-const WIDTH := 480.0
-const SPINE := 46.0
+const WIDTH := 440.0
 const ROW_HEIGHT := 38.0
 const LINE_HEIGHT := 26.0
 const ROW_GAP := 6.0
 const PAD := 16.0
 const FOOT := 30.0
 const ICON_RADIUS := 8.0
+## 停留的列左邊那方朱印的邊長，與列內文字的左邊距。
+const SEAL := 9.0
+const INSET := 24.0
 ## 選項、數值與文字欄佔列寬的右半段。
 const VALUE_WIDTH := 200.0
 const ARROW := 6.0
@@ -33,13 +36,17 @@ var gamepad := false:
 var back_label := ""
 ## 第二個動作旁的字；空字串表示這一頁沒有第二個動作。
 var alt_label := ""
+## 底下要不要襯一張紙。
+var paper := true:
+	set(value):
+		paper = value
+		queue_redraw()
 ## 紙面最高能到多高（超過就捲動）；0 表示不限。
 var max_height := 0.0
 ## 為假時不收鍵盤與搖桿（被別的紙面蓋住時）。
 var accepts_input := true
 
 var _unit := 1.0
-var _title := ""
 var _rows: Array[Dictionary] = []
 var _focus := -1
 ## 這一頁有沒有可操作的列。
@@ -110,10 +117,9 @@ func setup(unit: float) -> void:
 	_resize()
 
 
-## 換一頁：題名與各列。focus_id 指定一開始停在哪一列；沒指定或找不到時停在第一個可選的列。
-func open(title: String, rows: Array[Dictionary], focus_id := &"") -> void:
+## 換一頁。focus_id 指定一開始停在哪一列；沒指定或找不到時停在第一個可選的列。
+func open(rows: Array[Dictionary], focus_id := &"") -> void:
 	_end_edit(false)
-	_title = title
 	_rows = rows
 	_first = 0
 	_pressed_row = -1
@@ -189,13 +195,7 @@ func _row_height(index: int) -> float:
 
 
 func _content_left() -> float:
-	return (SPINE + PAD) * _unit
-
-
-## 題名直書所需的高度。
-func _title_height() -> float:
-	var size_px := Ink.font_size(Ink.SIZE_TITLE, _unit)
-	return _title.length() * (Ink.text_size("永", size_px).y + 2.0) + PAD * 2.0 * _unit
+	return PAD * _unit
 
 
 ## 排出看得到的列，並把紙面調到剛好的大小。停留的列一定在看得到的範圍內。
@@ -211,7 +211,7 @@ func _resize() -> void:
 			var height := _row_height(i)
 			if y + height + chrome - PAD * _unit > limit and not _rects.is_empty():
 				break
-			_rects[i] = Rect2(_content_left(), y, (WIDTH - SPINE - PAD * 2.0) * _unit, height)
+			_rects[i] = Rect2(_content_left(), y, (WIDTH - PAD * 2.0) * _unit, height)
 			y += height + ROW_GAP * _unit
 		if _focus < 0 or _rects.has(_focus) or _first >= _rows.size() - 1:
 			break
@@ -219,7 +219,7 @@ func _resize() -> void:
 	var bottom := PAD * _unit
 	for index: int in _rects:
 		bottom = maxf(bottom, (_rects[index] as Rect2).end.y)
-	custom_minimum_size = Vector2(WIDTH * _unit, maxf(bottom + chrome - PAD * _unit, minf(_title_height(), limit)))
+	custom_minimum_size = Vector2(WIDTH * _unit, bottom + chrome - PAD * _unit)
 	size = custom_minimum_size
 	queue_redraw()
 
@@ -230,24 +230,39 @@ func _value_rect(rect: Rect2) -> Rect2:
 
 
 func _draw() -> void:
-	var paper := Rect2(Vector2.ZERO, size)
-	Ink.paper_slip(self, paper, Ink.CARD_BAND)
-	# 左緣題簽：一道金線隔開，題名直書。
-	var spine := SPINE * _unit
-	draw_line(Vector2(spine, 6.0 * _unit), Vector2(spine, size.y - 6.0 * _unit), Color(Ink.GOLD, 0.75), 1.0)
-	Ink.vertical_text(self, Vector2(spine * 0.5, PAD * _unit), _title, Ink.font_size(Ink.SIZE_TITLE, _unit))
+	if paper:
+		Ink.paper_slip(self, Rect2(Vector2.ZERO, size), Ink.CARD_BAND)
 	for index: int in _rects:
 		_draw_row(index, _rects[index])
-	# 上下還有沒畫出來的列：題簽下方畫小箭頭。
+	# 上下還有沒畫出來的列：提示那一行的右端畫小箭頭。
 	var last := -1
 	for index: int in _rects:
 		last = maxi(last, index)
-	var mark_x := spine * 0.5
+	var mark_x := size.x - (PAD + ARROW) * _unit
+	var mark_y := size.y - (PAD + FOOT * 0.5) * _unit + 4.0 * _unit
 	if _first > 0:
-		_triangle(Vector2(mark_x, size.y - 34.0 * _unit), Vector2.UP, Ink.INK_LIGHT)
+		_triangle(Vector2(mark_x - ARROW * 3.0 * _unit, mark_y), Vector2.UP, Ink.INK_LIGHT)
 	if last >= 0 and last < _rows.size() - 1:
-		_triangle(Vector2(mark_x, size.y - 18.0 * _unit), Vector2.DOWN, Ink.INK_LIGHT)
+		_triangle(Vector2(mark_x, mark_y), Vector2.DOWN, Ink.INK_LIGHT)
 	_draw_hints()
+
+
+## 可操作的列的底：停留時一筆淡墨由左掃到右（右端收尖）加一方小朱印，按住時墨更重；其餘只有底下一道細墨線。
+## 回傳列上文字該用的顏色。
+func _draw_ground(rect: Rect2, enabled: bool, focused: bool, pressed: bool) -> Color:
+	if focused:
+		var mid := rect.get_center().y
+		var lift := rect.size.y * 0.5 - 3.0 * _unit
+		draw_colored_polygon(PackedVector2Array([
+			Vector2(rect.position.x - 4.0 * _unit, mid - lift + 2.0 * _unit), Vector2(rect.end.x - 14.0 * _unit, mid - lift),
+			Vector2(rect.end.x + 6.0 * _unit, mid + 1.0 * _unit), Vector2(rect.end.x - 14.0 * _unit, mid + lift - 2.0 * _unit),
+			Vector2(rect.position.x - 4.0 * _unit, mid + lift),
+		]), Color(Ink.INK, 0.22 if pressed and enabled else 0.11))
+		var seal := SEAL * _unit
+		draw_rect(Rect2(rect.position.x + 5.0 * _unit, mid - seal * 0.5, seal, seal), Ink.SEAL_RED if enabled else Color(Ink.INK_LIGHT, 0.6), true)
+	else:
+		draw_line(Vector2(rect.position.x, rect.end.y), Vector2(rect.end.x, rect.end.y), Color(Ink.INK_LIGHT, 0.22), 1.0)
+	return Ink.INK if enabled else Color(Ink.INK_LIGHT, Ink.DISABLED_GLYPH_ALPHA)
 
 
 func _draw_row(index: int, rect: Rect2) -> void:
@@ -272,11 +287,8 @@ func _draw_row(index: int, rect: Rect2) -> void:
 		return
 
 	var enabled: bool = row.get("enabled", true)
-	var ink := Ink.plate(self, rect, false, enabled, focused, index == _pressed_row and not _sliding)
-	if focused:
-		# 停留的列：左緣一道朱線。
-		draw_rect(Rect2(rect.position.x + 1.0, rect.position.y + 1.0, 3.0 * _unit, rect.size.y - 2.0), Ink.SEAL_RED, true)
-	var x := rect.position.x + 12.0 * _unit
+	var ink := _draw_ground(rect, enabled, focused, index == _pressed_row and not _sliding)
+	var x := rect.position.x + INSET * _unit
 	var icon: StringName = row.get("icon", &"")
 	if icon != &"":
 		InkIcons.draw(self, icon, Vector2(x + ICON_RADIUS * _unit, rect.get_center().y), ICON_RADIUS * _unit, ink)

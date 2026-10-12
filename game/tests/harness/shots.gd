@@ -105,6 +105,8 @@ func _game_pages(prefix: String, view: Vector2i, pad: bool) -> void:
 
 func _title_pages(prefix: String, view: Vector2i, pad: bool) -> void:
 	var title: Node = (load(TITLE) as PackedScene).instantiate()
+	title.backdrop_seed = Suite.TEST_SEED
+	title.framing_roll = 7
 	root.add_child(title)
 	await _suite.frames(2)
 	AudioServer.set_bus_mute(0, true)

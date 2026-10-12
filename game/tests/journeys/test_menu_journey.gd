@@ -22,6 +22,7 @@ func setup() -> void:
 	tree.root.size = FLOW_VIEW
 	_title = (load(TITLE) as PackedScene).instantiate()
 	_title.backdrop_seed = TEST_SEED
+	_title.framing_roll = 7
 	tree.root.add_child(_title)
 	await frames(2)
 	AudioServer.set_bus_mute(0, true)
@@ -125,6 +126,43 @@ func test_keyboard_opens_a_new_world_with_the_chosen_options() -> void:
 	assert_eq(options["name"], SimWorld.random_world_name(42))
 	assert_lt(absf((options["land_ratio"] as float) - 0.41), 0.001)
 	assert_false(is_instance_valid(_title) and _title.is_inside_tree(), "標題畫面已經換掉")
+
+
+func test_gdd_9_1_menu_sits_under_the_logo_on_the_left() -> void:
+	var logo: Rect2 = _title.logo.logo_rect()
+	var at := _panel.global_position
+	assert_gt(at.y, logo.end.y, "選單在標誌下面")
+	assert_lt(at.x, FLOW_VIEW.x * 0.25, "選單靠左")
+	assert_false(_panel.paper, "標題畫面的選單直接寫在畫面上，不襯紙")
+	assert_lt(at.y + _panel.size.y, float(FLOW_VIEW.y), "整個選單在畫面內")
+
+
+func test_gdd_9_1_backdrop_frames_mountain_plain_and_water() -> void:
+	var framing := SceneFraming.new(_title._world)
+	var z: float = _title._map.map_size.x * SceneFraming.VIEW_Z_FRAC
+	var got := framing.shares(_title.backdrop_focus(), SceneFraming.ground_extent(z, float(FLOW_VIEW.x) / FLOW_VIEW.y))
+	assert_gt(got.x, 0.1, "有山：%s" % got)
+	assert_gt(got.y, 0.15, "有平地：%s" % got)
+	assert_gt(got.z, 0.1, "有水：%s" % got)
+
+
+func test_gdd_9_1_backdrop_is_the_latest_saved_world() -> void:
+	var saved := SimWorld.new()
+	assert_eq(saved.create(4242, "small"), "")
+	assert_eq(SaveStore.save_manual(0, saved), "")
+	var other: Node = (load(TITLE) as PackedScene).instantiate()
+	tree.root.add_child(other)
+	await frames(2)
+	assert_eq(other.backdrop_options(), saved.world_options(), "有存檔時背景是最近那份存檔的世界")
+	tree.root.remove_child(other)
+	other.queue_free()
+	SaveStore.delete(SaveStore.latest()["path"])
+	var fresh: Node = (load(TITLE) as PackedScene).instantiate()
+	tree.root.add_child(fresh)
+	await frames(2)
+	assert_ne(fresh.backdrop_options()["seed"], 4242, "沒有存檔時是另取的種子")
+	tree.root.remove_child(fresh)
+	fresh.queue_free()
 
 
 func test_escape_goes_back_one_page() -> void:

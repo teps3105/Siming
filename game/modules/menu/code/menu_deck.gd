@@ -29,8 +29,11 @@ const ROOT_ICONS := {
 var in_game := false
 ## 遊戲中選單所屬的世界（存檔與匯出分享碼用）。
 var world: SimWorld
-## 紙面中心在畫面上的位置（比例）。
-var panel_anchor := Vector2(0.5, 0.5)
+## 選單左上角的位置（畫面座標）與放大倍數；x 為負時置中並襯一張紙（遊戲中選單），否則直接寫在畫面上（標題畫面）。
+var panel_origin := Vector2(-1.0, -1.0)
+var panel_zoom := 1.0
+## 排版前呼叫（畫面大小、版面倍率），讓外面依畫面決定上面兩個值。
+var arrange := Callable()
 ## 剪貼簿的讀與寫；測試會換成自己的。
 var clipboard_get := func() -> String: return DisplayServer.clipboard_get()
 var clipboard_set := func(text: String) -> void: DisplayServer.clipboard_set(text)
@@ -85,17 +88,21 @@ func _draw() -> void:
 func _relayout() -> void:
 	var bounds := get_viewport().get_visible_rect().size
 	_unit = Ink.layout_unit(bounds, GameSettings.ui_scale())
+	if arrange.is_valid():
+		arrange.call(bounds, _unit)
 	position = Vector2.ZERO
 	size = bounds
-	_panel.max_height = bounds.y - EDGE_GAP * 2.0
-	_panel.setup(_unit)
+	var pinned := panel_origin.x >= 0.0
+	_panel.paper = not pinned
+	_panel.max_height = bounds.y - EDGE_GAP - (panel_origin.y if pinned else EDGE_GAP)
+	_panel.setup(_unit * panel_zoom)
 	_place()
 	queue_redraw()
 
 
 func _place() -> void:
 	var bounds := get_viewport().get_visible_rect().size
-	var at := bounds * panel_anchor - _panel.size * 0.5
+	var at := panel_origin if panel_origin.x >= 0.0 else (bounds - _panel.size) * 0.5
 	_panel.position = at.clamp(Vector2(EDGE_GAP, EDGE_GAP), (bounds - _panel.size - Vector2(EDGE_GAP, EDGE_GAP)).max(Vector2(EDGE_GAP, EDGE_GAP))).round()
 
 
@@ -135,37 +142,28 @@ func _show(next: StringName, focus_id := &"") -> void:
 	_page = next
 	_panel.alt_label = ""
 	_panel.back_label = Locale.t("menu_back")
-	var title := ""
 	var rows: Array[Dictionary] = []
 	match next:
 		&"root":
-			title = Locale.t("pause_title" if in_game else "game_title")
 			rows = _root_rows()
 			_panel.back_label = Locale.t("pause_resume") if in_game else ""
 		&"new":
-			title = Locale.t("new_title")
 			rows = _new_rows()
 		&"load":
-			title = Locale.t("load_title")
 			rows = _load_rows()
 			_panel.alt_label = Locale.t("load_delete")
 		&"save":
-			title = Locale.t("save_title")
 			rows = _save_rows()
 		&"settings":
-			title = Locale.t("settings_title")
 			rows = _settings_rows()
 		&"share":
-			title = Locale.t("share_title")
 			rows = _share_rows()
 		&"credits":
-			title = Locale.t("credits_title")
 			rows = _credits_rows()
 		&"notice":
-			title = Locale.t("notice_title")
 			rows = [MenuPanel.line(_notice), MenuPanel.action(&"back", Locale.t("menu_back"), &"back")]
 			focus_id = &"back"
-	_panel.open(title, rows, focus_id)
+	_panel.open(rows, focus_id)
 
 
 func _root_rows() -> Array[Dictionary]:
@@ -309,7 +307,7 @@ func _share_rows() -> Array[Dictionary]:
 func _credits_rows() -> Array[Dictionary]:
 	var rows: Array[Dictionary] = [MenuPanel.head(Locale.t("credits_made")), MenuPanel.line(Locale.t("credits_author"))]
 	rows.append(MenuPanel.head(Locale.t("credits_third")))
-	for key: String in ["credits_font", "credits_chars", "credits_engine", "credits_bridge"]:
+	for key: String in ["credits_font", "credits_logo_font", "credits_chars", "credits_engine", "credits_bridge"]:
 		rows.append(MenuPanel.line(Locale.t(key)))
 	return rows
 
@@ -324,7 +322,7 @@ func _on_chosen(id: StringName) -> void:
 		if SaveStore.manual_slots()[slot].is_empty():
 			_save_to(slot)
 		else:
-			_ask("confirm_overwrite_title", "confirm_overwrite", func() -> void: _save_to(slot))
+			_ask("confirm_overwrite", func() -> void: _save_to(slot))
 		return
 	match id:
 		&"new":
@@ -337,10 +335,10 @@ func _on_chosen(id: StringName) -> void:
 		&"resume":
 			resumed.emit()
 		&"to_title":
-			_ask("confirm_leave_title", "confirm_leave", func() -> void: title_requested.emit())
+			_ask("confirm_leave", func() -> void: title_requested.emit())
 		&"quit":
 			if in_game:
-				_ask("confirm_leave_title", "confirm_leave", func() -> void: get_tree().quit())
+				_ask("confirm_leave", func() -> void: get_tree().quit())
 			else:
 				get_tree().quit()
 		&"back", &"confirm.no":
@@ -376,7 +374,7 @@ func _on_chosen(id: StringName) -> void:
 func _on_alt(id: StringName) -> void:
 	var text := String(id)
 	if _page == &"load" and text.begins_with("load:"):
-		_ask("confirm_delete_title", "confirm_delete", func() -> void:
+		_ask("confirm_delete", func() -> void:
 			SaveStore.delete(text.trim_prefix("load:"))
 			_show(&"load"))
 
@@ -404,13 +402,13 @@ func _on_changed(id: StringName, value: Variant) -> void:
 
 
 ## 問一句再做：確定就執行 todo，取消回到原來那一頁。
-func _ask(title_key: String, text_key: String, todo: Callable) -> void:
+func _ask(text_key: String, todo: Callable) -> void:
 	_confirm = todo
 	_trail.append([_page, _panel.focused_id()])
 	_page = &"confirm"
 	_panel.alt_label = ""
 	_panel.back_label = Locale.t("confirm_no")
-	_panel.open(Locale.t(title_key), [
+	_panel.open([
 		MenuPanel.line(Locale.t(text_key)),
 		MenuPanel.action(&"confirm.yes", Locale.t("confirm_yes"), &"seal"),
 		MenuPanel.action(&"confirm.no", Locale.t("confirm_no"), &"back"),
@@ -426,7 +424,7 @@ func _tell(text: String) -> void:
 
 
 ## 等候頁：不能返回；with_bar 為真時帶一條進度墨條。
-func _busy(title_key: String, text_key: String, with_bar: bool) -> void:
+func _busy(text_key: String, with_bar: bool) -> void:
 	if _page != &"busy":
 		_trail.append([_page, _panel.focused_id()])
 	_page = &"busy"
@@ -435,7 +433,7 @@ func _busy(title_key: String, text_key: String, with_bar: bool) -> void:
 	var rows: Array[Dictionary] = [MenuPanel.line(Locale.t(text_key))]
 	if with_bar:
 		rows.append(MenuPanel.bar(&"progress", "", 0.0))
-	_panel.open(Locale.t(title_key), rows)
+	_panel.open(rows)
 
 
 func _save_to(slot: int) -> void:
@@ -448,7 +446,7 @@ func _save_to(slot: int) -> void:
 
 ## GDD 4.6 開天：先把等候頁畫出來，再生成世界（生成期間畫面不動）。
 func _start_world() -> void:
-	_busy("busy_genesis_title", "busy_genesis", false)
+	_busy("busy_genesis", false)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	var created := SimWorld.new()
@@ -465,7 +463,7 @@ func _load_file(path: String) -> void:
 
 ## GDD 4.8 讀檔：重新開天後分段重演，期間顯示進度。
 func _load_text(text: String) -> void:
-	_busy("busy_load_title", "busy_load", true)
+	_busy("busy_load", true)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	var target := SimWorld.new()

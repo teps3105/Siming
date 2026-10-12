@@ -9,16 +9,34 @@ func suite_name() -> String:
 	return "map_view"
 
 
-func test_gdd_5_2_pitch_runs_from_68_to_88_degrees() -> void:
-	var limits := MapView.z_range(MAP_W)
-	assert_true(is_equal_approx(rad_to_deg(MapView.pitch(limits.x, MAP_W)), 68.0))
-	assert_true(is_equal_approx(rad_to_deg(MapView.pitch(limits.y, MAP_W)), 88.0))
+func test_gdd_5_2_pitch_is_sixty_degrees_and_zoom_only_changes_scale() -> void:
+	assert_true(is_equal_approx(rad_to_deg(MapView.pitch()), 60.0))
+	assert_true(is_equal_approx(MapView.view_height(MAP_W * 0.6) / MapView.view_height(MAP_W * 0.2), 3.0), "可見範圍與鏡頭高度成正比")
 
 
-func test_gdd_5_2_flatten_starts_above_sixty_percent_of_map_width() -> void:
-	assert_eq(MapView.flatten_weight(MAP_W * 0.6, MAP_W), 0.0)
-	assert_eq(MapView.height_scale(MAP_W * 0.3, MAP_W), 1.0)
-	assert_true(is_equal_approx(MapView.height_scale(MAP_W * 1.1, MAP_W), 0.05))
+func test_gdd_5_2_eye_height_follows_zoom_but_stays_above_the_peaks() -> void:
+	var top := 4.0
+	assert_true(is_equal_approx(MapView.eye_height(200.0, top) / MapView.eye_height(100.0, top), 2.0), "眼高與鏡頭高度成正比")
+	assert_eq(MapView.eye_height(1.0, top), top * MapView.EYE_MIN_TOPS, "拉到最近時眼點不低於最高峰的固定倍數")
+
+
+func test_gdd_5_2_heights_lean_toward_one_vanishing_point() -> void:
+	var focus := Vector2(100.0, 80.0)
+	var toward := Vector2(0.0, 1.0)
+	var eye := 50.0
+	var slope := 1.0 / tan(MapView.pitch())
+	var nadir := MapView.eye_position(focus, toward, eye)
+	assert_eq(MapView.lean(Vector2(130.0, 60.0), 0.0, focus, toward, eye), Vector2(130.0, 60.0), "地面不動")
+	for ground: Vector2 in [Vector2(130.0, 60.0), Vector2(70.0, 95.0), focus]:
+		for h: float in [2.0, 6.0, 12.0]:
+			var shown := MapView.lean(ground, h, focus, toward, eye)
+			# 畫面上等同於地面上的這一點：正交鏡頭把高度 h 畫成往遠處移 h／tan(俯角)。
+			var seen := shown - toward * h * slope
+			var from_nadir := seen - Vector2(nadir.x, nadir.z)
+			var base := ground - Vector2(nadir.x, nadir.z)
+			assert_true(absf(from_nadir.cross(base)) < 1e-2, "山頂落在消失點與山腳的連線上：%s" % from_nadir.cross(base))
+			assert_true(from_nadir.length() > base.length(), "越高離消失點越遠")
+			assert_true(MapView.unlean(shown, h, focus, toward, eye).distance_to(ground) < 1e-3, "可以換算回地面位置")
 
 
 func test_gdd_5_3_globe_relief_grows_as_the_camera_pulls_back() -> void:

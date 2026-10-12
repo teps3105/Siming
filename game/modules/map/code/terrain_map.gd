@@ -18,16 +18,16 @@ const INK_LIGHT := Color("6B6152")
 const WATER := Color("8DB3B6")
 const GOLD := Color("C9A246")
 const CYAN := Color("4F8F9A")
-## 海岸線：深花青。
-const COAST_LINE := Color("3B5566")
+## 岸線：墨。
+const COAST_LINE := Color("2F3B3D")
 ## 海深色階（淺 → 深）。
 const SEA_RAMP: Array[Color] = [
-	Color("C9DDD8"), Color("A3C3C4"), Color("7BA3B0"), Color("567F97"), Color("3A5F7A"),
+	Color("C6D2BC"), Color("ADC2AE"), Color("93B0A0"), Color("789C93"), Color("5F8785"),
 ]
 ## 沙土覆蓋的顏色（GDD 5.1 的沙漠色）。
 const SAND := Color("D9C59A")
-## 高度色階：丘陵土色 → 山地岩色 → 高山灰 → 雪。
-const ROCK_RAMP: Array[Color] = [Color("C9B58C"), Color("B09C80"), Color("A49D97"), Color("F2F1EC")]
+## 高度色階（青綠山水）：山腳赭 → 山腰石綠 → 高山石青 → 雪。
+const ROCK_RAMP: Array[Color] = [Color("C9B58C"), Color("9FB08A"), Color("7397A3"), Color("F2F1EC")]
 
 var map_size := Vector2.ZERO
 var mode: Mode = Mode.SHANHE
@@ -43,7 +43,10 @@ var _ley_material: ShaderMaterial
 var _ley_copies: Array[MeshInstance3D] = []
 var _province_colors: ImageTexture
 var _blank_colors: ImageTexture
-var _height_scale := 1.0
+## 高度消失點（MapView.lean）：鏡頭焦點、地面上由焦點指向鏡頭的方向與眼高；眼高為 0 時不位移。
+var _view_focus := Vector2.ZERO
+var _toward := Vector2(0.0, 1.0)
+var _eye := 0.0
 var _globe_relief := 1.0
 ## 全圖最高的地表高度（建圖時取一次；每次查詢要掃整張地圖）。
 var _top_height := 1.0
@@ -104,6 +107,14 @@ func set_mode(new_mode: Mode) -> void:
 		copy.visible = mode == Mode.LINGMAI
 
 
+## 當成佈景用（標題畫面）：不畫州界與水紋，整幅收成淡墨，低處起雲霧；veil 是畫面左側另加的霧。
+func set_scenery(mist: float, veil: float) -> void:
+	_terrain_material.set_shader_parameter("border_opacity", 0.0)
+	for material: ShaderMaterial in [_terrain_material, _river_material]:
+		material.set_shader_parameter("mist", mist)
+		material.set_shader_parameter("mist_veil", veil)
+
+
 func set_hover(province: int) -> void:
 	_terrain_material.set_shader_parameter("hover_province", float(province))
 
@@ -112,39 +123,49 @@ func set_selected(province: int) -> void:
 	_terrain_material.set_shader_parameter("selected_province", float(province))
 
 
-## 每幀由鏡頭呼叫：依鏡頭高度、焦點與朝向更新高度縮放、古地圖化、河流分級與星球過渡。
+## 每幀由鏡頭呼叫：依鏡頭高度、焦點與朝向更新高度的消失點、河流分級與星球過渡。
 ## globe 為真時過渡到星球視角，否則過渡回平面。
 func update_view(z: float, focus: Vector2, camera_basis: Basis, delta: float, globe: bool) -> void:
 	var target := 1.0 if globe else 0.0
 	globe_morph = move_toward(globe_morph, target, delta / GLOBE_MORPH_SECONDS)
 	var eased := smoothstep(0.0, 1.0, globe_morph)
 	globe_xform = MapView.globe_frame(focus, map_size, camera_basis)
-	# 古地圖化只屬於平面地圖：星球視角的高度另由 globe_relief 與高度壓縮決定。
-	_height_scale = lerpf(MapView.height_scale(z, map_size.x), 1.0, eased)
+	_view_focus = focus
+	var back := Vector2(camera_basis.z.x, camera_basis.z.z)
+	_toward = back.normalized() if back.length() > 1e-4 else Vector2(0.0, 1.0)
+	_eye = MapView.eye_height(z, _top_height)
 	_globe_relief = MapView.globe_relief(z, map_size.x)
 	var radius := MapView.globe_radius(map_size.x)
 	for material: ShaderMaterial in [_terrain_material, _river_material, _ley_material]:
-		material.set_shader_parameter("height_scale", _height_scale)
+		material.set_shader_parameter("vanish_focus", _view_focus)
+		material.set_shader_parameter("vanish_toward", _toward / tan(MapView.pitch()))
+		material.set_shader_parameter("vanish_eye", _eye)
 		material.set_shader_parameter("globe_relief", _globe_relief)
 		material.set_shader_parameter("globe_morph", eased)
 		material.set_shader_parameter("globe_radius", radius)
 		material.set_shader_parameter("globe_top", _top_height)
 		material.set_shader_parameter("globe_xform", globe_xform)
-	_terrain_material.set_shader_parameter("flatten", MapView.flatten_weight(z, map_size.x) * (1.0 - eased))
 	_terrain_material.set_shader_parameter("fog_start", z * 3.0)
 	_terrain_material.set_shader_parameter("fog_end", z * 7.0)
 	_river_material.set_shader_parameter("level_alpha", MapView.river_alpha(z, map_size.x, eased))
 	recenter(focus.x)
 
 
-## 目前的地形高度縮放（選取與標籤取高度時使用）。
-func height_scale() -> float:
-	return _height_scale
-
-
-## 世界座標 (x, z) 的地表高度（已含高度縮放）。
+## 世界座標 (x, z) 的地表高度。
 func surface_height(x: float, z: float) -> float:
-	return _world.terrain_height_at(x, z) * _height_scale
+	return _world.terrain_height_at(x, z)
+
+
+## 平面地圖上，地面位置 (x, pos.y)、地圖座標 pos 的地表點畫在哪裡（含高度消失點的位移）。
+func shown_position(x: float, pos: Vector2) -> Vector3:
+	var h := surface_height(pos.x, pos.y)
+	var shown := MapView.lean(Vector2(x, pos.y), h, _view_focus, _toward, _eye)
+	return Vector3(shown.x, h, shown.y)
+
+
+## shown_position 的反算：畫在世界座標 world 的點，地面位置（x、z）在哪裡。
+func ground_position(world: Vector3) -> Vector2:
+	return MapView.unlean(Vector2(world.x, world.z), world.y, _view_focus, _toward, _eye)
 
 
 ## 地圖座標 → 世界座標：平面取離 near_x 最近的東西副本並貼地；星球視角換算到球面。
@@ -152,10 +173,10 @@ func world_position(pos: Vector2, near_x: float) -> Vector3:
 	if globe_morph > 0.5:
 		var lon := pos.x / map_size.x * TAU
 		var lat := (0.5 - pos.y / map_size.y) * PI
-		var height := _world.terrain_height_at(pos.x, pos.y) * _height_scale
+		var height := _world.terrain_height_at(pos.x, pos.y)
 		var lift := MapView.globe_compress(height, _top_height) * _globe_relief
 		return globe_xform * (MapView.sphere_dir(lon, lat) * (MapView.globe_radius(map_size.x) + lift))
-	return Vector3(MapView.nearest_copy_x(pos.x, near_x, map_size.x), surface_height(pos.x, pos.y), pos.y)
+	return shown_position(MapView.nearest_copy_x(pos.x, near_x, map_size.x), pos)
 
 
 ## 該地圖座標是否朝向鏡頭：平面視角恆為真；星球視角只有面向鏡頭的半球為真。
@@ -168,12 +189,17 @@ func faces_camera(pos: Vector2, camera_position: Vector3) -> bool:
 
 ## 射線與地圖求交，回傳地圖座標（x、z）；未命中回傳 Vector2.INF。
 ## 平面視角沿射線步進比對地形高度；星球視角與球面求交。
+## 平面地圖的高度有消失點：畫面上落在同一點的地表，都在「眼點到該點地面位置」的連線上，所以改沿這條線步進。
 func pick(origin: Vector3, dir: Vector3) -> Vector2:
 	if globe_morph > 0.5:
 		return MapView.ray_globe(globe_xform, MapView.globe_radius(map_size.x), map_size, origin, dir)
 	if dir.y >= -1e-4:
 		return Vector2.INF
-	var top := _top_height * _height_scale
+	if _eye > 0.0:
+		var seen := origin - dir * (origin.y / dir.y)
+		origin = MapView.eye_position(_view_focus, _toward, _eye)
+		dir = (Vector3(seen.x, 0.0, seen.z) - origin).normalized()
+	var top := _top_height
 	var t := maxf((top - origin.y) / dir.y, 0.0)
 	var t_end := -origin.y / dir.y
 	var step := maxf((t_end - t) / 96.0, 0.05)
