@@ -284,7 +284,7 @@ func _settings_rows() -> Array[Dictionary]:
 	var percent := int(round(GameSettings.UI_SCALE_MIN * 100.0))
 	while percent <= int(round(GameSettings.UI_SCALE_MAX * 100.0)):
 		scales.append([percent, "%d%%" % percent])
-		percent += 10
+		percent += int(round(GameSettings.UI_SCALE_STEP * 100.0))
 	return [
 		MenuPanel.choice(&"set.fullscreen", Locale.t("set_fullscreen"), switch, GameSettings.flag("fullscreen")),
 		MenuPanel.choice(&"set.window_size", Locale.t("set_window"), windows, GameSettings.value("window_size")),

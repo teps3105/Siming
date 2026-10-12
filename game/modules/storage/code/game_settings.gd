@@ -6,7 +6,7 @@ const DEFAULT_PATH := "user://settings.cfg"
 const SECTION := "settings"
 const UI_SCALE_MIN := 0.8
 const UI_SCALE_MAX := 1.5
-const UI_SCALE_STEP := 0.05
+const UI_SCALE_STEP := 0.1
 ## 視窗模式下可選的大小。
 const WINDOW_SIZES: Array[Vector2i] = [Vector2i(1280, 720), Vector2i(1600, 900), Vector2i(1920, 1080), Vector2i(2560, 1440)]
 ## 各項的預設值。
