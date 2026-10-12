@@ -1,0 +1,79 @@
+# Godot 端無視窗測試（6.7）：先建橋接程式庫，再以官方發行檔的 Godot 跑 tools/tests/run.py。
+name: godot-tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: godot-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  PYTHONIOENCODING: utf-8
+  # Godot 版本只在這裡改一處；下載網址與執行檔名依此組成。
+  GODOT_VERSION: "4.7.1"
+
+jobs:
+  godot-tests:
+    name: godot-tests（${{ matrix.os }}）
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            asset: linux.x86_64.zip
+            exe: linux.x86_64
+          - os: windows-latest
+            asset: win64.exe.zip
+            exe: win64_console.exe
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native/sim/rust
+
+      - name: 建置橋接程式庫（debug）
+        run: python tools/native_build/build.py
+
+      - name: 下載 Godot 官方發行檔
+        shell: python
+        run: |
+          import os, stat, urllib.request, zipfile
+          version = os.environ["GODOT_VERSION"]
+          url = "https://github.com/godotengine/godot/releases/download/%s-stable/Godot_v%s-stable_${{ matrix.asset }}" % (version, version)
+          os.makedirs("godot-bin", exist_ok=True)
+          urllib.request.urlretrieve(url, "godot-bin/godot.zip")
+          with zipfile.ZipFile("godot-bin/godot.zip") as z:
+              z.extractall("godot-bin")
+          target = os.path.abspath("godot-bin/Godot_v%s-stable_${{ matrix.exe }}" % version)
+          if not os.path.isfile(target):
+              raise SystemExit("解壓後找不到 %s；現有檔案：%r" % (target, os.listdir("godot-bin")))
+          os.chmod(target, os.stat(target).st_mode | stat.S_IEXEC)
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as f:
+              f.write("GODOT_BIN=%s\n" % target)
+
+      # 乾淨取得的專案沒有 .godot 匯入快取；先匯入一次，之後的測試才認得資源與全域類別。
+      - name: 匯入專案資源
+        shell: bash
+        run: '"$GODOT_BIN" --headless --path game --import'
+
+      - name: Godot 無視窗測試
+        shell: bash
+        run: python tools/tests/run.py --godot "$GODOT_BIN" --report godot-report.json
+
+      - name: 上傳逐案結果
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: godot-report-${{ matrix.os }}
+          path: godot-report.json
+          if-no-files-found: ignore
