@@ -33,6 +33,7 @@ const MODE_SHANHE := &"map_mode_shanhe"
 const MODE_TIANXIA := &"map_mode_tianxia"
 const MODE_SANJIAO := &"map_mode_sanjiao"
 const MODE_LINGMAI := &"map_mode_lingmai"
+const MODE_YINGUO := &"map_mode_yinguo"
 ## 星球視角與平面地圖互換：鍵盤 G、搖桿按下右搖桿。
 const VIEW_TOGGLE := &"map_view_toggle"
 ## 傳聞簽（GDD 5.7）：展開近 50 則的清單、收回清單。搖桿沒有專屬鍵，以游標點簽頭（5.9）。
@@ -78,6 +79,7 @@ static func bindings() -> Dictionary:
 		MODE_TIANXIA: [KEY_F2],
 		MODE_SANJIAO: [KEY_F3],
 		MODE_LINGMAI: [KEY_F4],
+		MODE_YINGUO: [KEY_F5],
 		VIEW_TOGGLE: [KEY_G, "joy:%d" % JOY_BUTTON_RIGHT_STICK],
 		RUMOR_LIST: [KEY_T],
 		MENU_UP: [KEY_UP, KEY_W, "joy:%d" % JOY_BUTTON_DPAD_UP, "axis:%d:-1" % JOY_AXIS_LEFT_Y],

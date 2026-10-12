@@ -1,6 +1,7 @@
 //! GDD 6.4 Godot 橋接：`SimWorld` 持有一個 [`Sim`]，Godot 端只經由本類別讀取世界、推進時間。
 //! 本 crate 不含遊戲規則；規則一律在 siming-sim（GDD 6.1 依賴原則）。
 
+mod karma;
 mod mapbake;
 mod relief;
 
@@ -1001,6 +1002,71 @@ impl SimWorld {
         out
     }
 
+    // ── 因果模式（GDD 5.4）──────────────────────────────────────
+
+    /// 因果模式要畫的東西，一次取回（取捨規則與位置的決定方式見 `karma.rs`）。可選的 `options`：
+    /// `all`（畫全部的線，預設否）、`min_strength`（預設 30）、`max_lines`（預設 1500）、`max_souls`（預設 4000）。
+    /// 魂光（每位在世有名之人一點）：`glow_person`（人物編號）、`glow_pos`（地圖座標）、`glow_height`（地表高度）、
+    /// `glow_province`、`glow_karma`（淨業力 G − S）。因果線：`line_thread`（宿緣編號）、`line_kind`（0 殺業、1 恩義、2 情緣、3 師徒、4 怨）、
+    /// `line_strength`、`line_from`／`line_to`（欠債方、債主一端的地圖座標；不在世的一端取最後所在地）、`line_from_height`／`line_to_height`、
+    /// `line_debtor`／`line_creditor`（兩端在世的人物編號，不在世為 -1）、`line_dead`（0 兩端在世、1 欠債方不在世、2 債主不在世）、`line_woven`（司命所牽）。
+    /// 另有 `qualified_lines`（取捨前符合條件的線數）、`total_glows`（在世有名之人數）。
+    #[func]
+    fn karma_view(&self, options: VarDictionary) -> VarDictionary {
+        let Some(s) = self.sim.as_ref() else { return VarDictionary::new() };
+        let mut opts = karma::Options::default();
+        if let Some(v) = options.get("all") {
+            opts.all = v.try_to::<bool>().unwrap_or(false);
+        }
+        if let Some(v) = options.get("min_strength") {
+            opts.min_strength = v.try_to::<f32>().unwrap_or(opts.min_strength);
+        }
+        if let Some(v) = options.get("max_lines") {
+            opts.max_lines = v.try_to::<i64>().map_or(opts.max_lines, |n| n.max(0) as usize);
+        }
+        if let Some(v) = options.get("max_souls") {
+            opts.max_souls = v.try_to::<i64>().map_or(opts.max_souls, |n| n.max(0) as usize);
+        }
+        let view = karma::view(s.world(), opts);
+        let mut d = VarDictionary::new();
+        let glows = &view.glows;
+        d.set("glow_person", &PackedInt32Array::from(glows.iter().map(|g| g.person as i32).collect::<Vec<_>>().as_slice()));
+        d.set("glow_province", &PackedInt32Array::from(glows.iter().map(|g| g.province as i32).collect::<Vec<_>>().as_slice()));
+        d.set("glow_pos", &vec2s(&glows.iter().map(|g| [g.pos.0, g.pos.1]).collect::<Vec<_>>()));
+        d.set("glow_height", &PackedFloat32Array::from(glows.iter().map(|g| self.height_at(g.pos)).collect::<Vec<_>>().as_slice()));
+        d.set("glow_karma", &PackedFloat32Array::from(glows.iter().map(|g| g.karma).collect::<Vec<_>>().as_slice()));
+        self.pack_lines(&mut d, &view.lines);
+        d.set("qualified_lines", view.qualified_lines as i32);
+        d.set("total_glows", view.total_glows as i32);
+        d
+    }
+
+    /// 指定的宿緣（編號）各畫成一條線，欄位同 `karma_view` 的 `line_*`；已了結、不存在或兩端都不在世的略過。
+    #[func]
+    fn karma_threads(&self, ids: PackedInt32Array) -> VarDictionary {
+        let mut d = VarDictionary::new();
+        let Some(s) = self.sim.as_ref() else { return d };
+        let ids: Vec<u32> = ids.as_slice().iter().filter(|&&i| i >= 0).map(|&i| i as u32).collect();
+        self.pack_lines(&mut d, &karma::threads(s.world(), &ids));
+        d
+    }
+
+    /// 選取某人的魂光時要顯示的東西：`threads`（這個魂牽著的未了宿緣編號，強度高者在前）、
+    /// `past`（前世所在地點的地圖座標，由近到遠）、`past_height`（各點的地表高度）。
+    #[func]
+    fn karma_focus(&self, person: i32) -> VarDictionary {
+        let mut d = VarDictionary::new();
+        let Some(s) = self.sim.as_ref() else { return d };
+        let Ok(id) = u32::try_from(person) else { return d };
+        let w = s.world();
+        let threads: Vec<i32> = karma::threads_of(w, id).into_iter().map(|t| t as i32).collect();
+        d.set("threads", &PackedInt32Array::from(threads.as_slice()));
+        let past = karma::past_places(w, id);
+        d.set("past", &vec2s(&past.iter().map(|p| [p.0, p.1]).collect::<Vec<_>>()));
+        d.set("past_height", &PackedFloat32Array::from(past.iter().map(|&p| self.height_at(p)).collect::<Vec<_>>().as_slice()));
+        d
+    }
+
     // ── 統計 ────────────────────────────────────────────────────
 
     #[func]
@@ -1085,6 +1151,28 @@ impl SimWorld {
 }
 
 /// 事件是否算這個人的歷程：他是事件的人物；或事件只記了他的魂，且發生在他在世（或身故當下）之間。
+impl SimWorld {
+    fn height_at(&self, pos: (f32, f32)) -> f32 {
+        self.land.as_ref().map_or(0.0, |l| l.relief.height_at(pos.0, pos.1))
+    }
+
+    /// 因果線寫成 `line_*` 欄位（見 `karma_view`）。
+    fn pack_lines(&self, d: &mut VarDictionary, lines: &[karma::Line]) {
+        let ints = |f: &dyn Fn(&karma::Line) -> i32| PackedInt32Array::from(lines.iter().map(f).collect::<Vec<_>>().as_slice());
+        d.set("line_thread", &ints(&|l| l.thread as i32));
+        d.set("line_kind", &ints(&|l| l.kind as i32));
+        d.set("line_debtor", &ints(&|l| l.debtor));
+        d.set("line_creditor", &ints(&|l| l.creditor));
+        d.set("line_dead", &ints(&|l| l.dead as i32));
+        d.set("line_woven", &ints(&|l| l.woven as i32));
+        d.set("line_strength", &PackedFloat32Array::from(lines.iter().map(|l| l.strength).collect::<Vec<_>>().as_slice()));
+        d.set("line_from", &vec2s(&lines.iter().map(|l| [l.from.0, l.from.1]).collect::<Vec<_>>()));
+        d.set("line_to", &vec2s(&lines.iter().map(|l| [l.to.0, l.to.1]).collect::<Vec<_>>()));
+        d.set("line_from_height", &PackedFloat32Array::from(lines.iter().map(|l| self.height_at(l.from)).collect::<Vec<_>>().as_slice()));
+        d.set("line_to_height", &PackedFloat32Array::from(lines.iter().map(|l| self.height_at(l.to)).collect::<Vec<_>>().as_slice()));
+    }
+}
+
 fn belongs_to(e: &siming_sim::Event, p: &siming_sim::Person) -> bool {
     if e.persons.contains(&p.id) {
         return true;
