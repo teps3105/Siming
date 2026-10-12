@@ -6,7 +6,7 @@ use smallvec::smallvec;
 use crate::ledger::{self, NewEvent};
 use crate::model::*;
 use crate::params::*;
-use crate::schedule::{Domain, Round};
+use crate::schedule::Round;
 use crate::sim::World;
 
 /// 7.2 `Married` 重要度。
@@ -58,23 +58,23 @@ pub fn yearly_marriage(w: &mut World) {
 
 fn marriage_round(w: &mut World, round: Round) {
     let tick = w.tick;
-    let seed = w.params.seed;
     // 以所在州郡分組的候選名單（ID 升冪）；第一次有人通過機率抽樣時才建（單月輪次多半沒有人要配對）。
-    let mut by_prov: Option<Vec<Vec<PersonId>>> = None;
-    for i in w.alive_snapshot().into_iter().map(|x| x as usize) {
+    // 每筆附性別與年齡（同一個月內不變），先以它們篩掉大半，不必每個都去讀人物資料。
+    let mut by_prov: Option<Vec<Vec<(PersonId, Gender, u32)>>> = None;
+    for i in w.round_alive(round).into_iter().map(|x| x as usize) {
         let p = &w.persons[i];
-        if !round.takes(seed, Domain::Person, p.id) || !eligible(p, tick) {
+        if !eligible(p, tick) {
             continue;
         }
         if w.rng.people.gen::<f32>() >= MARRY_CHANCE {
             continue;
         }
         let by_prov = by_prov.get_or_insert_with(|| {
-            let mut v: Vec<Vec<PersonId>> = vec![Vec::new(); w.provinces.len()];
+            let mut v: Vec<Vec<(PersonId, Gender, u32)>> = vec![Vec::new(); w.provinces.len()];
             for p in w.alive_ids.iter().map(|&i| &w.persons[i as usize]) {
                 if eligible(p, tick) {
                     if let Some(x) = v.get_mut(p.province as usize) {
-                        x.push(p.id);
+                        x.push((p.id, p.gender, p.age(tick)));
                     }
                 }
             }
@@ -84,9 +84,8 @@ fn marriage_round(w: &mut World, round: Round) {
         let mut cands: Vec<PersonId> = Vec::new();
         let near = std::iter::once(prov).chain(w.provinces[prov as usize].neighbors.iter().copied());
         for q in near {
-            for &c in &by_prov[q as usize] {
-                let o = &w.persons[c as usize];
-                if c != pid && eligible(o, tick) && o.gender != gender && o.age(tick).abs_diff(age) <= MARRY_AGE_GAP_MAX {
+            for &(c, c_gender, c_age) in &by_prov[q as usize] {
+                if c != pid && c_gender != gender && c_age.abs_diff(age) <= MARRY_AGE_GAP_MAX && eligible(&w.persons[c as usize], tick) {
                     cands.push(c);
                 }
             }

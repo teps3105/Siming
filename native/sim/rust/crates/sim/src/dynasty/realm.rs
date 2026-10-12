@@ -189,22 +189,48 @@ fn best_commoner(w: &World, province: ProvinceId, min_talent: f32) -> Option<Per
     best.map(|b| b.1)
 }
 
+/// 各州的 [`best_commoner`]（一次掃過在世者，結果與逐州呼叫相同）。
+fn best_commoners(w: &World, min_talent: f32) -> Vec<Option<PersonId>> {
+    let tick = w.tick;
+    let mut best: Vec<Option<(f32, PersonId)>> = vec![None; w.provinces.len()];
+    for &i in &w.alive_ids {
+        let p = &w.persons[i as usize];
+        if p.power.is_some()
+            || !matches!(p.role, Role::Commoner | Role::GeneralCandidate)
+            || p.age(tick) < OFFICIAL_MIN_AGE
+            || p.attrs.talent < min_talent
+        {
+            continue;
+        }
+        let Some(slot) = best.get_mut(p.province as usize) else { continue };
+        if slot.is_none_or(|(t, _)| p.attrs.talent > t) {
+            *slot = Some((p.attrs.talent, p.id));
+        }
+    }
+    best.into_iter().map(|b| b.map(|b| b.1)).collect()
+}
+
 /// GDD 3.7 每年的立國判定：無主且人口 ≥ 50,000 的州，若有才略 ≥ 8 的散人或武將候補，2% 機率立國，
 /// 取得該州及無主的陸鄰。依州郡 ID 升冪；只有條件齊備的州才抽樣。
 pub fn yearly_found(w: &mut World, round: Round) {
     let seed = w.params.seed;
-    for p in 0..w.provinces.len() as ProvinceId {
+    // 候補表在第一次需要時建立；開國會改動人物與勢力，之後作廢重建。
+    let mut table: Option<Vec<Option<PersonId>>> = None;
+    for p in round.ids(seed, Domain::Province, w.provinces.len()) {
+        let p = p as ProvinceId;
         let pr = &w.provinces[p as usize];
-        if !round.takes(seed, Domain::Province, p as u32) || pr.lost || w.dynasty.owner_of(p).is_some() || pr.population < DYN_FOUND_POP {
+        if pr.lost || w.dynasty.owner_of(p).is_some() || pr.population < DYN_FOUND_POP {
             continue;
         }
-        let Some(founder) = best_commoner(w, p, DYN_FOUND_TALENT) else { continue };
+        let founder = table.get_or_insert_with(|| best_commoners(w, DYN_FOUND_TALENT)).get(p as usize).copied().flatten();
+        let Some(founder) = founder else { continue };
         if w.rng.dynasty.gen::<f32>() >= DYN_FOUND_CHANCE {
             continue;
         }
         let mut provs = free_neighbors(w, &[p]);
         provs.push(p);
         found(w, founder, p, &provs);
+        table = None;
     }
 }
 

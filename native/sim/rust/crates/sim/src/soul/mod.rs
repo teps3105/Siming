@@ -173,8 +173,52 @@ fn record_judged(w: &mut World, sid: SoulId, path: SixPath) {
     ledger::record(w, e);
 }
 
+/// 一個月的魂處理內共用的暫存：都是由世界狀態導出的，只在這個月內有效，不進存檔與雜湊。
+struct Month {
+    cap: u32,
+    /// 在世有名之人數；第一次用到時才算（見 [`monthly`]）。
+    living: Option<u32>,
+    /// 狀態為 `Waiting` 的魂（升冪）。第一次要找等待者時才掃描建立，之後隨狀態轉換維護。
+    waiting: Option<Vec<SoulId>>,
+    /// 人口分布與各州郡的 faith4；第一次抽出生州郡時才算（月內州郡人口與信仰不變）。
+    pop: Option<(Vec<f64>, Vec<[f32; 4]>)>,
+}
+
+impl Month {
+    fn living(&mut self, w: &World) -> &mut u32 {
+        self.living.get_or_insert_with(|| living_notables(w))
+    }
+
+    fn waiting(&mut self, w: &World) -> &mut Vec<SoulId> {
+        self.waiting.get_or_insert_with(|| w.souls.iter().filter(|s| matches!(s.state, SoulState::Waiting { .. })).map(|s| s.id).collect())
+    }
+
+    fn birth_province(&mut self, w: &mut World, sid: SoulId) -> ProvinceId {
+        let (pop, faith) = self.pop.get_or_insert_with(|| (pull::population_dist(w), pull::faith_table(w)));
+        pull::sample_birth_province_with(w, sid, pop, faith)
+    }
+
+    /// 魂 `sid` 剛離開等待（出生）。
+    fn left_waiting(&mut self, sid: SoulId) {
+        if let Some(v) = &mut self.waiting {
+            if let Ok(k) = v.binary_search(&sid) {
+                v.remove(k);
+            }
+        }
+    }
+
+    /// 魂 `sid` 剛進入等待。
+    fn entered_waiting(&mut self, sid: SoulId) {
+        if let Some(v) = &mut self.waiting {
+            if let Err(k) = v.binary_search(&sid) {
+                v.insert(k, sid);
+            }
+        }
+    }
+}
+
 /// 對一個該判定的魂（中陰到期、他道期滿）做六道判定並安置。
-fn judge_and_place(w: &mut World, sid: SoulId, living: &mut u32, cap: u32) {
+fn judge_and_place(w: &mut World, sid: SoulId, m: &mut Month) {
     let tick = w.tick;
     let (path, province_override) = choose_path(w, sid);
 
@@ -189,11 +233,11 @@ fn judge_and_place(w: &mut World, sid: SoulId, living: &mut u32, cap: u32) {
     }
 
     // 人道、阿修羅道。
-    let waiters: Vec<SoulId> = w
-        .souls
+    let waiters: Vec<SoulId> = m
+        .waiting(w)
         .iter()
-        .filter(|s| matches!(&s.state, SoulState::Waiting { for_souls, .. } if for_souls.contains(&sid)))
-        .map(|s| s.id)
+        .copied()
+        .filter(|&o| matches!(&w.souls[o as usize].state, SoulState::Waiting { for_souls, .. } if for_souls.contains(&sid)))
         .collect();
 
     // 有人在等本魂時一律配對出生；否則看本魂是否要等別人。
@@ -206,6 +250,7 @@ fn judge_and_place(w: &mut World, sid: SoulId, living: &mut u32, cap: u32) {
                 soul.marks.set(SoulMarks::ASURA);
             }
             soul.state = SoulState::Waiting { until: tick + WAIT_MAX_YEARS * 12, for_souls: smallvec![other] };
+            m.entered_waiting(sid);
             record_judged(w, sid, path);
             return;
         }
@@ -213,12 +258,15 @@ fn judge_and_place(w: &mut World, sid: SoulId, living: &mut u32, cap: u32) {
 
     // 先配對，再檢查上限；達上限時整組一起延後（等待者維持原狀）。
     let group = 1 + waiters.len() as u32;
-    if *living + group > cap {
+    if *m.living(w) + group > m.cap {
         w.souls[sid as usize].state = SoulState::Bardo { until: tick + BIRTH_DEFER_YEARS * 12 };
         return;
     }
 
-    let province = province_override.unwrap_or_else(|| pull::sample_birth_province(w, sid));
+    let province = match province_override {
+        Some(p) => p,
+        None => m.birth_province(w, sid),
+    };
     {
         let soul = &mut w.souls[sid as usize];
         soul.guide = None;
@@ -232,21 +280,23 @@ fn judge_and_place(w: &mut World, sid: SoulId, living: &mut u32, cap: u32) {
     for wid in waiters {
         let p = pull::sample_near(w, province);
         rebirth(w, wid, p);
+        m.left_waiting(wid);
     }
-    *living += group;
+    *m.living(w) += group;
 }
 
 /// 等待逾時：照常以因果牽引出生；達上限則再等 1 年。
-fn birth_after_wait(w: &mut World, sid: SoulId, living: &mut u32, cap: u32) {
-    if *living + 1 > cap {
+fn birth_after_wait(w: &mut World, sid: SoulId, m: &mut Month) {
+    if *m.living(w) + 1 > m.cap {
         if let SoulState::Waiting { until, .. } = &mut w.souls[sid as usize].state {
             *until += BIRTH_DEFER_YEARS * 12;
         }
         return;
     }
-    let province = pull::sample_birth_province(w, sid);
+    let province = m.birth_province(w, sid);
     rebirth(w, sid, province);
-    *living += 1;
+    m.left_waiting(sid);
+    *m.living(w) += 1;
 }
 
 /// GDD 6.3 步驟 5：中陰到期的魂六道判定；他道期滿的魂重判（天道 G × 0.5、為獸 S × 0.9）；
@@ -269,24 +319,35 @@ pub fn monthly(w: &mut World) {
         }
     }
 
-    let cap = notable_cap(w);
-    let mut living = living_notables(w);
+    let mut month = Month { cap: notable_cap(w), living: None, waiting: None, pop: None };
+    // 在世有名之人數要掃全部在世者，多數月份沒有任何魂到期，所以第一次用到時才算
+    // （第一個到期之前世界沒有改變，數值與一開始就算相同）。
     // 狀態會在迴圈中被配對改變，因此每次重讀。
     for i in 0..w.souls.len() {
         let sid = i as SoulId;
-        match w.souls[i].state.clone() {
-            SoulState::Bardo { until } if until <= tick => judge_and_place(w, sid, &mut living, cap),
-            SoulState::Realm { path, until } if until <= tick => {
+        // 先以參照判斷是否到期（多數魂沒有到期，不複製狀態）。
+        let due = match &w.souls[i].state {
+            SoulState::Bardo { until } if *until <= tick => 1,
+            SoulState::Realm { until, .. } if *until <= tick => 2,
+            SoulState::Waiting { until, .. } if *until <= tick => 3,
+            _ => 0,
+        };
+        if due == 0 {
+            continue;
+        }
+        match due {
+            1 => judge_and_place(w, sid, &mut month),
+            2 => {
+                let SoulState::Realm { path, .. } = w.souls[i].state else { continue };
                 let soul = &mut w.souls[i];
                 match path {
                     SixPath::Heaven => soul.merit *= PATH_HEAVEN_RETURN_G_MULT,
                     SixPath::Beast => soul.sin *= PATH_BEAST_RETURN_S_MULT,
                     _ => {}
                 }
-                judge_and_place(w, sid, &mut living, cap);
+                judge_and_place(w, sid, &mut month);
             }
-            SoulState::Waiting { until, .. } if until <= tick => birth_after_wait(w, sid, &mut living, cap),
-            _ => {}
+            _ => birth_after_wait(w, sid, &mut month),
         }
     }
 }

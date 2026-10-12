@@ -6,7 +6,7 @@ use smallvec::smallvec;
 use crate::ledger::{self, NewEvent};
 use crate::model::*;
 use crate::params::*;
-use crate::schedule::{Domain, Round};
+use crate::schedule::Round;
 use crate::sim::World;
 use crate::types::ProvinceId;
 
@@ -152,10 +152,9 @@ pub fn yearly_coming_of_age(w: &mut World) {
 
 fn coming_of_age_round(w: &mut World, round: Round) {
     let tick = w.tick;
-    let seed = w.params.seed;
-    for i in w.alive_snapshot().into_iter().map(|x| x as usize) {
+    for i in w.round_alive(round).into_iter().map(|x| x as usize) {
         let p = &w.persons[i];
-        if !p.alive() || !round.takes(seed, Domain::Person, p.id) || p.role != Role::Child || p.age(tick) < COMING_OF_AGE_YEARS {
+        if !p.alive() || p.role != Role::Child || p.age(tick) < COMING_OF_AGE_YEARS {
             continue;
         }
         let pid = p.id;

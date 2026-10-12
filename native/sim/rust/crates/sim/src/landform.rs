@@ -456,6 +456,8 @@ fn recompute_provinces(w: &mut World, basis: &LandBasis, coast_moved: bool, shif
         p.neighbors = land;
         p.sea_neighbors = sea.into_iter().collect();
     }
+    // 宗門勢力範圍快取依陸鄰算出，鄰接變了就作廢。
+    w.range_cache = Default::default();
     // 消失的州郡不算陸橋沉沒。
     let provinces = &w.provinces;
     shift.links.retain(|&(a, b, _)| !provinces[a as usize].cells.is_empty() && !provinces[b as usize].cells.is_empty());

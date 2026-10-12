@@ -48,6 +48,7 @@ pub fn die(w: &mut World, pid: PersonId, cause: DeathCause, liberation: Option<L
     p.died = Some((tick, cause));
     if let Ok(k) = w.alive_ids.binary_search(&pid) {
         w.alive_ids.remove(k);
+        w.alive_removed(pid);
     }
     let p = &mut w.persons[pid as usize];
     p.travel_until = None;

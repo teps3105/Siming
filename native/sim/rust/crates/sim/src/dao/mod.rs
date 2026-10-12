@@ -41,6 +41,7 @@ pub use breakthrough::{ascension_survival, breakthrough_chance, cooldown_ready, 
 pub use cultivate::cultivation_coefficient;
 pub use demon::{fall_to_demon, heart_demon_chance};
 pub use kill::kill;
+pub use sect::RangeCache;
 pub use sect::{
     choose_seat, effective_prestige, found_sect, join_sect, provinces_within, resolve_leaders, sect_name, sect_of, sect_range, Seat,
 };
@@ -107,11 +108,12 @@ pub fn yearly_sects(w: &mut World) {
 
 fn sects_round(w: &mut World, round: Round) {
     // 勢力範圍在本輪內不變（半徑只在最後的聲望重算改），招收與爭脈共用一份快取。
-    let mut ranges = sect::RangeCache::default();
+    let mut ranges = std::mem::take(&mut w.range_cache);
     sect::resolve_leaders_round(w, round);
     sect::yearly_found(w, round);
     sect::yearly_recruit(w, round, &mut ranges);
     war::yearly_wars(w, round, &mut ranges);
     sect::resolve_leaders_round(w, round);
     sect::yearly_prestige(w, round);
+    w.range_cache = ranges;
 }

@@ -5,7 +5,7 @@ use rand::Rng;
 use super::{breakthrough, demon};
 use crate::model::*;
 use crate::params::*;
-use crate::schedule::{Domain, Round};
+use crate::schedule::Round;
 use crate::sim::World;
 
 /// GDD 3.5 修煉的確定部分（不含 U(0.8, 1.2) 隨機係數）：
@@ -57,12 +57,11 @@ pub(super) fn add_exp(w: &mut World, pid: PersonId, amount: f32) {
 /// 突破（含天劫）→ 修煉 → 心魔 → 斬妖除魔（修士）／襲殺（魔修）。
 pub(super) fn yearly_actions(w: &mut World, round: Round) {
     let tick = w.tick;
-    let seed = w.params.seed;
     // 人物索引只在第一次需要斬妖或襲殺時才建（單月輪次多半只有修煉）。
     let mut index: Option<demon::PersonIndex> = None;
-    for i in w.alive_snapshot().into_iter().map(|x| x as usize) {
+    for i in w.round_alive(round).into_iter().map(|x| x as usize) {
         let p = &w.persons[i];
-        if !p.alive() || !round.takes(seed, Domain::Person, p.id) || !matches!(p.role, Role::Cultivator | Role::Demonic) {
+        if !p.alive() || !matches!(p.role, Role::Cultivator | Role::Demonic) {
             continue;
         }
         if !matches!(p.path, PathState::Cultivator { .. }) {
@@ -78,9 +77,9 @@ pub(super) fn yearly_actions(w: &mut World, round: Round) {
                 if demon::heart_demon_roll(w, pid) {
                     continue;
                 }
-                demon::hunt(w, index.get_or_insert_with(|| demon::PersonIndex::build(w)), pid);
+                demon::hunt(w, &mut index, pid);
             }
-            _ => demon::assassinate(w, index.get_or_insert_with(|| demon::PersonIndex::build(w)), pid),
+            _ => demon::assassinate(w, &mut index, pid),
         }
     }
 }
