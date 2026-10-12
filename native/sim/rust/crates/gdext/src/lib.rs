@@ -852,6 +852,150 @@ impl SimWorld {
         out
     }
 
+    // ── 人物卡（GDD 5.8）──────────────────────────────────────
+
+    /// 人物卡的基本資料；沒有這個人時回傳空字典。欄位：
+    /// - `name`、`title`（道號等，沒有為空字串）、`gender`（`Male`／`Female`）、`age`（身故者為享年）、`lifespan`（壽元上限）、`alive`；
+    /// - `died_tick`、`death_cause`（`DeathCause` 的代號，對應 `death_*` 語系鍵；在世為 -1、空字串）；
+    /// - `province`／`province_name`（所在，身故者為歿處）、`home`／`home_name`（故里）、`pos`（所在格心的地圖座標）；
+    /// - `role`（`Role` 代號）、`power`（勢力編號，無為 -1）、`power_name`、`is_leader`（是否為該勢力首領）；
+    /// - `realm`（修士境界，非修士為 -1）、`fruit`（僧的果位，非僧為 -1）；
+    /// - `root`、`insight`、`talent`、`virtue`、`ferocity`（資質）；
+    /// - `soul`（魂編號）、`life_index`（這是魂的第幾世，從 1 起算）、`lives_total`（魂已有的世數）、
+    ///   `merit`、`sin`、`wisdom`（魂的功德、業障、宿慧）。
+    #[func]
+    fn person(&self, id: i32) -> VarDictionary {
+        let mut d = VarDictionary::new();
+        let Some(s) = self.sim.as_ref() else { return d };
+        let w = s.world();
+        let Some(p) = usize::try_from(id).ok().and_then(|i| w.persons.get(i)) else {
+            return d;
+        };
+        let gw = w.geo.w as u32;
+        let province_name = |id: siming_sim::ProvinceId| w.provinces.get(id as usize).map_or("", |p| p.name.as_str());
+        d.set("id", id);
+        d.set("name", &GString::from(p.name.as_str()));
+        d.set("title", &GString::from(p.title.as_deref().unwrap_or("")));
+        d.set("gender", &GString::from(format!("{:?}", p.gender).as_str()));
+        d.set("age", p.age(w.tick) as i32);
+        d.set("lifespan", p.lifespan as i32);
+        d.set("alive", p.alive());
+        d.set("died_tick", p.died.map_or(-1, |(t, _)| t as i64));
+        d.set("death_cause", &GString::from(p.died.map_or(String::new(), |(_, c)| format!("{c:?}")).as_str()));
+        d.set("province", p.province as i32);
+        d.set("province_name", &GString::from(province_name(p.province)));
+        d.set("home", p.home as i32);
+        d.set("home_name", &GString::from(province_name(p.home)));
+        d.set("pos", Vector2::new((p.cell % gw) as f32 + 0.5, (p.cell / gw) as f32 + 0.5));
+        d.set("role", &GString::from(format!("{:?}", p.role).as_str()));
+        let power = p.power.and_then(|pw| w.powers.get(pw as usize));
+        d.set("power", power.map_or(-1, |pw| pw.id as i32));
+        d.set("power_name", &GString::from(power.map_or("", |pw| pw.name.as_str())));
+        d.set("is_leader", power.is_some_and(|pw| pw.leader == Some(p.id)));
+        let (realm, fruit) = match p.path {
+            siming_sim::PathState::Cultivator { realm, .. } => (realm as i32, -1),
+            siming_sim::PathState::Monk { fruit, .. } => (-1, fruit as i32),
+            _ => (-1, -1),
+        };
+        d.set("realm", realm);
+        d.set("fruit", fruit);
+        d.set("root", p.attrs.root);
+        d.set("insight", p.attrs.insight);
+        d.set("talent", p.attrs.talent);
+        d.set("virtue", p.attrs.virtue);
+        d.set("ferocity", p.attrs.ferocity);
+        d.set("soul", p.soul as i32);
+        if let Some(soul) = w.souls.get(p.soul as usize) {
+            d.set("life_index", soul.lives.iter().position(|&l| l == p.id).map_or(1, |i| i as i32 + 1));
+            d.set("lives_total", soul.lives.len() as i32);
+            d.set("merit", soul.merit);
+            d.set("sin", soul.sin);
+            d.set("wisdom", soul.wisdom);
+        }
+        d
+    }
+
+    /// 這個人牽涉的事件，由舊到新（依 tick，同 tick 依事件編號）；修剪過的墓碑不算。身故者只算到死為止。
+    /// 每筆有 `id`、`tick`、`kind`、`importance`、`province`（無為 -1）、`pos`（無地點沒有此鍵）、
+    /// `era`（當時的紀元名）、`year`（紀元內年份）、`month`，以及與 `drain_events` 相同的文字欄位
+    /// `a`、`b`、`f`、`g`、`p`、`q`、`x`、`n`、`m`；另有 `a_person`、`b_person`（兩位人物的編號，無為 -1）
+    /// 與 `q_province`（`q` 那個州郡的編號，無為 -1），供介面把人名與地名做成可點。
+    #[func]
+    fn person_history(&self, id: i32) -> Array<VarDictionary> {
+        let mut out = Array::new();
+        let Some(s) = self.sim.as_ref() else { return out };
+        let w = s.world();
+        let Some(p) = usize::try_from(id).ok().and_then(|i| w.persons.get(i)) else {
+            return out;
+        };
+        // 只記了魂的事件（判入六道）只算本世存在期間內的。
+        let mut events: Vec<&siming_sim::Event> = w.ledger.events.iter().filter(|e| e.importance > 0 && belongs_to(e, p)).collect();
+        events.sort_by_key(|e| (e.tick, e.id));
+        let gw = w.geo.w as u32;
+        // 故里日後可能變：遊歷是否為歸來，改看它是不是回到上一趟的出發地，或回到現在的故里。
+        let mut away_from: Option<siming_sim::ProvinceId> = None;
+        for e in events {
+            let back = match e.args {
+                siming_sim::EventArgs::Travel { to, .. } => Some(away_from == Some(to) || p.home == to),
+                _ => None,
+            };
+            let mut d = self.event_fields(w, e, back);
+            if let siming_sim::EventArgs::Travel { from, .. } = e.args {
+                away_from = if back == Some(true) { None } else { Some(from) };
+            }
+            d.set("id", e.id as i64);
+            d.set("tick", e.tick as i64);
+            d.set("kind", &GString::from(format!("{:?}", e.kind).as_str()));
+            d.set("importance", e.importance as i32);
+            d.set("province", e.province.map_or(-1, |p| p as i32));
+            let seat = e.province.and_then(|p| w.provinces.get(p as usize)).map(|p| p.seat);
+            if let Some(c) = e.cell.or(seat) {
+                d.set("pos", Vector2::new((c % gw) as f32 + 0.5, (c / gw) as f32 + 0.5));
+            }
+            let (era, year) = siming_sim::calendar::era_year(e.tick, w.evolution.history_years, &w.eras);
+            d.set("era", &GString::from(era.name.as_str()));
+            d.set("year", year as i32);
+            d.set("month", siming_sim::calendar::date(e.tick).month as i32);
+            out.push(&d);
+        }
+        out
+    }
+
+    /// 某州郡現在在世的有名之人，依境界由高到低、同境界依編號：`id`、`name`、`role`（`Role` 代號）、
+    /// `realm`（修士境界，其他為 -1）、`fruit`（僧的果位，其他為 -1）、`power_name`、`is_leader`、`age`。
+    #[func]
+    fn people_in(&self, province: i32) -> Array<VarDictionary> {
+        let mut out = Array::new();
+        let Some(s) = self.sim.as_ref() else { return out };
+        let w = s.world();
+        let mut rows: Vec<(i32, &siming_sim::Person)> = w
+            .alive_ids
+            .iter()
+            .filter_map(|&i| w.persons.get(i as usize))
+            .filter(|p| p.alive() && p.province as i32 == province)
+            .map(|p| match p.path {
+                siming_sim::PathState::Cultivator { realm, .. } => (realm as i32, p),
+                _ => (-1, p),
+            })
+            .collect();
+        rows.sort_by_key(|(realm, p)| (std::cmp::Reverse(*realm), p.id));
+        for (realm, p) in rows {
+            let mut d = VarDictionary::new();
+            let power = p.power.and_then(|pw| w.powers.get(pw as usize));
+            d.set("id", p.id as i32);
+            d.set("name", &GString::from(p.name.as_str()));
+            d.set("role", &GString::from(format!("{:?}", p.role).as_str()));
+            d.set("realm", realm);
+            let fruit = if let siming_sim::PathState::Monk { fruit, .. } = p.path { fruit as i32 } else { -1 };
+            d.set("fruit", fruit);
+            d.set("power_name", &GString::from(power.map_or("", |pw| pw.name.as_str())));
+            d.set("is_leader", power.is_some_and(|pw| pw.leader == Some(p.id)));
+            d.set("age", p.age(w.tick) as i32);
+            out.push(&d);
+        }
+        out
+    }
+
     // ── 統計 ────────────────────────────────────────────────────
 
     #[func]
@@ -1016,5 +1160,126 @@ impl SimWorld {
             out.push(&d);
         }
         out
+    }
+}
+
+/// 事件是否算這個人的歷程：他是事件的人物；或事件只記了他的魂，且發生在他在世（或身故當下）之間。
+fn belongs_to(e: &siming_sim::Event, p: &siming_sim::Person) -> bool {
+    if e.persons.contains(&p.id) {
+        return true;
+    }
+    e.persons.is_empty() && e.souls.contains(&p.soul) && (e.tick as i64) >= p.born as i64 && p.died.is_none_or(|(t, _)| e.tick <= t)
+}
+
+impl SimWorld {
+    /// 事件的 7.2 模板欄位（`a`、`b`、`f`、`g`、`p`、`q`、`x`、`n`、`m`，世界大事另有 `change`、`era`），
+    /// 與 `drain_events` 是同一套規則；再加 `a_person`、`b_person`、`q_province`。
+    /// `back` 指定遊歷是否為歸來；沒給就看人物此刻的故里是不是目的地（`drain_events` 在事件剛發生時如此判斷）。
+    /// 注意：`drain_events` 內的同一段邏輯是複本，日後該函式改呼叫本函式即可合併。
+    fn event_fields(&self, w: &siming_sim::World, e: &siming_sim::Event, back: Option<bool>) -> VarDictionary {
+        let mut d = VarDictionary::new();
+        let province = e.province.and_then(|p| w.provinces.get(p as usize));
+        let person_id = |i: usize| e.persons.get(i).copied().filter(|&id| w.persons.get(id as usize).is_some());
+        let person = |i: usize| person_id(i).and_then(|id| w.persons.get(id as usize));
+        let power = |i: usize| e.powers.get(i).and_then(|&id| w.powers.get(id as usize));
+        let province_name = |id: siming_sim::ProvinceId| w.provinces.get(id as usize).map_or("", |p| p.name.as_str());
+        let soul_body = e
+            .souls
+            .first()
+            .and_then(|&s| w.souls.get(s as usize))
+            .and_then(|s| s.lives.last())
+            .and_then(|&pid| w.persons.get(pid as usize));
+        let a = person(0).or(soul_body).map_or("", |p| p.name.as_str());
+        let b = person(1).map_or("", |p| p.name.as_str());
+        let (first, second_power) = if e.kind == siming_sim::EventKind::SectSplit { (1, 0) } else { (0, 1) };
+        let mut f = power(first).map_or("", |p| p.name.as_str());
+        let mut g = power(second_power).map_or("", |p| p.name.as_str());
+        let mut m = 0i64;
+        let mut second = "";
+        let mut second_id: Option<siming_sim::ProvinceId> = None;
+        let mut x = String::new();
+        let mut n = 0i64;
+        match &e.args {
+            siming_sim::EventArgs::Death { cause, age } => {
+                x = format!("{cause:?}");
+                n = *age as i64;
+            }
+            siming_sim::EventArgs::Realm { realm } => n = *realm as i64,
+            siming_sim::EventArgs::Tribulation { realm, outcome } => {
+                n = *realm as i64;
+                x = format!("{outcome:?}");
+            }
+            siming_sim::EventArgs::Thread { kind, lives, .. } => {
+                x = format!("{kind:?}");
+                n = *lives as i64;
+            }
+            siming_sim::EventArgs::Judged { path } => x = format!("{path:?}"),
+            siming_sim::EventArgs::Travel { to, .. } => {
+                let is_home = back.unwrap_or_else(|| person(0).is_some_and(|p| p.home == *to));
+                x = if is_home { "Back" } else { "Out" }.to_string();
+                second = province_name(*to);
+                second_id = Some(*to);
+            }
+            siming_sim::EventArgs::Role { role } => {
+                x = format!("{role:?}");
+                if e.kind == siming_sim::EventKind::ComeOfAge && f.is_empty() {
+                    f = person(0).and_then(|p| p.power).and_then(|id| w.powers.get(id as usize)).map_or("", |pw| pw.name.as_str());
+                }
+            }
+            siming_sim::EventArgs::Book { entry } => x = format!("{entry:?}"),
+            siming_sim::EventArgs::Sect { node } => {
+                if e.kind == siming_sim::EventKind::SectWar {
+                    x = node.and_then(|id| w.geo.nodes.get(id as usize)).map_or(String::new(), |nd| nd.name.clone());
+                }
+            }
+            siming_sim::EventArgs::Famine { deaths } => n = *deaths as i64,
+            siming_sim::EventArgs::World { .. } | siming_sim::EventArgs::None => {}
+            siming_sim::EventArgs::Dynasty { dynasty, other, n: count } => {
+                f = w.dynasty.get(*dynasty).map_or("", |d| d.name.as_str());
+                g = other.and_then(|id| w.dynasty.get(id)).map_or("", |d| d.name.as_str());
+                n = *count as i64;
+                x = "Dynasty".to_string();
+            }
+            siming_sim::EventArgs::Node { node, from, to } => {
+                x = w.geo.nodes.get(*node as usize).map_or(String::new(), |nd| nd.name.clone());
+                n = *to as i64;
+                m = *from as i64;
+            }
+            siming_sim::EventArgs::Seat { .. } => {
+                if let (Some(stem), Some(p)) = (e.province.and_then(|p| self.seat_stems.get(p as usize)), province) {
+                    x = seat_name(stem, p.city_level);
+                }
+            }
+            siming_sim::EventArgs::Lost { refuge, perished } => {
+                second = refuge.map_or("", province_name);
+                second_id = *refuge;
+                n = *perished as i64;
+            }
+            siming_sim::EventArgs::Link { other, joined } => {
+                second = province_name(*other);
+                second_id = Some(*other);
+                x = if *joined { "Joined" } else { "Parted" }.to_string();
+            }
+        }
+        d.set("a", &GString::from(a));
+        d.set("b", &GString::from(b));
+        d.set("f", &GString::from(f));
+        d.set("g", &GString::from(g));
+        d.set("p", &GString::from(province.map_or("", |p| p.name.as_str())));
+        d.set("q", &GString::from(second));
+        d.set("x", &GString::from(x.as_str()));
+        d.set("n", n);
+        d.set("m", m);
+        d.set("a_person", person_id(0).map_or(-1, |id| id as i32));
+        d.set("b_person", person_id(1).map_or(-1, |id| id as i32));
+        d.set("q_province", second_id.map_or(-1, |id| id as i32));
+        if let siming_sim::EventArgs::World { change, new_era } = &e.args {
+            let year = w.evolution.history_years + siming_sim::evolution::year_of(e.tick);
+            let era = w.eras.iter().find(|era| era.start_year == year + 1);
+            let name = if *new_era { era.map_or("", |era| era.name.as_str()) } else { "" };
+            d.set("change", &GString::from(format!("{change:?}").as_str()));
+            d.set("era", &GString::from(name));
+        }
+        d
     }
 }

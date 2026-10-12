@@ -13,6 +13,8 @@ const MARGIN := 12.0
 const GUIDE_GAP := 24.0
 ## Steam Deck 版面的命簿是右側抽屜，寬度佔畫面的比例（GDD 5.8）。
 const DECK_CARD_WIDTH_FRAC := 0.45
+## 命簿「返回」最多記幾層（GDD 5.8）。
+const BACK_DEPTH := 8
 
 var _sim: SimHost
 var _map: TerrainMap
@@ -23,6 +25,9 @@ var _overlay: MapOverlay
 var _dial: TimeDial
 var _seals: SealBox
 var _card: ProvinceCard
+var _person_card: PersonCard
+## 從別張卡點進來時，回得去的上一張卡：{kind: "province"|"person", id}，最近的在最後。
+var _back_stack: Array[Dictionary] = []
 var _view: ViewToggle
 var _cursor: GameCursor
 var _guide: GuideSlip
@@ -43,6 +48,9 @@ func setup(sim: SimHost, map: TerrainMap, camera: MapCamera) -> void:
 	_camera = camera
 	camera.province_hovered.connect(func(id: int) -> void: _overlay.set_hover(id))
 	camera.province_selected.connect(func(id: int) -> void:
+		# 在地圖上另選一處：換成那州郡的卡，從卡點進來的返回記錄作廢。
+		_back_stack.clear()
+		_person_card.suspend()
 		_card.show_province(id)
 		if id >= 0:
 			_guide.notify(&"select"))
@@ -61,6 +69,7 @@ func setup(sim: SimHost, map: TerrainMap, camera: MapCamera) -> void:
 			_rumor.clear())
 	sim.advanced.connect(func(_months: int) -> void:
 		_card.refresh()
+		_person_card.refresh()
 		_overlay.refresh_seats()
 		_overlay.refresh_sects()
 		_map.refresh_faith())
@@ -68,7 +77,8 @@ func setup(sim: SimHost, map: TerrainMap, camera: MapCamera) -> void:
 	map.refreshed.connect(func(_terrain: bool) -> void:
 		await get_tree().process_frame
 		_overlay.reload()
-		_card.refresh())
+		_card.refresh()
+		_person_card.refresh())
 	var paper := Image.create_from_data(512, 512, false, Image.FORMAT_RGBA8, SimWorld.paper_texture())
 	Ink.paper_texture = ImageTexture.create_from_image(paper)
 	get_viewport().size_changed.connect(_layout)
@@ -91,13 +101,25 @@ func _layout() -> void:
 		_build()
 	_seals.position = bounds - _seals.size - Vector2(MARGIN, MARGIN)
 	_place_guide()
-	_card.position = Vector2(bounds.x - _card.size.x - MARGIN, MARGIN)
+	_place_cards(bounds)
 	_place_rumor()
 	_notice.top_center = Vector2(bounds.x * 0.5, MARGIN)
 
 
+## 兩張命簿都靠右上角（一次只開一張）。
+func _place_cards(bounds: Vector2) -> void:
+	# 命簿放右上、印匣在右下，卡的下緣停在印匣（含例簽的位置）上方。
+	var limit := (_seals.position.y if _seals != null else bounds.y) - MARGIN * 2.0
+	_card.max_height = limit
+	_person_card.max_height = limit
+	_card.position = Vector2(bounds.x - _card.size.x - MARGIN, MARGIN)
+	_person_card.position = Vector2(bounds.x - _person_card.size.x - MARGIN, MARGIN)
+
+
 func _build() -> void:
 	var selected := _card.province if _card != null else -1
+	var shown_person := _person_card.person if _person_card != null else -1
+	var stack := _back_stack.duplicate()
 	var rumors: Array[Dictionary] = []
 	if _rumor != null:
 		rumors = _rumor.snapshot()
@@ -128,8 +150,26 @@ func _build() -> void:
 	add_child(_card)
 	_card.setup(_sim.world, _unit, _card_width)
 	_card.center_requested.connect(func(pos: Vector2) -> void: _camera.look_at_map(pos))
-	_card.closed.connect(func() -> void: _map.set_selected(-1))
+	_card.closed.connect(func() -> void:
+		_back_stack.clear()
+		_map.set_selected(-1))
+	_card.person_requested.connect(func(id: int) -> void: open_person(id))
 	_card.show_province(selected)
+
+	_person_card = PersonCard.new()
+	add_child(_person_card)
+	_person_card.setup(_sim.world, _unit, _card_width)
+	_person_card.center_requested.connect(func(pos: Vector2) -> void: _camera.look_at_map(pos))
+	_person_card.person_requested.connect(func(id: int) -> void: open_person(id))
+	_person_card.province_requested.connect(func(id: int) -> void: open_province(id))
+	_person_card.back_requested.connect(go_back)
+	_person_card.closed.connect(func() -> void:
+		_back_stack.clear()
+		_map.set_selected(-1))
+	_back_stack = stack
+	if shown_person >= 0:
+		_person_card.can_back = not _back_stack.is_empty()
+		_person_card.show_person(shown_person)
 
 	_view = ViewToggle.new()
 	add_child(_view)
@@ -185,7 +225,8 @@ func _place_rumor() -> void:
 	if _rumor == null or _seals == null or _view == null:
 		return
 	var bounds := get_viewport().get_visible_rect().size
-	var right := _card.position.x - MARGIN if _card.visible else bounds.x - MARGIN
+	var open_card := _open_card()
+	var right := open_card.position.x - MARGIN if open_card != null else bounds.x - MARGIN
 	var width := _rumor.size.x - RumorSlip.SHADOW * 2.0
 	var dial_right := _dial.position.x + maxf(_dial._title_rect().end.x, _dial._speed_rect().end.x) + Ink.SLIP_BAND
 	var y := MARGIN
@@ -194,6 +235,88 @@ func _place_rumor() -> void:
 	_rumor.max_height = maxf(_seals.position.y - y - MARGIN, 0.0)
 	_rumor.right_edge = right
 	_rumor.top_edge = y
+
+
+## 目前看得到的命簿（沒有為 null）。
+func _open_card() -> LedgerCard:
+	if _person_card.visible:
+		return _person_card
+	if _card.visible:
+		return _card
+	return null
+
+
+func person_card() -> PersonCard:
+	return _person_card
+
+
+func province_card() -> ProvinceCard:
+	return _card
+
+
+## 開某人的人物卡並飛往他所在（GDD 5.8「點了就到」）；已身故的人也開得了。
+## 目前開著的卡記進返回記錄，Esc／B 回到它。傳聞簽日後的「看人物」接這裡。
+func open_person(id: int) -> void:
+	if _sim == null or id < 0 or _sim.world.person(id).is_empty():
+		return
+	_remember_open_card()
+	_card.suspend()
+	_person_card.can_back = not _back_stack.is_empty()
+	_person_card.show_person(id)
+	_camera.look_at_map(_sim.world.person(id)["pos"])
+	_place_cards(get_viewport().get_visible_rect().size)
+
+
+## 飛往某州郡並開它的州郡卡（記下目前開著的卡，可返回）。
+func open_province(id: int) -> void:
+	if _sim == null or id < 0 or id >= _sim.world.province_count():
+		return
+	_remember_open_card()
+	_person_card.suspend()
+	_map.set_selected(id)
+	_card.show_province(id)
+	_camera.look_at_map(_sim.world.province_info(id)["seat"])
+	_place_cards(get_viewport().get_visible_rect().size)
+
+
+## 回到上一張卡；沒有上一張就收起目前這張。
+func go_back() -> void:
+	if _back_stack.is_empty():
+		_close_cards()
+		return
+	var previous: Dictionary = _back_stack.pop_back()
+	_person_card.suspend()
+	_card.suspend()
+	if previous["kind"] == "person":
+		_person_card.can_back = not _back_stack.is_empty()
+		_person_card.show_person(previous["id"])
+	else:
+		_map.set_selected(previous["id"])
+		_card.show_province(previous["id"])
+	_place_cards(get_viewport().get_visible_rect().size)
+
+
+## 目前開著的卡先記進返回記錄。
+func _remember_open_card() -> void:
+	var entry := {}
+	if _person_card.is_open():
+		entry = {"kind": "person", "id": _person_card.person}
+	elif _card.is_open():
+		entry = {"kind": "province", "id": _card.province}
+	if entry.is_empty():
+		return
+	if not _back_stack.is_empty() and _back_stack[-1] == entry:
+		return
+	_back_stack.append(entry)
+	if _back_stack.size() > BACK_DEPTH:
+		_back_stack.pop_front()
+
+
+## 關掉所有命簿（返回記錄一併清掉）。
+func _close_cards() -> void:
+	_back_stack.clear()
+	_person_card.close()
+	_card.close()
 
 
 func rumor() -> RumorSlip:
@@ -268,8 +391,9 @@ func _occupied() -> Array[Rect2]:
 	var seals := _seals._seal_rect(0).merge(_seals._seal_rect(SealBox.SEALS.size() - 1))
 	seals.position += _seals.position
 	var out: Array[Rect2] = [disc.grow(6.0), slips.grow(6.0), seals.grow(6.0)]
-	if _card.visible:
-		out.append(Rect2(_card.position, _card.size).grow(6.0))
+	var open_card := _open_card()
+	if open_card != null:
+		out.append(Rect2(open_card.position, open_card.size).grow(6.0))
 	if _guide.visible:
 		out.append(Rect2(_guide.position, _guide.size).grow(6.0))
 	out.append(Rect2(_view.position, _view.size).grow(6.0))
@@ -281,6 +405,7 @@ func _apply_device() -> void:
 	_dial.gamepad = _camera.use_crosshair
 	_seals.gamepad = _camera.use_crosshair
 	_card.gamepad = _camera.use_crosshair
+	_person_card.gamepad = _camera.use_crosshair
 	_view.gamepad = _camera.use_crosshair
 	_guide.gamepad = _camera.use_crosshair
 	_rumor.gamepad = _camera.use_crosshair
@@ -301,7 +426,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif _rumor.expanded and event.is_action_pressed(InputActions.CANCEL):
 		_rumor.expanded = false
 		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed(InputActions.MENU) or (event is InputEventKey and event.is_action_pressed(InputActions.CANCEL) and not _card.visible):
+	elif event.is_action_pressed(InputActions.MENU) or (event is InputEventKey and event.is_action_pressed(InputActions.CANCEL) and _open_card() == null):
 		# Esc：有卡片開著先關卡片，否則開選單；Start 一律開選單。搖桿的 B 只取消與關卡片（GDD 5.9）。
 		open_menu()
 		get_viewport().set_input_as_handled()
@@ -323,6 +448,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed(InputActions.MODE_LINGMAI):
 		_set_mode(TerrainMap.Mode.LINGMAI)
 	elif event.is_action_pressed(InputActions.CANCEL):
-		_card.close()
+		go_back()
 	elif event.is_action_pressed(InputActions.CARD_CENTER):
-		_card.request_center()
+		if _person_card.is_open():
+			_person_card.request_center()
+		else:
+			_card.request_center()
