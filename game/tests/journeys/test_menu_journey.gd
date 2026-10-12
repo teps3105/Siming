@@ -3,7 +3,7 @@ extends "res://tests/harness/suite.gd"
 ## 存檔與設定寫在使用者資料夾底下另一個目錄，不碰玩家的檔案。
 
 const TITLE := "res://app/scenes/title.tscn"
-const ROOT := "user://test_menu"
+static var ROOT: String = TEST_STORAGE.path_join("menu")
 
 var _title: Node
 var _deck: MenuDeck
