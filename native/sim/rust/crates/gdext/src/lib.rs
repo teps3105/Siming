@@ -916,14 +916,18 @@ impl SimWorld {
             let power = |i: usize| e.powers.get(i).and_then(|&id| w.powers.get(id as usize));
             let province_name = |id: siming_sim::ProvinceId| w.provinces.get(id as usize).map_or("", |p| p.name.as_str());
             // 判入六道只記了魂，人名取魂最近一世的肉身。
-            let soul_body = e
-                .souls
-                .first()
-                .and_then(|&s| w.souls.get(s as usize))
-                .and_then(|s| s.lives.last())
-                .and_then(|&pid| w.persons.get(pid as usize));
-            let a = person(0).or(soul_body).map_or("", |p| p.name.as_str());
-            let b = person(1).map_or("", |p| p.name.as_str());
+            let soul_body = |i: usize| {
+                e.souls
+                    .get(i)
+                    .and_then(|&s| w.souls.get(s as usize))
+                    .and_then(|s| s.lives.last())
+                    .and_then(|&pid| w.persons.get(pid as usize))
+            };
+            // 兩魂牽涉的事件（宿緣）若有一魂當時沒有肉身，人物欄少於魂欄：改按魂的順序各取最近一世，免得把另一人當成主角。
+            let by_soul = e.souls.len() >= 2 && e.persons.len() < e.souls.len();
+            let (person_a, person_b) = if by_soul { (soul_body(0), soul_body(1)) } else { (person(0).or(soul_body(0)), person(1)) };
+            let a = person_a.map_or("", |p| p.name.as_str());
+            let b = person_b.map_or("", |p| p.name.as_str());
             // 分裂事件的勢力依序是新宗門、原宗門；模板的 {F} 是原宗門、{G} 是新宗門。
             let (first, second_power) = if e.kind == siming_sim::EventKind::SectSplit { (1, 0) } else { (0, 1) };
             let mut f = power(first).map_or("", |p| p.name.as_str());
@@ -1005,6 +1009,17 @@ impl SimWorld {
             d.set("n", n);
             d.set("m", m);
             d.set("year", siming_sim::calendar::era_year(e.tick, w.evolution.history_years, &w.eras).1 as i32);
+            d.set("month", siming_sim::calendar::date(e.tick).month as i32);
+            // 可追對象：牽涉的人物與勢力編號（州郡編號為 province）。
+            let person_ids: Vec<i32> = e.persons.iter().map(|&i| i as i32).collect();
+            let power_ids: Vec<i32> = e.powers.iter().map(|&i| i as i32).collect();
+            d.set("persons", &PackedInt32Array::from(person_ids.as_slice()));
+            d.set("powers", &PackedInt32Array::from(power_ids.as_slice()));
+            // 主角（{A}）的身分，取自這個人物目前的狀態：所屬勢力名、職分代號、修士境界（非修士為 −1）。
+            let (a_power, a_role, a_realm) = person_a.map_or(("", "", -1), |p| identity_of(w, p));
+            d.set("a_power", &GString::from(a_power));
+            d.set("a_role", &GString::from(a_role));
+            d.set("a_realm", a_realm);
             if let siming_sim::EventArgs::World { change, new_era } = &e.args {
                 // 紀元的元年是開啟它的那次結算的下一年。
                 let year = w.evolution.history_years + siming_sim::evolution::year_of(e.tick);
@@ -1017,4 +1032,34 @@ impl SimWorld {
         }
         out
     }
+}
+
+/// 人物目前的身分：（所屬勢力名，職分代號，修士境界）。
+/// 職分代號：`Ruler` 君主、`Leader` 掌門、`Member` 宗門成員（長老或弟子由介面端依境界分）、`Rogue` 散修、
+/// `Monk`、`Scholar`、`Demonic`、`Beast`、`Official`、`General`、`Royal`；其餘為空字串。境界非修士為 −1。
+fn identity_of<'a>(w: &'a siming_sim::World, p: &siming_sim::Person) -> (&'a str, &'static str, i32) {
+    use siming_sim::{PathState, Role};
+    let power = p.power.and_then(|id| w.powers.get(id as usize));
+    let realm = match p.path {
+        PathState::Cultivator { realm, .. } => realm as i32,
+        _ => -1,
+    };
+    let role = match p.role {
+        Role::Ruler => "Ruler",
+        Role::Cultivator => match power {
+            Some(pw) if pw.leader == Some(p.id) => "Leader",
+            Some(_) => "Member",
+            None => "Rogue",
+        },
+        Role::Monk => "Monk",
+        Role::Scholar => "Scholar",
+        Role::Demonic => "Demonic",
+        Role::Beast => "Beast",
+        Role::Official => "Official",
+        Role::General | Role::GeneralCandidate => "General",
+        Role::Royal => "Royal",
+        Role::Child | Role::Commoner => "",
+    };
+    let power_name = if role == "Ruler" { "" } else { power.map_or("", |pw| pw.name.as_str()) };
+    (power_name, role, realm)
 }

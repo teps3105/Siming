@@ -1,9 +1,11 @@
 class_name RumorSlip
 extends Control
-## GDD 4.7、5.7 傳聞簽：畫面右上一列紙簽，每張是事件印、一句話與年份，新到舊，世界大事置頂。
+## GDD 4.7、5.7 傳聞簽：畫面右上一列紙簽，每張是事件印、一句話（人物帶門派與境界）、原因標記與年月，新到舊，世界大事置頂。
 ## 支援的決定：該追哪一則——點一則鏡頭飛往該地。收合時最多 8 張（Deck 為 1 張），展開為近 50 則的捲動清單。
 ## 入簽依重要度分級（5.7「通知優先序」）：≥ 3 或世界大事入簽，2 只進展開清單，其餘不顯示；
-## 同一魂同一年的多筆事件合併為一簽（取重要度高的）。
+## 同一魂同一年的多筆異常事件合併為一簽（取重要度高的）。
+## 例行事件（7.2「傳聞的合成與標記」）同月同類合成一則統計，點開攤出名單；收合時異常先於例行統計。
+## 內部分兩層：_records 是逐筆事件，_entries 是由它們合成的一張張簽（單筆，或同月同類的統計）。
 
 ## 點一則有地點的傳聞：飛往地圖座標 map_pos。
 signal fly_requested(map_pos: Vector2)
@@ -16,6 +18,8 @@ const HEADER_HEIGHT := 26.0
 ## 收合時最多幾張；展開清單最多留幾則。
 const SHOWN_MAX := 8
 const KEEP_MAX := 50
+## 逐筆事件累積到這個數目就先合成一次（快轉時不讓它無限長）。
+const RECORDS_MAX := 2000
 ## 入簽與只進清單的重要度門檻。
 const SLIP_IMPORTANCE := 3
 const NOTE_IMPORTANCE := 2
@@ -31,6 +35,16 @@ const EDGE_ZONE := 26.0
 const EDGE_SPEED := 320.0
 const SELECT_NONE := -1
 const SELECT_HEADER := -2
+## 攤開的名單一行的高度與行距；名單列的選取碼 = MEMBER_BASE + 簽序 × MEMBER_STRIDE + 名單序。
+const MEMBER_HEIGHT := 22.0
+const MEMBER_GAP := 2.0
+const MEMBER_BASE := 1000000
+const MEMBER_STRIDE := 10000
+## 原因標記的方框邊長。
+const MARK_SIZE := 16.0
+## 「看人物」「溯因」入口預留的寬度與間距（人物卡與事件卡實作前不畫，只留位置）。
+const SLOT_WIDTH := 44.0
+const SLOT_GAP := 4.0
 
 ## 目前的輸入裝置是否為搖桿（決定畫哪一種實體鍵圖像）。
 var gamepad := false:
@@ -41,6 +55,7 @@ var gamepad := false:
 var compact := false:
 	set(value):
 		compact = value
+		_shown_valid = false
 		_refit()
 ## 是否展開為近 50 則的清單。
 var expanded := false:
@@ -48,6 +63,7 @@ var expanded := false:
 		if expanded == value:
 			return
 		expanded = value
+		_shown_valid = false
 		_scroll = 0.0
 		_refit()
 ## 紙面右緣與上緣在畫面上的位置。
@@ -66,8 +82,20 @@ var max_height := 600.0:
 		_refit()
 
 var _unit := 1.0
-## 依到達順序，新的在後。
+## 逐筆事件，依到達順序，新的在後。
+var _records: Array[Dictionary] = []
+## 由 _records 合成的簽（單筆或統計），_dirty 時要重算。
 var _entries: Array[Dictionary] = []
+var _dirty := false
+var _refit_queued := false
+## 目前畫出來的簽（依顯示順序）與各簽在內容座標的上緣、內容總高。
+var _shown_cache: Array[Dictionary] = []
+var _shown_valid := false
+var _tops := PackedFloat32Array()
+var _content_h := 0.0
+## 各簽已出現的時間（滑入動畫）與攤開的統計。
+var _ages := {}
+var _open := {}
 var _latest_tick := 0
 var _hover := SELECT_NONE
 var _pressed := SELECT_NONE
@@ -89,71 +117,212 @@ func post(event: Dictionary) -> bool:
 	var importance: int = event["importance"]
 	if importance < NOTE_IMPORTANCE and not world:
 		return false
-	var entry := {
+	var info := EventText.describe(event)
+	var rec := {
 		"id": event["id"],
+		"key": "e%d" % int(event["id"]),
+		"kind": event["kind"],
 		"tick": event["tick"],
 		"year": event.get("year", 0),
+		"month": EventText.month_of(event),
 		"importance": importance,
 		"world": world,
-		"line": EventText.line(event),
+		"n": event.get("n", 0),
+		"x": event.get("x", ""),
+		"line": info["line"],
+		"variants": info["variants"],
 		"seal": EventText.seal(event["kind"]),
+		"category": info["category"],
+		"reason": info["reason"],
+		"consequence": info["consequence"],
+		"who": info["who"],
+		"who_variants": info["who_variants"],
+		"tag": info["tag"],
+		"what": info["what"],
 		"souls": event.get("souls", PackedInt32Array()),
-		"age": 0.0,
+		# 可追的對象編號：人物、勢力、州郡（人物卡與事件卡實作後用）。
+		"persons": event.get("persons", PackedInt32Array()),
+		"powers": event.get("powers", PackedInt32Array()),
+		"province": event.get("province", -1),
+		"members": [],
 	}
 	if event.has("pos"):
-		entry["pos"] = event["pos"]
-	_latest_tick = maxi(_latest_tick, int(entry["tick"]))
-	var same := _same_soul_year(entry)
-	if same >= 0:
-		var old := _entries[same]
-		if importance >= int(old["importance"]):
-			entry["age"] = old["age"]
-			_entries[same] = entry
-	else:
-		_entries.append(entry)
-		while _entries.size() > KEEP_MAX:
-			_entries.pop_front()
-	_refit()
+		rec["pos"] = event["pos"]
+	_latest_tick = maxi(_latest_tick, int(rec["tick"]))
+	if _admit(rec):
+		_dirty = true
+		_shown_valid = false
+		_queue_refit()
 	return true
 
 
 func clear() -> void:
+	_records.clear()
 	_entries.clear()
+	_ages.clear()
+	_open.clear()
 	_latest_tick = 0
 	_scroll = 0.0
+	_dirty = false
+	_shown_valid = false
 	_refit()
 
 
 ## 目前留著的傳聞（重建器物時帶到新的簽上）。
 func snapshot() -> Array[Dictionary]:
-	return _entries.duplicate()
+	return _records.duplicate()
 
 
 func restore(entries: Array[Dictionary]) -> void:
-	_entries = entries.duplicate()
+	_records = entries.duplicate()
+	_ages.clear()
+	for rec in _records:
+		_latest_tick = maxi(_latest_tick, int(rec["tick"]))
+	_rebuild()
 	for entry in _entries:
-		entry["age"] = FADE_SECONDS
-		_latest_tick = maxi(_latest_tick, int(entry["tick"]))
+		_ages[entry["key"]] = FADE_SECONDS
+	_shown_valid = false
 	_refit()
 
 
-## 同一魂同一年已有的傳聞（世界大事不併）；沒有則 -1。
-func _same_soul_year(entry: Dictionary) -> int:
-	var souls: PackedInt32Array = entry["souls"]
-	if entry["world"] or souls.is_empty():
-		return -1
-	for i in _entries.size():
-		var other := _entries[i]
-		if other["world"] or _year_of(other) != _year_of(entry):
+## 這筆事件是否留下：突破（新境界 ≥ 金丹）緊接在渡劫之後，是同一件事，不另記；
+## 同一魂同一年的異常事件合成一簽，留重要度高的（同級留先到的）。例行事件不併，統計要數得出每個人。
+## 事件依時間先後到達，所以只從尾端往回找到年份不同為止。
+func _admit(rec: Dictionary) -> bool:
+	var souls: PackedInt32Array = rec["souls"]
+	var year := _year_of(rec)
+	if rec["kind"] == "Breakthrough" and int(rec["n"]) >= 2:
+		for i in range(_records.size() - 1, -1, -1):
+			var old := _records[i]
+			if old["tick"] != rec["tick"]:
+				break
+			if old["kind"] == "Tribulation" and _share_soul(old["souls"], souls):
+				return false
+	if rec["world"] or rec["category"] != "" or souls.is_empty():
+		_append(rec)
+		return true
+	for i in range(_records.size() - 1, -1, -1):
+		var old := _records[i]
+		if _year_of(old) < year:
+			break
+		if old["world"] or old["category"] != "" or _year_of(old) != year or not _share_soul(old["souls"], souls):
 			continue
-		for soul in souls:
-			if (other["souls"] as PackedInt32Array).has(soul):
-				return i
-	return -1
+		if int(rec["importance"]) > int(old["importance"]):
+			_records[i] = rec
+			return true
+		return false
+	_append(rec)
+	return true
+
+
+## 加入一筆；一口氣湧入太多（快轉）時先合成一次，丟掉擠出 50 簽的舊事。
+func _append(rec: Dictionary) -> void:
+	_records.append(rec)
+	if _records.size() > RECORDS_MAX:
+		_rebuild()
+		_shown_valid = false
+
+
+func _share_soul(a: PackedInt32Array, b: PackedInt32Array) -> bool:
+	for soul in b:
+		if a.has(soul):
+			return true
+	return false
 
 
 func _year_of(entry: Dictionary) -> int:
 	return floori(float(entry["tick"]) / 12.0)
+
+
+## 由逐筆事件合成簽：例行事件同月同類成一簽（只有一筆就維持單筆的樣子），其餘各自一簽；超過 50 簽丟掉最舊的。
+func _rebuild() -> void:
+	_dirty = false
+	var singles: Array[Dictionary] = []
+	var groups := {}
+	var order: Array[String] = []
+	for rec in _records:
+		var cat: String = rec["category"]
+		if cat.is_empty():
+			singles.append(rec)
+			continue
+		var gkey := "%d:%s" % [int(rec["tick"]), cat]
+		if not groups.has(gkey):
+			groups[gkey] = []
+			order.append(gkey)
+		groups[gkey].append(rec)
+	_entries = singles
+	for gkey in order:
+		var members: Array = groups[gkey]
+		if members.size() == 1:
+			_entries.append(members[0])
+		else:
+			_entries.append(_make_group(gkey, members))
+	while _entries.size() > KEEP_MAX:
+		var oldest := 0
+		for i in _entries.size():
+			if _older(_entries[i], _entries[oldest]):
+				oldest = i
+		var gone := _entries[oldest]
+		var gone_members: Array = gone["members"] if gone["members"].size() > 0 else [gone]
+		for m in gone_members:
+			_remove_record(int(m["id"]))
+		_entries.remove_at(oldest)
+	var ages := {}
+	var open := {}
+	for entry in _entries:
+		ages[entry["key"]] = _ages.get(entry["key"], 0.0)
+		if _open.has(entry["key"]):
+			open[entry["key"]] = true
+	_ages = ages
+	_open = open
+
+
+func _make_group(gkey: String, members: Array) -> Dictionary:
+	members.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		if a["n"] != b["n"]:
+			return a["n"] > b["n"]
+		return a["id"] < b["id"])
+	var first: Dictionary = members[0]
+	var importance := 0
+	var newest := 0
+	for m in members:
+		importance = maxi(importance, int(m["importance"]))
+		newest = maxi(newest, int(m["id"]))
+	var variants := EventText.group_variants(first["category"], members)
+	return {
+		"id": newest,
+		"key": "g" + gkey,
+		"kind": first["kind"],
+		"tick": first["tick"],
+		"year": first["year"],
+		"month": first["month"],
+		"importance": importance,
+		"world": false,
+		"category": first["category"],
+		"line": variants[0][1],
+		"variants": variants,
+		"seal": first["seal"],
+		"reason": "",
+		"consequence": "",
+		"souls": PackedInt32Array(),
+		"persons": PackedInt32Array(),
+		"powers": PackedInt32Array(),
+		"province": -1,
+		"members": members,
+	}
+
+
+func _older(a: Dictionary, b: Dictionary) -> bool:
+	if a["tick"] != b["tick"]:
+		return a["tick"] < b["tick"]
+	return a["id"] < b["id"]
+
+
+func _remove_record(id: int) -> void:
+	for i in _records.size():
+		if int(_records[i]["id"]) == id:
+			_records.remove_at(i)
+			return
 
 
 ## 世界大事是否仍置頂：發生在最近一世之內。
@@ -173,21 +342,89 @@ func _before(a: Dictionary, b: Dictionary) -> bool:
 	return a["id"] > b["id"]
 
 
-## 目前畫出來的傳聞，由上到下：置頂的世界大事先，再依新到舊、重要度排。
-## 收合時只列入簽的（重要度 ≥ 3 或世界大事）並受張數上限，展開時全部。
+## 收合時的順序：置頂的世界大事、其他異常、最後才是例行統計；各自新到舊。
+func _before_collapsed(a: Dictionary, b: Dictionary) -> bool:
+	var pa := _pinned(a)
+	var pb := _pinned(b)
+	if pa != pb:
+		return pa
+	var ra := is_routine(a)
+	var rb := is_routine(b)
+	if ra != rb:
+		return rb
+	return _before(a, b)
+
+
+## 例行（同月同類統計，或這一類的單筆）。
+func is_routine(entry: Dictionary) -> bool:
+	return entry["category"] != ""
+
+
+## 是一則統計（攤得開名單）。
+func is_group(entry: Dictionary) -> bool:
+	return entry["members"].size() > 0
+
+
+## 目前畫出來的傳聞，由上到下：置頂的世界大事先，再依新到舊、重要度排；
+## 收合時只列入簽的（重要度 ≥ 3 或世界大事），異常在前、例行統計在後，並受張數上限，展開時全部。
 func shown() -> Array[Dictionary]:
+	if _dirty:
+		_rebuild()
+		_shown_valid = false
+	if _shown_valid:
+		return _shown_cache
 	var out: Array[Dictionary] = []
 	for entry in _entries:
 		if expanded or entry["world"] or int(entry["importance"]) >= SLIP_IMPORTANCE:
 			out.append(entry)
-	out.sort_custom(_before)
+	out.sort_custom(_before if expanded else _before_collapsed)
 	if not expanded:
 		out.resize(mini(out.size(), 1 if compact else SHOWN_MAX))
+	_shown_cache = out
+	_shown_valid = true
+	_layout()
 	return out
 
 
+## 各簽的上緣與內容總高：攤開的統計在簽下多出名單列。
+func _layout() -> void:
+	_tops.resize(_shown_cache.size())
+	var y := 0.0
+	for i in _shown_cache.size():
+		_tops[i] = y
+		y += _row_height()
+		if _is_open(_shown_cache[i]):
+			y += _member_gap() + _shown_cache[i]["members"].size() * (_member_height() + _member_gap()) - _member_gap()
+		y += _gap()
+	_content_h = _row_height() if _shown_cache.is_empty() else y - _gap()
+
+
 func entry_count() -> int:
+	if _dirty:
+		_rebuild()
+		_shown_valid = false
 	return _entries.size()
+
+
+func _is_open(entry: Dictionary) -> bool:
+	return expanded and _open.get(entry["key"], false)
+
+
+## 第 index 張統計是否攤開。
+func is_open(index: int) -> bool:
+	return _is_open(shown()[index])
+
+
+func _queue_refit() -> void:
+	if _refit_queued:
+		return
+	_refit_queued = true
+	_refit_now.call_deferred()
+
+
+func _refit_now() -> void:
+	_refit_queued = false
+	_refit()
 
 
 func _width() -> float:
@@ -200,6 +437,14 @@ func _row_height() -> float:
 
 func _gap() -> float:
 	return ITEM_GAP * _unit
+
+
+func _member_height() -> float:
+	return MEMBER_HEIGHT * _unit
+
+
+func _member_gap() -> float:
+	return MEMBER_GAP * _unit
 
 
 ## 紙面左上角在控制項內的位置。
@@ -219,8 +464,8 @@ func _view_rect() -> Rect2:
 
 
 func _content_height() -> float:
-	var rows := maxi(shown().size(), 1)
-	return rows * _row_height() + (rows - 1) * _gap()
+	shown()
+	return _content_h
 
 
 func _max_scroll() -> float:
@@ -230,7 +475,28 @@ func _max_scroll() -> float:
 ## 第 index 張的紙面（控制項座標）；捲動後可能落在可視範圍外。
 func row_rect(index: int) -> Rect2:
 	var view := _view_rect()
-	return Rect2(view.position + Vector2(0.0, index * (_row_height() + _gap()) - _scroll), Vector2(view.size.x, _row_height()))
+	shown()
+	var top := _tops[index] if index < _tops.size() else 0.0
+	return Rect2(view.position + Vector2(0.0, top - _scroll), Vector2(view.size.x, _row_height()))
+
+
+## 第 index 張統計攤開後的第 member 行（控制項座標）。
+func member_rect(index: int, member: int) -> Rect2:
+	var row := row_rect(index)
+	var top := row.end.y + _member_gap() + member * (_member_height() + _member_gap())
+	return Rect2(Vector2(row.position.x, top), Vector2(row.size.x, _member_height()))
+
+
+## 第 index 張右端預留給「看人物」「溯因」兩個入口的位置（人物卡與事件卡實作前不畫，也不收點擊）。
+## 停留時它們取代年月的位置；只有牽涉人物或勢力的簽才有入口。
+func action_slots(index: int) -> Dictionary:
+	var row := row_rect(index)
+	var width := SLOT_WIDTH * _unit
+	var gap := SLOT_GAP * _unit
+	var right := row.end.x - PAD * _unit
+	var trace := Rect2(Vector2(right - width, row.position.y), Vector2(width, row.size.y))
+	var person := Rect2(Vector2(trace.position.x - gap - width, row.position.y), Vector2(width, row.size.y))
+	return {"person": person, "trace": trace}
 
 
 ## 目前看得到（落在可視範圍內）的傳聞張數。
@@ -244,8 +510,9 @@ func visible_row_count() -> int:
 
 ## 簽佔住的畫面範圍（地圖標籤要避開）。
 func occupied_rect() -> Rect2:
-	var count := maxi(shown().size(), 1)
-	var rect := header_rect().merge(row_rect(count - 1).intersection(_view_rect()) if expanded else row_rect(count - 1))
+	var view := _view_rect()
+	var bottom := minf(view.position.y + _content_height() - _scroll, view.end.y)
+	var rect := header_rect().merge(Rect2(view.position, Vector2(view.size.x, maxf(bottom - view.position.y, 0.0))))
 	rect.position += position
 	return rect
 
@@ -280,9 +547,9 @@ func _fly_key() -> String:
 
 func _process(delta: float) -> void:
 	var dirty := false
-	for entry in _entries:
-		if float(entry["age"]) < FADE_SECONDS:
-			entry["age"] = float(entry["age"]) + delta
+	for key in _ages:
+		if float(_ages[key]) < FADE_SECONDS:
+			_ages[key] = float(_ages[key]) + delta
 			dirty = true
 	if expanded and _hover != SELECT_NONE and _max_scroll() > 0.0:
 		var view := _view_rect()
@@ -312,9 +579,17 @@ func _draw() -> void:
 		return
 	for i in entries.size():
 		var rect := row_rect(i)
-		if not view.intersects(rect):
+		var open := _is_open(entries[i])
+		var block := rect.merge(member_rect(i, entries[i]["members"].size() - 1)) if open else rect
+		if not view.intersects(block):
 			continue
-		_draw_row(entries[i], rect, i, note)
+		if view.intersects(rect):
+			_draw_row(entries[i], rect, i, note)
+		if open:
+			for j in entries[i]["members"].size():
+				var mrect := member_rect(i, j)
+				if view.intersects(mrect):
+					_draw_member(entries[i]["members"][j], mrect, MEMBER_BASE + i * MEMBER_STRIDE + j, note)
 
 
 func _draw_header(note: int) -> void:
@@ -336,25 +611,27 @@ func _draw_header(note: int) -> void:
 	var label_x := (key_x - 6.0 * _unit if not key.is_empty() else right) - Ink.text_size(label, note).x
 	Ink.text(self, Vector2(label_x, rect.position.y + (rect.size.y - Ink.text_size(label, note).y) * 0.5), label, note, Ink.INK)
 	# 中段：展開時寫留著幾則（收合時簽頭右端的字已寫了近 50 則）。
-	var count := "%s %d %s" % [Locale.t("rumor_recent"), _entries.size(), Locale.t("rumor_unit")]
+	var count := "%s %d %s" % [Locale.t("rumor_recent"), entry_count(), Locale.t("rumor_unit")]
 	var count_x := rect.position.x + PAD * _unit + Ink.text_size(Locale.t("rumor_title"), section).x + 34.0 * _unit
-	if count_x + Ink.text_size(count, note).x < label_x - 8.0 * _unit and expanded and not _entries.is_empty():
+	if count_x + Ink.text_size(count, note).x < label_x - 8.0 * _unit and expanded and entry_count() > 0:
 		Ink.text(self, Vector2(count_x, rect.position.y + (rect.size.y - Ink.text_size(count, note).y) * 0.5), count, note, Ink.INK_LIGHT)
 
 
 func _draw_row(entry: Dictionary, rect: Rect2, index: int, note: int) -> void:
-	var fade := clampf(float(entry["age"]) / FADE_SECONDS, 0.0, 1.0)
+	var fade := clampf(float(_ages.get(entry["key"], FADE_SECONDS)) / FADE_SECONDS, 0.0, 1.0)
 	# 新到的簽從上方滑入。
 	var slid := rect
 	slid.position.y -= (1.0 - fade) * 10.0 * _unit
 	var hot := _hover == index
 	var pressed := hot and _pressed == index
 	var has_pos: bool = entry.has("pos")
+	var group := is_group(entry)
+	var clickable := has_pos or group
 	var inked := Ink.INK if int(entry["importance"]) >= SLIP_IMPORTANCE or entry["world"] else Ink.INK_LIGHT
 	Ink.paper_slip(self, slid.grow(-1.0) if pressed else slid)
 	if hot:
 		draw_rect(slid.grow(-1.0), Color(Ink.INK, 0.2 if pressed else 0.07), true)
-		draw_rect(slid.grow(-2.0), Ink.INK if has_pos else Ink.INK_LIGHT, false, 1.0)
+		draw_rect(slid.grow(-2.0), Ink.INK if clickable else Ink.INK_LIGHT, false, 1.0)
 	# 事件印：方形朱印，世界大事用靛。
 	var seal_size := SEAL_SIZE * _unit
 	var seal_rect := Rect2(slid.position + Vector2(PAD * _unit, (slid.size.y - seal_size) * 0.5), Vector2.ONE * seal_size)
@@ -363,15 +640,17 @@ func _draw_row(entry: Dictionary, rect: Rect2, index: int, note: int) -> void:
 	var glyph_size := Ink.font_size(Ink.SIZE_SECTION, _unit)
 	var glyph: String = entry["seal"]
 	Ink.text(self, seal_rect.get_center() - Ink.text_size(glyph, glyph_size) * 0.5, glyph, glyph_size, Color(Ink.PAPER_LIGHT, fade))
-	# 右端：停留時是「飛往」加實體鍵，否則是年份。
+	# 右端：停留時是「飛往」加實體鍵（統計是「攤開」「收起」），否則是年月。
 	var right := slid.end.x - PAD * _unit
 	var tail := ""
 	var key := ""
-	if hot and has_pos:
+	if hot and group:
+		tail = Locale.t("rumor_close" if _is_open(entry) else "rumor_open")
+	elif hot and has_pos:
 		tail = Locale.t("rumor_fly")
 		key = _fly_key()
 	else:
-		tail = Locale.t("rumor_year").format({"n": entry.get("year", 0)})
+		tail = EventText.stamp(int(entry.get("year", 0)), int(entry["month"]))
 	var key_width := Ink.key_glyph_width(key, _unit)
 	if not key.is_empty():
 		right -= key_width
@@ -379,11 +658,60 @@ func _draw_row(entry: Dictionary, rect: Rect2, index: int, note: int) -> void:
 		right -= 4.0 * _unit
 	var tail_size := Ink.text_size(tail, note)
 	right -= tail_size.x
-	Ink.text(self, Vector2(right, slid.position.y + (slid.size.y - tail_size.y) * 0.5), tail, note, Color(Ink.SEAL_RED if hot and has_pos else Ink.INK_LIGHT, fade))
-	# 一句話：放不下以「…」截斷。
+	Ink.text(self, Vector2(right, slid.position.y + (slid.size.y - tail_size.y) * 0.5), tail, note, Color(Ink.SEAL_RED if hot and clickable else Ink.INK_LIGHT, fade))
+	# 原因標記：小方框單字，至多一個。
+	var reason: String = entry["reason"]
+	if not reason.is_empty():
+		var mark := MARK_SIZE * _unit
+		var mark_rect := Rect2(Vector2(right - 6.0 * _unit - mark, slid.position.y + (slid.size.y - mark) * 0.5), Vector2.ONE * mark)
+		var mark_color := Color(Ink.SILK if reason == "world" else Ink.SEAL_RED, fade)
+		var mark_text := Locale.t("reason_" + reason)
+		draw_rect(mark_rect, mark_color, false, 1.0)
+		Ink.text(self, mark_rect.get_center() - Ink.text_size(mark_text, note) * 0.5, mark_text, note, mark_color)
+		right = mark_rect.position.x
+	# 一句話：依空間由全到簡，結果不被截。
 	var text_x := seal_rect.end.x + 8.0 * _unit
-	var line := _fit(entry["line"], right - 8.0 * _unit - text_x, note)
+	var line := fit_variants(entry["variants"], right - 8.0 * _unit - text_x, note)
 	Ink.text(self, Vector2(text_x, slid.position.y + (slid.size.y - Ink.text_size(line, note).y) * 0.5), line, note, Color(inked, fade))
+
+
+## 攤開的名單一行：身分與姓名，空一格接結果。
+func _draw_member(member: Dictionary, rect: Rect2, code: int, note: int) -> void:
+	var hot := _hover == code
+	var has_pos: bool = member.has("pos")
+	draw_rect(rect, Color(Ink.PAPER_LIGHT, 0.92), true)
+	draw_rect(rect.grow(-0.5), Color(Ink.GOLD, 0.5), false, 1.0)
+	if hot:
+		draw_rect(rect.grow(-1.0), Color(Ink.INK, 0.2 if _pressed == code else 0.07), true)
+	var right := rect.end.x - PAD * _unit
+	if hot and has_pos:
+		var fly := Locale.t("rumor_fly")
+		right -= Ink.text_size(fly, note).x
+		Ink.text(self, Vector2(right, rect.position.y + (rect.size.y - Ink.text_size(fly, note).y) * 0.5), fly, note, Ink.SEAL_RED)
+		right -= 8.0 * _unit
+	var variants: Array = []
+	for head: String in member["who_variants"]:
+		variants.append([head, String(member["tag"]) + "　" + String(member["what"])])
+	var text := fit_variants(variants, right - (rect.position.x + PAD * 2.0 * _unit), note)
+	Ink.text(self, Vector2(rect.position.x + PAD * 2.0 * _unit, rect.position.y + (rect.size.y - Ink.text_size(text, note).y) * 0.5), text, note, Ink.INK)
+
+
+## 從 [首, 尾] 的版本裡取第一個放得進 width 的；都放不下則截最後一版的首（身分），尾（境界與結果）不截。
+func fit_variants(variants: Array, width: float, font: int) -> String:
+	for v: Array in variants:
+		var text: String = v[0] + v[1]
+		if Ink.text_size(text, font).x <= width:
+			return text
+	var last: Array = variants[variants.size() - 1]
+	var head: String = last[0]
+	var tail: String = last[1]
+	var room := width - Ink.text_size(tail, font).x - Ink.text_size("…", font).x
+	if head.is_empty() or room <= 0.0:
+		return _fit(head + tail, width, font)
+	var count := head.length()
+	while count > 0 and Ink.text_size(head.substr(0, count), font).x > room:
+		count -= 1
+	return head.substr(0, count) + "…" + tail
 
 
 ## 把一句話截到放得進 width；截斷時結尾加「…」。
@@ -396,7 +724,7 @@ func _fit(line: String, width: float, font: int) -> String:
 	return line.substr(0, count) + "…"
 
 
-## 控制項座標的 point 落在哪：簽頭、第幾張，或沒有。
+## 控制項座標的 point 落在哪：簽頭、第幾張、攤開名單的第幾行（選取碼），或沒有。
 func _select_at(point: Vector2) -> int:
 	if header_rect().has_point(point):
 		return SELECT_HEADER
@@ -406,7 +734,19 @@ func _select_at(point: Vector2) -> int:
 	for i in entries.size():
 		if row_rect(i).has_point(point):
 			return i
+		if _is_open(entries[i]):
+			for j in entries[i]["members"].size():
+				if member_rect(i, j).has_point(point):
+					return MEMBER_BASE + i * MEMBER_STRIDE + j
 	return SELECT_NONE
+
+
+## 選取碼對應的名單列：[簽序, 行序]；不是名單列為空。
+func _member_of(select: int) -> Array:
+	if select < MEMBER_BASE:
+		return []
+	var rest := select - MEMBER_BASE
+	return [rest / MEMBER_STRIDE, rest % MEMBER_STRIDE]
 
 
 ## 游標只在簽頭與簽上才攔截，其餘讓地圖收到事件。
@@ -414,12 +754,15 @@ func _has_point(point: Vector2) -> bool:
 	return _select_at(point) != SELECT_NONE
 
 
-## 游標停在這裡時是否可以按（GDD 5.9 游標圖示）：簽頭，或有地點的簽。
+## 游標停在這裡時是否可以按（GDD 5.9 游標圖示）：簽頭、統計，或有地點的簽與名單行。
 func is_hot(point: Vector2) -> bool:
 	var at := _select_at(point)
 	if at == SELECT_HEADER:
 		return true
-	return at >= 0 and shown()[at].has("pos")
+	if at >= MEMBER_BASE:
+		var m := _member_of(at)
+		return shown()[m[0]]["members"][m[1]].has("pos")
+	return at >= 0 and (shown()[at].has("pos") or is_group(shown()[at]))
 
 
 func _update_hover(point: Vector2) -> void:
@@ -456,16 +799,42 @@ func _gui_input(event: InputEvent) -> void:
 			accept_event()
 
 
-## 簽頭：展開或收合；一張簽：有地點就飛往，展開的清單隨後收回。
+## 簽頭：展開或收合；一張統計：攤開或收起名單（收合時先展開清單）；
+## 一張有地點的簽或一行名單：鏡頭飛往，展開的清單隨後收回。
 func activate(select: int) -> void:
 	if select == SELECT_HEADER:
 		expanded = not expanded
+	elif select >= MEMBER_BASE:
+		var m := _member_of(select)
+		var member: Dictionary = shown()[m[0]]["members"][m[1]]
+		if member.has("pos"):
+			fly_requested.emit(member["pos"])
+			if expanded:
+				expanded = false
 	elif select >= 0:
 		var entry := shown()[select]
-		if entry.has("pos"):
+		if is_group(entry):
+			toggle_group(select)
+		elif entry.has("pos"):
 			fly_requested.emit(entry["pos"])
 			if expanded:
 				expanded = false
+
+
+## 第 index 張統計攤開或收起；收合的簽先展開整個清單。
+func toggle_group(index: int) -> void:
+	var entry := shown()[index]
+	var key: String = entry["key"]
+	var was_open: bool = _open.get(key, false) and expanded
+	if was_open:
+		_open.erase(key)
+	else:
+		_open[key] = true
+	if expanded:
+		_shown_valid = false
+		_refit()
+	else:
+		expanded = true
 
 
 func _notification(what: int) -> void:
