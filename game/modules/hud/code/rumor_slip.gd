@@ -11,6 +11,8 @@ extends Control
 signal fly_requested(map_pos: Vector2)
 ## 點了「看人物」（或統計名單的一行）：開這個人的人物卡。
 signal person_requested(person: int)
+## 點了「溯因」（或統計名單一行的「溯因」）：開這則事件的事件卡。
+signal trace_requested(event: int)
 
 const WIDTH := 300.0
 const EXPANDED_WIDTH := 360.0
@@ -44,9 +46,12 @@ const MEMBER_BASE := 1000000
 const MEMBER_STRIDE := 10000
 ## 「看人物」小印的選取碼 = SLOT_BASE + 簽序。
 const SLOT_BASE := 3000000
+## 「溯因」小印的選取碼 = TRACE_BASE + 簽序；名單一行的 = MEMBER_TRACE_BASE + 簽序 × MEMBER_STRIDE + 名單序。
+const TRACE_BASE := 4000000
+const MEMBER_TRACE_BASE := 5000000
 ## 原因標記的方框邊長。
 const MARK_SIZE := 16.0
-## 「看人物」「溯因」入口的寬度與間距；看人物現在畫出來，溯因（事件卡實作前）只留位置。
+## 「看人物」「溯因」入口的寬度與間距。
 const SLOT_WIDTH := 44.0
 const SLOT_GAP := 4.0
 
@@ -532,8 +537,8 @@ static func main_person(entry: Dictionary) -> int:
 	return persons[0] if not persons.is_empty() else -1
 
 
-## 第 index 張右端的「看人物」「溯因」兩個入口：看人物是最右一顆小印，停留時取代年月；
-## 溯因在它左邊，事件卡實作前只留位置，不畫也不收點擊。只有主要人物明確的單則才有看人物。
+## 第 index 張右端的「看人物」「溯因」兩個入口，停留時取代年月：看人物是最右一顆小印（只有主要人物明確的單則才有），
+## 溯因在它左邊；沒有看人物的單則，溯因移到最右。統計沒有單一事件，兩者都沒有。
 func action_slots(index: int) -> Dictionary:
 	var row := row_rect(index)
 	var note := Ink.font_size(Ink.SIZE_NOTE, _unit)
@@ -541,8 +546,27 @@ func action_slots(index: int) -> Dictionary:
 	var gap := SLOT_GAP * _unit
 	var right := row.end.x - PAD * _unit
 	var person := Rect2(Vector2(right - width, row.position.y + 3.0 * _unit), Vector2(width, row.size.y - 6.0 * _unit))
-	var trace := Rect2(Vector2(person.position.x - gap - SLOT_WIDTH * _unit, row.position.y + 3.0 * _unit), Vector2(SLOT_WIDTH * _unit, row.size.y - 6.0 * _unit))
+	var trace_x := person.position.x - gap - SLOT_WIDTH * _unit if has_person_slot(index) else right - SLOT_WIDTH * _unit
+	var trace := Rect2(Vector2(trace_x, row.position.y + 3.0 * _unit), Vector2(SLOT_WIDTH * _unit, row.size.y - 6.0 * _unit))
 	return {"person": person, "trace": trace}
+
+
+## 第 index 張是否有「溯因」入口：單則都有，統計沒有。
+func has_trace_slot(index: int) -> bool:
+	return not is_group(shown()[index])
+
+
+## 統計攤開後第 member 行右端的兩個入口：看人物（或飛往）的字在最右，溯因小印在它左邊。
+func member_slots(index: int, member: int) -> Dictionary:
+	var rect := member_rect(index, member)
+	var note := Ink.font_size(Ink.SIZE_NOTE, _unit)
+	var entry: Dictionary = shown()[index]["members"][member]
+	var tail := Locale.t("rumor_person" if main_person(entry) >= 0 else "rumor_fly")
+	var tail_w := Ink.text_size(tail, note).x + 8.0 * _unit
+	var right := rect.end.x - PAD * _unit - tail_w
+	var width := SLOT_WIDTH * _unit
+	var trace := Rect2(Vector2(right - width, rect.position.y + 2.0 * _unit), Vector2(width, rect.size.y - 4.0 * _unit))
+	return {"tail_width": tail_w, "trace": trace}
 
 
 ## 第 index 張是否有「看人物」入口。
@@ -675,7 +699,8 @@ func _draw_row(entry: Dictionary, rect: Rect2, index: int, note: int) -> void:
 	var slid := rect
 	slid.position.y -= (1.0 - fade) * 10.0 * _unit
 	var slot_hot := _hover == SLOT_BASE + index
-	var hot := _hover == index or slot_hot
+	var trace_hot := _hover == TRACE_BASE + index
+	var hot := _hover == index or slot_hot or trace_hot
 	var pressed := _hover == index and _pressed == index
 	var has_pos: bool = entry.has("pos")
 	var group := is_group(entry)
@@ -707,11 +732,24 @@ func _draw_row(entry: Dictionary, rect: Rect2, index: int, note: int) -> void:
 		var slot_text := Locale.t("rumor_person")
 		Ink.text(self, slot.get_center() - Ink.text_size(slot_text, note) * 0.5, slot_text, note, slot_ink)
 		right = slot.position.x - 6.0 * _unit
+	if hot and not group:
+		# 「溯因」小印在看人物的左邊（沒有看人物時在最右）。
+		var trace: Rect2 = action_slots(index)["trace"]
+		var pressed_trace := trace_hot and _pressed == TRACE_BASE + index
+		var trace_ink := Color(Ink.SEAL_RED, fade)
+		draw_rect(trace, Color(Ink.SEAL_RED, 0.28 if pressed_trace else (0.14 if trace_hot else 0.0)), true)
+		draw_rect(trace, trace_ink, false, 1.0)
+		var trace_text := Locale.t("rumor_trace")
+		Ink.text(self, trace.get_center() - Ink.text_size(trace_text, note) * 0.5, trace_text, note, trace_ink)
+		right = trace.position.x - 6.0 * _unit
 	if hot and group:
 		tail = Locale.t("rumor_close" if _is_open(entry) else "rumor_open")
-	elif hot and has_pos and not slot_hot:
+	elif hot and has_pos and not slot_hot and not trace_hot:
 		tail = Locale.t("rumor_fly")
 		key = _fly_key()
+	elif slot_hot or trace_hot:
+		# 游標在小印上：年月讓位，把寬度留給那句話。
+		tail = ""
 	else:
 		tail = EventText.stamp(int(entry.get("year", 0)), int(entry["month"]))
 	var key_width := Ink.key_glyph_width(key, _unit)
@@ -740,7 +778,9 @@ func _draw_row(entry: Dictionary, rect: Rect2, index: int, note: int) -> void:
 
 ## 攤開的名單一行：身分與姓名，空一格接結果。
 func _draw_member(member: Dictionary, rect: Rect2, code: int, note: int) -> void:
-	var hot := _hover == code
+	var trace_code := code - MEMBER_BASE + MEMBER_TRACE_BASE
+	var trace_hot := _hover == trace_code
+	var hot := _hover == code or trace_hot
 	var has_person := main_person(member) >= 0
 	var has_pos: bool = member.has("pos")
 	draw_rect(rect, Color(Ink.PAPER_LIGHT, 0.92), true)
@@ -748,11 +788,20 @@ func _draw_member(member: Dictionary, rect: Rect2, code: int, note: int) -> void
 	if hot:
 		draw_rect(rect.grow(-1.0), Color(Ink.INK, 0.2 if _pressed == code else 0.07), true)
 	var right := rect.end.x - PAD * _unit
-	if hot and (has_person or has_pos):
-		var fly := Locale.t("rumor_person" if has_person else "rumor_fly")
-		right -= Ink.text_size(fly, note).x
-		Ink.text(self, Vector2(right, rect.position.y + (rect.size.y - Ink.text_size(fly, note).y) * 0.5), fly, note, Ink.SEAL_RED)
-		right -= 8.0 * _unit
+	if hot:
+		if has_person or has_pos:
+			var fly := Locale.t("rumor_person" if has_person else "rumor_fly")
+			right -= Ink.text_size(fly, note).x
+			Ink.text(self, Vector2(right, rect.position.y + (rect.size.y - Ink.text_size(fly, note).y) * 0.5), fly, note, Ink.SEAL_RED)
+			right -= 8.0 * _unit
+		# 「溯因」小印在看人物（飛往）字樣的左邊。
+		var m := _member_of(code)
+		var trace: Rect2 = member_slots(m[0], m[1])["trace"]
+		draw_rect(trace, Color(Ink.SEAL_RED, 0.28 if trace_hot and _pressed == trace_code else (0.14 if trace_hot else 0.0)), true)
+		draw_rect(trace, Ink.SEAL_RED, false, 1.0)
+		var trace_text := Locale.t("rumor_trace")
+		Ink.text(self, trace.get_center() - Ink.text_size(trace_text, note) * 0.5, trace_text, note, Ink.SEAL_RED)
+		right = trace.position.x - 6.0 * _unit
 	var variants: Array = []
 	for head: String in member["who_variants"]:
 		variants.append([head, String(member["tag"]) + "　" + String(member["what"])])
@@ -799,19 +848,23 @@ func _select_at(point: Vector2) -> int:
 		if row_rect(i).has_point(point):
 			if has_person_slot(i) and action_slots(i)["person"].has_point(point):
 				return SLOT_BASE + i
+			if has_trace_slot(i) and action_slots(i)["trace"].has_point(point):
+				return TRACE_BASE + i
 			return i
 		if _is_open(entries[i]):
 			for j in entries[i]["members"].size():
 				if member_rect(i, j).has_point(point):
+					if member_slots(i, j)["trace"].has_point(point):
+						return MEMBER_TRACE_BASE + i * MEMBER_STRIDE + j
 					return MEMBER_BASE + i * MEMBER_STRIDE + j
 	return SELECT_NONE
 
 
 ## 選取碼對應的名單列：[簽序, 行序]；不是名單列為空。
 func _member_of(select: int) -> Array:
-	if select < MEMBER_BASE:
+	if select < MEMBER_BASE or (select >= SLOT_BASE and select < MEMBER_TRACE_BASE):
 		return []
-	var rest := select - MEMBER_BASE
+	var rest := select - (MEMBER_TRACE_BASE if select >= MEMBER_TRACE_BASE else MEMBER_BASE)
 	return [rest / MEMBER_STRIDE, rest % MEMBER_STRIDE]
 
 
@@ -871,6 +924,11 @@ func _gui_input(event: InputEvent) -> void:
 func activate(select: int) -> void:
 	if select == SELECT_HEADER:
 		expanded = not expanded
+	elif select >= MEMBER_TRACE_BASE:
+		var t := _member_of(select)
+		trace_requested.emit(int(shown()[t[0]]["members"][t[1]]["id"]))
+	elif select >= TRACE_BASE:
+		trace_requested.emit(int(shown()[select - TRACE_BASE]["id"]))
 	elif select >= SLOT_BASE:
 		person_requested.emit(main_person(shown()[select - SLOT_BASE]))
 	elif select >= MEMBER_BASE:

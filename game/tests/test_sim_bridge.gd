@@ -666,3 +666,103 @@ func test_gdd_5_8_person_history_is_ordered_and_matches_the_ledger() -> void:
 			assert_eq(event["n"], dead["age"], "享年與身故事件相符")
 			found += 1
 	assert_gt(found, 0, "事件流裡找到這位已歿者的身故事件")
+
+
+
+## 把世界推進 years 年，回傳這段期間的事件流（依編號），另以 "world" 鍵帶回世界。
+func _stream_after(years: int) -> Dictionary:
+	var world := SimWorld.new()
+	world.create(SEED, "small")
+	world.drain_events()
+	var stream := {}
+	for month in years * 12:
+		world.step(1)
+		for event: Dictionary in world.drain_events():
+			stream[event["id"]] = event
+	stream["world"] = world
+	return stream
+
+
+func test_gdd_5_8_event_matches_the_stream_and_missing_is_empty() -> void:
+	var stream := _stream_after(20)
+	var world: SimWorld = stream["world"]
+	stream.erase("world")
+	assert_true(world.event(-1).is_empty(), "負的編號給空字典")
+	assert_true(world.event(99999999).is_empty(), "超出範圍給空字典")
+	assert_true(world.event_causes(99999999, 6).is_empty())
+	assert_eq(world.event_ripple(99999999), 0)
+	assert_true(world.event_ripples(99999999).is_empty())
+	var checked := 0
+	for id: int in stream:
+		var streamed: Dictionary = stream[id]
+		var got := world.event(id)
+		assert_false(got.is_empty(), "事件 %d 取得到" % id)
+		for key in ["id", "tick", "kind", "importance", "province", "a", "b", "f", "g", "p", "q", "x", "n", "m", "year", "month", "a_person", "b_person", "q_province", "persons", "powers", "souls"]:
+			# 遊歷的「出門或歸來」事件流在當下以故里判斷，事後取得時故里可能已變，不比。
+			if key == "x" and streamed["kind"] == "Traveled":
+				continue
+			# 以魂取主角的事件（人數少於魂數），事後取得時是魂現在的肉身，轉世後會不同，不比。
+			if key in ["a", "b", "a_person", "b_person"] and (streamed["persons"] as Array).size() < (streamed["souls"] as Array).size():
+				continue
+			assert_eq(got[key], streamed[key], "event(%d) 的「%s」與事件流相同" % [id, key])
+		for key in ["a_power", "a_role", "a_realm"]:
+			assert_true(got.has(key), "帶有身分欄「%s」" % key)
+		assert_eq(got.has("pos"), streamed.has("pos"))
+		checked += 1
+		if checked >= 400:
+			break
+	assert_gt(checked, 50)
+
+
+func test_gdd_5_8_event_causes_tree_and_ripple_agree() -> void:
+	var stream := _stream_after(30)
+	var world: SimWorld = stream["world"]
+	stream.erase("world")
+	var deepest := 0
+	var with_ripple := 0
+	var capped_ok := true
+	for id: int in stream:
+		if stream[id]["importance"] < 2:
+			continue
+		var tree := world.event_causes(id, 6)
+		for i in tree.size():
+			var node: Dictionary = tree[i]
+			assert_true(node["id"] < id, "因在果之前")
+			assert_true(node["level"] >= 1 and node["level"] <= 6)
+			if node["level"] == 1:
+				assert_eq(node["parent"], -1)
+			else:
+				assert_true(node["parent"] >= 0 and node["parent"] < i, "父節點在前")
+				assert_eq(tree[node["parent"]]["level"], node["level"] - 1)
+			assert_false(node["kind"].is_empty())
+			deepest = maxi(deepest, node["level"])
+		assert_true(world.event_causes(id, 1).size() <= 4, "一層至多 4 筆")
+		for node: Dictionary in world.event_causes(id, 1):
+			assert_eq(node["level"], 1)
+		assert_eq(world.event_causes(id, 0).size(), 0, "深度 0 沒有因")
+		var count := world.event_ripple(id)
+		var list := world.event_ripples(id)
+		assert_eq(list.size(), count, "漣漪數與清單同數")
+		capped_ok = capped_ok and count <= 300
+		if count > 0:
+			with_ripple += 1
+			assert_true(list[0]["id"] > id, "後果在事件之後")
+			assert_true(list[-1]["tick"] >= list[0]["tick"], "由舊到新")
+	assert_true(capped_ok, "漣漪最多 300")
+	assert_gt(deepest, 1, "30 年內有兩層以上的因樹")
+	assert_gt(with_ripple, 0, "有些事件有後果")
+
+
+func test_gdd_5_8_person_last_event_points_at_a_live_event() -> void:
+	var world := SimWorld.new()
+	world.create(SEED, "small")
+	world.step(12 * 20)
+	var found := 0
+	var id := 0
+	while not world.person(id).is_empty():
+		var last: int = world.person(id)["last_event"]
+		if last >= 0:
+			assert_false(world.event(last).is_empty(), "最近事件取得到")
+			found += 1
+		id += 1
+	assert_gt(found, 0, "有人有最近事件")

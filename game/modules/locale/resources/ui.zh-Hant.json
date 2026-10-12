@@ -536,5 +536,17 @@
   "card_no_such_person": "查無此人",
   "card_died_at": "歿於",
   "card_history_title": "個人歷程　{N} 則",
-  "card_death_cause": "死因　{X}"
+  "card_death_cause": "死因　{X}",
+  "rumor_trace": "溯因",
+  "event_gone": "此事已不可考",
+  "event_gone_note": "記載隨歲月散失，只餘空名",
+  "event_no_causes": "此事前無可考之因",
+  "event_causes_title": "因　{N} 則",
+  "event_ripples_title": "漣漪",
+  "event_ripples_count": "後果 {N} 則",
+  "event_ripples_count_cap": "後果 {N} 則以上",
+  "event_ripples_open": "展開",
+  "event_ripples_close": "收起",
+  "event_ripples_wait": "尚無後果，結局未定",
+  "event_place": "地點"
 }
