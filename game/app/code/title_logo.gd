@@ -1,15 +1,17 @@
 class_name TitleLogo
 extends Control
-## 標題畫面的標誌（GDD 9.1）：四個大字橫排在右上，右下一方朱印，底下一道金線；主選單接在金線下面。
+## 標題畫面的標誌（GDD 9.1）：四個行書大字橫排在右上，右下一方朱印，底下一道金線；主選單接在金線下面。
 ## 大小跟著畫面高度走：以 1080 高為準，矮的畫面（Steam Deck）等比縮小。
 
-const FONT: FontFile = preload("res://modules/ui_kit/assets/fonts/genryu_logo_subset.otf")
+const ART: Texture2D = preload("res://app/assets/title_logo.png")
 ## 以下都是 1080 高畫面上的版面單位。
 const GLYPH := 135.0
 const GLYPH_GAP := 10.0
 const RIGHT := 96.0
 const TOP := 64.0
 const SEAL := 56.0
+## 標誌圖在字帶四周多留的邊。
+const BLEED := 40.0
 const LINE_GAP := 22.0
 const MENU_GAP := 26.0
 const MENU_INSET := 18.0
@@ -25,6 +27,7 @@ var _left := 0.0
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 
 
@@ -60,23 +63,7 @@ func _line_y() -> float:
 
 
 func _draw() -> void:
-	var title := Locale.t("game_title")
-	var size_px := int(round(_px(GLYPH)))
-	var top := _px(TOP)
-	for i in title.length():
-		var x := _left + _px(i * (GLYPH + GLYPH_GAP))
-		var baseline := Vector2(x, top + FONT.get_ascent(size_px) - (FONT.get_height(size_px) - size_px) * 0.5)
-		draw_string_outline(FONT, baseline, title[i], HORIZONTAL_ALIGNMENT_LEFT, -1.0, size_px, int(round(_px(6.0))), Color(Ink.PAPER_LIGHT, 0.55))
-		draw_string(FONT, baseline, title[i], HORIZONTAL_ALIGNMENT_LEFT, -1.0, size_px, Ink.INK)
-	# 朱印：標題的頭尾兩個字，直排。
-	var seal := Rect2(_left + _px(4.0 * GLYPH + 3.0 * GLYPH_GAP + 12.0), top + _px(GLYPH - SEAL * 0.9), _px(SEAL), _px(SEAL))
-	draw_rect(seal, Ink.SEAL_RED, true)
-	draw_rect(seal.grow(-_px(3.0)), Color(Ink.PAPER_LIGHT, 0.8), false, 1.0)
-	var seal_px := int(round(_px(SEAL * 0.40)))
-	var marks := [title[0], title[2]] if title.length() >= 3 else []
-	for i in marks.size():
-		var extent := FONT.get_string_size(marks[i], HORIZONTAL_ALIGNMENT_LEFT, -1.0, seal_px)
-		var at := Vector2(seal.get_center().x - extent.x * 0.5, seal.position.y + seal.size.y * (0.27 + 0.46 * i) - seal_px * 0.5)
-		draw_string(FONT, at + Vector2(0.0, FONT.get_ascent(seal_px) - (FONT.get_height(seal_px) - seal_px) * 0.5), marks[i], HORIZONTAL_ALIGNMENT_LEFT, -1.0, seal_px, Ink.PAPER_LIGHT)
+	# 四個字與朱印畫在同一張圖上（tools/title/build_logo.py）；圖的四周比字帶多留 BLEED，給出格的筆畫。
+	draw_texture_rect(ART, logo_rect().grow(_px(BLEED)), false)
 	var line_y := _line_y()
-	draw_line(Vector2(_left + _px(4.0), line_y), Vector2(seal.end.x, line_y), Color(Ink.GOLD, 0.9), maxf(_px(2.0), 1.0))
+	draw_line(Vector2(_left + _px(4.0), line_y), Vector2(logo_rect().end.x, line_y), Color(Ink.GOLD, 0.9), maxf(_px(2.0), 1.0))
