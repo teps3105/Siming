@@ -108,8 +108,10 @@ func _layout() -> void:
 
 ## 兩張命簿都靠右上角（一次只開一張）。
 func _place_cards(bounds: Vector2) -> void:
-	_card.max_height = bounds.y - MARGIN * 2.0
-	_person_card.max_height = bounds.y - MARGIN * 2.0
+	# 命簿放右上、印匣在右下，卡的下緣停在印匣（含例簽的位置）上方。
+	var limit := (_seals.position.y if _seals != null else bounds.y) - MARGIN * 2.0
+	_card.max_height = limit
+	_person_card.max_height = limit
 	_card.position = Vector2(bounds.x - _card.size.x - MARGIN, MARGIN)
 	_person_card.position = Vector2(bounds.x - _person_card.size.x - MARGIN, MARGIN)
 

@@ -125,7 +125,7 @@ func _relayout() -> void:
 	if alive:
 		line1 = Locale.t("card_age_line").format({"G": gender, "N": str(_info["age"]), "L": str(_info["lifespan"])})
 	else:
-		line1 = Locale.t("card_dead_line").format({"G": gender, "X": PersonText.death_word(_info["death_cause"]), "N": str(_info["age"])})
+		line1 = Locale.t("card_dead_line").format({"G": gender, "N": str(_info["age"])})
 	if not String(_info["title"]).is_empty():
 		line1 = "%s · %s" % [_info["title"], line1]
 	var place_label := Locale.t("card_place" if alive else "card_died_at")
@@ -141,12 +141,14 @@ func _relayout() -> void:
 		Locale.t("card_sin"), int(round(float(_info.get("sin", 0.0)))),
 		Locale.t("card_wisdom"), int(round(float(_info.get("wisdom", 0.0)))),
 	]
-	_paragraphs = [
-		LedgerText.paragraph(line1, no_links, width, body),
-		LedgerText.paragraph(line2, places, width, body),
-		LedgerText.paragraph(line3, no_links, width, note),
-		LedgerText.paragraph(line4, no_links, width, note),
-	]
+	_paragraphs = [LedgerText.paragraph(line1, no_links, width, body), LedgerText.paragraph(line2, places, width, body)]
+	if not alive:
+		var cause := Locale.t("card_death_cause").format({"X": PersonText.death_word(_info["death_cause"])})
+		_paragraphs.append(LedgerText.paragraph(cause, no_links, width, body))
+	_paragraphs.append(LedgerText.paragraph(line3, no_links, width, note))
+	_paragraphs.append(LedgerText.paragraph(line4, no_links, width, note))
+	for i in _paragraphs.size():
+		_paragraphs[i]["strong"] = i < (2 if alive else 3)
 
 	# 歷程各筆。
 	_rows.clear()
@@ -256,7 +258,7 @@ func _draw_body(paper: Rect2) -> void:
 	var stroke_y := top + float(_layout["stroke_y"])
 	Ink.stroke(self, Vector2(x, stroke_y), Vector2(right, stroke_y), 2.0 * u, Color(Ink.INK, 0.7))
 	for i in _paragraphs.size():
-		var color := Ink.INK if i < 2 else Ink.INK_LIGHT
+		var color := Ink.INK if _paragraphs[i]["strong"] else Ink.INK_LIGHT
 		LedgerText.draw(self, Vector2(x, top + float(_layout["para_y"][i])), _paragraphs[i], color, _hover, _pressed)
 	var section_y := top + float(_layout["section_y"])
 	Ink.section(self, Vector2(x, section_y), Locale.t("card_history_title").format({"N": str(_rows.size())}), section)

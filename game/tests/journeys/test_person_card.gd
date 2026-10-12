@@ -164,7 +164,10 @@ func test_dead_person_card_shows_cause_and_age_at_death() -> void:
 	var info := _sim.world.person(dead)
 	assert_false(info["alive"])
 	assert_true(_card().is_open(), "已身故者仍可開卡")
-	var line: String = "".join(_card()._paragraphs[0]["lines"])
+	var line := ""
+	for para: Dictionary in _card()._paragraphs:
+		line += "".join(para["lines"]) + "
+"
 	assert_true(line.contains(Locale.t("death_" + info["death_cause"])), "寫明死因")
 	assert_true(line.contains("享年 %d" % info["age"]), "寫明享年")
 	for row: Dictionary in _card()._rows:
@@ -289,6 +292,10 @@ func _check_fit(view: Vector2i, ui_scale: float) -> void:
 	await wait(0.5)
 	var rect := Rect2(_hud._card.position, _hud._card.size)
 	assert_true(Rect2(Vector2.ZERO, bounds).encloses(rect), "州郡卡不出界：%s %s" % [label, rect])
+	# 州郡卡本身（標頭、五條、動作印）在 Deck 縮放 1.5 時就高過印匣上方的空間，清單縮到底也放不下；
+	# 這是既有州郡卡的版面限制，記為待裁定，這一格只要求不出界。
+	if ui_scale <= 1.0 or view.y > 800:
+		assert_true(rect.end.y <= _hud._seals.position.y, "州郡卡不壓到印匣：" + label)
 	assert_true(Rect2(Vector2.ZERO, _hud._card.size).encloses(_list(_hud._card).get_rect()), "有名之人清單在卡內：" + label)
 	assert_true(_list(_hud._card).get_rect().end.y <= _hud._card._center_rect().position.y, "清單不壓到頁尾動作印：" + label)
 	for id: int in [found["alive"], found["dead"]]:
@@ -297,6 +304,8 @@ func _check_fit(view: Vector2i, ui_scale: float) -> void:
 		var card := _card()
 		var card_rect := Rect2(card.position, card.size)
 		assert_true(Rect2(Vector2.ZERO, bounds).encloses(card_rect), "人物卡不出界：%s %s" % [label, card_rect])
+		if ui_scale <= 1.0 or view.y > 800:
+			assert_true(card_rect.end.y <= _hud._seals.position.y, "人物卡不壓到印匣：" + label)
 		var inner: Rect2 = _list(card).get_rect()
 		assert_true(Rect2(Vector2.ZERO, card.size).encloses(inner), "歷程清單在卡內：" + label)
 		assert_true(inner.end.y <= card._center_rect().position.y, "歷程清單不壓到頁尾動作印：" + label)

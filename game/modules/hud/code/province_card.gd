@@ -21,7 +21,7 @@ const FAITHS := [["faith_dao", Ink.CYAN], ["faith_shi", Ink.GOLD], ["faith_ru", 
 const PEOPLE_LIMIT := 10
 const PERSON_ROW := 26.0
 ## 清單至少留幾列（畫面再矮也不低於這個）。
-const MIN_PEOPLE_ROWS := 3
+const MIN_PEOPLE_ROWS := 2
 
 var province := -1
 
@@ -111,10 +111,18 @@ func _list_height() -> float:
 	return clampf(spare, floor_rows, all)
 
 
+## 教化環畫不畫：有教化，而且畫面高度放得下（放不下時省下環，讓有名之人清單至少留兩列）。
+func _ring_shown() -> bool:
+	if not _shows_faith_ring():
+		return false
+	var with_ring := _fixed_height(true) + ROD * 2.0 * _unit + MIN_PEOPLE_ROWS * PERSON_ROW * _unit
+	return with_ring <= max_height or _people.is_empty()
+
+
 ## 清單以外的內容高度（含綾邊）。
-func _fixed_height() -> float:
+func _fixed_height(with_ring := false) -> float:
 	var rows := 14.0 + 34.0 + 12.0 + 28.0 + 26.0 + 32.0 + 26.0 * _bar_keys().size() + 8.0 + 26.0
-	if _shows_faith_ring():
+	if with_ring or (_shows_faith_ring() and _ring_shown()):
 		rows += 34.0
 	# 有名之人一節：節名一列，清單之後留一點空白。
 	rows += 6.0 + 26.0
@@ -217,17 +225,19 @@ func _draw_body(paper: Rect2) -> void:
 	var faith_top := y
 	Ink.section(self, Vector2(x, y), Locale.t("card_faith"), section)
 	if _shows_faith_ring():
+		var ring_on := _ring_shown()
 		var faith: Vector3 = _info["faith"]
 		var total := faith.x + faith.y + faith.z
 		var ring_radius := 18.0 * _unit
 		var ring_center := Vector2(right - ring_radius - 4.0 * _unit, y + 30.0 * _unit)
 		var start := -PI * 0.5
-		draw_arc(ring_center, ring_radius, 0.0, TAU, 48, Color(Ink.INK_LIGHT, 0.2), 6.0 * _unit, true)
+		if ring_on:
+			draw_arc(ring_center, ring_radius, 0.0, TAU, 48, Color(Ink.INK_LIGHT, 0.2), 6.0 * _unit, true)
 		cursor = x
 		y += 28.0 * _unit
 		for i in 3:
 			var sweep: float = TAU * faith[i] / total
-			if sweep > 0.01:
+			if sweep > 0.01 and ring_on:
 				draw_arc(ring_center, ring_radius, start, start + sweep, 32, FAITHS[i][1], 6.0 * _unit, true)
 			start += sweep
 			draw_rect(Rect2(Vector2(cursor, y + (note - 10.0 * _unit) * 0.5 + 2.0), Vector2(10.0, 10.0) * _unit), FAITHS[i][1], true)
@@ -237,7 +247,7 @@ func _draw_body(paper: Rect2) -> void:
 	else:
 		var heading := Ink.text_size(Locale.t("card_faith"), section).x + section * 1.1
 		Ink.text(self, Vector2(x + heading + 10.0 * _unit, y + (section - note) * 0.6), Locale.t("card_faith_none"), note, Ink.INK_LIGHT)
-	y = faith_top + (26.0 + (34.0 if _shows_faith_ring() else 0.0) + 6.0) * _unit
+	y = faith_top + (26.0 + (34.0 if _ring_shown() else 0.0) + 6.0) * _unit
 
 	# 在此的有名之人：節名；清單是下面的子控制項，沒有人時寫「無」。
 	Ink.section(self, Vector2(x, y), Locale.t("card_notables"), section)

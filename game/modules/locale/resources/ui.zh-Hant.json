@@ -452,7 +452,7 @@
   "card_history": "個人歷程",
   "card_history_none": "尚無記載",
   "card_people_more": "另有 {N} 人",
-  "card_dead_line": "{G} · 已歿 · {X} · 享年 {N} 歲",
+  "card_dead_line": "{G} · 已歿 · 享年 {N} 歲",
   "card_age_line": "{G} · {N} 歲 · 壽元 {L} 歲",
   "card_history_date": "{E}紀元 {Y}年 {M}月",
   "card_back": "返回",
@@ -460,5 +460,5 @@
   "card_no_such_person": "查無此人",
   "card_died_at": "歿於",
   "card_history_title": "個人歷程　{N} 則",
-  "card_stat_line": "{K} {V}"
+  "card_death_cause": "死因　{X}"
 }
