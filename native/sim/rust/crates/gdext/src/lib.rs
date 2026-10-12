@@ -932,8 +932,17 @@ impl SimWorld {
         let mut events: Vec<&siming_sim::Event> = w.ledger.events.iter().filter(|e| e.importance > 0 && belongs_to(e, p)).collect();
         events.sort_by_key(|e| (e.tick, e.id));
         let gw = w.geo.w as u32;
+        // 故里日後可能變：遊歷是否為歸來，改看它是不是回到上一趟的出發地，或回到現在的故里。
+        let mut away_from: Option<siming_sim::ProvinceId> = None;
         for e in events {
-            let mut d = self.event_fields(w, e);
+            let back = match e.args {
+                siming_sim::EventArgs::Travel { to, .. } => Some(away_from == Some(to) || p.home == to),
+                _ => None,
+            };
+            let mut d = self.event_fields(w, e, back);
+            if let siming_sim::EventArgs::Travel { from, .. } = e.args {
+                away_from = if back == Some(true) { None } else { Some(from) };
+            }
             d.set("id", e.id as i64);
             d.set("tick", e.tick as i64);
             d.set("kind", &GString::from(format!("{:?}", e.kind).as_str()));
@@ -1165,8 +1174,9 @@ fn belongs_to(e: &siming_sim::Event, p: &siming_sim::Person) -> bool {
 impl SimWorld {
     /// 事件的 7.2 模板欄位（`a`、`b`、`f`、`g`、`p`、`q`、`x`、`n`、`m`，世界大事另有 `change`、`era`），
     /// 與 `drain_events` 是同一套規則；再加 `a_person`、`b_person`、`q_province`。
+    /// `back` 指定遊歷是否為歸來；沒給就看人物此刻的故里是不是目的地（`drain_events` 在事件剛發生時如此判斷）。
     /// 注意：`drain_events` 內的同一段邏輯是複本，日後該函式改呼叫本函式即可合併。
-    fn event_fields(&self, w: &siming_sim::World, e: &siming_sim::Event) -> VarDictionary {
+    fn event_fields(&self, w: &siming_sim::World, e: &siming_sim::Event, back: Option<bool>) -> VarDictionary {
         let mut d = VarDictionary::new();
         let province = e.province.and_then(|p| w.provinces.get(p as usize));
         let person_id = |i: usize| e.persons.get(i).copied().filter(|&id| w.persons.get(id as usize).is_some());
@@ -1205,8 +1215,8 @@ impl SimWorld {
             }
             siming_sim::EventArgs::Judged { path } => x = format!("{path:?}"),
             siming_sim::EventArgs::Travel { to, .. } => {
-                let home = person(0).is_some_and(|p| p.home == *to);
-                x = if home { "Back" } else { "Out" }.to_string();
+                let is_home = back.unwrap_or_else(|| person(0).is_some_and(|p| p.home == *to));
+                x = if is_home { "Back" } else { "Out" }.to_string();
                 second = province_name(*to);
                 second_id = Some(*to);
             }

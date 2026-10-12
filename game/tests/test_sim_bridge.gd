@@ -517,3 +517,113 @@ func test_gdd_3_5_sect_list_follows_the_world_over_time() -> void:
 	world.step(12 * 60)
 	var after := world.sects()
 	assert_true(after.size() >= before.size(), "清單只增不減（覆滅者以 alive 標記）")
+
+
+## 走遍所有人物，回傳 [在世歷程最長者, 已歿歷程最長者] 的編號。
+func _richest_people(world: SimWorld) -> Array[int]:
+	var best_alive := -1
+	var best_dead := -1
+	var most_alive := -1
+	var most_dead := -1
+	var id := 0
+	while not world.person(id).is_empty():
+		var count := world.person_history(id).size()
+		if world.person(id)["alive"]:
+			if count > most_alive:
+				most_alive = count
+				best_alive = id
+		elif count > most_dead:
+			most_dead = count
+			best_dead = id
+		id += 1
+	return [best_alive, best_dead]
+
+
+func test_gdd_5_8_person_card_fields() -> void:
+	var world := SimWorld.new()
+	world.create(SEED, "small")
+	world.step(12 * 40)
+	assert_true(world.person(-1).is_empty(), "沒有的編號給空字典")
+	assert_true(world.person(99999999).is_empty(), "超出範圍給空字典")
+	assert_eq(world.person_history(99999999).size(), 0)
+	var seen := 0
+	for province in world.province_count():
+		for row: Dictionary in world.people_in(province):
+			for key in ["id", "name", "role", "realm", "fruit", "power_name", "is_leader", "age"]:
+				assert_true(row.has(key), "在此的有名之人帶有「%s」" % key)
+			var card := world.person(row["id"])
+			assert_eq(card["name"], row["name"])
+			assert_true(card["alive"], "人名單裡都在世")
+			assert_eq(card["province"], province, "所在州郡與人名單相符")
+			seen += 1
+			if seen == 1:
+				for key in ["name", "title", "gender", "age", "lifespan", "alive", "died_tick", "death_cause", "province", "province_name", "home", "home_name", "pos", "role", "power", "power_name", "is_leader", "realm", "fruit", "root", "insight", "talent", "virtue", "ferocity", "soul", "life_index", "lives_total", "merit", "sin", "wisdom"]:
+					assert_true(card.has(key), "人物卡帶有「%s」" % key)
+				assert_true(card["gender"] in ["Male", "Female"])
+				assert_gt(card["life_index"], 0, "第幾世從 1 起算")
+				assert_true(card["life_index"] <= card["lives_total"])
+				assert_ne(card["province_name"], "", "有所在州郡名")
+	assert_gt(seen, 20, "四十年後各州郡有不少在世的有名之人")
+	var sorted_ok := true
+	for province in world.province_count():
+		var last := 99
+		for row: Dictionary in world.people_in(province):
+			if row["realm"] > last:
+				sorted_ok = false
+			last = row["realm"]
+	assert_true(sorted_ok, "人名單依境界由高到低")
+
+
+func test_gdd_5_8_person_history_is_ordered_and_matches_the_ledger() -> void:
+	var world := SimWorld.new()
+	world.create(SEED, "small")
+	world.drain_events()
+	var stream := {}
+	for step in 40:
+		world.step(12)
+		for event: Dictionary in world.drain_events():
+			stream[event["id"]] = event
+	var picks := _richest_people(world)
+	assert_gt(picks[0], -1, "有在世者")
+	assert_gt(picks[1], -1, "四十年後有已歿者")
+	for id in picks:
+		var history := world.person_history(id)
+		assert_gt(history.size(), 4, "歷程最長的人至少有 5 筆")
+		var last_tick := -1
+		var last_id := -1
+		for entry: Dictionary in history:
+			for key in ["id", "tick", "kind", "importance", "province", "era", "year", "month", "a", "b", "f", "g", "p", "q", "x", "n", "m", "a_person", "b_person", "q_province"]:
+				assert_true(entry.has(key), "歷程帶有「%s」" % key)
+			assert_true(entry["tick"] >= last_tick, "由舊到新")
+			if entry["tick"] == last_tick:
+				assert_gt(entry["id"], last_id, "同一刻依事件編號")
+			last_tick = entry["tick"]
+			last_id = entry["id"]
+			assert_true(entry["month"] >= 1 and entry["month"] <= 12)
+			assert_gt(entry["year"], 0)
+			assert_gt(entry["importance"], 0, "墓碑不入歷程")
+			assert_ne(EventText.line(entry), "event_unknown", "每一筆都有模板：" + entry["kind"])
+			# 預跑期間的事件不在事件流裡；其餘必須與事件流同一筆。
+			if stream.has(entry["id"]):
+				for key in ["tick", "kind", "a", "b", "f", "g", "p", "q", "x", "n", "m", "year"]:
+					# 遊歷的「出門或歸來」事件流在當下以故里判斷；歷程事後以行程順序判斷，兩者可以不同，不比。
+					if key == "x" and entry["kind"] == "Traveled":
+						continue
+					assert_eq(entry[key], stream[entry["id"]][key], "與事件流同一筆的「%s」" % key)
+	var dead_id: int = picks[1]
+	var dead := world.person(dead_id)
+	assert_false(dead["alive"])
+	assert_ne(dead["death_cause"], "", "已歿者有死因")
+	for entry: Dictionary in world.person_history(dead_id):
+		assert_true(entry["tick"] <= dead["died_tick"], "歷程到死為止")
+	var in_history := {}
+	for entry: Dictionary in world.person_history(dead_id):
+		in_history[entry["id"]] = true
+	var found := 0
+	for event_id: int in stream:
+		var event: Dictionary = stream[event_id]
+		if event["kind"] == "Died" and event["a"] == dead["name"] and event["tick"] == dead["died_tick"]:
+			assert_true(in_history.has(event_id), "身故事件在歷程裡")
+			assert_eq(event["n"], dead["age"], "享年與身故事件相符")
+			found += 1
+	assert_gt(found, 0, "事件流裡找到這位已歿者的身故事件")
