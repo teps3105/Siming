@@ -419,12 +419,22 @@ func test_gdd_6_4_events_carry_what_the_templates_need() -> void:
 	var kinds := {}
 	var located := 0
 	var named := 0
+	var seen_tribulation := 0
 	for step in 40:
 		world.step(120)
 		for event: Dictionary in world.drain_events():
-			for key in ["id", "tick", "kind", "importance", "province", "cell", "souls", "a", "b", "f", "g", "p", "q", "x", "n", "m", "year"]:
+			for key in ["id", "tick", "kind", "importance", "province", "cell", "souls", "a", "b", "f", "g", "p", "q", "x", "n", "m", "year", "month", "persons", "powers", "a_power", "a_role", "a_realm"]:
 				assert_true(event.has(key), "事件帶有「%s」" % key)
 			assert_true(event["souls"] is PackedInt32Array)
+			assert_true(event["persons"] is PackedInt32Array and event["powers"] is PackedInt32Array, "人物與勢力編號")
+			assert_eq(event["month"], (maxi(event["tick"], 1) - 1) % 12 + 1, "月份與曆法（GDD 2.6）一致")
+			assert_true(event["a_realm"] >= -1 and event["a_realm"] <= 8, "境界在表內，非修士為 −1")
+			assert_true(event["a_role"] in ["", "Ruler", "Leader", "Member", "Rogue", "Monk", "Scholar", "Demonic", "Beast", "Official", "General", "Royal"], "職分代號：" + str(event["a_role"]))
+			if event["a_role"] == "Leader" or event["a_role"] == "Member":
+				assert_ne(event["a_power"], "", "宗門成員帶門派名")
+			if event["kind"] == "Tribulation":
+				seen_tribulation += 1
+				assert_true(event["a"] != "" and event["a_realm"] >= 0, "渡劫的是修士，帶境界")
 			assert_gt(event["year"], 0, "年份從 1 起算")
 			if event.has("pos"):
 				located += 1
@@ -443,15 +453,16 @@ func test_gdd_6_4_events_carry_what_the_templates_need() -> void:
 	assert_gt(kinds.size(), 8, "四百年裡出現多種事件")
 	assert_gt(located, 0, "有地點的事件帶 pos")
 	assert_gt(named, 0, "人物事件帶人名")
+	assert_gt(seen_tribulation, 0, "四百年裡有渡劫")
 
 
 func test_gdd_7_2_event_text_fills_each_template() -> void:
 	var base := {"id": 1, "tick": 10, "importance": 3, "province": 0, "cell": -1, "souls": PackedInt32Array(), "a": "沈青霜", "b": "韓烈", "f": "玄清宗", "g": "赤霄門", "p": "青州", "q": "雲州", "x": "", "n": 0, "m": 0, "year": 1}
 	var cases := [
 		["Died", {"x": "Age", "n": 83}, "沈青霜壽終，享年83"],
-		["Breakthrough", {"n": 2}, "沈青霜突破至金丹"],
-		["Tribulation", {"n": 3, "x": "Passed"}, "沈青霜渡四九雷劫，安然度過"],
-		["Tribulation", {"n": 3, "x": "Perished"}, "沈青霜渡四九雷劫，形神俱滅"],
+		["Breakthrough", {"n": 2}, "沈青霜（築基）突破至金丹"],
+		["Tribulation", {"n": 3, "x": "Passed"}, "沈青霜（金丹）渡四九雷劫，成就元嬰"],
+		["Tribulation", {"n": 3, "x": "Perished"}, "沈青霜（金丹）渡四九雷劫未成元嬰，形神俱滅"],
 		["ThreadCreated", {"x": "Feud"}, "沈青霜與韓烈結下殺業"],
 		["ThreadResolved", {"x": "Love", "n": 3}, "歷經3次轉世，沈青霜與韓烈的情緣了結"],
 		["ComeOfAge", {}, "沈青霜入玄清宗"],
