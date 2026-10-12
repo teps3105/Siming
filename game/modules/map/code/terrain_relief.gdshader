@@ -24,6 +24,14 @@ uniform int map_mode = 0;             // 0 山河、1 天下、3 靈脈
 uniform float hover_province = -1.0;
 uniform float selected_province = -1.0;
 uniform float tint_opacity = 0.0;     // 州郡疊色不透明度
+// 三教模式的宗門勢力範圍圈（GDD 5.4）：(圈心 x、y，半徑，虛線段數)，單位為遊戲格；顏色為 sRGB。
+const int RING_MAX = 96;
+uniform int ring_count = 0;
+uniform vec4 ring_data[RING_MAX];
+uniform vec3 ring_colors[RING_MAX];
+uniform float ring_width = 1.5;       // 線寬（像素）
+uniform float ring_dash = 0.6;        // 每段佔一段加一個間隔的比例
+uniform float ring_alpha = 0.75;
 // 高度的消失點（map_view.gd 的 lean）：鏡頭焦點、由焦點指向鏡頭的方向除以 tan(俯角)、眼高；眼高為 0 時不位移。
 uniform vec2 vanish_focus;
 uniform vec2 vanish_toward;
@@ -412,6 +420,25 @@ void fragment() {
 	if (map_mode == 3) {
 		float fv = texture(field_tex, uv).r;
 		col = mix(col, field_ramp(fv) * mix(0.75, 1.0, clamp(0.5 + shade, 0.0, 1.0)), field_opacity * (1.0 - wmask));
+	}
+
+	// 5.5 宗門勢力範圍圈：以山門為心的虛線，沿圈每段約同樣的螢幕長度。
+	if (ring_count > 0) {
+		float polar_f = 1.0 - smoothstep(0.883, 0.978, abs(d.y));
+		for (int i = 0; i < ring_count; i++) {
+			vec4 rd = ring_data[i];
+			vec2 q = wp - rd.xy;
+			q.x -= round(q.x / map_size.x) * map_size.x;
+			float off = abs(length(q) - rd.z);
+			if (off > pxw * (ring_width + 2.0)) {
+				continue;
+			}
+			float t = fract(atan(q.y, q.x) / TAU * rd.w);
+			float edge = max(pxw * rd.w / (TAU * rd.z), 1e-4);
+			float on = smoothstep(0.0, edge, t) * (1.0 - smoothstep(ring_dash - edge, ring_dash, t));
+			float cover = px_line(off, pxw, ring_width) * on * ring_alpha * polar_f;
+			col = mix(col, ring_colors[i], cover);
+		}
 	}
 
 	// 6 州界：ink-light 1 px；國界 ink 2 px 加外側淡暈。墨線在 62°–78° 先行淡出。

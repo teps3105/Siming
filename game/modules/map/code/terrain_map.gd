@@ -14,6 +14,8 @@ const COPIES := 3
 const WATER_TEXTURE_SIZE := 256
 ## 天下、三教模式的州郡疊色不透明度。
 const TINT_OPACITY := 0.45
+## 著色器一次最多畫幾個範圍圈（與地形著色器的 ring_data 長度一致）。
+const RING_MAX := 96
 ## GDD 5.3 過渡時間：平面 ↔ 球面 0.6 秒。
 const GLOBE_MORPH_SECONDS := 0.6
 ## 天地演變換圖後，新舊地形之間漸變的秒數（GDD 2.8「畫面」）。
@@ -57,6 +59,7 @@ var _province_colors: ImageTexture
 var _blank_colors: ImageTexture
 ## 三教模式的州郡著色表（道的教化濃度），隨教化變動更新。
 var _faith_colors: ImageTexture
+var _ring_count := 0
 ## 高度消失點（MapView.lean）：鏡頭焦點、地面上由焦點指向鏡頭的方向與眼高；眼高為 0 時不位移。
 var _view_focus := Vector2.ZERO
 var _toward := Vector2(0.0, 1.0)
@@ -204,6 +207,37 @@ func refresh_faith() -> void:
 	else:
 		_faith_colors.update(Image.create_from_data(256, 1, false, Image.FORMAT_RGBA8, data))
 	_terrain_material.set_shader_parameter("pcol_tex", _faith_colors)
+
+
+## 三教模式的宗門勢力範圍圈（GDD 5.4）：data 每圈 (圈心 x、y，半徑，虛線段數)，單位是格；colors 是各圈顏色（sRGB）。
+## 虛線由地形著色器畫，width 是線寬像素，dash 是每段佔一段加一個間隔的比例。
+func set_range_rings(data: PackedVector4Array, colors: PackedVector3Array, width: float, dash: float, alpha: float) -> void:
+	var count := data.size()
+	for i in count:
+		var linear := Color(colors[i].x, colors[i].y, colors[i].z).srgb_to_linear()
+		colors[i] = Vector3(linear.r, linear.g, linear.b)
+	data.resize(RING_MAX)
+	colors.resize(RING_MAX)
+	_ring_count = count
+	var material := _terrain_material
+	material.set_shader_parameter("ring_count", count)
+	material.set_shader_parameter("ring_data", data)
+	material.set_shader_parameter("ring_colors", colors)
+	material.set_shader_parameter("ring_width", width)
+	material.set_shader_parameter("ring_dash", dash)
+	material.set_shader_parameter("ring_alpha", alpha)
+
+
+func clear_range_rings() -> void:
+	if _ring_count == 0:
+		return
+	_ring_count = 0
+	_terrain_material.set_shader_parameter("ring_count", 0)
+
+
+## 目前交給著色器畫的範圍圈數。
+func range_ring_count() -> int:
+	return _ring_count
 
 
 ## 州郡疊色的不透明度（天下、三教模式；其他為 0）。
