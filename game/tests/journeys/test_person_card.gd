@@ -281,7 +281,10 @@ func test_cards_fit_on_desktop_at_150_percent() -> void:
 	await _check_fit(FLOW_VIEW, 1.5)
 
 
-## 州郡卡與兩種人物卡都在畫面內，歷程清單在卡內、不壓到基本資料與頁尾動作印。
+## 州郡卡與兩種人物卡都在畫面內（任何組合都檢查，這是底線）；清單最低高度放得下的組合還要停在印匣之上，
+## 並把多出的高度給清單；歷程清單在卡內、不壓到基本資料與頁尾動作印。
+## 放不下的組合：Steam Deck（1280×800）縮放 150% 的人物卡——身分、基本資料與魂的來歷在這個縮放下加歷程清單
+## 最低高度（120）已高過印匣上方的空間，只能保證不出畫面；州郡卡在這個組合放得下。
 func _check_fit(view: Vector2i, ui_scale: float) -> void:
 	GameSettings.set_value("ui_scale", ui_scale)
 	await _boot(view)
@@ -292,10 +295,13 @@ func _check_fit(view: Vector2i, ui_scale: float) -> void:
 	await wait(0.5)
 	var rect := Rect2(_hud._card.position, _hud._card.size)
 	assert_true(Rect2(Vector2.ZERO, bounds).encloses(rect), "州郡卡不出界：%s %s" % [label, rect])
-	# 州郡卡本身（標頭、五條、動作印）在 Deck 縮放 1.5 時就高過印匣上方的空間，清單縮到底也放不下；
-	# 這是既有州郡卡的版面限制，記為待裁定，這一格只要求不出界。
-	if ui_scale <= 1.0 or view.y > 800:
-		assert_true(rect.end.y <= _hud._seals.position.y, "州郡卡不壓到印匣：" + label)
+	var seals_top: float = _hud._seals.top_edge()
+	if _hud._card.min_height() <= _hud._card.max_height:
+		assert_true(rect.end.y <= seals_top - Hud.MARGIN + 0.5, "州郡卡停在印匣之上留一個間距：%s %s" % [label, rect])
+		if _hud._card._list_height() < _hud._card._people_content_height():
+			assert_gt(rect.end.y, seals_top - Hud.MARGIN - 2.0, "清單放不下時，州郡卡長到印匣上緣之上：" + label)
+	else:
+		print("放不下（只保證不出畫面）：州郡卡 %s" % label)
 	assert_true(Rect2(Vector2.ZERO, _hud._card.size).encloses(_list(_hud._card).get_rect()), "有名之人清單在卡內：" + label)
 	assert_true(_list(_hud._card).get_rect().end.y <= _hud._card._center_rect().position.y, "清單不壓到頁尾動作印：" + label)
 	for id: int in [found["alive"], found["dead"]]:
@@ -304,8 +310,12 @@ func _check_fit(view: Vector2i, ui_scale: float) -> void:
 		var card := _card()
 		var card_rect := Rect2(card.position, card.size)
 		assert_true(Rect2(Vector2.ZERO, bounds).encloses(card_rect), "人物卡不出界：%s %s" % [label, card_rect])
-		if ui_scale <= 1.0 or view.y > 800:
-			assert_true(card_rect.end.y <= _hud._seals.position.y, "人物卡不壓到印匣：" + label)
+		if card.min_height() <= card.max_height:
+			assert_true(card_rect.end.y <= seals_top - Hud.MARGIN + 0.5, "人物卡停在印匣之上留一個間距：%s %s" % [label, card_rect])
+			if card._list_height() < card._rows_height:
+				assert_gt(card_rect.end.y, seals_top - Hud.MARGIN - 2.0, "歷程放不下時，人物卡長到印匣上緣之上：" + label)
+		else:
+			print("放不下（只保證不出畫面）：人物卡 %s" % label)
 		var inner: Rect2 = _list(card).get_rect()
 		assert_true(Rect2(Vector2.ZERO, card.size).encloses(inner), "歷程清單在卡內：" + label)
 		assert_true(inner.end.y <= card._center_rect().position.y, "歷程清單不壓到頁尾動作印：" + label)
@@ -318,6 +328,36 @@ func _check_fit(view: Vector2i, ui_scale: float) -> void:
 		if bounds.y <= 800.0:
 			for base: int in [Ink.SIZE_NOTE, Ink.SIZE_BODY, Ink.SIZE_SECTION]:
 				assert_gt(Ink.font_size(base, _hud._unit), 15, "Deck 內文至少 16")
+
+
+func test_history_sentences_drop_the_protagonist_and_date_the_era_once() -> void:
+	await _boot(FLOW_VIEW)
+	var found := _find_people()
+	for key_name in ["alive", "dead"]:
+		var id: int = found[key_name]
+		var own_name: String = _sim.world.person(id)["name"]
+		_hud.open_person(id)
+		await wait(0.5)
+		var card := _card()
+		var history: Array = _sim.world.person_history(id)
+		var eras := 0
+		var previous_era := ""
+		var with_era := 0
+		for i in history.size():
+			var entry: Dictionary = history[i]
+			var sentence := EventText.history_line(entry, id)
+			assert_false(sentence.contains("{"), "沒有留下未填的模板：" + sentence)
+			assert_false(sentence.begins_with(own_name), "歷程不以主角自己的名字起句：" + sentence)
+			assert_false(sentence.contains("（") and entry["kind"] in ["Tribulation", "Breakthrough"], "歷程沒有境界括號：" + sentence)
+			if entry["era"] != previous_era:
+				eras += 1
+				previous_era = entry["era"]
+			if String(card._rows[i]["date"]).begins_with(String(entry["era"])):
+				with_era += 1
+			if entry["kind"] == "Tribulation" and entry["x"] == "Passed":
+				assert_true(sentence.contains(EventText.gain(int(entry["n"]))), "渡劫寫出成就的境界：" + sentence)
+		assert_eq(with_era, eras, "紀元名只在第一筆與換紀元時出現（%d 次）" % eras)
+		assert_true(String(card._rows[0]["date"]).begins_with(history[0]["era"]), "第一筆帶紀元名")
 
 
 func test_history_scrolls_with_the_wheel_to_the_end() -> void:

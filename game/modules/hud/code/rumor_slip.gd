@@ -9,6 +9,8 @@ extends Control
 
 ## 點一則有地點的傳聞：飛往地圖座標 map_pos。
 signal fly_requested(map_pos: Vector2)
+## 點了「看人物」（或統計名單的一行）：開這個人的人物卡。
+signal person_requested(person: int)
 
 const WIDTH := 300.0
 const EXPANDED_WIDTH := 360.0
@@ -40,9 +42,11 @@ const MEMBER_HEIGHT := 22.0
 const MEMBER_GAP := 2.0
 const MEMBER_BASE := 1000000
 const MEMBER_STRIDE := 10000
+## 「看人物」小印的選取碼 = SLOT_BASE + 簽序。
+const SLOT_BASE := 3000000
 ## 原因標記的方框邊長。
 const MARK_SIZE := 16.0
-## 「看人物」「溯因」入口預留的寬度與間距（人物卡與事件卡實作前不畫，只留位置）。
+## 「看人物」「溯因」入口的寬度與間距；看人物現在畫出來，溯因（事件卡實作前）只留位置。
 const SLOT_WIDTH := 44.0
 const SLOT_GAP := 4.0
 
@@ -142,6 +146,7 @@ func post(event: Dictionary) -> bool:
 		"souls": event.get("souls", PackedInt32Array()),
 		# 可追的對象編號：人物、勢力、州郡（人物卡與事件卡實作後用）。
 		"persons": event.get("persons", PackedInt32Array()),
+		"a_person": event.get("a_person", -1),
 		"powers": event.get("powers", PackedInt32Array()),
 		"province": event.get("province", -1),
 		"members": [],
@@ -198,6 +203,15 @@ func _admit(rec: Dictionary) -> bool:
 				break
 			if old["kind"] == "Tribulation" and _share_soul(old["souls"], souls):
 				return false
+	if rec["kind"] == "Died" and rec["category"] != "" and rec["x"] in EventText.TRIBULATION_CAUSES:
+		# 渡劫失敗而亡：緊接在失敗的渡劫之後的身死是同一件事，合進身死的統計，不留那一筆單列的渡劫。
+		for i in range(_records.size() - 1, -1, -1):
+			var old := _records[i]
+			if old["tick"] != rec["tick"]:
+				break
+			if old["kind"] == "Tribulation" and old["reason"] == "death" and _share_soul(old["souls"], souls):
+				_records.remove_at(i)
+				break
 	if rec["world"] or rec["category"] != "" or souls.is_empty():
 		_append(rec)
 		return true
@@ -306,6 +320,7 @@ func _make_group(gkey: String, members: Array) -> Dictionary:
 		"consequence": "",
 		"souls": PackedInt32Array(),
 		"persons": PackedInt32Array(),
+		"a_person": -1,
 		"powers": PackedInt32Array(),
 		"province": -1,
 		"members": members,
@@ -487,16 +502,32 @@ func member_rect(index: int, member: int) -> Rect2:
 	return Rect2(Vector2(row.position.x, top), Vector2(row.size.x, _member_height()))
 
 
-## 第 index 張右端預留給「看人物」「溯因」兩個入口的位置（人物卡與事件卡實作前不畫，也不收點擊）。
-## 停留時它們取代年月的位置；只有牽涉人物或勢力的簽才有入口。
+## 一則的主要人物編號：事件的主角，沒有主角取牽涉的第一位；沒有為 -1（統計也沒有）。
+static func main_person(entry: Dictionary) -> int:
+	var subject := int(entry.get("a_person", -1))
+	if subject >= 0:
+		return subject
+	var persons: PackedInt32Array = entry.get("persons", PackedInt32Array())
+	return persons[0] if not persons.is_empty() else -1
+
+
+## 第 index 張右端的「看人物」「溯因」兩個入口：看人物是最右一顆小印，停留時取代年月；
+## 溯因在它左邊，事件卡實作前只留位置，不畫也不收點擊。只有主要人物明確的單則才有看人物。
 func action_slots(index: int) -> Dictionary:
 	var row := row_rect(index)
-	var width := SLOT_WIDTH * _unit
+	var note := Ink.font_size(Ink.SIZE_NOTE, _unit)
+	var width := maxf(SLOT_WIDTH * _unit, Ink.text_size(Locale.t("rumor_person"), note).x + 12.0 * _unit)
 	var gap := SLOT_GAP * _unit
 	var right := row.end.x - PAD * _unit
-	var trace := Rect2(Vector2(right - width, row.position.y), Vector2(width, row.size.y))
-	var person := Rect2(Vector2(trace.position.x - gap - width, row.position.y), Vector2(width, row.size.y))
+	var person := Rect2(Vector2(right - width, row.position.y + 3.0 * _unit), Vector2(width, row.size.y - 6.0 * _unit))
+	var trace := Rect2(Vector2(person.position.x - gap - SLOT_WIDTH * _unit, row.position.y + 3.0 * _unit), Vector2(SLOT_WIDTH * _unit, row.size.y - 6.0 * _unit))
 	return {"person": person, "trace": trace}
+
+
+## 第 index 張是否有「看人物」入口。
+func has_person_slot(index: int) -> bool:
+	var entry := shown()[index]
+	return not is_group(entry) and main_person(entry) >= 0
 
 
 ## 目前看得到（落在可視範圍內）的傳聞張數。
@@ -622,8 +653,9 @@ func _draw_row(entry: Dictionary, rect: Rect2, index: int, note: int) -> void:
 	# 新到的簽從上方滑入。
 	var slid := rect
 	slid.position.y -= (1.0 - fade) * 10.0 * _unit
-	var hot := _hover == index
-	var pressed := hot and _pressed == index
+	var slot_hot := _hover == SLOT_BASE + index
+	var hot := _hover == index or slot_hot
+	var pressed := _hover == index and _pressed == index
 	var has_pos: bool = entry.has("pos")
 	var group := is_group(entry)
 	var clickable := has_pos or group
@@ -644,9 +676,19 @@ func _draw_row(entry: Dictionary, rect: Rect2, index: int, note: int) -> void:
 	var right := slid.end.x - PAD * _unit
 	var tail := ""
 	var key := ""
+	if hot and has_person_slot(index):
+		# 最右一顆「看人物」小印，其餘靠左讓出位置。
+		var slot: Rect2 = action_slots(index)["person"]
+		var pressed_slot := slot_hot and _pressed == SLOT_BASE + index
+		var slot_ink := Color(Ink.SEAL_RED, fade)
+		draw_rect(slot, Color(Ink.SEAL_RED, 0.28 if pressed_slot else (0.14 if slot_hot else 0.0)), true)
+		draw_rect(slot, slot_ink, false, 1.0)
+		var slot_text := Locale.t("rumor_person")
+		Ink.text(self, slot.get_center() - Ink.text_size(slot_text, note) * 0.5, slot_text, note, slot_ink)
+		right = slot.position.x - 6.0 * _unit
 	if hot and group:
 		tail = Locale.t("rumor_close" if _is_open(entry) else "rumor_open")
-	elif hot and has_pos:
+	elif hot and has_pos and not slot_hot:
 		tail = Locale.t("rumor_fly")
 		key = _fly_key()
 	else:
@@ -678,14 +720,15 @@ func _draw_row(entry: Dictionary, rect: Rect2, index: int, note: int) -> void:
 ## 攤開的名單一行：身分與姓名，空一格接結果。
 func _draw_member(member: Dictionary, rect: Rect2, code: int, note: int) -> void:
 	var hot := _hover == code
+	var has_person := main_person(member) >= 0
 	var has_pos: bool = member.has("pos")
 	draw_rect(rect, Color(Ink.PAPER_LIGHT, 0.92), true)
 	draw_rect(rect.grow(-0.5), Color(Ink.GOLD, 0.5), false, 1.0)
 	if hot:
 		draw_rect(rect.grow(-1.0), Color(Ink.INK, 0.2 if _pressed == code else 0.07), true)
 	var right := rect.end.x - PAD * _unit
-	if hot and has_pos:
-		var fly := Locale.t("rumor_fly")
+	if hot and (has_person or has_pos):
+		var fly := Locale.t("rumor_person" if has_person else "rumor_fly")
 		right -= Ink.text_size(fly, note).x
 		Ink.text(self, Vector2(right, rect.position.y + (rect.size.y - Ink.text_size(fly, note).y) * 0.5), fly, note, Ink.SEAL_RED)
 		right -= 8.0 * _unit
@@ -733,6 +776,8 @@ func _select_at(point: Vector2) -> int:
 	var entries := shown()
 	for i in entries.size():
 		if row_rect(i).has_point(point):
+			if has_person_slot(i) and action_slots(i)["person"].has_point(point):
+				return SLOT_BASE + i
 			return i
 		if _is_open(entries[i]):
 			for j in entries[i]["members"].size():
@@ -757,11 +802,12 @@ func _has_point(point: Vector2) -> bool:
 ## 游標停在這裡時是否可以按（GDD 5.9 游標圖示）：簽頭、統計，或有地點的簽與名單行。
 func is_hot(point: Vector2) -> bool:
 	var at := _select_at(point)
-	if at == SELECT_HEADER:
+	if at == SELECT_HEADER or at >= SLOT_BASE:
 		return true
 	if at >= MEMBER_BASE:
 		var m := _member_of(at)
-		return shown()[m[0]]["members"][m[1]].has("pos")
+		var member: Dictionary = shown()[m[0]]["members"][m[1]]
+		return member.has("pos") or main_person(member) >= 0
 	return at >= 0 and (shown()[at].has("pos") or is_group(shown()[at]))
 
 
@@ -804,10 +850,14 @@ func _gui_input(event: InputEvent) -> void:
 func activate(select: int) -> void:
 	if select == SELECT_HEADER:
 		expanded = not expanded
+	elif select >= SLOT_BASE:
+		person_requested.emit(main_person(shown()[select - SLOT_BASE]))
 	elif select >= MEMBER_BASE:
 		var m := _member_of(select)
 		var member: Dictionary = shown()[m[0]]["members"][m[1]]
-		if member.has("pos"):
+		if main_person(member) >= 0:
+			person_requested.emit(main_person(member))
+		elif member.has("pos"):
 			fly_requested.emit(member["pos"])
 			if expanded:
 				expanded = false

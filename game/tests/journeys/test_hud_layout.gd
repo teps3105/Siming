@@ -83,7 +83,22 @@ func test_card_hides_empty_bars_and_empty_faith() -> void:
 		await wait(0.3)
 		assert_false(_hud._card._shows_faith_ring(), "沒有教化時不畫教化環")
 	var card_bottom: float = _hud._card.position.y + _hud._card.size.y
-	assert_lt(card_bottom, _hud._seals.position.y + _hud._seals._legend_top(), "命簿不與例簽重疊")
+	assert_lt(card_bottom, _hud._seals.top_edge(), "命簿不與印匣重疊")
+
+
+func test_card_height_limit_follows_the_legend_when_it_shows() -> void:
+	await _boot(FLOW_VIEW)
+	_hud._card.show_province(0)
+	await wait(0.5)
+	var plain: float = _hud._card.max_height
+	assert_gt(plain, _hud._seals.top_edge() - Hud.MARGIN * 2.0 - 1.0, "平時卡高上限到印匣上緣之上一個間距")
+	_hud._seals._flash = 5.0
+	await frames(3)
+	assert_lt(_hud._card.max_height, plain, "例簽顯示時，卡高上限縮到例簽上緣之上")
+	assert_lt(_hud._card.position.y + _hud._card.size.y, _hud._seals.top_edge(), "命簿不壓到例簽")
+	_hud._seals._flash = 0.0
+	await frames(3)
+	assert_eq(_hud._card.max_height, plain, "例簽收起後恢復")
 
 
 func test_legend_and_card_use_one_terrain_palette() -> void:

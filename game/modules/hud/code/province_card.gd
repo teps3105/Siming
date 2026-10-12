@@ -129,6 +129,12 @@ func _fixed_height(with_ring := false) -> float:
 	return (rows + 8.0 + 12.0 + ACTION_RADIUS * 2.0 + 14.0) * _unit + Ink.CARD_BAND * 2.0
 
 
+## 卡片（含軸頭）至少要多高：固定部分（教化環放不下時省去）加上有名之人清單的最低高度。
+func min_height() -> float:
+	var floor_rows := minf(_people_content_height(), MIN_PEOPLE_ROWS * PERSON_ROW * _unit)
+	return _fixed_height() + ROD * 2.0 * _unit + floor_rows
+
+
 ## 兩根軸頭之間的高度。
 func _content_height() -> float:
 	return _fixed_height() + _list_height()

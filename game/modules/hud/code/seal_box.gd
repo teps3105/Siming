@@ -124,6 +124,27 @@ func _legend_top() -> float:
 	return 0.0
 
 
+## 目前顯示著的例簽所屬的模式印（停留在某鈕上，或剛切換模式的片刻）；沒有例簽為空。
+func _legend_entry() -> Dictionary:
+	if _hover >= 0:
+		return SEALS[_hover]
+	if _flash > 0.0:
+		for entry: Dictionary in SEALS:
+			if entry["mode"] == int(mode):
+				return entry
+	return {}
+
+
+## 印匣（連同鍵帽）與目前顯示著的例簽的上緣，Hud 座標：命簿的下緣停在它之上。
+## 例簽平時不顯示，不佔這段高度（器物本身為例簽預留了一塊，但空著時卡片可以用）。
+func top_edge() -> float:
+	var top := _badge_position(0).y
+	var entry := _legend_entry()
+	if not entry.is_empty():
+		top = minf(top, _legend_slip(entry).position.y - Ink.SLIP_BAND)
+	return position.y + top
+
+
 func _draw() -> void:
 	var label_size := Ink.font_size(Ink.SIZE_SECTION, _unit)
 	for i in SEALS.size():
@@ -181,19 +202,33 @@ func legend_keys(for_mode: int) -> Array:
 	return keys
 
 
+## 例簽的列數（圖例的行數）。
+func _legend_rows(entry: Dictionary) -> int:
+	var entries := legend_entries(entry["mode"])
+	var lines: Array = entries["lines"]
+	var places: Array = entries["places"]
+	var columns := 2 if lines.size() > 4 else 1
+	var rows := int(ceil(float(lines.size()) / columns))
+	if not places.is_empty():
+		rows = maxi(rows, int(ceil(float(places.size()) / PLACE_COLUMNS)))
+	return rows
+
+
+## 例簽的紙面（本器物座標）。例簽沒有標題，容器裡只有圖例本身。
+func _legend_slip(entry: Dictionary) -> Rect2:
+	var height := 10.0 * _unit + _legend_rows(entry) * 20.0 * _unit + 6.0 * _unit
+	var band := Ink.SLIP_BAND
+	return Rect2(Vector2(_side() + band, size.y - (SEAL_SIZE + BADGE_RISE + 14.0) * _unit - band - height), Vector2(size.x - (_side() + band) * 2.0, height))
+
+
 func _draw_legend(entry: Dictionary) -> void:
 	var entries := legend_entries(entry["mode"])
 	var lines: Array = entries["lines"]
 	var places: Array = entries["places"]
 	var row := 20.0 * _unit
 	var columns := 2 if lines.size() > 4 else 1
-	var rows := int(ceil(float(lines.size()) / columns))
-	if not places.is_empty():
-		rows = maxi(rows, int(ceil(float(places.size()) / PLACE_COLUMNS)))
-	# 例簽沒有標題，容器裡只有圖例本身。
-	var height := 10.0 * _unit + rows * row + 6.0 * _unit
-	var band := Ink.SLIP_BAND
-	var slip := Rect2(Vector2(_side() + band, size.y - (SEAL_SIZE + BADGE_RISE + 14.0) * _unit - band - height), Vector2(size.x - (_side() + band) * 2.0, height))
+	var rows := _legend_rows(entry)
+	var slip := _legend_slip(entry)
 	Ink.paper_slip(self, slip)
 	var cursor := slip.position + Vector2(12.0, 10.0) * _unit
 	var inner := slip.size.x - 24.0 * _unit

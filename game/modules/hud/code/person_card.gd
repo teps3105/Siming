@@ -156,8 +156,9 @@ func _relayout() -> void:
 	var list_width := width - 8.0 * u
 	var date_height := LedgerText.line_height(note)
 	var top := 0.0
+	var era_shown := ""
 	for entry: Dictionary in history:
-		var sentence := EventText.line(entry)
+		var sentence := EventText.history_line(entry, person)
 		var links: Array[Dictionary] = []
 		if int(entry["a_person"]) >= 0 and int(entry["a_person"]) != person:
 			links.append({"text": entry["a"], "target": "person:%d" % entry["a_person"]})
@@ -168,7 +169,9 @@ func _relayout() -> void:
 		if int(entry["q_province"]) >= 0 and not String(entry["q"]).is_empty():
 			links.append(_province_link(entry["q"], entry["q_province"]))
 		var para := LedgerText.paragraph(sentence, links, list_width, body)
-		var date := Locale.t("card_history_date").format({"E": entry["era"], "Y": str(entry["year"]), "M": str(entry["month"])})
+		# 同一紀元內只有第一筆與換紀元的那筆帶紀元名。
+		var date := EventText.history_date(entry, entry["era"] != era_shown)
+		era_shown = entry["era"]
 		var height: float = date_height + float(para["height"]) + ROW_GAP * u
 		_rows.append({"top": top, "height": height, "date": date, "seal": EventText.seal(entry["kind"]), "paragraph": para})
 		top += height
@@ -196,6 +199,12 @@ func _relayout() -> void:
 
 func _fixed_height() -> float:
 	return float(_layout.get("fixed", 0.0))
+
+
+## 卡片（含軸頭）至少要多高：固定部分加上歷程清單的最低高度；畫面矮於這個就只能出界或壓到印匣。
+func min_height() -> float:
+	var all := maxf(_rows_height, LedgerText.line_height(Ink.font_size(Ink.SIZE_BODY, _unit)))
+	return _fixed_height() + ROD * 2.0 * _unit + minf(all, MIN_LIST * _unit)
 
 
 ## 歷程清單的高度：畫面放得下就全列，放不下縮到剩下的高度（至少 MIN_LIST）。

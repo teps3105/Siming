@@ -247,6 +247,109 @@ func test_omens_of_one_month_merge_too() -> void:
 	assert_eq(entries[0]["line"] if _rumor.is_group(entries[0]) else entries[1]["line"], "本月 4 處山門劫雲將聚")
 
 
+func _died(tick: int, soul: int, cause: String, realm: int, extra := {}) -> Dictionary:
+	var base := {"souls": PackedInt32Array([soul]), "a": "霍靜沉%d" % soul, "x": cause, "n": 90 + soul, "a_role": "Rogue", "a_power": "", "a_realm": realm,
+		"a_person": 100 + soul, "persons": PackedInt32Array([100 + soul])}
+	base.merge(extra, true)
+	return _event("Died", 2, tick, base)
+
+
+func test_low_realm_deaths_of_one_month_merge_by_cause() -> void:
+	await _boot(FLOW_VIEW)
+	for i in 5:
+		_post(_died(100, i, "BreakthroughFailed", 2))
+	for i in 3:
+		_post(_died(100, 10 + i, "Age", 1))
+	_post(_died(100, 20, "Smite", 2))
+	_post(_died(100, 21, "Smite", 2))
+	# 不合成：被殺（有兇手）、掌門、君主、高境界、單獨一人的死因。
+	_post(_died(100, 30, "Killed", 2))
+	_post(_died(100, 31, "BreakthroughFailed", 2, {"a_role": "Leader", "a_power": "鶴微宗"}))
+	_post(_died(100, 32, "Age", 2, {"a_role": "Ruler"}))
+	_post(_died(100, 33, "BreakthroughFailed", 4))
+	_post(_died(100, 34, "War", 1))
+	_rumor.expanded = true
+	var groups := {}
+	var singles := 0
+	for entry in _rumor.shown():
+		if _rumor.is_group(entry):
+			groups[entry["line"]] = entry
+		else:
+			singles += 1
+	assert_true(groups.has("本月 5 人突破失敗而亡"), "低境界同月同死因合成一則：" + str(groups.keys()))
+	assert_true(groups.has("本月 3 人壽終"))
+	assert_true(groups.has("本月 2 人遭天譴而亡"))
+	assert_eq(groups.size(), 3)
+	assert_eq(singles, 5, "被殺、掌門、君主、高境界、單一死因各自成則")
+	var members: Array = groups["本月 5 人突破失敗而亡"]["members"]
+	assert_eq(members.size(), 5)
+	assert_true(String(members[0]["who"]).begins_with("散修霍靜沉"), "名單有身分與姓名：" + members[0]["who"])
+	assert_eq(members[0]["what"], "突破失敗而亡，享年94", "名單有死因與享年")
+	assert_eq(members[0]["a_person"], 104, "名單每行帶人物編號，點了開人物卡")
+	var marked := 0
+	for entry in _rumor.shown():
+		if not _rumor.is_group(entry) and entry["reason"] == "death":
+			marked += 1
+	assert_gt(marked, 0, "不合成的身死帶「亡」標記")
+
+
+func test_person_slot_and_statistic_rows_open_the_person_card() -> void:
+	await _boot(FLOW_VIEW)
+	var opened: Array[int] = []
+	var flown: Array[Vector2] = []
+	_rumor.person_requested.connect(func(id: int) -> void: opened.append(id))
+	_rumor.fly_requested.connect(func(pos: Vector2) -> void: flown.append(pos))
+	_post(_event("Killed", 3, 100, {"persons": PackedInt32Array([4, 5]), "a_person": 4, "pos": Vector2(10.0, 10.0), "souls": PackedInt32Array([7])}))
+	_rumor.expanded = true
+	await frames(2)
+	var index := 0
+	assert_true(_rumor.has_person_slot(index), "有主要人物的單則有「看人物」入口")
+	var slot: Rect2 = _rumor.action_slots(index)["person"]
+	assert_true(_rumor.row_rect(index).encloses(slot), "入口在這一則的紙面內")
+	assert_true(slot.size.x >= RumorSlip.SLOT_WIDTH * _hud._unit - 0.1, "入口夠一顆小印大")
+	await click(_rumor.position + slot.get_center())
+	assert_eq(opened, [4], "點小印開這個人的卡")
+	assert_true(flown.is_empty(), "點小印不另外飛往")
+	assert_true(_rumor.expanded, "開卡後清單仍展開，可以接著看下一位")
+	# 點整則的空白處仍是飛往該地，並收起清單。
+	await click(_rumor.position + _rumor.row_rect(index).position + Vector2(_rumor.row_rect(index).size.x * 0.5, 4.0))
+	assert_eq(flown, [Vector2(10.0, 10.0)], "點空白處飛往")
+	# 統計名單每一行開那個人的卡。
+	_rumor.expanded = true
+	for i in 3:
+		_post(_died(120, 40 + i, "BreakthroughFailed", 2))
+	await frames(2)
+	var group := -1
+	for i in _rumor.shown().size():
+		if _rumor.is_group(_rumor.shown()[i]):
+			group = i
+	assert_gt(group, -1)
+	assert_false(_rumor.has_person_slot(group), "統計本身沒有看人物入口")
+	_rumor.toggle_group(group)
+	await frames(2)
+	opened.clear()
+	var member: Dictionary = _rumor.shown()[group]["members"][1]
+	await click(_rumor.position + _rumor.member_rect(group, 1).get_center())
+	assert_eq(opened, [int(member["a_person"])], "點名單的一行開那個人的卡")
+	assert_true(_rumor.is_open(group), "名單仍攤開")
+
+
+func test_tribulation_death_counts_once_in_the_death_statistic() -> void:
+	await _boot(FLOW_VIEW)
+	# 渡劫失敗的雷劫事件與緊接著的身死是同一件事：合進身死統計，不再留一筆單列的渡劫。
+	for i in 3:
+		_post(_trib(100, i, 3, "Perished"))
+		_post(_died(100, i, "Tribulation", 2))
+	_post(_trib(100, 9, 5, "Perished"))
+	_post(_died(100, 9, "Tribulation", 4))
+	_rumor.expanded = true
+	var lines: Array[String] = []
+	for entry in _rumor.shown():
+		lines.append(entry["line"])
+	assert_true(lines.has("本月 3 人渡劫身隕"), "三人合成一則：" + str(lines))
+	assert_eq(lines.size(), 2, "高境界渡劫失敗另成一則，沒有重複的身死：" + str(lines))
+
+
 func test_real_simulation_does_not_flood_with_routine_tribulations() -> void:
 	await _boot(FLOW_VIEW)
 	for shi in 4:

@@ -456,6 +456,34 @@ func test_gdd_6_4_events_carry_what_the_templates_need() -> void:
 	assert_gt(seen_tribulation, 0, "四百年裡有渡劫")
 
 
+## 快轉一次推進多個月，事件的主角身分（門派、職分、境界）仍是事件當月月底的樣子，與逐月推進、逐月取走的結果一致。
+func test_gdd_6_4_batched_steps_keep_the_identity_at_event_time() -> void:
+	var single := SimWorld.new()
+	single.create(SEED, "small")
+	single.drain_events()
+	var batched := SimWorld.new()
+	batched.create(SEED, "small")
+	batched.drain_events()
+	var expected := {}
+	for month in 360:
+		single.step(1)
+		for event: Dictionary in single.drain_events():
+			expected[event["id"]] = [event["a_power"], event["a_role"], event["a_realm"]]
+	var checked := 0
+	var leaders := 0
+	for batch in 6:
+		batched.step(60)
+		for event: Dictionary in batched.drain_events():
+			assert_true(expected.has(event["id"]), "兩邊的事件編號相同")
+			var want: Array = expected[event["id"]]
+			assert_eq([event["a_power"], event["a_role"], event["a_realm"]], want, "事件 %d（%s）的身分不因快轉而變" % [event["id"], event["kind"]])
+			checked += 1
+			if event["a_role"] == "Leader":
+				leaders += 1
+	assert_gt(checked, 50, "三十年裡有足夠的事件可比")
+	assert_gt(leaders, 0, "其中有掌門")
+
+
 func test_gdd_7_2_event_text_fills_each_template() -> void:
 	var base := {"id": 1, "tick": 10, "importance": 3, "province": 0, "cell": -1, "souls": PackedInt32Array(), "a": "沈青霜", "b": "韓烈", "f": "玄清宗", "g": "赤霄門", "p": "青州", "q": "雲州", "x": "", "n": 0, "m": 0, "year": 1}
 	var cases := [

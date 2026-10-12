@@ -26,6 +26,8 @@ var _dial: TimeDial
 var _seals: SealBox
 var _card: ProvinceCard
 var _person_card: PersonCard
+## 上一次排命簿時的高度上限。
+var _last_card_limit := 0.0
 ## 從別張卡點進來時，回得去的上一張卡：{kind: "province"|"person", id}，最近的在最後。
 var _back_stack: Array[Dictionary] = []
 var _view: ViewToggle
@@ -108,12 +110,18 @@ func _layout() -> void:
 
 ## 兩張命簿都靠右上角（一次只開一張）。
 func _place_cards(bounds: Vector2) -> void:
-	# 命簿放右上、印匣在右下，卡的下緣停在印匣（含例簽的位置）上方。
-	var limit := (_seals.position.y if _seals != null else bounds.y) - MARGIN * 2.0
+	# 命簿放右上、印匣在右下，卡的下緣停在印匣（連同當下顯示著的例簽）上緣之上留一個間距。
+	var limit := _card_limit(bounds)
+	_last_card_limit = limit
 	_card.max_height = limit
 	_person_card.max_height = limit
 	_card.position = Vector2(bounds.x - _card.size.x - MARGIN, MARGIN)
 	_person_card.position = Vector2(bounds.x - _person_card.size.x - MARGIN, MARGIN)
+
+
+## 命簿（含軸頭）最高能到哪裡：印匣與例簽上緣之上一個間距。
+func _card_limit(bounds: Vector2) -> float:
+	return (_seals.top_edge() if _seals != null else bounds.y) - MARGIN - MARGIN
 
 
 func _build() -> void:
@@ -191,6 +199,7 @@ func _build() -> void:
 	_rumor.restore(rumors)
 	_rumor.expanded = rumors_open
 	_rumor.fly_requested.connect(func(map_pos: Vector2) -> void: _camera.look_at_map(map_pos))
+	_rumor.person_requested.connect(func(id: int) -> void: open_person(id))
 	_place_rumor()
 
 	_notice = NoticeSlip.new()
@@ -379,6 +388,10 @@ func _process(_delta: float) -> void:
 		_camera.use_crosshair = _menu.panel().gamepad
 	if _camera.use_crosshair != _dial.gamepad:
 		_apply_device()
+	# 例簽出現或收起時，命簿的高度上限跟著變。
+	var bounds := get_viewport().get_visible_rect().size
+	if not is_equal_approx(_card_limit(bounds), _last_card_limit):
+		_place_cards(bounds)
 	_place_rumor()
 	_overlay.reserved = _occupied()
 

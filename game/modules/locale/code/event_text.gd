@@ -42,6 +42,18 @@ static func stamp(year: int, month: int) -> String:
 	return Locale.t("rumor_month").format({"y": year, "m": month})
 
 
+## 低境界身死時可以同月同死因合成統計的死因（7.2）；被殺（有兇手與宿緣脈絡）與飛升、涅槃、成聖不在內。
+const MERGE_CAUSES := ["Age", "BreakthroughFailed", "Tribulation", "ShedBody", "Smite", "War", "Plague", "Famine", "Kalpa"]
+## 死於天劫的兩種死因：當事人是在衝擊下一境時身死，境界要再加一階才是他正要去的境界。
+const TRIBULATION_CAUSES := ["Tribulation", "ShedBody"]
+
+
+## 身死事件判境界高低用的境界：死於天劫者算他正要晉入的新境界，與渡劫事件的門檻一致。
+static func death_realm(event: Dictionary) -> int:
+	var realm := int(event.get("a_realm", -1))
+	return realm + 1 if realm >= 0 and event.get("x", "") in TRIBULATION_CAUSES else realm
+
+
 ## 事件的完整描述：句子、分級縮短的版本、分類與標記。
 ## 回傳 line（全句）、variants（[[首, 尾], …] 由全到簡，首可截、尾不截）、category（例行類別，異常為空）、
 ## reason（原因代號：world、lead、high、death、fate，沒有為空）、consequence（後果，得不出為空）、
@@ -85,6 +97,29 @@ static func describe(event: Dictionary) -> Dictionary:
 	out["who_variants"] = who
 	out["what"] = _result(event, params)
 	return out
+
+
+## 個人歷程（人物卡）的一句話：主角是 owner 本人時省略他的身分與姓名，直接以動詞起句；
+## 事件裡的其他人名照舊（歷程端把它們做成可點）。沒有境界括號：歷程每筆都是同一個人，渡劫寫出成就的境界即可。
+static func history_line(event: Dictionary, owner: int) -> String:
+	var key := _key(event)
+	if not Locale.has(key):
+		key = "event_unknown"
+	var subject := int(event.get("a_person", -1))
+	var own := subject == owner or subject < 0
+	var template := Locale.t(key + "_own") if own and Locale.has(key + "_own") else Locale.t(key)
+	if template.begins_with("{I}") or template.begins_with("{A}"):
+		template = template.substr(3) if own else "{A}" + template.substr(3)
+	var tail_extra := ""
+	if event["kind"] == "ProvinceLost" and int(event.get("n", 0)) > 0:
+		tail_extra = Locale.t("event_ProvinceLost_drowned").format({"N": str(int(event["n"]))})
+	return template.format(_params(event)) + tail_extra
+
+
+## 歷程的年月：with_era 為真才帶紀元名（同一紀元內只有第一筆與換紀元的那筆帶，由呼叫端判斷）。
+static func history_date(event: Dictionary, with_era: bool) -> String:
+	var key := "card_history_date" if with_era else "card_history_date_short"
+	return Locale.t(key).format({"E": event.get("era", ""), "Y": str(event["year"]), "M": str(event["month"])})
 
 
 ## 人物的身分與姓名，由全到簡：「鶴微宗長老霍靜沉」「長老霍靜沉」「霍靜沉」。境界另放在 realm_tag，空間不夠時只截這一段。
@@ -178,6 +213,8 @@ static func _result(event: Dictionary, params: Dictionary) -> String:
 	var key := "result_" + kind
 	if kind == "Tribulation":
 		key = "result_Tribulation_Passed" if event.get("x", "") == "Passed" else ""
+	elif kind == "Died" and event.get("x", "") != "Age":
+		key = ""
 	if not key.is_empty() and Locale.has(key):
 		return Locale.t(key).format(params)
 	var template := Locale.t(_key(event)) if Locale.has(_key(event)) else ""
@@ -219,9 +256,10 @@ static func category(event: Dictionary) -> String:
 		"Married":
 			return "Married"
 		"Died":
+			var cause: String = event.get("x", "")
 			var role: String = event.get("a_role", "")
-			if event.get("x", "") == "Age" and int(event.get("a_realm", -1)) < HIGH_REALM and role != "Leader" and role != "Ruler":
-				return "Died"
+			if cause in MERGE_CAUSES and death_realm(event) < HIGH_REALM and role != "Leader" and role != "Ruler":
+				return "Died" if cause == "Age" else "Died_" + cause
 		"TribulationOmen":
 			return "TribulationOmen" if int(event.get("a_realm", -1)) < HIGH_REALM else ""
 		"ComeOfAge":
