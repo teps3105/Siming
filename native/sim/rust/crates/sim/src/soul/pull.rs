@@ -44,15 +44,25 @@ pub fn population_dist(w: &World) -> Vec<f64> {
 
 /// 道緣分布：`faith4(p) · 道緣`，再正規化。
 pub fn affinity_dist(w: &World, affinity: [f32; 4]) -> Vec<f64> {
+    affinity_dist_with(w, affinity, &faith_table(w))
+}
+
+/// 各州郡的 [`faith4`]（與 `w.provinces` 同序）。同一個月內州郡的信仰與氣不變，出生抽樣共用同一份。
+pub fn faith_table(w: &World) -> Vec<[f32; 4]> {
+    w.provinces.iter().map(faith4).collect()
+}
+
+/// 同 [`affinity_dist`]，各州郡的 faith4 由呼叫端提供（[`faith_table`]）。
+pub fn affinity_dist_with(w: &World, affinity: [f32; 4], faith: &[[f32; 4]]) -> Vec<f64> {
     normalized(
         w.provinces
             .iter()
-            .map(|p| {
+            .zip(faith)
+            .map(|(p, f)| {
                 // 已沒入海中的州郡不投生（GDD 2.8）。
                 if p.lost {
                     return 0.0;
                 }
-                let f = faith4(p);
                 (0..4).map(|k| f[k] as f64 * affinity[k] as f64).sum::<f64>()
             })
             .collect(),
@@ -99,8 +109,12 @@ pub fn thread_dist(w: &World, soul: &Soul) -> Option<Vec<f64>> {
 /// GDD 3.2 `P(p) = 0.5 × 人口 + 0.2 × 道緣 + 0.3 × 宿緣`；無在世宿緣對象時 `0.7 × 人口 + 0.3 × 道緣`。
 /// 回傳與 `w.provinces` 同長、和為 1 的分布。
 pub fn pull_distribution(w: &World, soul: &Soul) -> Vec<f64> {
-    let pop = population_dist(w);
-    let aff = affinity_dist(w, soul.affinity);
+    pull_distribution_with(w, soul, &population_dist(w), &faith_table(w))
+}
+
+/// 同 [`pull_distribution`]，人口分布由呼叫端提供（同一個月內多次出生共用同一份）。
+pub fn pull_distribution_with(w: &World, soul: &Soul, pop: &[f64], faith: &[[f32; 4]]) -> Vec<f64> {
+    let aff = affinity_dist_with(w, soul.affinity, faith);
     match thread_dist(w, soul) {
         Some(th) => (0..pop.len())
             .map(|i| PULL_MIX_POP as f64 * pop[i] + PULL_MIX_AFFINITY as f64 * aff[i] + PULL_MIX_THREAD as f64 * th[i])
@@ -131,6 +145,12 @@ pub fn sample_dist(w: &mut World, dist: &[f64]) -> ProvinceId {
 /// 因果牽引抽樣出生州郡。
 pub fn sample_birth_province(w: &mut World, soul: SoulId) -> ProvinceId {
     let dist = pull_distribution(w, &w.souls[soul as usize]);
+    sample_dist(w, &dist)
+}
+
+/// 同 [`sample_birth_province`]，人口分布由呼叫端提供。
+pub fn sample_birth_province_with(w: &mut World, soul: SoulId, pop: &[f64], faith: &[[f32; 4]]) -> ProvinceId {
+    let dist = pull_distribution_with(w, &w.souls[soul as usize], pop, faith);
     sample_dist(w, &dist)
 }
 

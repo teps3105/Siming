@@ -45,8 +45,12 @@ use crate::params::SECT_FOUND_MIN_REALM;
 use crate::sim::World;
 
 /// GDD 6.3 步驟 3：賜福到期、遊歷返回。依人物 ID 升冪。
-pub fn monthly_due(w: &mut World) {
+///
+/// 回傳是否還有在世者排定了強制突破（`forced_breakthrough` 有值）；沒有的話，緊接著的
+/// [`crate::dao::monthly_forced`] 什麼都不會做，可以省下一趟逐人掃描。這裡不改動 `forced_breakthrough`。
+pub fn monthly_due(w: &mut World) -> bool {
     let tick = w.tick;
+    let mut any_forced = false;
     for i in w.alive_snapshot().into_iter().map(|x| x as usize) {
         let p = &mut w.persons[i];
         if !p.alive() {
@@ -58,7 +62,9 @@ pub fn monthly_due(w: &mut World) {
         if p.travel_until.is_some_and(|t| t <= tick) {
             travel::return_home(w, i);
         }
+        any_forced |= w.persons[i].forced_breakthrough.is_some();
     }
+    any_forced
 }
 
 /// GDD 7.3 道號（金丹起）：境界 ≥ 金丹的修士取得「兩字核心 + 依境界的尊稱」。

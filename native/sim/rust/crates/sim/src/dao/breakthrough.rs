@@ -7,7 +7,7 @@ use crate::ledger::{self, NewEvent};
 use crate::model::*;
 use crate::params::*;
 use crate::people;
-use crate::schedule::{Domain, Round};
+use crate::schedule::Round;
 use crate::sim::World;
 use crate::types::Tick;
 
@@ -186,10 +186,9 @@ fn tribulation(w: &mut World, pid: PersonId, new: u8, ascension: bool, forced: b
 /// GDD 6.3 步驟 11 末尾：境界 ≥ 元嬰、修為已滿、突破冷卻將在一年內結束者，寫入 `TribulationOmen`。
 pub(super) fn yearly_omens(w: &mut World, round: Round) {
     let tick = w.tick;
-    let seed = w.params.seed;
-    for i in w.alive_snapshot().into_iter().map(|x| x as usize) {
+    for i in w.round_alive(round).into_iter().map(|x| x as usize) {
         let p = &w.persons[i];
-        if !p.alive() || !round.takes(seed, Domain::Person, p.id) {
+        if !p.alive() {
             continue;
         }
         let Some((realm, exp, last)) = realm_state(p) else { continue };

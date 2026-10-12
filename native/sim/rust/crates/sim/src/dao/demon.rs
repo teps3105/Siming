@@ -95,7 +95,7 @@ pub(super) struct PersonIndex {
 impl PersonIndex {
     pub(super) fn build(w: &World) -> Self {
         let mut by_province = vec![Vec::new(); w.provinces.len()];
-        for p in &w.persons {
+        for p in w.alive_ids.iter().map(|&i| &w.persons[i as usize]) {
             if p.alive() && p.role != Role::Child {
                 if let Some(v) = by_province.get_mut(p.province as usize) {
                     v.push(p.id);
@@ -151,7 +151,7 @@ fn pick(w: &mut World, cands: &[PersonId]) -> PersonId {
 
 /// GDD 3.5 斬妖除魔：金丹以上、淨業力 ≥ 0 的修士，每年 10% 尋找本州或陸鄰的魔修（M2 無妖），有則挑戰一名。
 /// 恆對符合資格者消耗 1 次機率抽樣；有候選者另抽選目標與勝負。
-pub(super) fn hunt(w: &mut World, index: &PersonIndex, pid: PersonId) {
+pub(super) fn hunt(w: &mut World, index: &mut Option<PersonIndex>, pid: PersonId) {
     let p = &w.persons[pid as usize];
     if !p.alive() {
         return;
@@ -166,6 +166,7 @@ pub(super) fn hunt(w: &mut World, index: &PersonIndex, pid: PersonId) {
     if w.rng.people.gen::<f32>() >= HUNT_CHANCE {
         return;
     }
+    let index = index.get_or_insert_with(|| PersonIndex::build(w));
     let cands = index.near(w, w.persons[pid as usize].province, pid, |q| q.role == Role::Demonic);
     if cands.is_empty() {
         return;
@@ -175,7 +176,7 @@ pub(super) fn hunt(w: &mut World, index: &PersonIndex, pid: PersonId) {
 }
 
 /// GDD 3.10 魔修襲殺：每年以 `戾氣 × 0.02` 機率襲殺本州或陸鄰一名有名之人（幼年者除外）。
-pub(super) fn assassinate(w: &mut World, index: &PersonIndex, pid: PersonId) {
+pub(super) fn assassinate(w: &mut World, index: &mut Option<PersonIndex>, pid: PersonId) {
     let p = &w.persons[pid as usize];
     if !p.alive() {
         return;
@@ -184,6 +185,7 @@ pub(super) fn assassinate(w: &mut World, index: &PersonIndex, pid: PersonId) {
     if chance <= 0.0 || w.rng.people.gen::<f32>() >= chance {
         return;
     }
+    let index = index.get_or_insert_with(|| PersonIndex::build(w));
     let cands = index.near(w, w.persons[pid as usize].province, pid, |q| q.role != Role::Child);
     if cands.is_empty() {
         return;

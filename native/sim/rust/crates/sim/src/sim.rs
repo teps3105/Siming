@@ -47,7 +47,37 @@ pub struct World {
     pub meet_stamp: Vec<u32>,
     /// 同上（宿緣線）：本年已判定過的線，一條線的兩端同一年只判定一次。
     pub thread_stamp: Vec<u32>,
+    /// 宗門勢力範圍快取（效能快取，GDD 6.8；不納入雜湊與存檔）。
+    pub range_cache: crate::dao::RangeCache,
+    /// 在世者依判定月分的 12 桶（效能快取，GDD 6.8；不納入雜湊與存檔）。`people::spawn`、`people::die` 同步維護；
+    /// 與 `alive_ids` 對不上時（測試直接改了 `alive_ids`）下次使用時重建。
+    pub alive_months: AliveMonths,
+    /// 宿緣線依債務方判定月分的 12 桶（效能快取，GDD 6.8；不納入雜湊與存檔）。宿緣只增不減、債務方建線後不變，
+    /// 所以只需追加新線；線數比已建的少時（測試換了線表）重建。
+    pub thread_months: ThreadMonths,
     pub rng: RngStreams,
+}
+
+/// 在世者依判定月分桶（桶內升冪）。`total` 為桶內人數總和，`usize::MAX` 表示失效。
+#[derive(Debug, Clone)]
+pub struct AliveMonths {
+    seed: u64,
+    total: usize,
+    by_month: [Vec<PersonId>; 12],
+}
+
+impl Default for AliveMonths {
+    fn default() -> Self {
+        Self { seed: 0, total: usize::MAX, by_month: Default::default() }
+    }
+}
+
+/// 宿緣線依債務方判定月分桶（桶內 ThreadId 升冪）。
+#[derive(Debug, Clone, Default)]
+pub struct ThreadMonths {
+    seed: u64,
+    built: usize,
+    by_month: [Vec<ThreadId>; 12],
 }
 
 impl World {
@@ -80,6 +110,9 @@ impl World {
             dynasty,
             meet_stamp: Vec::new(),
             thread_stamp: Vec::new(),
+            range_cache: Default::default(),
+            alive_months: Default::default(),
+            thread_months: Default::default(),
             rng,
         }
     }
@@ -88,6 +121,82 @@ impl World {
     /// 與舊的「迴圈開始時固定範圍」寫法相同。
     pub fn alive_snapshot(&self) -> Vec<PersonId> {
         self.alive_ids.clone()
+    }
+
+    /// `alive_ids` 剛追加 `id` 之後呼叫，維護判定月分桶。
+    pub(crate) fn alive_added(&mut self, id: PersonId) {
+        let seed = self.params.seed;
+        let before = self.alive_ids.len() - 1;
+        let am = &mut self.alive_months;
+        if am.total == before && am.seed == seed {
+            am.by_month[crate::schedule::judge_month(seed, crate::schedule::Domain::Person, id) as usize].push(id);
+            am.total += 1;
+        } else {
+            am.total = usize::MAX;
+        }
+    }
+
+    /// `alive_ids` 剛移除 `id` 之後呼叫，維護判定月分桶。
+    pub(crate) fn alive_removed(&mut self, id: PersonId) {
+        let seed = self.params.seed;
+        let before = self.alive_ids.len() + 1;
+        let am = &mut self.alive_months;
+        if am.total == before && am.seed == seed {
+            let b = &mut am.by_month[crate::schedule::judge_month(seed, crate::schedule::Domain::Person, id) as usize];
+            match b.binary_search(&id) {
+                Ok(k) => {
+                    b.remove(k);
+                    am.total -= 1;
+                }
+                Err(_) => am.total = usize::MAX,
+            }
+        } else {
+            am.total = usize::MAX;
+        }
+    }
+
+    fn rebuild_alive_months(&mut self) {
+        let seed = self.params.seed;
+        let mut by_month: [Vec<PersonId>; 12] = Default::default();
+        for &id in &self.alive_ids {
+            by_month[crate::schedule::judge_month(seed, crate::schedule::Domain::Person, id) as usize].push(id);
+        }
+        self.alive_months = AliveMonths { seed, total: self.alive_ids.len(), by_month };
+    }
+
+    /// 債務方的魂本輪輪到判定月的宿緣線（ThreadId 升冪）。等價於逐條線以 `round.takes(seed, Domain::Soul, debtor)` 過濾。
+    pub fn round_threads(&mut self, round: crate::schedule::Round) -> Vec<ThreadId> {
+        match round {
+            crate::schedule::Round::All => (0..self.threads.len() as ThreadId).collect(),
+            crate::schedule::Round::Month(m) => {
+                let seed = self.params.seed;
+                let tm = &mut self.thread_months;
+                if tm.seed != seed || tm.built > self.threads.len() {
+                    *tm = ThreadMonths { seed, ..Default::default() };
+                }
+                while tm.built < self.threads.len() {
+                    let t = &self.threads[tm.built];
+                    tm.by_month[crate::schedule::judge_month(seed, crate::schedule::Domain::Soul, t.debtor) as usize]
+                        .push(tm.built as ThreadId);
+                    tm.built += 1;
+                }
+                tm.by_month[m as usize % 12].clone()
+            }
+        }
+    }
+
+    /// 在世者中本輪輪到判定月者（升冪）。等價於 [`World::alive_snapshot`] 再以
+    /// `round.takes(seed, Domain::Person, id)` 過濾，但直接取判定月分桶，不逐一重算，也不碰人物資料。
+    pub fn round_alive(&mut self, round: crate::schedule::Round) -> Vec<PersonId> {
+        match round {
+            crate::schedule::Round::All => self.alive_ids.clone(),
+            crate::schedule::Round::Month(m) => {
+                if self.alive_months.total != self.alive_ids.len() || self.alive_months.seed != self.params.seed {
+                    self.rebuild_alive_months();
+                }
+                self.alive_months.by_month[m as usize % 12].clone()
+            }
+        }
     }
 }
 
@@ -147,8 +256,10 @@ impl Sim {
             self.log.push((tick, cmd));
         }
         // 3 到期處理（含開局保證的強制突破）
-        crate::people::monthly_due(w);
-        crate::dao::monthly_forced(w);
+        let any_forced = crate::people::monthly_due(w);
+        if any_forced {
+            crate::dao::monthly_forced(w);
+        }
         // 4 軍隊（M3）
         // 5 中陰、他道、等待、出生
         crate::soul::monthly(w);

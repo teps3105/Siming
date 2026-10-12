@@ -440,12 +440,12 @@ fn demon_slaying_evil_target_gives_merit_without_thread() {
     w.persons[demon as usize].role = Role::Demonic;
     set_soul(&mut w, hunter, 10.0, 0.0);
     set_soul(&mut w, demon, 0.0, 200.0); // S > G + 50
-    let index = demon::PersonIndex::build(&w);
+    let mut index = Some(demon::PersonIndex::build(&w));
     for _ in 0..200 {
         if !w.persons[demon as usize].alive() {
             break;
         }
-        demon::hunt(&mut w, &index, hunter);
+        demon::hunt(&mut w, &mut index, hunter);
     }
     assert!(!w.persons[demon as usize].alive(), "10% 每年，200 次內必中");
     assert!(matches!(w.persons[demon as usize].died, Some((_, DeathCause::Killed))));
@@ -464,10 +464,10 @@ fn hunt_requires_realm_and_net_karma() {
     set_soul(&mut w, sinner, 0.0, 10.0);
     let demon = cult(&mut w, 0, 0, 0.0);
     w.persons[demon as usize].role = Role::Demonic;
-    let index = demon::PersonIndex::build(&w);
+    let mut index = Some(demon::PersonIndex::build(&w));
     for _ in 0..300 {
-        demon::hunt(&mut w, &index, low);
-        demon::hunt(&mut w, &index, sinner);
+        demon::hunt(&mut w, &mut index, low);
+        demon::hunt(&mut w, &mut index, sinner);
     }
     assert!(w.persons[demon as usize].alive());
 }
@@ -479,12 +479,12 @@ fn demon_assassination_gains_exp_and_sin() {
     w.persons[d as usize].role = Role::Demonic;
     w.persons[d as usize].attrs.ferocity = 10.0; // 20%
     let victim = cult(&mut w, 1, 0, 0.0);
-    let index = demon::PersonIndex::build(&w);
+    let mut index = Some(demon::PersonIndex::build(&w));
     for _ in 0..200 {
         if !w.persons[victim as usize].alive() {
             break;
         }
-        demon::assassinate(&mut w, &index, d);
+        demon::assassinate(&mut w, &mut index, d);
     }
 
     assert!(!w.persons[victim as usize].alive());

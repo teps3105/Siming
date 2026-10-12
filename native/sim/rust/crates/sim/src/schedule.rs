@@ -4,6 +4,8 @@
 //! 同一實體每年同一月，一年內恰好輪到一次。所有「每年判定一次」的個人與宗門規則，都以 [`Round`] 決定本次要處理誰。
 //! 全域的年度結算（州郡人口、年齡、補魂、王朝、天地演變）不分月，仍在年底月（第 12 月）。
 
+use std::cell::RefCell;
+
 use crate::types::Tick;
 
 /// 判定月所屬的實體類別；不同類別各自獨立雜湊，避免同編號的人與宗門永遠同月。
@@ -32,6 +34,42 @@ fn mix(mut x: u64) -> u64 {
 pub fn judge_month(seed: u64, domain: Domain, id: u32) -> u8 {
     let h = mix(mix(seed ^ 0x9e37_79b9_7f4a_7c15) ^ ((domain as u64) << 40 | id as u64));
     (h % 12) as u8
+}
+
+/// 某個 (種子, 類別) 下，編號依判定月分成 12 桶（桶內編號升冪）。判定月只由種子、類別、編號決定，
+/// 因此這份表是純函式 [`judge_month`] 的備忘，與任何世界狀態無關，可跨世界、跨存讀檔共用。
+#[derive(Default)]
+struct Buckets {
+    built: usize,
+    by_month: [Vec<u32>; 12],
+}
+
+thread_local! {
+    static BUCKETS: RefCell<Vec<((u64, u8), Buckets)>> = const { RefCell::new(Vec::new()) };
+}
+
+/// 編號 `0..n` 中判定月等於 `month` 者，升冪。等價於逐一呼叫 [`judge_month`] 過濾，但不用逐個重算。
+pub fn month_ids(seed: u64, domain: Domain, n: usize, month: u8) -> Vec<u32> {
+    BUCKETS.with(|c| {
+        let mut c = c.borrow_mut();
+        let key = (seed, domain as u8);
+        let k = match c.iter().position(|e| e.0 == key) {
+            Some(k) => k,
+            None => {
+                c.push((key, Buckets::default()));
+                c.len() - 1
+            }
+        };
+        let b = &mut c[k].1;
+        while b.built < n {
+            let id = b.built as u32;
+            b.by_month[judge_month(seed, domain, id) as usize].push(id);
+            b.built += 1;
+        }
+        let v = &b.by_month[month as usize % 12];
+        let end = v.partition_point(|&x| (x as usize) < n);
+        v[..end].to_vec()
+    })
 }
 
 /// tick 對應的月（0–11）：tick 1 是一月，tick 12 是十二月（年底月）。與 [`crate::calendar::date`] 一致。
@@ -64,6 +102,14 @@ impl Round {
         match self {
             Round::All => true,
             Round::Month(m) => judge_month(seed, domain, id) == m,
+        }
+    }
+
+    /// 編號 `0..n` 中本輪輪到者，升冪。
+    pub fn ids(self, seed: u64, domain: Domain, n: usize) -> Vec<u32> {
+        match self {
+            Round::All => (0..n as u32).collect(),
+            Round::Month(m) => month_ids(seed, domain, n, m),
         }
     }
 

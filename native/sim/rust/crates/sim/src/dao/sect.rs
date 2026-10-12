@@ -85,9 +85,19 @@ pub fn sect_range(w: &World, id: PowerId) -> Vec<ProvinceId> {
     provinces_within(w, p.seat_province, r)
 }
 
-/// 一輪宗門處理內共用的勢力範圍快取（以宗門編號為索引，用到才算）。
-#[derive(Default)]
-pub(super) struct RangeCache(Vec<Option<Vec<ProvinceId>>>);
+/// 宗門勢力範圍的快取（以宗門編號為索引，用到才算；效能快取，不納入雜湊與存檔）。
+/// 範圍只由山門州郡、半徑與州郡鄰接決定，所以每項記下算出它時的（山門州郡，半徑，州郡數），
+/// 對不上就重算；州郡鄰接在開天後不變。`World` 保存一份，月與月之間沿用。
+#[derive(Debug, Clone, Default)]
+pub struct RangeCache(Vec<Option<RangeEntry>>);
+
+#[derive(Debug, Clone)]
+struct RangeEntry {
+    seat: ProvinceId,
+    radius: u8,
+    provinces: usize,
+    range: Vec<ProvinceId>,
+}
 
 impl RangeCache {
     pub(super) fn ensure(&mut self, w: &World, id: PowerId) {
@@ -95,14 +105,20 @@ impl RangeCache {
         if self.0.len() <= i {
             self.0.resize(i + 1, None);
         }
-        if self.0[i].is_none() {
-            self.0[i] = Some(sect_range(w, id));
+        let Some(p) = w.powers.get(i) else {
+            self.0[i] = Some(RangeEntry { seat: 0, radius: 0, provinces: usize::MAX, range: Vec::new() });
+            return;
+        };
+        let radius = sect_of(p).map_or(0, |s| s.radius);
+        let valid = self.0[i].as_ref().is_some_and(|e| e.seat == p.seat_province && e.radius == radius && e.provinces == w.provinces.len());
+        if !valid {
+            self.0[i] = Some(RangeEntry { seat: p.seat_province, radius, provinces: w.provinces.len(), range: sect_range(w, id) });
         }
     }
 
     /// 須先 [`RangeCache::ensure`]。
     pub(super) fn at(&self, id: PowerId) -> &[ProvinceId] {
-        self.0.get(id as usize).and_then(|x| x.as_deref()).unwrap_or(&[])
+        self.0.get(id as usize).and_then(|x| x.as_ref()).map_or(&[], |e| e.range.as_slice())
     }
 }
 
@@ -317,10 +333,9 @@ fn create_sect(w: &mut World, founder: PersonId, seat: Seat) -> PowerId {
 
 /// GDD 6.3 步驟 15：散修（金丹以上）每年 3% 創立宗門。
 pub(super) fn yearly_found(w: &mut World, round: Round) {
-    let seed = w.params.seed;
-    for i in w.alive_snapshot().into_iter().map(|x| x as usize) {
+    for i in w.round_alive(round).into_iter().map(|x| x as usize) {
         let p = &w.persons[i];
-        if !p.alive() || !round.takes(seed, Domain::Person, p.id) || p.role != Role::Cultivator || p.power.is_some() {
+        if !p.alive() || p.role != Role::Cultivator || p.power.is_some() {
             continue;
         }
         let PathState::Cultivator { realm, .. } = p.path else { continue };
@@ -355,15 +370,9 @@ pub(super) fn yearly_recruit(w: &mut World, round: Round, ranges: &mut RangeCach
 
 /// 散修每年 2% 投靠：勢力範圍涵蓋其所在州、未滿員的宗門中，有效聲望最高者（同值取 ID 小者）。魔修不投靠。
 pub(super) fn join_rogues(w: &mut World, round: Round, ranges: &mut RangeCache) {
-    let seed = w.params.seed;
-    for i in w.alive_snapshot().into_iter().map(|x| x as usize) {
+    for i in w.round_alive(round).into_iter().map(|x| x as usize) {
         let p = &w.persons[i];
-        if !p.alive()
-            || !round.takes(seed, Domain::Person, p.id)
-            || p.role != Role::Cultivator
-            || p.power.is_some()
-            || !matches!(p.path, PathState::Cultivator { .. })
-        {
+        if !p.alive() || p.role != Role::Cultivator || p.power.is_some() || !matches!(p.path, PathState::Cultivator { .. }) {
             continue;
         }
         if w.rng.powers.gen::<f32>() >= SECT_JOIN_ROGUE_CHANCE {

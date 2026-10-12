@@ -35,14 +35,26 @@ fn top(w: &World, id: PowerId, n: u32) -> Vec<(PersonId, f32)> {
 pub(super) fn yearly_wars(w: &mut World, round: Round, ranges: &mut RangeCache) {
     let seed = w.params.seed;
     let ids: Vec<PowerId> = w.powers.iter().filter(|p| p.fallen.is_none() && sect_of(p).is_some()).map(|p| p.id).collect();
-    let node_prov: Vec<Option<ProvinceId>> = w.geo.nodes.iter().map(|n| w.geo.province_of.get(n.cell as usize).copied()).collect();
+    // 洞天福地所在的州郡；本輪有宗門輪到時才算。
+    let mut node_prov: Option<Vec<Option<ProvinceId>>> = None;
     for x in 0..ids.len() {
         if !round.takes(seed, Domain::Sect, ids[x]) {
             continue;
         }
+        let node_prov = node_prov
+            .get_or_insert_with(|| w.geo.nodes.iter().map(|n| w.geo.province_of.get(n.cell as usize).copied()).collect::<Vec<_>>());
         for y in x + 1..ids.len() {
             let (a, b) = (ids[x], ids[y]);
             if !live(w, a) || !live(w, b) {
+                continue;
+            }
+            // 沒有敵意就不會開戰，先檢查（不耗亂數，結果與先找共同洞天相同）。
+            let (pa, pb) = (&w.powers[a as usize], &w.powers[b as usize]);
+            let hostile = pa.relations.get(&b).is_some_and(|&r| r < 0)
+                || pb.relations.get(&a).is_some_and(|&r| r < 0)
+                || sect_of(pa).is_some_and(|s| s.evil)
+                || sect_of(pb).is_some_and(|s| s.evil);
+            if !hostile {
                 continue;
             }
             ranges.ensure(w, a);
@@ -53,12 +65,7 @@ pub(super) fn yearly_wars(w: &mut World, round: Round, ranges: &mut RangeCache) 
             else {
                 continue;
             };
-            let (pa, pb) = (&w.powers[a as usize], &w.powers[b as usize]);
-            let hostile = pa.relations.get(&b).is_some_and(|&r| r < 0)
-                || pb.relations.get(&a).is_some_and(|&r| r < 0)
-                || sect_of(pa).is_some_and(|s| s.evil)
-                || sect_of(pb).is_some_and(|s| s.evil);
-            if !hostile || w.rng.powers.gen::<f32>() >= SECT_WAR_CHANCE {
+            if w.rng.powers.gen::<f32>() >= SECT_WAR_CHANCE {
                 continue;
             }
             fight(w, a, b, node as NodeId);

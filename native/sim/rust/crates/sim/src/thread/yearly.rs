@@ -25,16 +25,19 @@ fn run(w: &mut World, round: Round) {
     if w.souls.is_empty() || w.threads.is_empty() {
         return;
     }
-    mentor_surpass(w, round);
+    let candidates = w.round_threads(round);
+    mentor_surpass(w, &candidates);
     meetings(w, round);
-    omens(w, round);
+    // 相遇可能建新線，預兆的名單要在相遇之後再取。
+    let candidates = w.round_threads(round);
+    omens_of(w, &candidates);
 }
 
-fn mentor_surpass(w: &mut World, round: Round) {
-    let seed = w.params.seed;
-    for i in 0..w.threads.len() {
+fn mentor_surpass(w: &mut World, candidates: &[ThreadId]) {
+    for &tid in candidates {
+        let i = tid as usize;
         let t = &w.threads[i];
-        if t.kind != ThreadKind::Mentor || !round.takes(seed, Domain::Soul, t.debtor) || !is_open(t) {
+        if t.kind != ThreadKind::Mentor || !is_open(t) {
             continue;
         }
         let Some(best) = t.master_best else { continue };
@@ -62,8 +65,8 @@ fn meetings(w: &mut World, round: Round) {
     if done.len() < w.threads.len() {
         done.resize(w.threads.len(), 0);
     }
-    for sid in 1..n {
-        if !round.takes(seed, Domain::Soul, sid as SoulId) || met[sid] == stamp || body(w, sid as SoulId).is_none() {
+    for sid in round.ids(seed, Domain::Soul, n).into_iter().map(|x| x as usize).filter(|&x| x >= 1) {
+        if met[sid] == stamp || body(w, sid as SoulId).is_none() {
             continue;
         }
         // 候選：這個魂仍未了的線，強度由高到低、同強度取 ThreadId 小者。
@@ -217,16 +220,17 @@ fn mentor(w: &mut World, tid: ThreadId) {
 }
 
 /// 預兆（3.3）：線兩端在世、距離 ≤ 2、強度 ≥ 50，且 `omen_at ≠ lives` → `ThreadOmen`，記下 `omen_at = lives`。
+#[cfg(test)]
 pub(super) fn omens(w: &mut World, round: Round) {
-    let seed = w.params.seed;
-    for i in 0..w.threads.len() {
+    let candidates = w.round_threads(round);
+    omens_of(w, &candidates);
+}
+
+fn omens_of(w: &mut World, candidates: &[ThreadId]) {
+    for &tid in candidates {
+        let i = tid as usize;
         let t = &w.threads[i];
-        if !is_open(t)
-            || !round.takes(seed, Domain::Soul, t.debtor)
-            || t.strength < OMEN_MIN_STRENGTH
-            || t.debtor == HEAVEN_SOUL
-            || t.creditor == HEAVEN_SOUL
-        {
+        if !is_open(t) || t.strength < OMEN_MIN_STRENGTH || t.debtor == HEAVEN_SOUL || t.creditor == HEAVEN_SOUL {
             continue;
         }
         let t = t.clone();
