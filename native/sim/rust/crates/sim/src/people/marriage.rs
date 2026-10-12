@@ -6,6 +6,7 @@ use smallvec::smallvec;
 use crate::ledger::{self, NewEvent};
 use crate::model::*;
 use crate::params::*;
+use crate::schedule::{Domain, Round};
 use crate::sim::World;
 
 /// 7.2 `Married` 重要度。
@@ -44,25 +45,41 @@ pub fn marry(w: &mut World, a: PersonId, b: PersonId) -> EventId {
 /// GDD 6.3 步驟 13：婚配。年滿 18 且未婚者每年 10%，與同州或陸鄰、年齡差 ≤ 10 的未婚異性
 /// （同樣年滿 18、非僧人）結為夫妻或道侶；有同宗門（`power` 相同）的候選時優先從中挑。
 /// 依人物 ID 升冪；每個符合資格者恆消耗 1 次機率抽樣，成功者另抽 1 次挑選候選。
+///
+/// 發起判定的人依自己的判定月輪到才處理；候選對象則是全體符合資格者，不限判定月。`Sim::step` 每月呼叫。
+pub fn monthly_marriage(w: &mut World) {
+    marriage_round(w, Round::at(w.tick));
+}
+
+/// 同 [`monthly_marriage`]，但一次判定全部人（整年份；測試與工具用）。
 pub fn yearly_marriage(w: &mut World) {
+    marriage_round(w, Round::All);
+}
+
+fn marriage_round(w: &mut World, round: Round) {
     let tick = w.tick;
-    // 以所在州郡分組的候選名單（ID 升冪）。
-    let mut by_prov: Vec<Vec<PersonId>> = vec![Vec::new(); w.provinces.len()];
-    for p in w.alive_ids.iter().map(|&i| &w.persons[i as usize]) {
-        if eligible(p, tick) {
-            if let Some(v) = by_prov.get_mut(p.province as usize) {
-                v.push(p.id);
-            }
-        }
-    }
+    let seed = w.params.seed;
+    // 以所在州郡分組的候選名單（ID 升冪）；第一次有人通過機率抽樣時才建（單月輪次多半沒有人要配對）。
+    let mut by_prov: Option<Vec<Vec<PersonId>>> = None;
     for i in w.alive_snapshot().into_iter().map(|x| x as usize) {
         let p = &w.persons[i];
-        if !eligible(p, tick) {
+        if !round.takes(seed, Domain::Person, p.id) || !eligible(p, tick) {
             continue;
         }
         if w.rng.people.gen::<f32>() >= MARRY_CHANCE {
             continue;
         }
+        let by_prov = by_prov.get_or_insert_with(|| {
+            let mut v: Vec<Vec<PersonId>> = vec![Vec::new(); w.provinces.len()];
+            for p in w.alive_ids.iter().map(|&i| &w.persons[i as usize]) {
+                if eligible(p, tick) {
+                    if let Some(x) = v.get_mut(p.province as usize) {
+                        x.push(p.id);
+                    }
+                }
+            }
+            v
+        });
         let (pid, age, gender, power, prov) = (p.id, p.age(tick), p.gender, p.power, p.province);
         let mut cands: Vec<PersonId> = Vec::new();
         let near = std::iter::once(prov).chain(w.provinces[prov as usize].neighbors.iter().copied());

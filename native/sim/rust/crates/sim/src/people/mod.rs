@@ -12,7 +12,8 @@
 //! | [`combat_power`]、[`combat_power_as_target`] | thread（衝突）、dao（斬妖、魔修、爭脈） | 個人戰力 |
 //! | [`marry`] | genesis（開局夫妻）、本模組婚配 | 結為夫妻並結算情緣線 |
 //! | [`assign_title`] | genesis（開天時 ≥ 金丹者）、dao（突破到新境界 ≥ 金丹） | 7.3 道號：核心 + 依境界的尊稱 |
-//! | [`monthly_due`]、[`yearly_aging`]、[`yearly_travel`]、[`yearly_coming_of_age`]、[`yearly_marriage`] | `Sim::step` | 6.3 步驟 3、10、11、12、13 |
+//! | [`monthly_due`]、[`monthly_aging`] | `Sim::step` | 6.3 步驟 3、10（壽終每月檢查，出生月死亡） |
+//! | [`monthly_travel`]、[`monthly_coming_of_age`]、[`monthly_marriage`] | `Sim::step` | 6.3 步驟 11、12、13；逐人在自己的判定月（[`crate::schedule`]）判定；`yearly_*` 同名函式一次判定全部人（測試與工具用） |
 //!
 //! # 約定
 //!
@@ -32,12 +33,12 @@ mod tests;
 mod travel;
 
 pub use combat::{combat_power, combat_power_as_target, layer, power_of};
-pub use death::{die, yearly_aging};
-pub use marriage::{marry, yearly_marriage};
+pub use death::{die, monthly_aging};
+pub use marriage::{marry, monthly_marriage, yearly_marriage};
 pub use names::{person_name, title_core, title_suffix};
-pub use path::{enter_path, sect_capacity, yearly_coming_of_age};
+pub use path::{enter_path, monthly_coming_of_age, sect_capacity, yearly_coming_of_age};
 pub use spawn::{roll_attrs, spawn};
-pub use travel::{travel_candidates, yearly_travel};
+pub use travel::{monthly_travel, travel_candidates, yearly_travel};
 
 use crate::model::*;
 use crate::params::SECT_FOUND_MIN_REALM;

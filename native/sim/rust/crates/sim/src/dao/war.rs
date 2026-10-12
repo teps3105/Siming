@@ -4,11 +4,12 @@ use rand::Rng;
 use smallvec::smallvec;
 
 use super::kill::kill;
-use super::sect::{fall_sect, sect_of, sect_range};
+use super::sect::{fall_sect, sect_of, RangeCache};
 use crate::ledger::{self, NewEvent};
 use crate::model::*;
 use crate::params::*;
 use crate::people::power_of;
+use crate::schedule::{Domain, Round};
 use crate::sim::World;
 use crate::types::{NodeId, ProvinceId};
 
@@ -30,18 +31,25 @@ fn top(w: &World, id: PowerId, n: u32) -> Vec<(PersonId, f32)> {
 }
 
 /// GDD 6.3 步驟 17：兩宗勢力範圍同含一座洞天福地，且關係 < 0 或任一方為邪道時，每年 4% 開戰。
-pub(super) fn yearly_wars(w: &mut World) {
+/// 一對宗門每年判定一次，落在編號較小的一宗的判定月。
+pub(super) fn yearly_wars(w: &mut World, round: Round, ranges: &mut RangeCache) {
+    let seed = w.params.seed;
     let ids: Vec<PowerId> = w.powers.iter().filter(|p| p.fallen.is_none() && sect_of(p).is_some()).map(|p| p.id).collect();
-    let ranges: Vec<Vec<ProvinceId>> = ids.iter().map(|&id| sect_range(w, id)).collect();
     let node_prov: Vec<Option<ProvinceId>> = w.geo.nodes.iter().map(|n| w.geo.province_of.get(n.cell as usize).copied()).collect();
     for x in 0..ids.len() {
+        if !round.takes(seed, Domain::Sect, ids[x]) {
+            continue;
+        }
         for y in x + 1..ids.len() {
             let (a, b) = (ids[x], ids[y]);
             if !live(w, a) || !live(w, b) {
                 continue;
             }
-            let Some(node) = (0..node_prov.len())
-                .find(|&n| node_prov[n].is_some_and(|p| ranges[x].binary_search(&p).is_ok() && ranges[y].binary_search(&p).is_ok()))
+            ranges.ensure(w, a);
+            ranges.ensure(w, b);
+            let (rx, ry) = (ranges.at(a), ranges.at(b));
+            let Some(node) =
+                (0..node_prov.len()).find(|&n| node_prov[n].is_some_and(|p| rx.binary_search(&p).is_ok() && ry.binary_search(&p).is_ok()))
             else {
                 continue;
             };

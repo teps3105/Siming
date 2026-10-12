@@ -670,14 +670,14 @@ fn gdd_3_3_omen_once_per_life_within_range_and_strength() {
     // 欠債方 sa 轉世：lives 變 1。
     reborn(&mut w, sa, 1);
     // 防止恩義被報恩了結：直接呼叫預兆。
-    yearly::omens(&mut w);
+    yearly::omens(&mut w, crate::schedule::Round::All);
     assert_eq!(events_of(&w, EventKind::ThreadOmen).len(), 2);
     assert_eq!(w.threads[t as usize].omen_at, Some(1));
     // 距離 3：不預兆。
     let (sc, _) = adult(&mut w, 3, 0);
     let (sd, _) = adult(&mut w, 0, 0);
     let t3 = create(&mut w, ThreadKind::Grace, sc, sd, 80.0, false, None);
-    yearly::omens(&mut w);
+    yearly::omens(&mut w, crate::schedule::Round::All);
     assert_eq!(w.threads[t3 as usize].omen_at, None);
 }
 

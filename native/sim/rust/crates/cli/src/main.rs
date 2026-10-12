@@ -63,6 +63,13 @@ enum Cmd {
         #[arg(long)]
         report: Option<PathBuf>,
     },
+    /// 王朝量測（只量不改規則）：崩潰後各時點的無主大州與可立國人才，以及崩潰前天命 ΔM 各項的平均貢獻
+    DynastyProbe {
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        yun: u32,
+    },
     /// 無頭跑 N 運，每世印一行天地的慢變量：寒暖、海平面偏移、靈潮（GDD 2.8）
     Evolve {
         #[arg(long)]
@@ -87,6 +94,7 @@ fn main() {
             gen(seed, size, land, relief, humidity, era, layer, scale, out)
         }
         Cmd::Sim { seed, yun, report } => sim(seed, yun, report),
+        Cmd::DynastyProbe { seed, yun } => dynasty_probe(seed, yun),
         Cmd::Evolve { seed, yun, era, seeds: None } => evolve(seed, yun, era),
         Cmd::Evolve { seed, yun, era, seeds: Some(n) } => evolve_survey(seed, yun, era, n),
     };
@@ -461,6 +469,10 @@ fn sim(seed: u64, yun: u32, report: Option<PathBuf>) -> Result<(), String> {
         let ty = Instant::now();
         let (mut worst_yearly, mut worst_tick) = (0u128, 0u32);
         let (mut sum_yearly, mut n_yearly, mut sum_month, mut n_month) = (0u128, 0u32, 0u128, 0u32);
+        // 個人與宗門判定分月後，年底月不再特別重：另記全部月份的最大與逐月（12 個月各自）平均。
+        let mut worst_any = (0u128, 0u32);
+        let mut by_month_us = [0u128; 12];
+        let mut by_month_n = [0u32; 12];
         let mut yearly_us: Vec<u128> = Vec::new();
         let mut notable_samples = Vec::new();
         let mut dynasty_samples: Vec<u32> = Vec::new();
@@ -474,6 +486,12 @@ fn sim(seed: u64, yun: u32, report: Option<PathBuf>) -> Result<(), String> {
                     (Some(a), Some(b)) => (b.saturating_sub(a) / 1000) as u128,
                     _ => ts.elapsed().as_micros(),
                 };
+                let mi = ((s.world().tick - 1) % 12) as usize;
+                by_month_us[mi] += us;
+                by_month_n[mi] += 1;
+                if us > worst_any.0 {
+                    worst_any = (us, s.world().tick);
+                }
                 if s.world().tick % 12 == 0 {
                     sum_yearly += us;
                     n_yearly += 1;
@@ -567,6 +585,51 @@ fn sim(seed: u64, yun: u32, report: Option<PathBuf>) -> Result<(), String> {
             sum_yearly as f64 / n_yearly.max(1) as f64 / 1000.0,
             sum_month as f64 / n_month.max(1) as f64 / 1000.0,
         );
+        println!(
+            "  耗時（全部月份）均 {:.2} ms　最大 {:.2} ms（tick {}）　逐月(1–12 月)均 ms {}",
+            (sum_yearly + sum_month) as f64 / (n_yearly + n_month).max(1) as f64 / 1000.0,
+            worst_any.0 as f64 / 1000.0,
+            worst_any.1,
+            (0..12).map(|i| format!("{:.2}", by_month_us[i] as f64 / by_month_n[i].max(1) as f64 / 1000.0)).collect::<Vec<_>>().join("/"),
+        );
+        let mut by_cal_month = [0u32; 12];
+        for e in w.ledger.events.iter().filter(|e| e.tick > lo && e.tick <= hi && e.importance >= 2) {
+            by_cal_month[(calendar::date(e.tick).month - 1) as usize] += 1;
+        }
+        println!("  重要度≥2 事件按月(1–12 月) {by_cal_month:?}");
+        {
+            use siming_sim::EventKind as K;
+            let dyn_kinds = [
+                K::DynastyFounded,
+                K::Succession,
+                K::Usurpation,
+                K::CivilWar,
+                K::Secession,
+                K::Rebellion,
+                K::Annexed,
+                K::WarDeclared,
+                K::BanTao,
+                K::Fengshan,
+                K::Relief,
+                K::DynastyCollapsed,
+            ];
+            let (mut d, mut f, mut r) = ([0u32; 12], [0u32; 12], [0u32; 12]);
+            for e in w.ledger.events.iter().filter(|e| e.tick > lo && e.tick <= hi) {
+                let m = (calendar::date(e.tick).month - 1) as usize;
+                if e.kind == K::Died {
+                    d[m] += 1;
+                } else if e.kind == K::Famine {
+                    f[m] += 1;
+                } else if dyn_kinds.contains(&e.kind) {
+                    r[m] += 1;
+                }
+            }
+            println!(
+                "  壽終 Died 按月 {d:?}
+  Famine 按月 {f:?}
+  王朝事件按月 {r:?}"
+            );
+        }
         if worst_yearly > worst_all.0 {
             worst_all = (worst_yearly, worst_tick);
         }
@@ -606,5 +669,120 @@ fn sim(seed: u64, yun: u32, report: Option<PathBuf>) -> Result<(), String> {
         let txt = serde_json::to_string_pretty(&j).map_err(|e| e.to_string())?;
         std::fs::write(&path, txt).map_err(|e| e.to_string())?;
     }
+    Ok(())
+}
+
+/// 王朝量測（只量不改規則）：
+/// 1. 每個本次推演中崩潰的王朝，在崩潰當年與其後 1、2、5、10、20、50 年，數「無主且人口 ≥ 立國門檻的州」
+///    與其中「有才略 ≥ 立國門檻的散人或武將候補」的州；
+/// 2. 每個已崩潰的王朝，崩潰前 50 年天命 ΔM 各項的逐王朝年平均，再對王朝平均。
+fn dynasty_probe(seed: u64, yun: u32) -> Result<(), String> {
+    use siming_sim::dynasty::{probe_start, probe_take};
+    use siming_sim::params::{DYN_FOUND_POP, DYN_FOUND_TALENT, OFFICIAL_MIN_AGE};
+    probe_start();
+    let mut s = Sim::new(&WorldParams::new(seed)).map_err(|e| e.to_string())?;
+    let mut records = probe_take();
+    let measure = |s: &Sim| -> (u32, u32) {
+        let w = s.world();
+        let (mut free, mut talented) = (0u32, 0u32);
+        let mut has = vec![false; w.provinces.len()];
+        for &i in &w.alive_ids {
+            let p = &w.persons[i as usize];
+            if p.power.is_none()
+                && matches!(p.role, Role::Commoner | Role::GeneralCandidate)
+                && p.age(w.tick) >= OFFICIAL_MIN_AGE
+                && p.attrs.talent >= DYN_FOUND_TALENT
+            {
+                if let Some(h) = has.get_mut(p.province as usize) {
+                    *h = true;
+                }
+            }
+        }
+        for pr in &w.provinces {
+            if !pr.lost && w.dynasty.owner_of(pr.id).is_none() && pr.population >= DYN_FOUND_POP {
+                free += 1;
+                if has[pr.id as usize] {
+                    talented += 1;
+                }
+            }
+        }
+        (free, talented)
+    };
+    let mut known_fallen: std::collections::BTreeSet<u16> =
+        s.world().dynasty.list.iter().filter(|d| d.fallen.is_some()).map(|d| d.id).collect();
+    let offsets: [u32; 7] = [0, 1, 2, 5, 10, 20, 50];
+    // (崩潰 tick, 各抽樣 tick)；本次推演才崩潰者才抽樣。
+    let mut pending: Vec<(u32, Vec<u32>)> = Vec::new();
+    let mut samples: Vec<Vec<(u32, u32)>> = vec![Vec::new(); offsets.len()];
+    let end = yun * MONTHS_PER_YUN;
+    println!("種子 {}　開局無主大州/有人才 {:?}", s.world().params.seed, measure(&s));
+    while s.world().tick < end {
+        s.step();
+        let w = s.world();
+        let fresh: Vec<(u16, u32)> = w
+            .dynasty
+            .list
+            .iter()
+            .filter(|d| d.fallen.is_some() && !known_fallen.contains(&d.id))
+            .map(|d| (d.id, d.fallen.unwrap()))
+            .collect();
+        for (id, f) in fresh {
+            known_fallen.insert(id);
+            pending.push((f, offsets.iter().map(|o| f + o * 12).collect()));
+        }
+        let tick = w.tick;
+        let due: Vec<usize> =
+            pending.iter().flat_map(|(_, ts)| ts.iter().enumerate().filter(|(_, &t)| t == tick).map(|(oi, _)| oi)).collect();
+        for oi in due {
+            samples[oi].push(measure(&s));
+        }
+    }
+    records.extend(probe_take());
+    println!("本次推演崩潰的王朝 {} 個（開局前已崩潰的不抽樣）", pending.len());
+    println!("崩潰後 N 年　樣本數　無主大州均/最小/最大　有人才的州均/最小/最大");
+    for (oi, o) in offsets.iter().enumerate() {
+        let v = &samples[oi];
+        if v.is_empty() {
+            println!("  {o:>2} 年　0");
+            continue;
+        }
+        let n = v.len() as f64;
+        let (f, t): (Vec<u32>, Vec<u32>) = v.iter().copied().unzip();
+        println!(
+            "  {o:>2} 年　{}　{:.1}/{}/{}　{:.1}/{}/{}",
+            v.len(),
+            f.iter().sum::<u32>() as f64 / n,
+            f.iter().min().unwrap(),
+            f.iter().max().unwrap(),
+            t.iter().sum::<u32>() as f64 / n,
+            t.iter().min().unwrap(),
+            t.iter().max().unwrap()
+        );
+    }
+    let w = s.world();
+    let mut per_dyn: Vec<[f64; 10]> = Vec::new();
+    for d in w.dynasty.list.iter().filter(|d| d.fallen.is_some()) {
+        let fall = d.fallen.unwrap();
+        let rows: Vec<_> = records.iter().filter(|(t, id, _)| *id == d.id && *t <= fall && *t + 50 * 12 > fall).collect();
+        if rows.is_empty() {
+            continue;
+        }
+        let n = rows.len() as f64;
+        let mut acc = [0f64; 10];
+        for (_, _, t) in &rows {
+            let v = [t.ruler, t.officials, t.righteous, t.karma, t.aura, t.famine, t.gain_loss, -t.cycle, t.broke, t.total()];
+            for i in 0..10 {
+                acc[i] += v[i] as f64 / n;
+            }
+        }
+        per_dyn.push(acc);
+    }
+    println!("崩潰前 50 年天命 ΔM 各項的平均貢獻（先對各王朝取年平均，再對 {} 個已崩潰王朝平均）：", per_dyn.len());
+    let names = ["君主德行", "文臣德行", "正氣", "業氣", "風水(都城靈氣)", "饑荒", "得失州", "週期項", "國庫不足", "合計ΔM"];
+    for (i, nm) in names.iter().enumerate() {
+        let m = per_dyn.iter().map(|a| a[i]).sum::<f64>() / per_dyn.len().max(1) as f64;
+        println!("  {nm:<14} {m:+.3}");
+    }
+    println!("  德行合計(君主+文臣) {:+.3}", per_dyn.iter().map(|a| a[0] + a[1]).sum::<f64>() / per_dyn.len().max(1) as f64);
     Ok(())
 }

@@ -12,6 +12,7 @@ use crate::ledger::{self, NewEvent};
 use crate::model::*;
 use crate::params::*;
 use crate::people::{self, sect_capacity};
+use crate::schedule::{Domain, Round};
 use crate::sim::World;
 use crate::soul;
 use crate::thread;
@@ -82,6 +83,27 @@ pub fn sect_range(w: &World, id: PowerId) -> Vec<ProvinceId> {
     let Some(p) = w.powers.get(id as usize) else { return Vec::new() };
     let r = sect_of(p).map_or(0, |s| s.radius as u32);
     provinces_within(w, p.seat_province, r)
+}
+
+/// 一輪宗門處理內共用的勢力範圍快取（以宗門編號為索引，用到才算）。
+#[derive(Default)]
+pub(super) struct RangeCache(Vec<Option<Vec<ProvinceId>>>);
+
+impl RangeCache {
+    pub(super) fn ensure(&mut self, w: &World, id: PowerId) {
+        let i = id as usize;
+        if self.0.len() <= i {
+            self.0.resize(i + 1, None);
+        }
+        if self.0[i].is_none() {
+            self.0[i] = Some(sect_range(w, id));
+        }
+    }
+
+    /// 須先 [`RangeCache::ensure`]。
+    pub(super) fn at(&self, id: PowerId) -> &[ProvinceId] {
+        self.0.get(id as usize).and_then(|x| x.as_deref()).unwrap_or(&[])
+    }
 }
 
 // ── 命名 ─────────────────────────────────────────────────
@@ -294,10 +316,11 @@ fn create_sect(w: &mut World, founder: PersonId, seat: Seat) -> PowerId {
 }
 
 /// GDD 6.3 步驟 15：散修（金丹以上）每年 3% 創立宗門。
-pub(super) fn yearly_found(w: &mut World) {
+pub(super) fn yearly_found(w: &mut World, round: Round) {
+    let seed = w.params.seed;
     for i in w.alive_snapshot().into_iter().map(|x| x as usize) {
         let p = &w.persons[i];
-        if !p.alive() || p.role != Role::Cultivator || p.power.is_some() {
+        if !p.alive() || !round.takes(seed, Domain::Person, p.id) || p.role != Role::Cultivator || p.power.is_some() {
             continue;
         }
         let PathState::Cultivator { realm, .. } = p.path else { continue };
@@ -324,19 +347,23 @@ fn realm_of(w: &World, pid: PersonId) -> u8 {
 }
 
 /// GDD 6.3 步驟 16：散修投靠 → 補足 → 拜師。
-pub(super) fn yearly_recruit(w: &mut World) {
-    join_rogues(w);
-    fill_sects(w);
-    assign_masters(w);
+pub(super) fn yearly_recruit(w: &mut World, round: Round, ranges: &mut RangeCache) {
+    join_rogues(w, round, ranges);
+    fill_sects(w, round);
+    assign_masters(w, round);
 }
 
 /// 散修每年 2% 投靠：勢力範圍涵蓋其所在州、未滿員的宗門中，有效聲望最高者（同值取 ID 小者）。魔修不投靠。
-pub(super) fn join_rogues(w: &mut World) {
-    let ranges: Vec<(PowerId, Vec<ProvinceId>)> =
-        w.powers.iter().filter(|p| is_live_sect(p)).map(|p| (p.id, sect_range(w, p.id))).collect();
+pub(super) fn join_rogues(w: &mut World, round: Round, ranges: &mut RangeCache) {
+    let seed = w.params.seed;
     for i in w.alive_snapshot().into_iter().map(|x| x as usize) {
         let p = &w.persons[i];
-        if !p.alive() || p.role != Role::Cultivator || p.power.is_some() || !matches!(p.path, PathState::Cultivator { .. }) {
+        if !p.alive()
+            || !round.takes(seed, Domain::Person, p.id)
+            || p.role != Role::Cultivator
+            || p.power.is_some()
+            || !matches!(p.path, PathState::Cultivator { .. })
+        {
             continue;
         }
         if w.rng.powers.gen::<f32>() >= SECT_JOIN_ROGUE_CHANCE {
@@ -344,14 +371,24 @@ pub(super) fn join_rogues(w: &mut World) {
         }
         let (pid, prov) = (p.id, p.province);
         let mut best: Option<(f32, PowerId)> = None;
-        for (id, range) in &ranges {
-            let pw = &w.powers[*id as usize];
-            if pw.fallen.is_some() || range.binary_search(&prov).is_err() || pw.members.len() >= sect_capacity(effective_prestige(pw)) {
+        // 勢力範圍只在第一次有人通過機率抽樣時才算（單月輪次多半沒有人要投靠）；加入宗門不改變範圍。
+        for idx in 0..w.powers.len() {
+            let pw = &w.powers[idx];
+            if !is_live_sect(pw) {
+                continue;
+            }
+            let id = pw.id;
+            ranges.ensure(w, id);
+            let pw = &w.powers[idx];
+            if pw.fallen.is_some()
+                || ranges.at(id).binary_search(&prov).is_err()
+                || pw.members.len() >= sect_capacity(effective_prestige(pw))
+            {
                 continue;
             }
             let pr = effective_prestige(pw);
             if best.is_none_or(|(bp, _)| pr > bp) {
-                best = Some((pr, *id));
+                best = Some((pr, id));
             }
         }
         if let Some((_, id)) = best {
@@ -362,10 +399,11 @@ pub(super) fn join_rogues(w: &mut World) {
 
 /// 補足（3.4 來源第 2 項）：成員少於規模的宗門，建立新魂以 12 歲出生於山門州郡並入門（受在世上限限制）。
 /// 沒有成員的宗門不補（道統已斷，見覆滅）。
-fn fill_sects(w: &mut World) {
+fn fill_sects(w: &mut World, round: Round) {
+    let seed = w.params.seed;
     for idx in 0..w.powers.len() {
         let pw = &w.powers[idx];
-        if !is_live_sect(pw) || pw.members.is_empty() {
+        if !is_live_sect(pw) || !round.takes(seed, Domain::Sect, pw.id) || pw.members.is_empty() {
             continue;
         }
         let cap = sect_capacity(effective_prestige(pw));
@@ -399,9 +437,10 @@ fn fill_sects(w: &mut World) {
 
 /// 拜師：沒有師父的非掌門成員，拜本宗境界高於自己的長老（金丹以上、徒弟 < 5）；
 /// 沒有長老時拜掌門。建立師徒關係，師父 G += 2，建師徒線。
-fn assign_masters(w: &mut World) {
+fn assign_masters(w: &mut World, round: Round) {
+    let seed = w.params.seed;
     for idx in 0..w.powers.len() {
-        if !is_live_sect(&w.powers[idx]) {
+        if !is_live_sect(&w.powers[idx]) || !round.takes(seed, Domain::Sect, w.powers[idx].id) {
             continue;
         }
         let members = w.powers[idx].members.clone();
@@ -500,9 +539,15 @@ pub(super) fn fall_sect(w: &mut World, id: PowerId, cause: Option<EventId>) {
 /// GDD 3.5 傳承：首領缺位（`None`、已死或已離宗）的宗門，由戰力最高的成員繼任；
 /// 然後若成員 ≥ 8 且次強者戰力 ≥ 繼任者 70%，35% 機率分裂。成員歸零者覆滅。
 pub fn resolve_leaders(w: &mut World) {
+    resolve_leaders_round(w, Round::All);
+}
+
+/// 同 [`resolve_leaders`]，只處理本輪輪到判定月的宗門（`Sim::step` 的每月宗門事務用）。
+pub(super) fn resolve_leaders_round(w: &mut World, round: Round) {
+    let seed = w.params.seed;
     for idx in 0..w.powers.len() {
         let pw = &w.powers[idx];
-        if !is_live_sect(pw) || leader_valid(w, pw) {
+        if !is_live_sect(pw) || !round.takes(seed, Domain::Sect, pw.id) || leader_valid(w, pw) {
             continue;
         }
         let id = pw.id;
@@ -570,9 +615,10 @@ fn split_sect(w: &mut World, parent: PowerId, second: PersonId, cause: EventId) 
 }
 
 /// GDD 6.3 步驟 18：覆滅檢查（成員 0）→ 聲望重算 → 勢力範圍 → 修正值衰減。
-pub(super) fn yearly_prestige(w: &mut World) {
+pub(super) fn yearly_prestige(w: &mut World, round: Round) {
+    let seed = w.params.seed;
     for idx in 0..w.powers.len() {
-        if !is_live_sect(&w.powers[idx]) {
+        if !is_live_sect(&w.powers[idx]) || !round.takes(seed, Domain::Sect, w.powers[idx].id) {
             continue;
         }
         if w.powers[idx].members.is_empty() {

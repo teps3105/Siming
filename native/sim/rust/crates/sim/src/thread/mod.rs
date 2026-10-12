@@ -14,7 +14,7 @@
 //!
 //! | 函式 | 誰呼叫 | 用途 |
 //! |---|---|---|
-//! | [`yearly`] | `Sim::step` 步驟 14 | 師徒超越檢查、相遇與了結、預兆 |
+//! | [`monthly`]、[`yearly`] | `Sim::step` 步驟 14 | 師徒超越檢查、相遇與了結、預兆；`monthly` 逐魂在自己的判定月處理，`yearly` 一次處理全部（測試與工具用） |
 //! | [`on_kill`] | 任何人殺死有名之人後（people 死亡處理、dao 魔修襲殺與斬妖、war） | 殺業線：建立、復仇了結、冤冤相報；斬殺惡人不建線。**不**改 G／S，見 [`kill_karma`] |
 //! | [`kill_karma`] | 同上（呼叫端統一計業時） | 依 3.1 計殺人的業力（惡人 G+5，否則 S+10×無辜係數） |
 //! | [`on_peril`] | 會戰、天劫、妖襲、被襲殺時的債主 | 殺業化解：同州的欠債方依德行機率出手相救 |
@@ -36,7 +36,7 @@
 mod tests;
 mod yearly;
 
-pub use yearly::yearly;
+pub use yearly::{monthly, yearly};
 
 use rand::Rng;
 use smallvec::{smallvec, SmallVec};

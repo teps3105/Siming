@@ -6,6 +6,7 @@ use smallvec::smallvec;
 use crate::ledger::{self, NewEvent};
 use crate::model::*;
 use crate::params::*;
+use crate::schedule::{Domain, Round};
 use crate::sim::World;
 use crate::types::ProvinceId;
 
@@ -57,11 +58,23 @@ fn travel_event(w: &mut World, pid: PersonId, from: ProvinceId, to: ProvinceId, 
 /// 目的地為 3 步內（陸鄰）隨機一州，權重 = 該州靈氣（全為 0 時等權）；一次移動到目的地，
 /// 停留 12–60 個月（`travel_until`）後由 [`monthly_due`](super::monthly_due) 一次返回 home。
 /// 每個符合資格者恆消耗 1 次機率抽樣；出發者另抽目的地、格、停留月數。
+///
+/// 逐人判定，輪到判定月的人才處理；`Sim::step` 每月呼叫。
+pub fn monthly_travel(w: &mut World) {
+    travel_round(w, Round::at(w.tick));
+}
+
+/// 同 [`monthly_travel`]，但一次判定全部人（整年份；測試與工具用）。
 pub fn yearly_travel(w: &mut World) {
+    travel_round(w, Round::All);
+}
+
+fn travel_round(w: &mut World, round: Round) {
     let tick = w.tick;
+    let seed = w.params.seed;
     for i in w.alive_snapshot().into_iter().map(|x| x as usize) {
         let p = &w.persons[i];
-        if !p.alive() || p.role != Role::Cultivator || p.travel_until.is_some() {
+        if !p.alive() || !round.takes(seed, Domain::Person, p.id) || p.role != Role::Cultivator || p.travel_until.is_some() {
             continue;
         }
         let PathState::Cultivator { realm, .. } = p.path else { continue };

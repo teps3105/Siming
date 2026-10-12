@@ -135,6 +135,8 @@ fn found_raw(w: &mut World, founder: PersonId, capital: ProvinceId, provinces: &
         fengshan_by: None,
         gained: 0,
         lost: 0,
+        famine: 0,
+        window: Vec::new(),
     });
     // 國庫初值為一年收入（GDD 3.7）。
     let fin = finance(w, id as usize);
@@ -189,10 +191,11 @@ fn best_commoner(w: &World, province: ProvinceId, min_talent: f32) -> Option<Per
 
 /// GDD 3.7 每年的立國判定：無主且人口 ≥ 50,000 的州，若有才略 ≥ 8 的散人或武將候補，2% 機率立國，
 /// 取得該州及無主的陸鄰。依州郡 ID 升冪；只有條件齊備的州才抽樣。
-pub fn yearly_found(w: &mut World) {
+pub fn yearly_found(w: &mut World, round: Round) {
+    let seed = w.params.seed;
     for p in 0..w.provinces.len() as ProvinceId {
         let pr = &w.provinces[p as usize];
-        if pr.lost || w.dynasty.owner_of(p).is_some() || pr.population < DYN_FOUND_POP {
+        if !round.takes(seed, Domain::Province, p as u32) || pr.lost || w.dynasty.owner_of(p).is_some() || pr.population < DYN_FOUND_POP {
             continue;
         }
         let Some(founder) = best_commoner(w, p, DYN_FOUND_TALENT) else { continue };
@@ -336,10 +339,11 @@ pub fn secede(w: &mut World, di: usize, general: PersonId) -> Option<DynastyId> 
     let set: Vec<ProvinceId> =
         w.dynasty.list[di].provinces.iter().copied().filter(|&p| hs[p as usize] != FAR && hs[p as usize] < hc[p as usize]).collect();
     {
+        let tick = w.tick;
         let d = &mut w.dynasty.list[di];
         d.generals.retain(|g| g.0 != general);
         d.provinces.retain(|p| !set.contains(p));
-        d.lost = d.lost.saturating_add(set.len() as u16);
+        d.note_flow(tick, 0, set.len() as u16, 0);
     }
     let cause: Vec<EventId> = w.persons[general as usize].last_event.into_iter().collect();
     let nid = found_raw(w, general, station, &set);
@@ -377,12 +381,13 @@ pub fn civil_war(w: &mut World, di: usize, core_a: ProvinceId, b: PersonId, core
     let cause: Vec<EventId> = w.persons[b as usize].last_event.into_iter().collect();
     // 分家：b 的一邊（含駐在該邊的武將）。
     let moved: Vec<(PersonId, ProvinceId)> = w.dynasty.list[di].generals.iter().copied().filter(|g| side_b.contains(&g.1)).collect();
+    let tick_now = w.tick;
     let share_a = {
         let d = &mut w.dynasty.list[di];
         d.officials.retain(|&o| o != b);
         d.generals.retain(|g| g.0 != b && !side_b.contains(&g.1));
         d.provinces.retain(|p| !side_b.contains(p));
-        d.lost = d.lost.saturating_add(side_b.len() as u16);
+        d.note_flow(tick_now, 0, side_b.len() as u16, 0);
         if !d.provinces.contains(&d.capital) {
             d.capital = core_a;
         }
@@ -421,10 +426,11 @@ pub(super) fn expansion(w: &mut World, di: usize, fin: &Finance) {
             .max_by(|&a, &b| w.provinces[a as usize].population.total_cmp(&w.provinces[b as usize].population).then(b.cmp(&a)));
         if let Some(p) = pick {
             set_owner(w, p, id);
+            let tick = w.tick;
             let d = &mut w.dynasty.list[di];
             d.provinces.push(p);
             d.provinces.sort_unstable();
-            d.gained = d.gained.saturating_add(1);
+            d.note_flow(tick, 1, 0, 0);
             rec(w, EventKind::Annexed, 2, Some(p), &[], id, None, 0, &[]);
         }
     }

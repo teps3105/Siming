@@ -188,6 +188,14 @@ pub fn world_hash(world: &World) -> u64 {
     h.write_u64(r.get_stream());
     h.write(&r.get_seed());
     h.write_u128(r.get_word_pos());
+    // 宿緣相遇的年度戳記（分月判定後新增）：只餵有值的項目，附加在最後。
+    for (name, v) in [(1u8, &world.meet_stamp), (2u8, &world.thread_stamp)] {
+        h.write_u8(name);
+        for (i, &st) in v.iter().enumerate().filter(|(_, &st)| st != 0) {
+            h.write_usize(i);
+            h.write_u32(st);
+        }
+    }
     h.finish()
 }
 

@@ -1,7 +1,8 @@
 //! GDD 2.3 人口年度更新。
 
 use siming_sim::params::*;
-use siming_sim::population::yearly;
+use siming_sim::population::{monthly_with, yearly};
+use siming_sim::schedule::Round;
 use siming_sim::{Province, Terrain};
 
 fn prov(id: u16, hab: f64, pop: f64, neighbors: Vec<u16>) -> Province {
@@ -133,4 +134,38 @@ fn gdd_2_4_famine_karma_stays_within_the_field_range() {
     }
     assert!(v[0].karma_qi <= 1.0, "業氣 {} 超過值域", v[0].karma_qi);
     assert!(v[0].karma_qi > 0.99);
+}
+
+/// GDD 6.3 判定月：每個州郡一年恰好成長一次——連續 12 個月的單月輪次，結果與一次整年輪次相同（孤立州郡，無遷徙）。
+#[test]
+fn gdd_2_3_each_province_grows_exactly_once_per_year_in_monthly_rounds() {
+    let make = || (0..40).map(|i| prov(i, 10.0, 1000.0 + 37.0 * i as f64, vec![])).collect::<Vec<_>>();
+    let mut a = make();
+    let mut b = make();
+    yearly(&mut a);
+    for tick in 1..=12u32 {
+        monthly_with(&mut b, &[], 77, Round::at(tick));
+    }
+    for (x, y) in a.iter().zip(&b) {
+        assert!((x.population - y.population).abs() < 1e-9, "州 {} 整年 {} 分月 {}", x.id, x.population, y.population);
+    }
+    // 第二年同樣恰好一次。
+    yearly(&mut a);
+    for tick in 13..=24u32 {
+        monthly_with(&mut b, &[], 77, Round::at(tick));
+    }
+    for (x, y) in a.iter().zip(&b) {
+        assert!((x.population - y.population).abs() < 1e-9);
+    }
+}
+
+/// 單月輪次只動輪到判定月的州郡。
+#[test]
+fn gdd_2_3_monthly_round_touches_only_due_provinces() {
+    let mut v: Vec<Province> = (0..60).map(|i| prov(i, 10.0, 1000.0, vec![])).collect();
+    monthly_with(&mut v, &[], 5, Round::Month(3));
+    for p in &v {
+        let due = siming_sim::schedule::judge_month(5, siming_sim::schedule::Domain::Province, p.id as u32) == 3;
+        assert_eq!(p.population != 1000.0, due, "州 {}", p.id);
+    }
 }

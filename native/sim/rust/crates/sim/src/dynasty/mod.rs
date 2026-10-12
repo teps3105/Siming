@@ -44,6 +44,7 @@ use crate::field::{self, FieldId};
 use crate::ledger::{self, NewEvent};
 use crate::model::*;
 use crate::params::*;
+use crate::schedule::{Domain, Round};
 use crate::sim::World;
 use crate::types::{ProvinceId, Tick};
 
@@ -112,6 +113,37 @@ pub struct Dynasty {
     /// 本年新得與失去的州數（天命項；每年算過天命後歸零）。
     pub gained: u16,
     pub lost: u16,
+    /// 過去 12 個月疆域內的饑荒州數（天命項；與 `gained`、`lost` 一樣是滾動 12 個月的累計，見 [`Dynasty::note_flow`]）。
+    pub famine: u16,
+    /// 滾動窗口的記帳：`(發生的 tick, 得州, 失州, 饑荒州)`，滿 12 個月的項目在該王朝的判定月被移出並從累計扣除。
+    pub window: Vec<(Tick, u16, u16, u16)>,
+}
+
+impl Dynasty {
+    /// 記一筆得失州與饑荒（天命的滾動 12 個月項）：累計增加，並寫進窗口等滿 12 個月後扣回。
+    pub fn note_flow(&mut self, tick: Tick, gained: u16, lost: u16, famine: u16) {
+        self.gained = self.gained.saturating_add(gained);
+        self.lost = self.lost.saturating_add(lost);
+        self.famine = self.famine.saturating_add(famine);
+        self.window.push((tick, gained, lost, famine));
+    }
+
+    /// 移出滿 12 個月的窗口項目（`tick - 11` 以前的），累計相應扣除。
+    fn expire_flow(&mut self, now: Tick) {
+        let (mut g, mut l, mut f) = (0u16, 0u16, 0u16);
+        self.window.retain(|&(t, a, b, c)| {
+            let keep = t + 12 > now;
+            if !keep {
+                g = g.saturating_add(a);
+                l = l.saturating_add(b);
+                f = f.saturating_add(c);
+            }
+            keep
+        });
+        self.gained = self.gained.saturating_sub(g);
+        self.lost = self.lost.saturating_sub(l);
+        self.famine = self.famine.saturating_sub(f);
+    }
 }
 
 /// GDD 3.7 王朝與州郡歸屬。
@@ -218,30 +250,90 @@ pub fn military_power(w: &World, di: usize) -> f64 {
     pop * STANDING_ARMY_RATE + pop * MOBILIZE_RATE * k
 }
 
-/// GDD 3.7 天命每年的 ΔM（未截斷）。`famine_n` 為本年疆域內的饑荒州數，`broke` 為國庫不足。
+/// GDD 3.7 天命每年 ΔM 的各項貢獻（量測與除錯用；總和見 [`MandateTerms::total`]）。
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct MandateTerms {
+    /// 君主德行項。
+    pub ruler: f32,
+    /// 文臣德行平均項。
+    pub officials: f32,
+    /// 疆域正氣項。
+    pub righteous: f32,
+    /// 疆域業氣項。
+    pub karma: f32,
+    /// 都城靈氣（風水）項。
+    pub aura: f32,
+    /// 饑荒項。
+    pub famine: f32,
+    /// 本年得失州項。
+    pub gain_loss: f32,
+    /// 週期項（正值，總和中扣除）。
+    pub cycle: f32,
+    /// 國庫不足項。
+    pub broke: f32,
+}
+
+impl MandateTerms {
+    /// ΔM 總和；加總順序與規則定義一致（世界雜湊依賴它）。
+    pub fn total(&self) -> f32 {
+        let mut m = 0.0;
+        m += self.ruler;
+        m += self.officials;
+        m += self.righteous;
+        m += self.karma;
+        m += self.aura;
+        m += self.famine;
+        m += self.gain_loss;
+        m -= self.cycle;
+        m += self.broke;
+        m
+    }
+}
+
+/// GDD 3.7 天命每年的 ΔM 各項（未截斷）。`famine_n` 為本年疆域內的饑荒州數，`broke` 為國庫不足。
 /// 天象（4.2）立即 ±15 的項尚無來源，取 0；篡位 −20 在繼位時另行扣除。
-pub fn mandate_delta(w: &World, di: usize, famine_n: u32, broke: bool) -> f32 {
+pub fn mandate_terms(w: &World, di: usize, famine_n: u32, broke: bool) -> MandateTerms {
     let d = &w.dynasty.list[di];
-    let mut m = 0.0;
+    let mut t = MandateTerms::default();
     if let Some(r) = d.ruler.and_then(|r| w.persons.get(r as usize)) {
-        m += MANDATE_VIRTUE_COEF * (r.attrs.virtue - MANDATE_VIRTUE_MID);
+        t.ruler = MANDATE_VIRTUE_COEF * (r.attrs.virtue - MANDATE_VIRTUE_MID);
     }
     let virtues: Vec<f32> =
         d.officials.iter().filter_map(|&o| w.persons.get(o as usize)).filter(|p| p.alive()).map(|p| p.attrs.virtue).collect();
     if !virtues.is_empty() {
-        m += MANDATE_OFFICIAL_COEF * (virtues.iter().sum::<f32>() / virtues.len() as f32 - MANDATE_VIRTUE_MID);
+        t.officials = MANDATE_OFFICIAL_COEF * (virtues.iter().sum::<f32>() / virtues.len() as f32 - MANDATE_VIRTUE_MID);
     }
-    m += MANDATE_RIGHT_COEF * mean_field(w, d, FieldId::Righteous);
-    m += MANDATE_KARMA_COEF * mean_field(w, d, FieldId::KarmaQi);
-    m += MANDATE_AURA_COEF * (field::get(w, FieldId::Aura, d.capital) - MANDATE_AURA_MID);
-    m += MANDATE_FAMINE_COEF * famine_n as f32;
-    m += MANDATE_GAIN_COEF * d.gained as f32 + MANDATE_LOSS_COEF * d.lost as f32;
+    t.righteous = MANDATE_RIGHT_COEF * mean_field(w, d, FieldId::Righteous);
+    t.karma = MANDATE_KARMA_COEF * mean_field(w, d, FieldId::KarmaQi);
+    t.aura = MANDATE_AURA_COEF * (field::get(w, FieldId::Aura, d.capital) - MANDATE_AURA_MID);
+    t.famine = MANDATE_FAMINE_COEF * famine_n as f32;
+    t.gain_loss = MANDATE_GAIN_COEF * d.gained as f32 + MANDATE_LOSS_COEF * d.lost as f32;
     let years = w.tick.saturating_sub(d.founded) as f32 / 12.0;
-    m -= (years / MANDATE_CYCLE_YEARS).min(MANDATE_CYCLE_MAX);
+    t.cycle = (years / MANDATE_CYCLE_YEARS).min(MANDATE_CYCLE_MAX);
     if broke {
-        m += MANDATE_BROKE;
+        t.broke = MANDATE_BROKE;
     }
-    m
+    t
+}
+
+/// GDD 3.7 天命每年的 ΔM（未截斷）：各項之和，見 [`mandate_terms`]。
+pub fn mandate_delta(w: &World, di: usize, famine_n: u32, broke: bool) -> f32 {
+    mandate_terms(w, di, famine_n, broke).total()
+}
+
+thread_local! {
+    /// 量測用：開啟後，每個王朝每年的 ΔM 各項記在這裡（不影響模擬；只有開啟的執行緒會記）。
+    static PROBE: std::cell::RefCell<Option<Vec<(Tick, DynastyId, MandateTerms)>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// 開始記錄各王朝每年的 ΔM 各項（量測用；清空舊紀錄）。
+pub fn probe_start() {
+    PROBE.with(|p| *p.borrow_mut() = Some(Vec::new()));
+}
+
+/// 取走目前為止的紀錄（保持記錄開啟）。
+pub fn probe_take() -> Vec<(Tick, DynastyId, MandateTerms)> {
+    PROBE.with(|p| p.borrow_mut().as_mut().map(std::mem::take).unwrap_or_default())
 }
 
 /// 各州人口成長率倍率（盛世疆域 × `POP_GROWTH_PROSPEROUS_MULT`，GDD 3.7）；索引 = 州郡 ID。
@@ -257,61 +349,102 @@ pub fn growth_mult(w: &World) -> Vec<f64> {
     v
 }
 
-/// 財政的年度結算（會改變國庫、人口與功德）：賑災 → 收支 → 國庫上限。回傳本年數字與是否國庫不足。
-fn state_finance(w: &mut World, di: usize, famines: &[(ProvinceId, u32)]) -> (Finance, bool) {
+/// 賑災（GDD 3.7）：天命 ≥ 40 且國庫 > 一年支出時，為疆域內饑荒的州花錢救人，直接從國庫扣。
+/// 饑荒發生的那個月（州郡判定月）由 [`on_famines`] 呼叫；`famines` 依州郡 ID 升冪。
+fn relief(w: &mut World, di: usize, famines: &[(ProvinceId, u32)]) {
     let fin = finance(w, di);
     let id = di as DynastyId;
     let (mandate, treasury) = {
         let d = &w.dynasty.list[di];
         (d.mandate, d.treasury)
     };
-    let mut spent = 0.0;
-    let mut stock = treasury;
-    // 賑災：天命 ≥ 40 且國庫 > 一年支出。
-    if mandate >= RELIEF_MANDATE && treasury > fin.expenses {
-        // 主事文臣：德行 + 才略最高者（同值取 ID 小者）。
-        let chief = w.dynasty.list[di].officials.iter().copied().filter(|&o| w.persons[o as usize].alive()).max_by(|&a, &b| {
-            let (pa, pb) = (&w.persons[a as usize], &w.persons[b as usize]);
-            (pa.attrs.virtue + pa.attrs.talent).total_cmp(&(pb.attrs.virtue + pb.attrs.talent)).then(b.cmp(&a))
-        });
-        for &(p, deaths) in famines {
-            let cost = deaths as f64 * RELIEF_SPEND_PER_DEATH;
-            if cost > stock {
-                break;
-            }
-            stock -= cost;
-            spent += cost;
-            let saved = deaths as f64 * RELIEF_SAVED_RATIO;
-            field::add(w, FieldId::Population, p, saved as f32);
-            if let Some(c) = chief {
-                let soul = w.persons[c as usize].soul;
-                w.souls[soul as usize].merit += (saved / MERIT_RELIEF_PER_LIVES as f64) as f32;
-            }
-            rec(w, EventKind::Relief, 2, Some(p), &[], id, None, saved as u32, &[]);
-        }
+    if mandate < RELIEF_MANDATE || treasury <= fin.expenses {
+        return;
     }
+    let mut stock = treasury;
+    // 主事文臣：德行 + 才略最高者（同值取 ID 小者）。
+    let chief = w.dynasty.list[di].officials.iter().copied().filter(|&o| w.persons[o as usize].alive()).max_by(|&a, &b| {
+        let (pa, pb) = (&w.persons[a as usize], &w.persons[b as usize]);
+        (pa.attrs.virtue + pa.attrs.talent).total_cmp(&(pb.attrs.virtue + pb.attrs.talent)).then(b.cmp(&a))
+    });
+    for &(p, deaths) in famines {
+        let cost = deaths as f64 * RELIEF_SPEND_PER_DEATH;
+        if cost > stock {
+            break;
+        }
+        stock -= cost;
+        let saved = deaths as f64 * RELIEF_SAVED_RATIO;
+        field::add(w, FieldId::Population, p, saved as f32);
+        if let Some(c) = chief {
+            let soul = w.persons[c as usize].soul;
+            w.souls[soul as usize].merit += (saved / MERIT_RELIEF_PER_LIVES as f64) as f32;
+        }
+        rec(w, EventKind::Relief, 2, Some(p), &[], id, None, saved as u32, &[]);
+    }
+    w.dynasty.list[di].treasury = stock;
+}
+
+/// 財政的年度結算（會改變國庫、人口與功德）：賑災 → 收支 → 國庫上限。回傳本年數字與是否國庫不足。
+/// 分月後賑災改在饑荒當月做（[`on_famines`]），年度處理傳空的 `famines`；測試可直接傳入。
+fn state_finance(w: &mut World, di: usize, famines: &[(ProvinceId, u32)]) -> (Finance, bool) {
+    let fin = finance(w, di);
+    if !famines.is_empty() {
+        relief(w, di, famines);
+    }
+    let treasury = w.dynasty.list[di].treasury;
     let cap = fin.income * TREASURY_CAP_YEARS;
     let d = &mut w.dynasty.list[di];
     d.standing_army = fin.standing;
-    d.treasury = (treasury + fin.income - fin.expenses - spent).min(cap);
+    d.treasury = (treasury + fin.income - fin.expenses).min(cap);
     let broke = d.treasury < fin.expenses;
     (fin, broke)
 }
 
-/// GDD 6.3 步驟 19：全部在世王朝的年度處理，然後是立國判定。
-pub fn yearly(w: &mut World, famines: &[(ProvinceId, u32)]) {
-    let n_prov = w.provinces.len();
-    w.dynasty.ensure(n_prov);
-    let n = w.dynasty.list.len();
-    for di in 0..n {
-        if w.dynasty.list[di].fallen.is_none() {
-            year_of(w, di, famines);
-        }
+/// 本月饑荒的州郡通知王朝（GDD 3.7）：疆域內的饑荒記入該王朝滾動 12 個月的饑荒州數（天命項），並當月賑災。
+/// `famines` 依州郡 ID 升冪；`Sim::step` 在州郡人口處理之後呼叫。
+pub fn on_famines(w: &mut World, famines: &[(ProvinceId, u32)]) {
+    let tick = w.tick;
+    for &(p, deaths) in famines {
+        let Some(di) = w.dynasty.owner_of(p).map(|o| o as usize) else { continue };
+        w.dynasty.list[di].note_flow(tick, 0, 0, 1);
+        relief(w, di, &[(p, deaths)]);
     }
-    realm::yearly_found(w);
 }
 
-fn year_of(w: &mut World, di: usize, famines: &[(ProvinceId, u32)]) {
+/// GDD 6.3 步驟 19：每個王朝在自己的判定月（王朝編號，見 [`crate::schedule`]）做一次年度結算，
+/// 州郡的立國判定在州郡的判定月；`Sim::step` 每月呼叫。新生的王朝滿 12 個月後才開始結算。
+pub fn monthly(w: &mut World) {
+    round(w, Round::at(w.tick));
+}
+
+/// 同 [`monthly`]，但一次結算全部在世王朝並判定全部州郡（整年份；測試與工具用）。`famines` 先通知王朝。
+pub fn yearly(w: &mut World, famines: &[(ProvinceId, u32)]) {
+    on_famines(w, famines);
+    round(w, Round::All);
+}
+
+fn round(w: &mut World, round: Round) {
+    let n_prov = w.provinces.len();
+    w.dynasty.ensure(n_prov);
+    let seed = w.params.seed;
+    let tick = w.tick;
+    let n = w.dynasty.list.len();
+    for di in 0..n {
+        let d = &w.dynasty.list[di];
+        if d.fallen.is_some() || !round.takes(seed, Domain::Dynasty, d.id as u32) {
+            continue;
+        }
+        if round.is_month() && tick < d.founded + 12 {
+            continue;
+        }
+        year_of(w, di);
+    }
+    realm::yearly_found(w, round);
+}
+
+fn year_of(w: &mut World, di: usize) {
+    let now = w.tick;
+    w.dynasty.list[di].expire_flow(now);
     court::prune(w, di);
     if w.dynasty.list[di].provinces.is_empty() {
         collapse(w, di);
@@ -322,17 +455,20 @@ fn year_of(w: &mut World, di: usize, famines: &[(ProvinceId, u32)]) {
         return;
     }
     let id = di as DynastyId;
-    let fam: Vec<(ProvinceId, u32)> = famines.iter().copied().filter(|&(p, _)| w.dynasty.owner_of(p) == Some(id)).collect();
-    let (fin, broke) = state_finance(w, di, &fam);
+    let (fin, broke) = state_finance(w, di, &[]);
     court::policy_effects(w, di);
     court::decree(w, di);
     realm::expansion(w, di, &fin);
 
-    let delta = mandate_delta(w, di, fam.len() as u32, broke);
+    let terms = mandate_terms(w, di, w.dynasty.list[di].famine as u32, broke);
+    PROBE.with(|p| {
+        if let Some(v) = p.borrow_mut().as_mut() {
+            v.push((w.tick, id, terms));
+        }
+    });
+    let delta = terms.total();
     let d = &mut w.dynasty.list[di];
     d.mandate = (d.mandate + delta).clamp(0.0, MANDATE_MAX);
-    d.gained = 0;
-    d.lost = 0;
     d.high_years = if d.mandate >= FENGSHAN_MANDATE { d.high_years + 1 } else { 0 };
     if d.mandate <= 0.0 {
         collapse(w, di);

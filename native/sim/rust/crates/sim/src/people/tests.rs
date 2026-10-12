@@ -506,10 +506,10 @@ fn aging_kills_at_lifespan_and_soul_reincarnates() {
     let (sid, pid) = new_life(&mut w, 0);
     w.persons[pid as usize].lifespan = 40;
     w.tick = 40 * 12 - 12;
-    yearly_aging(&mut w);
+    monthly_aging(&mut w);
     assert!(w.persons[pid as usize].alive());
     w.tick = 40 * 12;
-    yearly_aging(&mut w);
+    monthly_aging(&mut w);
     assert_eq!(w.persons[pid as usize].died, Some((480, DeathCause::Age)));
     assert!(matches!(w.souls[sid as usize].state, SoulState::Bardo { .. }));
     // 兩個月後中陰到期，魂判定；人道則轉世並建立新肉身（人道以外則入他道）
@@ -677,7 +677,7 @@ fn drive(seed: u64, years: u32) -> World {
         monthly_due(&mut w);
         soul::monthly(&mut w);
         if w.tick.is_multiple_of(12) {
-            yearly_aging(&mut w);
+            monthly_aging(&mut w);
             yearly_travel(&mut w);
             yearly_coming_of_age(&mut w);
             yearly_marriage(&mut w);
@@ -717,4 +717,55 @@ fn deterministic_and_lives_a_full_cycle() {
     for p in a.persons.iter().filter(|p| p.alive()) {
         assert!(p.age(a.tick) < p.lifespan as u32);
     }
+}
+
+// ── 分月判定（GDD 6.3 判定月）────────────────────────────
+
+/// 入道在自己的判定月：滿 12 歲前不入道；滿 12 歲後最近一次自己的判定月入道（至多晚 12 個月），且只入一次。
+/// 年中才滿 12 歲者等到下一個自己的判定月。
+#[test]
+fn gdd_3_4_coming_of_age_waits_for_own_judge_month() {
+    for seed in [15u64, 16, 17] {
+        let mut w = line_world(seed, 1);
+        w.tick = 1;
+        let (s, p) = new_life(&mut w, 0);
+        force_attrs(&mut w, p, 5.0, 0.0, 0.0);
+        set_aff(&mut w, s, [1.0, 0.0, 0.0, 0.0]);
+        let born = w.persons[p as usize].born.max(0) as u32;
+        let month = crate::schedule::judge_month(seed, crate::schedule::Domain::Person, p);
+        let mut entered_at = None;
+        for t in 2..=(born + 12 * 14) {
+            w.tick = t;
+            monthly_coming_of_age(&mut w);
+            if entered_at.is_none() && w.persons[p as usize].role != Role::Child {
+                entered_at = Some(t);
+            }
+        }
+        let t = entered_at.expect("應已入道");
+        assert!(w.persons[p as usize].age(t) >= COMING_OF_AGE_YEARS, "未滿 12 歲不入道");
+        assert_eq!(crate::schedule::month_of(t), month, "入道月須是自己的判定月");
+        assert!(t <= born + 12 * 12 + 12, "至多晚 12 個月");
+        assert_eq!(kinds(&w, EventKind::ComeOfAge), 1);
+    }
+}
+
+/// 婚配的機率抽樣一年恰好一次：連續 12 個月的單月輪次，消耗的亂數量與一次整年輪次相同
+/// （人物同性別，候選為空，亂數只來自各人各一次的抽樣）。
+#[test]
+fn gdd_6_3_marriage_roll_once_per_year() {
+    let mut w = line_world(33, 2);
+    w.tick = 1200;
+    for i in 0..20 {
+        let (_, p) = new_life(&mut w, (i % 2) as u16);
+        make_adult(&mut w, p, 30, Role::Commoner, PathState::Mortal);
+        w.persons[p as usize].gender = Gender::Male;
+    }
+    let mut yearly_world = w.clone();
+    yearly_marriage(&mut yearly_world);
+    for _ in 0..12 {
+        w.tick += 1;
+        monthly_marriage(&mut w);
+    }
+    assert_eq!(yearly_world.rng.people.get_word_pos(), w.rng.people.get_word_pos());
+    assert!(yearly_world.rng.people.get_word_pos() > 0);
 }

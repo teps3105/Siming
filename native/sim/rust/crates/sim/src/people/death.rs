@@ -98,8 +98,9 @@ pub fn die(w: &mut World, pid: PersonId, cause: DeathCause, liberation: Option<L
     Some(eid)
 }
 
-/// GDD 6.3 步驟 10：壽元已盡者（年齡 ≥ 壽元）死亡，死因為壽終。依人物 ID 升冪。
-pub fn yearly_aging(w: &mut World) {
+/// GDD 6.3 步驟 10：壽元已盡者（年齡 ≥ 壽元）死亡，死因為壽終。依人物 ID 升冪。每月檢查：
+/// 年齡 = floor((tick − 出生月) / 12)，只在出生月加一歲，所以人在滿壽元的那個月（出生月）死亡。
+pub fn monthly_aging(w: &mut World) {
     let tick = w.tick;
     for i in w.alive_snapshot().into_iter().map(|x| x as usize) {
         let p = &w.persons[i];

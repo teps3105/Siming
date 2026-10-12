@@ -3,25 +3,38 @@
 use smallvec::smallvec;
 
 use super::*;
+use crate::schedule::{year_of, Domain, Round};
+
+/// 逐魂判定：債務方（徒弟、受恩者）的魂輪到判定月時，才處理這條線的師徒超越與預兆；
+/// 相遇則由輪到判定月的魂帶出（見 [`meetings`]）。`Sim::step` 每月呼叫。
+pub fn monthly(w: &mut World) {
+    run(w, Round::at(w.tick));
+}
+
+/// 同 [`monthly`]，但一次判定全部（整年份；測試與工具用）。
+pub fn yearly(w: &mut World) {
+    run(w, Round::All);
+}
 
 /// GDD 6.3 步驟 14：
 /// 1. 師徒線：徒弟今生成就超過 `master_best`（且 `lives ≥ 1`）→ 了結。
 /// 2. 相遇（3.3）：每年依魂 ID 升冪；每個魂最多 `MEET_PER_SOUL_PER_YEAR` 次相遇（計「實際發生」的相遇）；
 ///    每個魂的線依強度由高到低、同強度取 ThreadId 小者；一條線的兩端同一年只判定一次。
 /// 3. 預兆。
-pub fn yearly(w: &mut World) {
+fn run(w: &mut World, round: Round) {
     if w.souls.is_empty() || w.threads.is_empty() {
         return;
     }
-    mentor_surpass(w);
-    meetings(w);
-    omens(w);
+    mentor_surpass(w, round);
+    meetings(w, round);
+    omens(w, round);
 }
 
-fn mentor_surpass(w: &mut World) {
+fn mentor_surpass(w: &mut World, round: Round) {
+    let seed = w.params.seed;
     for i in 0..w.threads.len() {
         let t = &w.threads[i];
-        if t.kind != ThreadKind::Mentor || !is_open(t) {
+        if t.kind != ThreadKind::Mentor || !round.takes(seed, Domain::Soul, t.debtor) || !is_open(t) {
             continue;
         }
         let Some(best) = t.master_best else { continue };
@@ -36,63 +49,35 @@ fn mentor_surpass(w: &mut World) {
     }
 }
 
-fn meetings(w: &mut World) {
+fn meetings(w: &mut World, round: Round) {
     let n = w.souls.len();
-    let mut met = vec![0u32; n];
-    // 效能（6.8）：魂的 `threads` 含歷來所有線（含已了結者），逐魂過濾會隨歷史變慢。
-    // 年初先把「仍未了」的線依魂分桶（CSR）；線一旦了結或消散就不會復活，而年中新建的線
-    // 一定接在魂 `threads` 的尾端（ThreadId ≥ `start_len`），所以「桶 + 尾端」再過濾一次 `is_open`，
-    // 與逐魂過濾全部 `threads` 得到相同的集合；排序鍵是全序，結果與舊寫法逐位元相同。
-    let start_len = w.threads.len();
-    let mut off = vec![0u32; n + 1];
-    // 兩端都須有非幼年的肉身、且相距 ≤ `MEET_RANGE_STEPS` 才可能相遇（天道不相遇）。年中只會有人死亡，
-    // 不會有人出生、長大或換州（相遇的結果不含遷徙），所以年初不符合的線整年都會在原寫法的
-    // `body`／`distance` 檢查被略過（無副作用），可以直接不放進桶。
-    let prov: Vec<Option<ProvinceId>> =
-        (0..n).map(|s| if s == HEAVEN_SOUL as usize { None } else { body(w, s as SoulId).map(|p| p.province) }).collect();
-    let ends = |t: &Thread| {
-        let (d, c) = (t.debtor as usize, t.creditor as usize);
-        let (Some(Some(pd)), Some(Some(pc))) = (prov.get(d), prov.get(c)) else { return None };
-        distance(w, *pd, *pc, MEET_RANGE_STEPS).map(|_| (d, c))
-    };
-    for t in w.threads.iter().filter(|t| is_open(t)) {
-        if let Some((d, c)) = ends(t) {
-            off[d + 1] += 1;
-            off[c + 1] += 1;
-        }
+    let seed = w.params.seed;
+    let stamp = year_of(w.tick) + 1;
+    // 本年已相遇的魂、已判定過的線：單月輪次直接用 `World` 的年度戳記（一年內分散在各魂的判定月，戳記等於本年即「已有」），
+    // 整年輪次用全新的零戳記，結束時不寫回。魂的相遇上限為 1，戳記只記有無。
+    const _: () = assert!(MEET_PER_SOUL_PER_YEAR == 1);
+    let (mut met, mut done) =
+        if round.is_month() { (std::mem::take(&mut w.meet_stamp), std::mem::take(&mut w.thread_stamp)) } else { (Vec::new(), Vec::new()) };
+    met.resize(n, 0);
+    if done.len() < w.threads.len() {
+        done.resize(w.threads.len(), 0);
     }
-    for i in 0..n {
-        off[i + 1] += off[i];
-    }
-    let mut fill = off.clone();
-    let mut flat: Vec<ThreadId> = vec![0; off[n] as usize];
-    for (i, t) in w.threads.iter().enumerate().filter(|(_, t)| is_open(t)) {
-        if let Some((d, c)) = ends(t) {
-            flat[fill[d] as usize] = i as ThreadId;
-            fill[d] += 1;
-            flat[fill[c] as usize] = i as ThreadId;
-            fill[c] += 1;
-        }
-    }
-    let mut done: Vec<bool> = vec![false; start_len];
     for sid in 1..n {
-        if met[sid] >= MEET_PER_SOUL_PER_YEAR || body(w, sid as SoulId).is_none() {
+        if !round.takes(seed, Domain::Soul, sid as SoulId) || met[sid] == stamp || body(w, sid as SoulId).is_none() {
             continue;
         }
-        let bucket = &flat[off[sid] as usize..off[sid + 1] as usize];
-        let all = &w.souls[sid].threads;
-        let tail = &all[all.partition_point(|&t| (t as usize) < start_len)..];
+        // 候選：這個魂仍未了的線，強度由高到低、同強度取 ThreadId 小者。
         let mut cands: Vec<ThreadId> =
-            bucket.iter().chain(tail.iter()).copied().filter(|&t| w.threads.get(t as usize).is_some_and(is_open)).collect();
+            w.souls[sid].threads.iter().copied().filter(|&t| w.threads.get(t as usize).is_some_and(is_open)).collect();
         cands.sort_by(|&a, &b| {
             let (sa, sb) = (w.threads[a as usize].strength, w.threads[b as usize].strength);
             sb.partial_cmp(&sa).unwrap_or(std::cmp::Ordering::Equal).then(a.cmp(&b))
         });
         for tid in cands {
-            if met[sid] >= MEET_PER_SOUL_PER_YEAR {
+            if met[sid] == stamp {
                 break;
             }
-            if done.get(tid as usize).copied().unwrap_or(false) {
+            if done.get(tid as usize).copied() == Some(stamp) {
                 continue;
             }
             let t = w.threads[tid as usize].clone();
@@ -100,7 +85,7 @@ fn meetings(w: &mut World) {
                 continue;
             }
             let other = if t.debtor as usize == sid { t.creditor } else { t.debtor };
-            if met[other as usize] >= MEET_PER_SOUL_PER_YEAR {
+            if met[other as usize] == stamp {
                 continue;
             }
             let (Some(pa), Some(pb)) = (body(w, t.debtor), body(w, t.creditor)) else { continue };
@@ -109,9 +94,9 @@ fn meetings(w: &mut World) {
             }
             let Some(dist) = distance(w, pa.province, pb.province, MEET_RANGE_STEPS) else { continue };
             if done.len() <= tid as usize {
-                done.resize(tid as usize + 1, false);
+                done.resize(tid as usize + 1, 0);
             }
-            done[tid as usize] = true;
+            done[tid as usize] = stamp;
             let mut chance = MEET_CHANCE_COEF * t.strength / MEET_CHANCE_STRENGTH_DIV;
             if dist == 0 {
                 chance *= MEET_SAME_PROVINCE_MULT;
@@ -119,10 +104,14 @@ fn meetings(w: &mut World) {
             if !roll(w, chance) {
                 continue;
             }
-            met[t.debtor as usize] += 1;
-            met[t.creditor as usize] += 1;
+            met[t.debtor as usize] = stamp;
+            met[t.creditor as usize] = stamp;
             meet(w, tid);
         }
+    }
+    if round.is_month() {
+        w.meet_stamp = met;
+        w.thread_stamp = done;
     }
 }
 
@@ -228,10 +217,16 @@ fn mentor(w: &mut World, tid: ThreadId) {
 }
 
 /// 預兆（3.3）：線兩端在世、距離 ≤ 2、強度 ≥ 50，且 `omen_at ≠ lives` → `ThreadOmen`，記下 `omen_at = lives`。
-pub(super) fn omens(w: &mut World) {
+pub(super) fn omens(w: &mut World, round: Round) {
+    let seed = w.params.seed;
     for i in 0..w.threads.len() {
         let t = &w.threads[i];
-        if !is_open(t) || t.strength < OMEN_MIN_STRENGTH || t.debtor == HEAVEN_SOUL || t.creditor == HEAVEN_SOUL {
+        if !is_open(t)
+            || !round.takes(seed, Domain::Soul, t.debtor)
+            || t.strength < OMEN_MIN_STRENGTH
+            || t.debtor == HEAVEN_SOUL
+            || t.creditor == HEAVEN_SOUL
+        {
             continue;
         }
         let t = t.clone();

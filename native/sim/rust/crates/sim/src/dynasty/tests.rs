@@ -806,7 +806,7 @@ fn gdd_3_7_yearly_founding_needs_pop_talent_and_free_land() {
     let hero = person(&mut w, 4, Role::Commoner, 9.0, 5.0);
     for y in 1..=400u32 {
         w.tick = y * 12;
-        realm::yearly_found(&mut w);
+        realm::yearly_found(&mut w, crate::schedule::Round::All);
         if !w.dynasty.list.is_empty() {
             break;
         }
@@ -824,7 +824,7 @@ fn gdd_3_7_yearly_founding_needs_pop_talent_and_free_land() {
     person(&mut w, 1, Role::Commoner, 9.5, 5.0);
     for y in 1..=400u32 {
         w.tick = y * 12;
-        realm::yearly_found(&mut w);
+        realm::yearly_found(&mut w, crate::schedule::Round::All);
     }
     assert!(w.dynasty.list.is_empty());
 }
@@ -893,4 +893,52 @@ fn gdd_3_7_determinism_two_runs_same_state() {
         crate::hash::world_hash(&w)
     }
     assert_eq!(run(), run());
+}
+
+/// GDD 6.3 判定月：每個在世王朝一年恰好結算一次，落在自己的判定月；新生王朝滿 12 個月後才開始。
+#[test]
+fn gdd_3_7_each_dynasty_settles_exactly_once_per_year_in_monthly_rounds() {
+    let mut w = line(6);
+    let a = dynasty(&mut w, 0, &[0, 1, 2]);
+    let b = dynasty(&mut w, 5, &[3, 4, 5]);
+    for di in [a, b] {
+        w.dynasty.list[di].mandate = 60.0;
+        w.dynasty.list[di].treasury = 1.0e12;
+    }
+    super::probe_start();
+    let start = w.tick;
+    for _ in 0..36 {
+        w.tick += 1;
+        monthly(&mut w);
+    }
+    let records = super::probe_take();
+    for di in [a, b] {
+        let ticks: Vec<_> = records.iter().filter(|r| r.1 == di as DynastyId).map(|r| r.0).collect();
+        let month = crate::schedule::judge_month(w.params.seed, crate::schedule::Domain::Dynasty, di as u32);
+        assert!(ticks.iter().all(|&t| crate::schedule::month_of(t) == month), "{ticks:?}");
+        // 36 個月內：新生王朝要滿 12 個月才開始，第 12–36 個月之間的判定月各一次。
+        let expected = (start + 12..=start + 36).filter(|&t| crate::schedule::month_of(t) == month).count();
+        assert_eq!(ticks.len(), expected, "王朝 {di} 的結算 tick {ticks:?}");
+        assert!((1..=3).contains(&ticks.len()));
+        let gaps: Vec<_> = ticks.windows(2).map(|p| p[1] - p[0]).collect();
+        assert!(gaps.iter().all(|&g| g == 12), "{gaps:?}");
+    }
+}
+
+/// 天命的饑荒、得失州項是滾動 12 個月的累計：12 個月後從累計扣除。
+#[test]
+fn gdd_3_7_famine_and_flow_terms_roll_over_twelve_months() {
+    let mut w = line(3);
+    let di = dynasty(&mut w, 0, &[0, 1, 2]);
+    w.tick = 1000;
+    w.dynasty.list[di].note_flow(1000, 1, 0, 0);
+    super::on_famines(&mut w, &[(1, 100), (2, 100)]);
+    assert_eq!(w.dynasty.list[di].famine, 2);
+    assert_eq!(w.dynasty.list[di].gained, 1);
+    w.tick = 1011;
+    w.dynasty.list[di].expire_flow(1011);
+    assert_eq!((w.dynasty.list[di].famine, w.dynasty.list[di].gained), (2, 1), "第 12 個月仍在窗口內");
+    w.tick = 1012;
+    w.dynasty.list[di].expire_flow(1012);
+    assert_eq!((w.dynasty.list[di].famine, w.dynasty.list[di].gained, w.dynasty.list[di].lost), (0, 0, 0));
 }

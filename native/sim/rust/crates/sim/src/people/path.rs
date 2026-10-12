@@ -6,6 +6,7 @@ use smallvec::smallvec;
 use crate::ledger::{self, NewEvent};
 use crate::model::*;
 use crate::params::*;
+use crate::schedule::{Domain, Round};
 use crate::sim::World;
 use crate::types::ProvinceId;
 
@@ -137,11 +138,24 @@ pub fn enter_path(w: &mut World, pid: PersonId) -> Role {
 }
 
 /// GDD 6.3 步驟 12：年齡 ≥ 12 且身分為 `Child` 者入道，寫入 `ComeOfAge` 事件（因：出生事件）。
+///
+/// 逐人判定：年齡由出生月起算，滿 12 歲後在自己的判定月入道（可能晚於 12 歲生日至多 11 個月）；
+/// 年中才滿 12 歲者等到下一個自己的判定月。`Sim::step` 每月呼叫。
+pub fn monthly_coming_of_age(w: &mut World) {
+    coming_of_age_round(w, Round::at(w.tick));
+}
+
+/// 同 [`monthly_coming_of_age`]，但一次判定全部人（整年份；測試與工具用）。
 pub fn yearly_coming_of_age(w: &mut World) {
+    coming_of_age_round(w, Round::All);
+}
+
+fn coming_of_age_round(w: &mut World, round: Round) {
     let tick = w.tick;
+    let seed = w.params.seed;
     for i in w.alive_snapshot().into_iter().map(|x| x as usize) {
         let p = &w.persons[i];
-        if !p.alive() || p.role != Role::Child || p.age(tick) < COMING_OF_AGE_YEARS {
+        if !p.alive() || !round.takes(seed, Domain::Person, p.id) || p.role != Role::Child || p.age(tick) < COMING_OF_AGE_YEARS {
             continue;
         }
         let pid = p.id;
