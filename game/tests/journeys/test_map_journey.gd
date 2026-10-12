@@ -498,3 +498,37 @@ func test_sanjiao_seal_is_clickable_and_cycled_by_the_shoulder_buttons() -> void
 	assert_eq(_map.mode, TerrainMap.Mode.SANJIAO, "點「三教」印切到三教")
 	await joy_button(JOY_BUTTON_LEFT_SHOULDER)
 	assert_eq(_map.mode, TerrainMap.Mode.TIANXIA, "LB 回到上一個已開放的模式")
+
+
+func test_sanjiao_rings_are_handed_to_the_terrain_shader_and_cleared() -> void:
+	assert_eq(_map.range_ring_count(), 0, "山河模式不畫圈")
+	await key(KEY_F3)
+	await frames(3)
+	assert_eq(_map.range_ring_count(), _alive_sects().size(), "每個還在的宗門一圈交給著色器")
+	await key(KEY_F1)
+	await frames(3)
+	assert_eq(_map.range_ring_count(), 0, "切回山河後清掉")
+
+
+func test_ring_dashes_keep_the_same_screen_length_at_every_distance() -> void:
+	await key(KEY_F3)
+	var sects := _alive_sects()
+	sects.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["range_radius"] > b["range_radius"])
+	var sect: Dictionary = sects[0]
+	var expected := (MapOverlay.RING_DASH_PX + MapOverlay.RING_GAP_PX) * _hud._unit
+	for z_frac in [0.05, 0.1, 0.25, 0.5]:
+		_camera.look_at_map(sect["pos"], _map.map_size.x * z_frac, true)
+		await frames(3)
+		var overlay: MapOverlay = _hud._overlay
+		var radius: float = sect["range_radius"]
+		var period := overlay.ring_period(sect)
+		var centre: Vector2 = sect["pos"]
+		# 圈上離焦點最近的一點起，沿圈走一個虛線週期，量兩點在畫面上的距離。
+		var away := _camera.focus - centre
+		var start := atan2(away.y, away.x)
+		var a := centre + Vector2.from_angle(start) * radius
+		var b := centre + Vector2.from_angle(start + period / radius) * radius
+		var shown := _camera.unproject_position(_map.world_position(a, _camera.focus.x)).distance_to(
+			_camera.unproject_position(_map.world_position(b, _camera.focus.x)))
+		assert_gt(shown, expected * 0.7, "鏡頭高 %s：一個週期的螢幕長度 %.1f 不低於 %.1f" % [z_frac, shown, expected * 0.7])
+		assert_lt(shown, expected * 1.3, "鏡頭高 %s：一個週期的螢幕長度 %.1f 不高於 %.1f" % [z_frac, shown, expected * 1.3])
