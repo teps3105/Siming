@@ -114,6 +114,10 @@ pub fn enter_path(w: &mut World, pid: PersonId) -> Role {
         Some(Door::Buddha) => (Role::Monk, PathState::Monk { fruit: 0, practice: 0.0 }, None, None),
         Some(Door::Ru) => (Role::Scholar, PathState::Scholar { virtue: 0.0, deed: 0.0, word: 0.0 }, None, None),
         Some(Door::Demon) => (Role::Demonic, cult, None, Some(base_life)),
+        // GDD 3.4：州郡屬於王朝且才略 ≥ 6 → 武將候補；否則散人。
+        None if w.dynasty.owner_of(home).is_some() && attrs.talent >= GENERAL_CANDIDATE_TALENT => {
+            (Role::GeneralCandidate, PathState::Mortal, None, None)
+        }
         None => (Role::Commoner, PathState::Mortal, None, None),
     };
     if let Some(id) = power {

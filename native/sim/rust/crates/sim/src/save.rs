@@ -12,7 +12,7 @@ use crate::types::{Tick, WorldGenError, WorldParams};
 
 pub const MAGIC: [u8; 4] = *b"SMGS";
 /// 模擬規則版本：規則（含任何影響推演結果的參數）改變時遞增，舊存檔即拒絕載入。
-pub const SIM_VERSION: u32 = 5;
+pub const SIM_VERSION: u32 = 6;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SaveFile {

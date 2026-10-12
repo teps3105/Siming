@@ -60,6 +60,8 @@ static func _key(event: Dictionary) -> String:
 			if to < from:
 				return "event_NodeShifted_out" if to == 0 else "event_NodeShifted_down"
 			return "event_NodeShifted_up"
+	if kind == "Succession" and String(event.get("x", "")) == "Dynasty":
+		return "event_Succession_dynasty"
 	return "event_" + kind
 
 

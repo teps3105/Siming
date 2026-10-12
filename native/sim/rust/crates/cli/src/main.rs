@@ -201,6 +201,81 @@ fn realm_sample(w: &siming_sim::World) -> [u32; 9] {
     d
 }
 
+/// 一運的王朝統計（GDD 3.7；對照 7.1 平衡目標「王朝數」「每運王朝更替」「平時軍費佔比」）。
+struct DynastyStats {
+    line: String,
+    json: serde_json::Value,
+}
+
+fn dynasty_stats(w: &siming_sim::World, lo: u32, hi: u32, samples: &[u32]) -> DynastyStats {
+    use siming_sim::EventKind as K;
+    let count = |k: K| w.ledger.events.iter().filter(|e| e.kind == k && e.tick > lo && e.tick <= hi).count();
+    let collapsed = count(K::DynastyCollapsed);
+    let founded = count(K::DynastyFounded);
+    let usurp = count(K::Usurpation);
+    let secede = count(K::Secession);
+    let civil = count(K::CivilWar);
+    let rebel = count(K::Rebellion);
+    let annexed = count(K::Annexed);
+    let wars = count(K::WarDeclared);
+    let fengshan = count(K::Fengshan);
+    let relief = count(K::Relief);
+    let ban = count(K::BanTao);
+    let list = &w.dynasty.list;
+    let alive: Vec<&siming_sim::dynasty::Dynasty> = list.iter().filter(|d| d.fallen.is_none()).collect();
+    let fallen: Vec<f64> = list.iter().filter_map(|d| d.fallen.map(|t| (t - d.founded) as f64 / 12.0)).collect();
+    let mean_life = if fallen.is_empty() { f64::NAN } else { fallen.iter().sum::<f64>() / fallen.len() as f64 };
+    let mean_n = samples.iter().map(|&v| v as f64).sum::<f64>() / samples.len().max(1) as f64;
+    let (smin, smax) = (samples.iter().copied().min().unwrap_or(0), samples.iter().copied().max().unwrap_or(0));
+    let (mut inc, mut mil, mut tre, mut mand, mut prov) = (0.0f64, 0.0f64, 0.0f64, 0.0f64, 0usize);
+    for d in &alive {
+        let f = siming_sim::dynasty::finance(w, d.id as usize);
+        inc += f.income;
+        mil += f.military;
+        tre += d.treasury;
+        mand += d.mandate as f64;
+        prov += d.provinces.len();
+    }
+    let land = w.provinces.iter().filter(|p| !p.lost).count().max(1);
+    let n = alive.len().max(1) as f64;
+    let share = if inc > 0.0 { mil / inc } else { 0.0 };
+    let line = format!(
+        "王朝 末 {} 均 {:.1}（區間 {}–{}）覆蓋 {:.0}%　更替(崩潰) {} 立國 {} 篡位 {} 割據 {} 內戰 {} 起義判定 {} 開疆 {} 宣戰 {} 封禪 {} 賑災 {} 禁道 {}　累計已亡 {} 個、平均壽命 {:.0} 年　在世均天命 {:.0}　軍費/收入 {:.0}%　國庫/年收入 {:.1}",
+        alive.len(),
+        mean_n,
+        smin,
+        smax,
+        prov as f64 / land as f64 * 100.0,
+        collapsed,
+        founded,
+        usurp,
+        secede,
+        civil,
+        rebel,
+        annexed,
+        wars,
+        fengshan,
+        relief,
+        ban,
+        fallen.len(),
+        mean_life,
+        mand / n,
+        share * 100.0,
+        if inc > 0.0 { tre / inc } else { 0.0 },
+    );
+    let json = json!({
+        "alive_end": alive.len(), "alive_mean": mean_n, "alive_min": smin, "alive_max": smax,
+        "coverage": prov as f64 / land as f64,
+        "changes": collapsed, "founded": founded, "usurpations": usurp, "secessions": secede, "civil_wars": civil,
+        "rebellions": rebel, "annexed": annexed, "wars_declared": wars, "fengshan": fengshan, "relief": relief, "ban_tao": ban,
+        "mean_lifespan_years": if mean_life.is_nan() { serde_json::Value::Null } else { json!(mean_life) },
+        "fallen_total": fallen.len(),
+        "mean_mandate": mand / n, "military_share": share,
+        "treasury_years": if inc > 0.0 { tre / inc } else { 0.0 },
+    });
+    DynastyStats { line, json }
+}
+
 fn notables_alive(w: &siming_sim::World) -> u32 {
     w.persons.iter().filter(|p| p.alive()).count() as u32
 }
@@ -395,6 +470,7 @@ fn sim(seed: u64, yun: u32, report: Option<PathBuf>) -> Result<(), String> {
         let (mut sum_yearly, mut n_yearly, mut sum_month, mut n_month) = (0u128, 0u32, 0u128, 0u32);
         let mut yearly_us: Vec<u128> = Vec::new();
         let mut notable_samples = Vec::new();
+        let mut dynasty_samples: Vec<u32> = Vec::new();
         let mut realm_samples: Vec<[u32; 9]> = Vec::new();
         for shi in 0..shi_per_yun {
             for _ in 0..MONTHS_PER_SHI {
@@ -419,6 +495,7 @@ fn sim(seed: u64, yun: u32, report: Option<PathBuf>) -> Result<(), String> {
                 }
             }
             notable_samples.push(notables_alive(s.world()));
+            dynasty_samples.push(s.world().dynasty.alive_ids().len() as u32);
             // 每運 4 個取樣點：第 3、6、9、12 世末。
             if (shi + 1) % (shi_per_yun / 4) == 0 {
                 realm_samples.push(realm_sample(s.world()));
@@ -469,6 +546,8 @@ fn sim(seed: u64, yun: u32, report: Option<PathBuf>) -> Result<(), String> {
             alive_by_role(Role::Demonic),
             sects,
         );
+        let ds = dynasty_stats(w, lo, hi, &dynasty_samples);
+        println!("  {}", ds.line);
         println!(
             "  境界分布(4點均) {}　逐境比 {}",
             mean.iter().map(|v| format!("{v:.1}")).collect::<Vec<_>>().join("/"),
@@ -508,6 +587,7 @@ fn sim(seed: u64, yun: u32, report: Option<PathBuf>) -> Result<(), String> {
             "threads_created": created.iter().sum::<u32>(), "threads_created_by_kind": created, "threads_resolved": resolved, "threads_resolved_by_lives": by_lives,
             "threads_resolved_by_kind": by_kind, "threads_faded_total": faded,
             "book": book,
+            "dynasty": ds.json,
             "elapsed_ms": ym as u64,
             "worst_yearly_month_ms": worst_yearly as f64 / 1000.0,
             "worst_yearly_month_tick": worst_tick,

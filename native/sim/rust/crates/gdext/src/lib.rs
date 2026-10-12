@@ -1016,7 +1016,7 @@ impl SimWorld {
             // 分裂事件的勢力依序是新宗門、原宗門；模板的 {F} 是原宗門、{G} 是新宗門。
             let (first, second_power) = if e.kind == siming_sim::EventKind::SectSplit { (1, 0) } else { (0, 1) };
             let mut f = power(first).map_or("", |p| p.name.as_str());
-            let g = power(second_power).map_or("", |p| p.name.as_str());
+            let mut g = power(second_power).map_or("", |p| p.name.as_str());
             let mut m = 0i64;
             let mut second = "";
             let mut x = String::new();
@@ -1060,6 +1060,13 @@ impl SimWorld {
                 }
                 siming_sim::EventArgs::Famine { deaths } => n = *deaths as i64,
                 siming_sim::EventArgs::World { .. } | siming_sim::EventArgs::None => {}
+                siming_sim::EventArgs::Dynasty { dynasty, other, n: count } => {
+                    // 王朝事件的 {F} 是王朝本身、{G} 是對方（宣戰的對象、分出去的新朝）。
+                    f = w.dynasty.get(*dynasty).map_or("", |d| d.name.as_str());
+                    g = other.and_then(|id| w.dynasty.get(id)).map_or("", |d| d.name.as_str());
+                    n = *count as i64;
+                    x = "Dynasty".to_string();
+                }
                 siming_sim::EventArgs::Node { node, from, to } => {
                     x = w.geo.nodes.get(*node as usize).map_or(String::new(), |nd| nd.name.clone());
                     n = *to as i64;

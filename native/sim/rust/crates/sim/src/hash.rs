@@ -182,6 +182,12 @@ pub fn world_hash(world: &World) -> u64 {
         h.write(&r.get_seed());
         h.write_u128(r.get_word_pos());
     }
+    // GDD 3.7 王朝：新狀態一律附加在最後（不得調動既有餵入順序）。
+    feed(&mut h, &world.dynasty);
+    let r = &world.rng.dynasty;
+    h.write_u64(r.get_stream());
+    h.write(&r.get_seed());
+    h.write_u128(r.get_word_pos());
     h.finish()
 }
 
