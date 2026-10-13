@@ -45,6 +45,11 @@ func setup(sim: SimHost, map: TerrainMap, camera: MapCamera) -> void:
 	add_child(_holder)
 	sim.event_posted.connect(post)
 	sim.world_created.connect(clear)
+	# 事件的棋子演出（5.13）：與天劫共用這裡的投影、鏡頭高度門檻與擺位。
+	var events := EventStage.new()
+	events.name = "EventStage"
+	add_child(events)
+	events.setup(self, sim)
 
 
 ## 一筆新事件：天劫、飛升、了結才放；在鏡頭外的記下資料但不放。
@@ -190,6 +195,26 @@ func cell_px(pos: Vector2) -> float:
 	return a.distance_to(b)
 
 
+## 地圖座標在畫面內（含邊緣外 VIEW_MARGIN）。
+func pos_in_view(pos: Vector2) -> bool:
+	var rect := Rect2(Vector2.ZERO, get_viewport().get_visible_rect().size).grow(VIEW_MARGIN)
+	var s := screen_of(pos)
+	return s.is_finite() and rect.has_point(s)
+
+
+## 地圖座標換成世界座標（含東西無縫與星球視角）。
+func world_of(pos: Vector2) -> Vector3:
+	return _map.world_position(pos, _camera.focus.x)
+
+
+func map_width() -> float:
+	return _map.map_size.x
+
+
+func camera() -> MapCamera:
+	return _camera
+
+
 func _in_view(spec: Dictionary) -> bool:
 	var rect := Rect2(Vector2.ZERO, get_viewport().get_visible_rect().size).grow(VIEW_MARGIN)
 	var points: Array[Vector2] = [spec["pos"]]
@@ -300,6 +325,10 @@ func _place_thread(stage: SpectacleStage, item: Dictionary, age: float, u: float
 
 
 ## 平面視角地表朝上；星球視角朝球心向外。
+func up_basis(world: Vector3) -> Basis:
+	return _up_basis(world)
+
+
 func _up_basis(world: Vector3) -> Basis:
 	if _map.globe_morph <= 0.5:
 		return Basis.IDENTITY

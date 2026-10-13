@@ -12,6 +12,10 @@ signal province_selected(province: int)
 signal globe_changed(on: bool)
 ## 因果模式下點到了魂光（GDD 5.4）；參數是人物編號。
 signal soul_selected(person: int)
+## 玩家操作了鏡頭或地圖（拖曳、推動、縮放、換視角、點選）；導演聽它讓出（GDD 5.13）。
+signal player_acted
+## 導演的過場到位。
+signal directed_done
 
 ## 臨界阻尼平滑的時間常數（秒）。
 const SMOOTH_SECONDS := 0.12
@@ -36,6 +40,13 @@ const LONG_PRESS_SECONDS := 0.5
 const CURSOR_SPEED := 1100.0
 ## 由搖桿轉出的滑鼠事件以這個裝置編號標記，收到時不把輸入裝置切回鍵鼠。
 const PAD_DEVICE := 77
+## 導演過場（GDD 5.13）：近處平移 1 秒；遠處拉高再落下，1.5 到 2.5 秒；減少鏡頭運動時淡出淡入各 0.3 秒。
+const DIRECTED_NEAR_SECONDS := 1.0
+const DIRECTED_FAR_MIN := 1.5
+const DIRECTED_FAR_MAX := 2.5
+const DIRECTED_FADE_SECONDS := 0.3
+## 拉高時，起點與終點之間的距離要佔畫面寬度的比例以內。
+const DIRECTED_FRAMING := 0.8
 
 ## 游標離畫面邊緣多近就平移（設定開了邊緣捲動時，GDD 5.9）。
 const EDGE_SCROLL_PX := 10.0
@@ -100,6 +111,10 @@ var _flight_seconds := 0.0
 var _flight_progress := 0.0
 ## 開場運鏡從星球開始：降到這個高度以下就攤平成平面地圖。
 var _flight_lands := false
+## 導演過場進行中的狀態（空表示沒有）：from、delta（走較短那邊的位移）、from_z、to_z、peak、seconds、age、reduced、swapped、to。
+var _directed := {}
+## 減少鏡頭運動時的黑幕透明度（0–1），由導演的介面層畫。
+var directed_fade := 0.0
 
 
 ## 綁定地圖並把鏡頭放到指定焦點與高度。
@@ -119,6 +134,7 @@ func attach(map: TerrainMap, start_focus: Vector2, start_z: float) -> void:
 
 ## 立即或平滑地移到指定焦點與高度（高度不指定則維持）。
 func look_at_map(target_focus: Vector2, target_z := -1.0, instant := false) -> void:
+	player_acted.emit()
 	_target_focus = target_focus
 	if target_z > 0.0:
 		_target_z = target_z
@@ -139,6 +155,7 @@ func set_globe(on: bool) -> void:
 
 
 func toggle_globe() -> void:
+	player_acted.emit()
 	set_globe(not globe)
 
 
@@ -167,6 +184,86 @@ func descend_to(target_z: float, seconds: float) -> void:
 	_flight_progress = 0.0
 
 
+## 導演的過場：把焦點帶到 dest、高度落在 dest_z。近處緩起緩停平移；遠處（超過畫面寬度）先拉高到
+## 起點與終點同時入鏡，平移，再落回，全程一條連續的曲線；reduced 為真改成淡出、換位置、淡入。
+## 焦點走東西較短的那一邊。到位發 directed_done；玩家操作會中斷。
+func direct_to(dest: Vector2, dest_z: float, reduced := false) -> void:
+	var width := _map.map_size.x
+	var limits := MapView.z_range(width)
+	dest_z = clampf(dest_z, limits.x, limits.y)
+	var shift := Vector2(fposmod(dest.x - focus.x + width * 0.5, width) - width * 0.5, dest.y - focus.y)
+	var distance := shift.length()
+	var ground := _ground_width()
+	var seconds := DIRECTED_NEAR_SECONDS
+	var peak := maxf(z, dest_z)
+	if reduced:
+		seconds = DIRECTED_FADE_SECONDS * 2.0
+	elif distance > ground:
+		seconds = clampf(DIRECTED_FAR_MIN + (DIRECTED_FAR_MAX - DIRECTED_FAR_MIN) * distance / (width * 0.5), DIRECTED_FAR_MIN, DIRECTED_FAR_MAX)
+		peak = clampf(maxf(peak, z * distance / (ground * DIRECTED_FRAMING)), peak, limits.y)
+	_directed = {"from": focus, "shift": shift, "from_z": z, "to_z": dest_z, "peak": peak, "seconds": seconds, "age": 0.0,
+		"reduced": reduced, "swapped": false, "to": dest}
+	_flight_seconds = 0.0
+
+
+## 地圖寬度（導演算高度用）。
+func map_width() -> float:
+	return _map.map_size.x
+
+
+## 導演過場是否進行中。
+func is_directed() -> bool:
+	return not _directed.is_empty()
+
+
+## 中斷導演過場，鏡頭停在當下。
+func cancel_directed() -> void:
+	if _directed.is_empty():
+		return
+	_directed = {}
+	directed_fade = 0.0
+	_target_focus = focus
+	_target_z = z
+
+
+func _step_directed(delta: float) -> void:
+	var d := _directed
+	d["age"] = float(d["age"]) + delta
+	var u := clampf(float(d["age"]) / float(d["seconds"]), 0.0, 1.0)
+	var width := _map.map_size.x
+	if bool(d["reduced"]):
+		var fade := float(d["age"]) / DIRECTED_FADE_SECONDS
+		directed_fade = clampf(fade if fade < 1.0 else 2.0 - fade, 0.0, 1.0)
+		if fade >= 1.0 and not bool(d["swapped"]):
+			d["swapped"] = true
+			_jump(d["to"], float(d["to_z"]))
+	else:
+		var e := smoothstep(0.0, 1.0, u)
+		var from_z: float = d["from_z"]
+		var to_z: float = d["to_z"]
+		var base := lerpf(log(from_z), log(to_z), e)
+		var lift := maxf(0.0, log(float(d["peak"])) - (log(from_z) + log(to_z)) * 0.5)
+		var here: Vector2 = (d["from"] as Vector2) + (d["shift"] as Vector2) * e
+		focus = Vector2(fposmod(here.x, width), here.y)
+		z = exp(base + lift * sin(PI * e))
+		_target_focus = focus
+		_target_z = z
+	if u >= 1.0:
+		_directed = {}
+		directed_fade = 0.0
+		_jump(d["to"], float(d["to_z"]))
+		directed_done.emit()
+
+
+## 不經平滑直接到位（導演用，不算玩家操作）。
+func _jump(spot: Vector2, height: float) -> void:
+	focus = spot
+	_target_focus = spot
+	z = height
+	_target_z = height
+	_apply(0.0)
+
+
 ## 開場運鏡是否進行中。
 func is_flying() -> bool:
 	return _flight_seconds > 0.0
@@ -189,6 +286,9 @@ func _notification(what: int) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if _map == null or not input_enabled or modal:
 		return
+	if _is_player_action(event):
+		player_acted.emit()
+		cancel_directed()
 	if is_flying() and _is_press(event):
 		_flight_seconds = 0.0
 		_target_z = _flight_to_z
@@ -207,6 +307,16 @@ func _unhandled_input(event: InputEvent) -> void:
 		_lock_on()
 	if event.is_action_pressed(InputActions.VIEW_TOGGLE):
 		toggle_globe()
+
+
+## 會算成「玩家動了畫面」的輸入：滑鼠鍵（含滾輪）、觸控、按住拖動、搖桿的自動鎖定；
+## 單純移動游標與時間、模式的快捷鍵不算（平移、縮放、旋轉、換視角另在各自的路徑發訊號）。
+func _is_player_action(event: InputEvent) -> bool:
+	if event is InputEventMouseMotion:
+		return (_dragging and event.position.distance_to(_press_position) > CLICK_SLOP) or _rotating
+	if event is InputEventMouseButton:
+		return event.pressed
+	return event is InputEventScreenTouch or event is InputEventScreenDrag or event.is_action_pressed(InputActions.LOCK_ON)
 
 
 static func _is_press(event: InputEvent) -> bool:
@@ -372,6 +482,8 @@ func _on_mouse_motion(event: InputEventMouseMotion) -> void:
 func _process(delta: float) -> void:
 	if _map == null:
 		return
+	if not _directed.is_empty():
+		_step_directed(delta)
 	if not input_enabled:
 		_apply(delta)
 		return
@@ -383,13 +495,19 @@ func _process(delta: float) -> void:
 	if pan == Vector2.ZERO:
 		pan = _edge_push()
 	if pan != Vector2.ZERO:
+		player_acted.emit()
+		cancel_directed()
 		_locked.clear()
 		_pan(pan.rotated(-yaw) * _ground_width() * PAN_PER_SECOND * delta)
 	var zoom := Input.get_axis(InputActions.ZOOM_IN, InputActions.ZOOM_OUT)
 	if zoom != 0.0:
+		player_acted.emit()
+		cancel_directed()
 		_target_z *= pow(1.0 + KEY_ZOOM_PER_SECOND, zoom * delta * 4.0)
 	var turn := Input.get_axis(InputActions.ROTATE_LEFT, InputActions.ROTATE_RIGHT)
 	if turn != 0.0:
+		player_acted.emit()
+		cancel_directed()
 		_target_yaw = clampf(
 			_target_yaw + deg_to_rad(YAW_PER_SECOND_DEG) * turn * delta, -deg_to_rad(YAW_LIMIT_DEG), deg_to_rad(YAW_LIMIT_DEG)
 		)

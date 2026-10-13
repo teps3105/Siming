@@ -253,4 +253,115 @@ func test_paragraph_length_is_capped() -> void:
 		facts.append(_fact("widowed", 42 + i * 5, 2, {"other": 500 + i, "other_name": "妻%d" % i, "end_reason": "spouse_died"}))
 	var out := _compose(facts)
 	for para: Dictionary in out["bio"]:
-		assert_lt(String(para["text"]).length(), 241, "每段約不超過 220 字：" + para["text"])
+		# 多次報仇的分項本身就長（每項帶完整前因），單獨成段時放寬到三項的長度。
+		var limit := 400 if String(para["text"]).contains("度報") else 241
+		assert_lt(String(para["text"]).length(), limit, "每段約不超過 220 字：" + para["text"])
+
+
+# ── 審閱後的六點 ─────────────────────────────────────────────
+
+func _bio_text(out: Dictionary) -> String:
+	var text := ""
+	for para: Dictionary in out["bio"]:
+		text += para["text"] + "\n"
+	return text
+
+
+func test_sentences_in_a_paragraph_run_from_early_to_late() -> void:
+	var out := _compose([_fact("breakthrough", 255, 1, {"n": 3}), _fact("sect_founded", 241, 1, {"power": 8, "power_name": "玉月派"})])
+	var para := _para_with(out, "玉月派")
+	var early := para.find("二四一年")
+	var late := para.find("二五五年")
+	assert_true(early >= 0 and late >= 0, para)
+	assert_lt(early, late, "先寫早的：" + para)
+	var mixed := _compose([_fact("apprenticed", 50, 1, {"role": "master", "other": 70, "other_name": "夏駿"}), _fact("married", 20, 1, {"other": 71, "other_name": "葉雅碧", "why": "same_hometown"})])
+	var p2 := _para_with(mixed, "葉雅碧")
+	assert_lt(p2.find("葉雅碧"), p2.find("夏駿"), "成婚（二〇年）在前，收徒（五〇年）在後：" + p2)
+
+
+func test_a_merged_sentence_sits_at_its_earliest_year() -> void:
+	var facts: Array = []
+	for i in 5:
+		facts.append(_fact("traveled", 100 + i, 5, {"detail": "out", "target": 20 + i, "target_name": "州%d" % i}))
+	facts.append(_fact("breakthrough", 90, 1, {"n": 1}))
+	facts.append(_fact("breakthrough", 120, 1, {"n": 2}))
+	var all := _bio_text(_compose(facts))
+	assert_true(all.contains("遊歷"), all)
+	assert_lt(all.find("築基"), all.find("遊歷"), "合併句（最早一年一〇〇）在築基（九〇年）之後：" + all)
+	assert_lt(all.find("遊歷"), all.find("金丹"), "也在結丹（一二〇年）之前：" + all)
+
+
+func test_several_marriages_are_one_sentence_and_only_the_last_death_is_told() -> void:
+	var facts: Array = [
+		_fact("married", 10, 2, {"other": 61, "other_name": "葉雅碧", "why": "same_hometown"}),
+		_fact("widowed", 20, 2, {"other": 61, "other_name": "葉雅碧"}),
+		_fact("married", 21, 2, {"other": 62, "other_name": "上官淡"}),
+		_fact("widowed", 30, 2, {"other": 62, "other_name": "上官淡"}),
+		_fact("married", 31, 2, {"other": 63, "other_name": "廖冰冰"}),
+		_fact("widowed", 40, 2, {"other": 63, "other_name": "廖冰冰"})]
+	var para := _para_with(_compose(facts), "葉雅碧")
+	assert_true(para.contains("娶葉雅碧，其後續娶上官淡、廖冰冰") or para.contains("娶葉雅碧；其後續娶上官淡、廖冰冰"), para)
+	assert_eq(para.count("咸寧紀元"), 2, "只有第一次婚配與最後的亡故帶年份：" + para)
+	assert_true(para.contains("其妻廖冰冰"), "最後一任先亡才寫，並點名：" + para)
+	assert_false(para.contains("其妻已歿"), para)
+	assert_false(para.contains("上官淡亡故"), "中間的喪偶不另寫：" + para)
+	var alive_end := _compose(facts.slice(0, 5))
+	assert_false(_para_with(alive_end, "葉雅碧").contains("廖冰冰亡故") or _para_with(alive_end, "葉雅碧").contains("廖冰冰去世"), "最後一任健在就不寫亡故")
+
+
+func test_two_revenges_become_one_passage_with_a_lead_sentence() -> void:
+	var first := _revenge_facts(7, "林默")
+	var second := _revenge_facts(7, "林默")
+	second.remove_at(0)
+	for f: Dictionary in second:
+		f["other"] = 32
+		f["other_name"] = "崔李"
+		f["year"] = 95
+		f["tick"] = _tick(95, 1)
+	second[1]["because"]["event"] = 51
+	var out := _compose(first + second)
+	var para := _para_with(out, "崔李")
+	assert_true(para.contains("一生二度報前世之仇：") or para.contains("前後二度報前世之仇："), para)
+	assert_true(para.contains("袁凰") and para.contains("崔李"), para)
+	assert_false(para.contains("殺之以報"), "分項不重複「殺之以報…之仇」：" + para)
+	var one := _para_with(_compose(_revenge_facts(7, "林默")), "袁凰")
+	assert_false(one.contains("度報"), one)
+	assert_true(one.contains("袁凰") and one.contains("之仇"), one)
+
+
+func test_the_founder_is_a_patriarch_and_a_leader_is_a_leader() -> void:
+	var info := _info("高毅", false)
+	info["power"] = 8
+	info["power_name"] = "玉月派"
+	var founded := ChronicleText.compose(info, [_fact("sect_founded", 241, 1, {"power": 8, "power_name": "玉月派"})], Callable(), HISTORY)
+	assert_true(founded["bio"][0]["text"].contains("玉月派祖師"), founded["bio"][0]["text"])
+	assert_false(founded["bio"][0]["text"].contains("弟子"), founded["bio"][0]["text"])
+	var led := ChronicleText.compose(info, [_fact("succeeded", 241, 1, {"power": 8, "power_name": "玉月派"})], Callable(), HISTORY)
+	assert_true(led["bio"][0]["text"].contains("玉月派掌門"), led["bio"][0]["text"])
+	var plain := ChronicleText.compose(info, [], Callable(), HISTORY)
+	assert_true(plain["bio"][0]["text"].contains("玉月派弟子"), plain["bio"][0]["text"])
+
+
+func test_three_pupils_merge_with_the_earliest_year_and_two_do_not() -> void:
+	var facts: Array = []
+	for i in 3:
+		facts.append(_fact("apprenticed", 20 + i * 5, 3, {"role": "master", "other": 80 + i, "other_name": "弟子%s" % "甲乙丙"[i]}))
+	var text := _bio_text(_compose(facts))
+	assert_true(text.contains("三人") or text.contains("三名"), text)
+	assert_true(text.contains("咸寧紀元二〇年（12253年）"), "寫最早一年：" + text)
+	assert_false(text.contains("弟子乙") or text.contains("弟子丙"), "不逐一列名：" + text)
+	var two := _bio_text(_compose(facts.slice(0, 2)))
+	assert_true(two.contains("弟子甲") and two.contains("弟子乙"), "兩人以內照舊逐一寫：" + two)
+
+
+func test_same_month_events_each_get_their_own_row_with_full_names() -> void:
+	var facts: Array = []
+	for i in 2:
+		facts.append(_fact("thread_omen", 100, 4, {"thread": "feud", "role": "victim", "other": 90, "other_name": "樊震", "because": _because(60 + i, 7, "林默", 40 + i, "舊仇%d" % i, "feud")}))
+	var out := _compose([_past(7, "林默")] + facts)
+	var rows: Array = out["rows"].slice(1)
+	assert_eq(rows.size(), 2, "同一個月的兩件事各成一列")
+	for row: Dictionary in rows:
+		assert_true(row["text"].contains("樊震"), "每列第一次提到的人寫全名：" + row["text"])
+		assert_false(row["text"].contains("此人"), row["text"])
+		assert_false(row["text"].contains("；"), "不合成一句：" + row["text"])

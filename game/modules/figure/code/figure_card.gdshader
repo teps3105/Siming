@@ -5,6 +5,8 @@ render_mode unshaded, cull_disabled, depth_draw_never;
 
 uniform sampler2D card_texture : source_color, filter_linear;
 uniform float depth_pull = 0.0;
+// 整枚棋子的不透明度（事件演出的淡入淡出，5.13）。
+uniform float fade : hint_range(0.0, 1.0) = 1.0;
 
 
 void fragment() {
@@ -13,7 +15,7 @@ void fragment() {
 		discard;
 	}
 	ALBEDO = c.rgb;
-	ALPHA = c.a;
+	ALPHA = c.a * fade;
 	// 深度只寫差值：先取引擎給的深度，再加上「沿視線往鏡頭拉近」造成的變化，與投影矩陣的深度方向約定無關。
 	if (depth_pull > 0.0) {
 		vec3 q = VERTEX;

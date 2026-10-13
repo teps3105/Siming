@@ -43,6 +43,8 @@ var _notice: NoticeSlip
 var _rumor: RumorSlip
 var _almanac: Almanac
 var _menu: MenuDeck
+var _director: DirectorRig
+var _director_card: DirectorCard
 ## 是否顯示引導簽（測試會關掉）；在 setup 之前設定。
 var guide_enabled := true
 ## 開選單前時間是否已經暫停。
@@ -73,6 +75,10 @@ func setup(sim: SimHost, map: TerrainMap, camera: MapCamera) -> void:
 		if id >= 0:
 			_guide.notify(&"select"))
 	camera.soul_selected.connect(_on_soul_selected)
+	_director = DirectorRig.new()
+	add_child(_director)
+	_director.setup(sim, camera, _director_busy, func() -> bool: return _camera.is_flying() or (_guide != null and _guide.visible))
+	_director.toggled.connect(func(on: bool) -> void: _notice.post(Locale.t("director_on" if on else "director_off")))
 	camera.globe_changed.connect(func(on: bool) -> void:
 		_view.globe = on
 		_guide.notify(&"globe"))
@@ -169,7 +175,7 @@ func _build() -> void:
 	if _notice != null:
 		notices = _notice.pending()
 	for child in get_children():
-		if child != _menu:
+		if child != _menu and child != _director:
 			child.queue_free()
 
 	_overlay = MapOverlay.new()
@@ -275,6 +281,14 @@ func _build() -> void:
 	_rumor.sect_requested.connect(func(id: int) -> void: open_sect(id))
 	_rumor.trace_requested.connect(func(id: int) -> void: open_event(id))
 	_place_rumor()
+
+	_director_card = DirectorCard.new()
+	add_child(_director_card)
+	_director_card.setup(_unit)
+	_director_card.person_requested.connect(func(id: int) -> void: open_person(id))
+	_director_card.province_requested.connect(func(id: int) -> void: open_province(id))
+	_director_card.sect_requested.connect(func(id: int) -> void: open_sect(id))
+	_director.attach_card(_director_card)
 
 	_notice = NoticeSlip.new()
 	add_child(_notice)
@@ -619,6 +633,24 @@ func _process(_delta: float) -> void:
 		_place_cards(bounds)
 	_place_rumor()
 	_overlay.reserved = _occupied()
+	_place_director_card(bounds)
+
+
+## 導演字卡在底部中央、印鈕列上方（引導簽的位置；兩者不會同時出現），避開時間盤、視角鈕、傳聞簽、命簿。
+func _place_director_card(bounds: Vector2) -> void:
+	var seals_top := _seals.position.y + _seals._badge_position(0).y
+	var avoid: Array[Rect2] = []
+	for rect in _occupied():
+		if rect.position.y < seals_top - GUIDE_GAP:
+			avoid.append(rect)
+	_director_card.layout(bounds, seals_top - GUIDE_GAP, _seals.position.x - GUIDE_GAP, avoid)
+
+
+## 導演要讓出的時刻：玩家開著卡片、天下冊、傳聞簽全螢幕或選單。
+func _director_busy() -> bool:
+	if _rumor == null or _almanac == null:
+		return false
+	return _open_card() != null or _almanac.expanded or _rumor.expanded or _menu != null or _camera.modal or not _camera.input_enabled
 
 
 ## 器物目前佔住的畫面範圍（地圖標籤要避開）。

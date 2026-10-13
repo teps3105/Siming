@@ -13,6 +13,10 @@ const DIGITS := "零一二三四五六七八九"
 const MERGE_OVER := 3
 ## 小傳每段的字數上限（約數）；超過就去掉最不重要的事。
 const PARA_BUDGET := 220
+## 收徒在這個人數以上合併；婚配兩次以上合併。
+const PUPILS_FROM := 3
+const WEDS_FROM := 2
+const LATE := 1 << 60
 ## 一年的天數（曆法 2.6）。
 const DAYS_PER_YEAR := 360
 ## 各種事的重要度，段落放不下時由低的先去掉。
@@ -707,12 +711,25 @@ func _ident() -> Array:
 	if role == "Cultivator":
 		if power_name.is_empty() or power < 0:
 			return [Locale.t("identity_loose")]
-		return [_sect(power, power_name), Locale.t("power_leader" if _info.get("is_leader", false) else "power_member")]
+		return [_sect(power, power_name), _sect_post(power)]
 	var out: Array = []
 	if power >= 0 and not power_name.is_empty():
 		out.append(_sect(power, power_name))
 	out.append(PersonText.role_word(role))
 	return out
+
+
+## 在這個宗門裡的身分：創立者稱祖師，曾任或現任掌門稱掌門，其餘弟子。
+func _sect_post(power: int) -> String:
+	var led: bool = _info.get("is_leader", false)
+	for e in _entries:
+		if int(e["power"]) != power:
+			continue
+		if e["kind"] in ["sect_founded", "sect_split"]:
+			return library()["words"]["founder"]
+		if e["kind"] == "succeeded":
+			led = true
+	return Locale.t("power_leader" if led else "power_member")
 
 
 func _past_ident(p: Dictionary) -> Array:
@@ -774,6 +791,7 @@ func _section_clauses(units: Array[Dictionary], section: String) -> Array:
 				rank = 4
 			elif a["kind"] == "killed" and not (_first_of(u, "thread_resolved").is_empty() and _first_of(u, "feud_escalated").is_empty()):
 				rank = 8
+			clause["tk"] = int(a["tick"])
 			clauses.append(_rk(clause, rank))
 		_roll()
 	match section:
@@ -784,7 +802,7 @@ func _section_clauses(units: Array[Dictionary], section: String) -> Array:
 					pupils.append(u)
 				else:
 					draw.call(u)
-			if pupils.size() > MERGE_OVER:
+			if pupils.size() >= PUPILS_FROM:
 				clauses.append(_rk(_take_many(pupils), 5))
 				_roll()
 			else:
@@ -795,14 +813,27 @@ func _section_clauses(units: Array[Dictionary], section: String) -> Array:
 			for u in mine:
 				if u["anchor"]["kind"] == "married":
 					wed.append(u)
-			if wed.size() > MERGE_OVER:
+			if wed.size() >= WEDS_FROM:
+				var woman: bool = _info.get("gender", "") == "Female"
+				var first: Dictionary = wed[0]["anchor"]
 				var last: Dictionary = wed[-1]["anchor"]
-				var verb := "嫁" if _info.get("gender", "") == "Female" else "娶"
-				clauses.append(_rk(_say("married_many", {"n": han(wed.size()), "verb": verb, "spouse": _ref(int(last["other"]), last["other_name"])}, int(last["id"])), 6))
+				var rest: Array = []
+				for i in range(1, wed.size()):
+					if i > 1:
+						rest.append("、")
+					var w: Dictionary = wed[i]["anchor"]
+					rest.append(_ref(int(w["other"]), w["other_name"]))
+				var chain := _say("married_chain", {"verb": "嫁" if woman else "娶", "cont": "續嫁" if woman else "續娶", "first": _ref(int(first["other"]), first["other_name"]), "rest": rest}, int(first["id"]), _year_text(first["era"], int(first["year"]), int(first["tick"])))
+				chain["tk"] = int(first["tick"])
+				clauses.append(_rk(chain, 6))
 				_roll()
 				for u in mine:
-					if u["anchor"]["kind"] == "widowed" and int(u["anchor"]["tick"]) > int(last["tick"]):
-						draw.call(u)
+					var w: Dictionary = u["anchor"]
+					if w["kind"] == "widowed" and int(w["tick"]) > int(last["tick"]):
+						var gone := _say("widowed", {"spouse": [_spouse_pronoun(), _pl(int(w["other"]), w["other_name"])]}, int(w["id"]), _year_text(w["era"], int(w["year"]), int(w["tick"])))
+						gone["tk"] = int(w["tick"])
+						clauses.append(_rk(gone, 6))
+						_roll()
 			else:
 				for u in mine:
 					draw.call(u)
@@ -817,7 +848,9 @@ func _section_clauses(units: Array[Dictionary], section: String) -> Array:
 				else:
 					draw.call(u)
 			if trips.size() > MERGE_OVER:
-				clauses.append(_rk(_travel_many(trips), 3))
+				var tm := _travel_many(trips)
+				tm["tk"] = int(trips[0]["anchor"]["tick"])
+				clauses.append(_rk(tm, 3))
 				_roll()
 			else:
 				for u in trips:
@@ -860,6 +893,11 @@ func _karma_clauses(mine: Array[Dictionary], clauses: Array, draw: Callable) -> 
 	var merged_ids := {}
 	for u in merged:
 		merged_ids[int(u["anchor"]["id"])] = true
+	var revenges: Array[Dictionary] = []
+	for u in mine:
+		if u["anchor"]["kind"] == "killed" and _first_of(u, "thread_resolved").get("role", "") == "victim":
+			revenges.append(u)
+	var revenge_done := revenges.size() < 2
 	var summarized := false
 	var pending: Array[Dictionary] = []
 	var pending_seen := {}
@@ -873,17 +911,68 @@ func _karma_clauses(mine: Array[Dictionary], clauses: Array, draw: Callable) -> 
 		elif a["kind"] == "killed" and merged_ids.has(int(a["id"])):
 			if not summarized:
 				summarized = true
-				clauses.append(_rk(_kill_summary(merged), 5))
+				var ks := _kill_summary(merged)
+				ks["tk"] = int(merged[0]["anchor"]["tick"])
+				clauses.append(_rk(ks, 5))
+				_roll()
+		elif a["kind"] == "killed" and revenges.size() >= 2 and revenges.has(u):
+			if not revenge_done:
+				revenge_done = true
+				var many := _revenge_many(revenges)
+				many["tk"] = int(revenges[0]["anchor"]["tick"])
+				clauses.append(_rk(many, 8))
 				_roll()
 		elif a["kind"] == "thread_faded" and faded.size() > MERGE_OVER:
 			pass
 		else:
 			draw.call(u)
 	if faded.size() > MERGE_OVER:
-		clauses.append(_rk(_say("fade_many", {"n": han(faded.size())}, int(faded[0]["anchor"]["id"]), "", false), 3))
+		var fm := _say("fade_many", {"n": han(faded.size())}, int(faded[0]["anchor"]["id"]), "", false)
+		fm["tk"] = int(faded[0]["anchor"]["tick"])
+		clauses.append(_rk(fm, 3))
 	if not pending.is_empty():
-		clauses.append(_rk(_pending_clause(pending), 3))
+		var pc := _pending_clause(pending)
+		pc["tk"] = LATE
+		clauses.append(_rk(pc, 3))
 		_roll()
+
+
+## 兩次以上報仇：總起一句，分項各寫年、地、對方與前因：「一生三度報宿世之仇：某年於某郡殺甲，其宿世乙…；…」。
+func _revenge_many(units: Array[Dictionary]) -> Dictionary:
+	var words := {}
+	var items: Array = []
+	var shown: Array[Dictionary] = units
+	if units.size() > MERGE_OVER:
+		# 超過三度只分項寫對方境界最高的三度，其餘從略。
+		var ranked: Array = []
+		for i in units.size():
+			ranked.append([_rank(int(units[i]["anchor"]["other"])), -i])
+		ranked.sort()
+		ranked.reverse()
+		var picked: Array = []
+		for k in MERGE_OVER:
+			picked.append(-int(ranked[k][1]))
+		picked.sort()
+		shown = []
+		for i: int in picked:
+			shown.append(units[i])
+	for u in shown:
+		var a: Dictionary = u["anchor"]
+		var cause := _because(_first_of(u, "thread_resolved"), int(a["id"]))
+		words[cause["pw"]] = true
+		var params := {"y": _year_text(a["era"], int(a["year"]), int(a["tick"])), "prov": _prov(int(a["province"]), a["province_name"]), "victim": _ref(int(a["other"]), a["other_name"], "其人"), "bt": cause["bt"]}
+		if not items.is_empty():
+			items.append("；")
+		items.append(_say("revenge_item", params, int(a["id"]), "", false))
+		_roll()
+	var head := {"n": han(units.size())}
+	if words.size() == 1:
+		head["pw"] = words.keys()[0]
+	var parts: Array = [_say("revenge_head", head, int(units[0]["anchor"]["id"]), "", false)]
+	parts.append_array(items)
+	if shown.size() < units.size():
+		parts.append("；其餘%s度從略" % han(units.size() - shown.size()))
+	return _join(parts, "")
 
 
 ## 殺人多於三件時值得單獨寫的：對方境界最高的一人，以及與本人另有宿緣（別的紀錄也提到此人）的。
@@ -964,7 +1053,10 @@ func _take_many(pupils: Array[Dictionary]) -> Dictionary:
 	var params := {"n": han(pupils.size())}
 	if best_rank >= 0 and _lookup.is_valid():
 		params["nb"] = _ref(int(best["other"]), best["other_name"])
-	return _say("take_many", params, int(pupils[0]["anchor"]["id"]), "", false)
+	var first: Dictionary = pupils[0]["anchor"]
+	var clause := _say("take_many", params, int(first["id"]), _year_text(first["era"], int(first["year"]), int(first["tick"])))
+	clause["tk"] = int(first["tick"])
+	return clause
 
 
 ## 境界高低：境界或果位的序數，查不到為 -1。
@@ -993,7 +1085,9 @@ func _cult_clauses(mine: Array[Dictionary], clauses: Array, draw: Callable) -> v
 		var last: Dictionary = levels[-1]["anchor"]
 		var y1 := _year_text(first["era"], int(first["year"]), int(first["tick"]))
 		var y2 := _year_text(last["era"], int(last["year"]), int(last["tick"]))
-		clauses.append(_rk(_say("cult_summary", {"n": han(levels.size()), "y1": y1, "g1": _gain(int(first["n"])), "y2": y2, "g2": _gain(int(last["n"]))}, int(first["id"]), "", false), 7))
+		var summary := _say("cult_summary", {"n": han(levels.size()), "y1": y1, "g1": _gain(int(first["n"])), "y2": y2, "g2": _gain(int(last["n"]))}, int(first["id"]), "", false)
+		summary["tk"] = int(first["tick"])
+		clauses.append(_rk(summary, 7))
 		_roll()
 	else:
 		for u in levels:
@@ -1022,6 +1116,8 @@ func _travel_many(trips: Array[Dictionary]) -> Dictionary:
 func _assemble(clauses: Array, cap: bool) -> Dictionary:
 	var kept: Array = clauses.duplicate()
 	while true:
+		if cap:
+			kept = _by_time(kept)
 		var text := _sentences(kept)
 		if not cap or kept.size() <= 1 or String(text["t"]).length() <= PARA_BUDGET:
 			return text
@@ -1031,6 +1127,18 @@ func _assemble(clauses: Array, cap: bool) -> Dictionary:
 				drop = i
 		kept.remove_at(drop)
 	return {}
+
+
+## 段內由早到晚；合併句排在它涵蓋的最早一年的位置，沒有時間的（現況）排最後。
+func _by_time(clauses: Array) -> Array:
+	var tagged: Array = []
+	for i in clauses.size():
+		tagged.append([int(clauses[i].get("tk", LATE)), i])
+	tagged.sort()
+	var out: Array = []
+	for t: Array in tagged:
+		out.append(clauses[t[1]])
+	return out
 
 
 ## 小傳：出身與前世、入道與師門與成家、修行與事功、恩怨、結局（已歿者），每段 {text, links}，各段約不超過 220 字。
@@ -1079,19 +1187,9 @@ func timeline() -> Array[Dictionary]:
 		var stamp := "%s%s月" % [_year_text(_past["reborn_era"], int(_past["reborn_year"]), int(_past["reborn_tick"])), han(int(_past["reborn_month"]))]
 		var clause := _past_clause(_past, false)
 		rows.append(_row(stamp, [clause], int(_past["id"])))
-	var bucket: Array = []
-	var bucket_head: Dictionary = {}
 	for u in units:
-		if u["consumed"]:
-			continue
-		var a: Dictionary = u["anchor"]
-		if not bucket.is_empty() and not _same_month(bucket_head, a):
-			_flush(bucket, bucket_head, rows)
-			bucket = []
-		if bucket.is_empty():
-			bucket_head = a
-		bucket.append(u)
-	_flush(bucket, bucket_head, rows)
+		if not u["consumed"]:
+			_flush([u], u["anchor"], rows)
 	return rows
 
 

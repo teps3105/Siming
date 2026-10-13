@@ -11,6 +11,7 @@
 		"grudge/offender": "結怨的對頭",
 		"grudge/offended": "結怨的仇人"
 	},
+	"words": {"founder": "祖師"},
 	"origin_alive": [
 		"{me}，{home}人，{ident}",
 		"{me}乃{home}人，現為{ident}",
@@ -226,6 +227,20 @@
 		"@{spouse}亡故",
 		"@{spouse}先己而逝",
 		"@{spouse}去世，從此孤身"
+	],
+	"married_chain": [
+		"@{verb}{first}，其後{cont}{rest}",
+		"@{verb}{first}；其後{cont}{rest}"
+	],
+	"revenge_head": [
+		"一生{n}度報仇：",
+		"pw|一生{n}度報{pw}之仇：",
+		"pw|前後{n}度報{pw}之仇："
+	],
+	"revenge_item": [
+		"{y}於{prov}殺{victim}{,bt}",
+		"{y}在{prov}尋到{victim}，殺之{,bt}",
+		"{y}遇{victim}於{prov}，殺之{,bt}"
 	],
 	"married_many": [
 		"先後成婚{n}次，最後{verb}{spouse}",
