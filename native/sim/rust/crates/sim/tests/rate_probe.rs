@@ -173,6 +173,19 @@ fn measure_year_cost() {
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let ms = sorted[1];
         let w = sim.world();
+        let mut by_imp = [0usize; 8];
+        for e in &w.ledger.events {
+            by_imp[(e.importance as usize).min(7)] += 1;
+        }
+        let settled: Vec<usize> = w.souls.iter().map(|s| s.settled.len()).collect();
+        let max_settled = settled.iter().copied().max().unwrap_or(0);
+        let full = settled.iter().filter(|&&n| n >= siming_sim::model::SETTLED_CAP).count();
+        eprintln!(
+            "  帳依重要度（0=墓碑）{by_imp:?}；每筆事件 {} 位元組；精簡紀錄最多 {max_settled} 筆（上限 {}），{full}/{} 個魂已滿",
+            std::mem::size_of::<siming_sim::Event>(),
+            siming_sim::model::SETTLED_CAP,
+            settled.len()
+        );
         eprintln!(
             "人物期第 {m} 年附近：每年 {ms:.2} 毫秒（三次 {windows:.2?}；在世 {}，帳 {} 筆，佇列 {}，宿緣 {}）",
             w.alive_ids.len(),
