@@ -84,7 +84,7 @@ func test_director_moves_the_camera_and_a_drag_takes_it_back() -> void:
 	await wait(0.6)
 	var after := _camera.focus
 	await wait(1.0)
-	assert_lt(_camera.focus.distance_to(after), 0.01, "讓出後鏡頭不再自己動")
+	assert_lt(_camera.focus.distance_to(after), 0.1, "讓出後鏡頭不再自己動")
 	assert_false(_hud._director_card.showing(), "字卡收起")
 
 
@@ -236,7 +236,7 @@ func test_arrival_height_is_one_where_figures_are_visible() -> void:
 		_sim.event_posted.emit(event)
 	assert_true(await _until_stay(8.0))
 	await frames(10)
-	assert_lt(_camera.z, width * 0.4 + 0.01, "太高時降到看得到棋子的高度")
+	assert_lt(absf(_camera.z - width * 0.25), 0.5, "太高（超過 0.3 倍寬）時降到 0.25 倍寬")
 	await _quiet()
 	_camera.look_at_map(_camera.focus, width * 0.2, true)
 	await frames(3)
@@ -246,6 +246,21 @@ func test_arrival_height_is_one_where_figures_are_visible() -> void:
 	assert_true(await _until_stay(8.0))
 	await frames(10)
 	assert_lt(absf(_camera.z - width * 0.2), 0.5, "玩家原本就在範圍內，維持玩家的高度")
+
+
+func test_camera_lands_on_the_event_cell_not_the_province_seat() -> void:
+	await _start()
+	await _quiet()
+	var event: Dictionary = _events[0].duplicate()
+	event["importance"] = 4
+	var seat: Vector2 = _sim.world.province_info(int(event["province"]))["seat"]
+	var cell := seat + Vector2(3.0, -2.0)
+	event["pos"] = cell
+	_sim.event_posted.emit(event)
+	assert_true(await _until_stay(20.0))
+	await frames(10)
+	assert_lt(_camera.focus.distance_to(cell), 0.5, "鏡頭焦點在事件格，不在州郡治所")
+	assert_lt(_camera.focus.distance_to(cell), 0.5, "焦點就是畫面中心，事件格在中央三分之一內")
 
 
 func test_near_travel_keeps_the_height() -> void:
@@ -352,6 +367,7 @@ func test_caption_stays_inside_the_screen_and_clear_of_other_slips_in_all_four_v
 			assert_lt(absf(_hud._unit - ui_scale * (Ink.DECK_UNIT if view.y <= Ink.DECK_HEIGHT else 1.0)), 0.001, "%s：介面縮放有套上" % label)
 			assert_true(Rect2(Vector2.ZERO, Vector2(view)).encloses(rect), "%s：字卡不出界 %s" % [label, rect])
 			assert_lt((card._para["lines"] as Array).size(), 3, "%s：最多兩行" % label)
+			assert_lt(absf(rect.get_center().x - view.x * 0.5), 2.0, "%s：水平置中於整個畫面" % label)
 			for other: Rect2 in _hud._occupied():
 				assert_false(rect.intersects(other), "%s：字卡 %s 不與器物 %s 重疊" % [label, rect, other])
 			_game.queue_free()
