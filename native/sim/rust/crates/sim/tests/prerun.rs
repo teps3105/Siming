@@ -133,9 +133,8 @@ fn checks(sim: &Sim) {
             _ => missing += 1,
         }
     }
-    // 宗門補足的 12 歲弟子、王朝補的成年散人是「降生後才把 born 往前改」，事件不能倒填（帳依時刻遞增），
-    // 所以這些人的 Born 時刻晚於 born；實測約 5%，容許 10%。
-    assert!(missing * 10 <= alive.len(), "{missing}/{} 位在世者沒有與降生時刻相符的 Born／Rebirth 事件", alive.len());
+    // 補足與立國都從既有的人挑，不再憑空造人改寫降生時刻，所以每位在世者的 Born／Rebirth 時刻都等於 born。
+    assert!(missing == 0, "{missing}/{} 位在世者沒有與降生時刻相符的 Born／Rebirth 事件", alive.len());
     // 入道在第一次突破之前，突破時刻遞增。
     for p in &alive {
         if let Some(ts) = breakthroughs.get(&p.id) {
@@ -157,10 +156,16 @@ fn checks(sim: &Sim) {
         assert!(realms[r] >= realms[r + 1], "境界 {r} 人數 {} 少於境界 {} 的 {}", realms[r], r + 1, realms[r + 1]);
     }
     // 現存宗門都有創立事件。
-    let founded: std::collections::BTreeSet<u32> =
-        w.ledger.events.iter().filter(|e| e.kind == EventKind::PowerFounded).flat_map(|e| e.powers.iter().copied()).collect();
+    // 宗門的出生有兩種：散修創立（PowerFounded）與從母宗分裂（SectSplit，第一個勢力是新宗門）。
+    let founded: std::collections::BTreeSet<u32> = w
+        .ledger
+        .events
+        .iter()
+        .filter(|e| matches!(e.kind, EventKind::PowerFounded | EventKind::SectSplit))
+        .filter_map(|e| e.powers.first().copied())
+        .collect();
     for pw in w.powers.iter().filter(|p| p.fallen.is_none()) {
-        assert!(founded.contains(&pw.id), "宗門 {} 沒有創立事件", pw.name);
+        assert!(founded.contains(&pw.id), "宗門 {} 沒有創立或分裂事件", pw.name);
     }
 }
 
@@ -185,13 +190,14 @@ fn counts_after(sim: &Sim, start: u32) -> BTreeMap<(EventKind, u32), u32> {
     by
 }
 
-/// 三個種子合計後，每類事件接手後第 1 年的筆數不超過第 2–10 年平均的 2 倍（下限 5 筆，防小數雜訊）。
+/// 三個種子合計後，每類事件接手後第 1 年的筆數不超過第 2–10 年平均的 2 倍加 5 筆（加 5 是容許小數的泊松雜訊：平均 4 筆的事件一年出現 9 筆的機率約 2%）。
 fn assert_no_backlog(by: &BTreeMap<(EventKind, u32), u32>) {
     let kinds: std::collections::BTreeSet<EventKind> = by.keys().map(|k| k.0).collect();
     for k in kinds {
         let y1 = by.get(&(k, 0)).copied().unwrap_or(0) as f64;
         let rest: f64 = (1..10).map(|y| by.get(&(k, y)).copied().unwrap_or(0) as f64).sum::<f64>() / 9.0;
-        assert!(y1 <= (2.0 * rest).max(5.0), "{k:?} 第 1 年 {y1} 件，第 2–10 年平均 {rest:.1}（三個種子合計）");
+        eprintln!("{k:?}: 第 1 年 {y1}，第 2–10 年平均 {rest:.1}");
+        assert!(y1 <= 2.0 * rest + 5.0, "{k:?} 第 1 年 {y1} 件，第 2–10 年平均 {rest:.1}（六個種子合計）");
     }
 }
 
@@ -201,7 +207,7 @@ fn assert_no_backlog(by: &BTreeMap<(EventKind, u32), u32>) {
 #[test]
 fn first_year_after_takeover_has_no_backlog() {
     let mut total: BTreeMap<(EventKind, u32), u32> = BTreeMap::new();
-    for seed in [SEED, SEED + 1, SEED + 2] {
+    for seed in SEED..SEED + 6 {
         let mut p = params(3000, 300);
         p.seed = seed;
         let mut sim = Sim::new(&p).unwrap();

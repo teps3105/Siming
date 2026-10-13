@@ -568,6 +568,13 @@ fn recruit_masters_fill_and_join() {
     let s = new_sect(&mut w, 0, &[leader, elder, novice], leader);
     let rogue_near = cult(&mut w, 1, 0, 0.0);
     w.persons[novice as usize].master = None;
+    // 山門州郡內有 6 名滿 12 歲的幼年；補足只從他們當中挑，不建立新魂。
+    let tick = w.tick as i32;
+    for _ in 0..6 {
+        let (_, kid) = soul::spawn_new_life(&mut w, SoulOrigin::New, 0);
+        w.persons[kid as usize].born = tick - 12 * 12;
+    }
+    let souls = w.souls.len();
     let g0 = 0.0;
     sect::yearly_recruit(&mut w, crate::schedule::Round::All, &mut sect::RangeCache::default());
     // 新人拜長老（境界高於自己者），長老無師父 → 拜掌門
@@ -587,7 +594,21 @@ fn recruit_masters_fill_and_join() {
     }
     let newest = *w.powers[s as usize].members.last().unwrap();
     assert_eq!(w.persons[newest as usize].age(w.tick), 12);
+    assert_eq!(w.persons[newest as usize].born, tick - 12 * 12, "降生時刻不改");
+    assert_eq!(w.souls.len(), souls, "不建立新魂");
     assert!(w.persons[rogue_near as usize].power.is_none() || w.persons[rogue_near as usize].power == Some(s));
+}
+
+/// 不憑空造人：山門州郡沒有可招的人，宗門就不補足。
+#[test]
+fn fill_does_not_create_people_when_nobody_is_local() {
+    let mut w = line_world(36, 4, &[]);
+    let leader = cult(&mut w, 0, 4, 0.0);
+    let s = new_sect(&mut w, 0, &[leader], leader);
+    let (souls, persons) = (w.souls.len(), w.persons.len());
+    sect::yearly_recruit(&mut w, crate::schedule::Round::All, &mut sect::RangeCache::default());
+    assert_eq!(w.powers[s as usize].members.len(), 1);
+    assert_eq!((w.souls.len(), w.persons.len()), (souls, persons));
 }
 
 #[test]

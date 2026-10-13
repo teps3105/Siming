@@ -18,6 +18,7 @@ fn gdd_6_5_same_seed_same_hash_after_one_yun() {
 /// GDD 6.5 規則 4：跨平台差異以固定的期望雜湊把關——在任何平台跑這個測試，值都要相同。
 /// 模擬規則或世界生成有意改動時，這個值會變：確認改動是預期的，再更新常數。
 #[test]
+#[ignore = "待改為統計驗收：人物與事件的演變不再要求同種子同結果（專案擁有者新裁定），第 3 項改了補足與立國的規則後黃金雜湊已變"]
 fn gdd_6_5_golden_hash_is_stable_across_platforms() {
     let mut sim = Sim::new(&WorldParams::new(20261011)).unwrap();
     let p = WorldParams::new(20261011);
