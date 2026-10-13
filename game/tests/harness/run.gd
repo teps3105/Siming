@@ -8,8 +8,8 @@ extends SceneTree
 const Suite := preload("res://tests/harness/suite.gd")
 const ErrorLog := preload("res://tests/harness/error_log.gd")
 const ROOT := "res://tests"
-## 測試的世界用短預跑（人口期 2,000 年、人物期 100 年），不然每個案例開局都要等十秒以上。
-const TEST_POP_YEARS := 2000
+## 測試的世界用短預跑（人口期 1,500 年、人物期 100 年），不然每個案例開局都要等十秒以上。
+const TEST_POP_YEARS := 1500
 const TEST_PRERUN_YEARS := 100
 
 var _log := ErrorLog.new()

@@ -151,14 +151,15 @@ func test_cause_node_replaces_the_card_and_back_returns() -> void:
 	var event := _deep_event()
 	_hud.open_event(int(event["id"]))
 	await wait(0.5)
-	var first_causes: Array = _sim.world.event_causes(int(event["id"]), 6)
+	# 卡上的因樹套了人物歷程的折疊規則，所以以卡上第一個事件列為準，不用原始因樹的第一個直接因。
 	var direct_id := -1
-	for node: Dictionary in first_causes:
-		if int(node["level"]) == 1:
-			direct_id = int(node["id"])
+	for row: Dictionary in _card()._rows:
+		if row["kind"] == "event":
+			direct_id = int(row["event"])
 			break
 	assert_gt(direct_id, -1)
-	# 清單的第一個事件列是第一個直接因。
+	assert_ne(direct_id, int(event["id"]))
+	# 點清單的第一個事件列。
 	await click(_event_row_point(_card(), 0))
 	assert_eq(_card().event, direct_id, "點節點把卡換成那一則事件的事件卡")
 	assert_true(_card().can_back, "換卡後卡上有返回")

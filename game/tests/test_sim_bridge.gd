@@ -648,7 +648,11 @@ func test_gdd_5_8_person_history_is_ordered_and_matches_the_ledger() -> void:
 					# 遊歷的「出門或歸來」事件流在當下以故里判斷；歷程事後以行程順序判斷，兩者可以不同，不比。
 					if key == "x" and entry["kind"] == "Traveled":
 						continue
-					assert_eq(entry[key], stream[entry["id"]][key], "與事件流同一筆的「%s」" % key)
+					# 以魂取主角的事件（人數少於魂數），事後取得時是魂現在的肉身，轉世後會不同，不比。
+					var streamed: Dictionary = stream[entry["id"]]
+					if key in ["a", "b"] and (streamed["persons"] as Array).size() < (streamed["souls"] as Array).size():
+						continue
+					assert_eq(entry[key], streamed[key], "與事件流同一筆的「%s」" % key)
 	var dead_id: int = picks[1]
 	var dead := world.person(dead_id)
 	assert_false(dead["alive"])
@@ -700,6 +704,9 @@ func test_gdd_5_8_event_matches_the_stream_and_missing_is_empty() -> void:
 		for key in ["id", "tick", "kind", "importance", "province", "a", "b", "f", "g", "p", "q", "x", "n", "m", "year", "month", "a_person", "b_person", "q_province", "persons", "powers", "souls"]:
 			# 遊歷的「出門或歸來」事件流在當下以故里判斷，事後取得時故里可能已變，不比。
 			if key == "x" and streamed["kind"] == "Traveled":
+				continue
+			# 入道事件的宗門欄在事件流當下是空的，事後取得時是此人現在所屬的宗門（入道後才入宗），不比。
+			if key == "f" and streamed["kind"] == "ComeOfAge":
 				continue
 			# 以魂取主角的事件（人數少於魂數），事後取得時是魂現在的肉身，轉世後會不同，不比。
 			if key in ["a", "b", "a_person", "b_person"] and (streamed["persons"] as Array).size() < (streamed["souls"] as Array).size():
