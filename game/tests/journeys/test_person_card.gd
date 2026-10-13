@@ -20,6 +20,7 @@ func setup() -> void:
 
 func teardown() -> void:
 	GameSettings.set_value("ui_scale", 1.0)
+	PersonCard.show_placeholder = false
 
 
 func _boot(view: Vector2i) -> void:
@@ -392,7 +393,20 @@ func test_history_folds_the_echo_of_one_happening() -> void:
 	assert_eq(kinds, ["Married@30", "ThreadCreated@31", "Breakthrough@40", "Tribulation@90"] as Array[String], "歷程去掉重複的那一筆")
 
 
+func test_placeholder_portrait_stays_hidden_by_default() -> void:
+	PersonCard.show_placeholder = false
+	await _boot(FLOW_VIEW)
+	_hud.open_person(_find_people()["alive"])
+	await wait(0.5)
+	var card := _card()
+	assert_true(PartCatalog.load_class(PortraitRecipe.CLASS_ID).placeholder, "現在的頭像部件是佔位的")
+	assert_false(card._portrait.visible, "佔位頭像不給玩家看")
+	assert_eq(card._side(), 0.0, "基本資料滿寬")
+	assert_eq(card.size.x, LedgerCard.WIDTH * card._unit, "卡寬回到沒有頭像的寬度")
+
+
 func test_portrait_sits_top_left_at_160_by_200_and_the_first_rows_move_right() -> void:
+	PersonCard.show_placeholder = true
 	await _boot(FLOW_VIEW)
 	var found := _find_people()
 	for key_name in ["alive", "dead"]:
@@ -419,6 +433,7 @@ func test_portrait_sits_top_left_at_160_by_200_and_the_first_rows_move_right() -
 
 
 func test_portrait_steps_aside_when_the_card_cannot_hold_it() -> void:
+	PersonCard.show_placeholder = true
 	GameSettings.set_value("ui_scale", 1.5)
 	await _boot(DECK_VIEW)
 	var id: int = _find_people()["alive"]

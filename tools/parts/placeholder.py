@@ -385,6 +385,7 @@ def build():
     catalog = {
         "version": 1,
         "class": "portrait",
+        "placeholder": True,
         "canvas": [W, H],
         "pivot": PIVOT,
         "halo": HALO,

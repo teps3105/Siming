@@ -23,6 +23,9 @@ const PORTRAIT_W := 160.0
 const PORTRAIT_H := 200.0
 const PORTRAIT_GAP := 12.0
 
+## 佔位部件的頭像要不要顯示：預設不顯示（真部件進來前不給玩家看），開發時以 `-- --placeholder-portraits` 或測試打開。
+static var show_placeholder := OS.get_cmdline_user_args().has("--placeholder-portraits")
+
 var person := -1
 ## 是否有上一張卡可以返回（Hud 設定）；有的話 Esc／B 是返回，關閉鈕不掛鍵。
 var can_back := false:
@@ -48,7 +51,7 @@ var _layout := {}
 
 
 func setup(world: SimWorld, unit: float, width := -1.0) -> void:
-	super.setup(world, unit, width if width > 0.0 else (WIDTH + PORTRAIT_W) * unit)
+	super.setup(world, unit, width if width > 0.0 else (WIDTH + (PORTRAIT_W if _portrait_on() else 0.0)) * unit)
 	_portrait = PartStack.new()
 	add_child(_portrait)
 	_portrait.size = _portrait_size()
@@ -119,6 +122,12 @@ func _province_link(word: String, id: int) -> Dictionary:
 	return {"text": word, "target": "province:%d" % id}
 
 
+## 這一類有部件可畫，而且不是被藏起來的佔位部件。
+static func _portrait_on() -> bool:
+	var catalog := PartCatalog.load_class(PortraitRecipe.CLASS_ID)
+	return catalog != null and (show_placeholder or not catalog.placeholder)
+
+
 ## 頭像佔去的左側寬度（含空白）；收起時為 0。
 func _side() -> float:
 	return 0.0 if _portrait_k <= 0.0 else _portrait_size().x + PORTRAIT_GAP * _unit
@@ -140,6 +149,10 @@ func _on_max_height_changed() -> void:
 ## 依目前資料重算所有段落與高度；改了資料、寬度或「可返回」時呼叫。
 func _relayout() -> void:
 	if _info.is_empty() or _unit <= 0.0:
+		return
+	if not _portrait_on():
+		_portrait_k = 0.0
+		_compose()
 		return
 	_portrait_k = 1.0
 	_compose()

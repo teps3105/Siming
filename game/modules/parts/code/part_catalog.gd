@@ -11,6 +11,8 @@ var class_id := ""
 var canvas := Vector2i(1, 1)
 var pivot := Vector2.ZERO
 var halo := {}
+## 這一類目前是不是程式畫的佔位部件（目錄的 `placeholder`）。
+var placeholder := false
 var channels: Array = []
 var _slots: Array = []
 var _parts := {}
@@ -40,6 +42,7 @@ func _read(id: String) -> bool:
 	canvas = Vector2i(int(data["canvas"][0]), int(data["canvas"][1]))
 	pivot = Vector2(float(data["pivot"][0]), float(data["pivot"][1]))
 	halo = data.get("halo", {})
+	placeholder = bool(data.get("placeholder", false))
 	channels = data.get("channels", [])
 	_slots = data["slots"]
 	_atlas_path = ROOT + id + "/" + String(data["atlas"])

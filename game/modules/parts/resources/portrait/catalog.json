@@ -1,6 +1,7 @@
 {
  "version": 1,
  "class": "portrait",
+ "placeholder": true,
  "canvas": [
   320,
   400

@@ -33,6 +33,7 @@ func _main() -> void:
 		if arg.begins_with("--out="):
 			_out = arg.trim_prefix("--out=")
 	DirAccess.make_dir_recursive_absolute(_out)
+	PersonCard.show_placeholder = true
 	_suite = Suite.new()
 	_suite.tree = self
 	_suite._begin_case()
