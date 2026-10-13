@@ -288,7 +288,7 @@ func test_desktop_sizes_match_the_layout_table() -> void:
 	_post(_event("Killed", 3, 100))
 	_post(_event("Killed", 3, 120, {"souls": PackedInt32Array([1])}))
 	await frames(2)
-	assert_eq(_rumor.header_rect().size.x, 370.0, "傳聞簽寬 370")
+	assert_eq(_rumor.header_rect().size.x, 520.0, "傳聞簽寬 520")
 	assert_eq(_rumor.row_rect(0).size.y, 32.0, "每張高 32")
 	assert_eq(_rumor.row_rect(1).position.y - _rumor.row_rect(0).end.y, 5.0, "間距 5")
 	var bounds := Vector2(tree.root.get_visible_rect().size)
@@ -305,7 +305,7 @@ func test_layout_scale_applies_to_the_slip() -> void:
 	_hud._layout()
 	await frames(3)
 	_rumor = _hud.rumor()
-	assert_eq(_rumor.header_rect().size.x, 555.0, "介面縮放 1.5 倍，寬 370 變 555")
+	assert_eq(_rumor.header_rect().size.x, 780.0, "介面縮放 1.5 倍，寬 520 變 780")
 
 
 ## 世界裡實際存在的前幾位人物編號（傳聞簽「看人物」要開得起來）。

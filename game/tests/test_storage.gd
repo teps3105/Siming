@@ -57,7 +57,7 @@ func test_gdd_4_8_manual_save_records_the_world_and_loads_back() -> void:
 	assert_true(slots[2].is_empty())
 	var entry: Dictionary = slots[3]
 	assert_eq(entry["name"], world.world_options()["name"])
-	assert_eq(entry["date"], world.date_short())
+	assert_eq(entry["date"], EventText.now_label(world))
 	assert_eq(entry["tick"], world.tick())
 	assert_eq(entry["kind"], "manual")
 	# 摘要帶開局選項，標題畫面據此重建同一個世界。

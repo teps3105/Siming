@@ -145,6 +145,9 @@ func _place_cards(bounds: Vector2) -> void:
 	_person_card.position = Vector2(bounds.x - _person_card.size.x - MARGIN, MARGIN)
 	_event_card.position = Vector2(bounds.x - _event_card.size.x - MARGIN, MARGIN)
 	_sect_card.position = Vector2(bounds.x - _sect_card.size.x - MARGIN, MARGIN)
+	# 題簽（日期最寬）不蓋到攤開的命簿：命簿最寬的那張決定題簽右端的上限。
+	var card_width := maxf(maxf(_card.size.x, _person_card.size.x), maxf(_event_card.size.x, _sect_card.size.x))
+	_dial.max_right = bounds.x - card_width - MARGIN * 2.0
 
 
 ## 命簿（含軸頭）最高能到哪裡：印匣與例簽上緣之上一個間距。
@@ -371,6 +374,7 @@ func _place_rumor() -> void:
 	var bounds := get_viewport().get_visible_rect().size
 	var open_card := _open_card()
 	var right := open_card.position.x - MARGIN if open_card != null else bounds.x - MARGIN
+	_rumor.max_width = maxf(right - MARGIN, 0.0)
 	var width := _rumor.size.x - RumorSlip.SHADOW * 2.0
 	var dial_right := _dial.position.x + maxf(_dial._title_rect().end.x, _dial._speed_rect().end.x) + Ink.SLIP_BAND
 	var y := MARGIN

@@ -32,6 +32,11 @@ fn era_stamp(w: &World, tick: siming_sim::Tick) -> (String, i32, i32) {
     (era.name.clone(), year as i32, calendar::date(tick).month as i32)
 }
 
+/// 某個時刻自開天起的第幾年。
+fn world_year(w: &World, tick: siming_sim::Tick) -> i32 {
+    calendar::total_year(tick, w.evolution.history_years) as i32
+}
+
 fn relation_rows(w: &World, pw: &Power, friendly: bool) -> Array<VarDictionary> {
     let mut rows: Vec<(u32, i8)> =
         pw.relations.iter().map(|(&id, &v)| (id, v)).filter(|&(_, v)| if friendly { v > 0 } else { v < 0 }).collect();
@@ -135,6 +140,7 @@ impl SimWorld {
             row.set("event", e.id as i64);
             row.set("era", &gs(&era));
             row.set("year", year);
+            row.set("world_year", world_year(w, e.tick));
             row.set("month", month);
             ascended.push(&row);
         }
@@ -144,6 +150,7 @@ impl SimWorld {
         d.set("founded", pw.founded as i64);
         d.set("founded_era", &gs(&era));
         d.set("founded_year", year);
+        d.set("founded_world_year", world_year(w, pw.founded));
         d.set("now_era", &gs(&era_stamp(w, w.tick).0));
         match pw.fallen {
             Some(tick) => {
@@ -151,12 +158,14 @@ impl SimWorld {
                 d.set("fallen", tick as i64);
                 d.set("fallen_era", &gs(&era));
                 d.set("fallen_year", year);
+                d.set("fallen_world_year", world_year(w, tick));
                 d.set("fallen_month", month);
             }
             None => {
                 d.set("fallen", -1i64);
                 d.set("fallen_era", &gs(""));
                 d.set("fallen_year", 0);
+                d.set("fallen_world_year", 0);
                 d.set("fallen_month", 0);
             }
         }

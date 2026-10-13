@@ -546,6 +546,11 @@ pub struct FallenRow {
     pub name: String,
     pub founded_year: u32,
     pub fallen_year: u32,
+    /// 創立與覆滅當時的紀元名與紀元內的年份（顯示用，日期寫法見 GDD 2.6）。
+    pub founded_era: String,
+    pub founded_era_year: u32,
+    pub fallen_era: String,
+    pub fallen_era_year: u32,
     /// 存續的年數。
     pub lasted_years: u32,
     pub evil: bool,
@@ -630,11 +635,17 @@ pub fn sect_stats(w: &World) -> SectStats {
             let cause = event.and_then(|e| e.causes.first()).and_then(|&c| crate::ledger::get(w, c));
             let founded_year = calendar::total_year(pw.founded, hist);
             let fallen_year = calendar::total_year(fell_tick, hist);
+            let (founded_era, founded_era_year) = calendar::era_year(pw.founded, hist, &w.eras);
+            let (fallen_era, fallen_era_year) = calendar::era_year(fell_tick, hist, &w.eras);
             Some(FallenRow {
                 id,
                 name: pw.name.clone(),
                 founded_year,
                 fallen_year,
+                founded_era: founded_era.name.clone(),
+                founded_era_year,
+                fallen_era: fallen_era.name.clone(),
+                fallen_era_year,
                 lasted_years: fallen_year.saturating_sub(founded_year),
                 evil: crate::dao::sect_of(pw).is_some_and(|s| s.evil),
                 province: pw.seat_province,

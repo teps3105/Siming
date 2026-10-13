@@ -239,7 +239,6 @@ func _compose() -> void:
 	var list_width := width - 8.0 * u
 	var date_height := LedgerText.line_height(note)
 	var top := 0.0
-	var era_shown := ""
 	for entry: Dictionary in history:
 		var sentence := EventText.history_line(entry, person)
 		var links: Array[Dictionary] = []
@@ -253,9 +252,7 @@ func _compose() -> void:
 			links.append(_province_link(entry["q"], entry["q_province"]))
 		links.append_array(EventCard.sect_links(entry))
 		var para := LedgerText.paragraph(sentence, links, list_width, body)
-		# 同一紀元內只有第一筆與換紀元的那筆帶紀元名。
-		var date := EventText.history_date(entry, entry["era"] != era_shown)
-		era_shown = entry["era"]
+		var date := EventText.event_label(entry)
 		var height: float = date_height + float(para["height"]) + ROW_GAP * u
 		_rows.append({"top": top, "height": height, "event": int(entry["id"]), "date": date, "seal": EventText.seal(entry["kind"]), "paragraph": para})
 		top += height

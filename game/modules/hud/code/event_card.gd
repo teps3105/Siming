@@ -202,7 +202,7 @@ func _relayout() -> void:
 		if int(_info["province"]) >= 0 and not place.is_empty():
 			place_text = " · %s %s" % [Locale.t("event_place"), place]
 			place_links.append(_province_link(place, _info["province"]))
-		_meta = LedgerText.paragraph(EventText.stamp(int(_info["year"]), int(_info["month"])) + place_text, place_links, sub_width, note)
+		_meta = LedgerText.paragraph(EventText.event_label(_info) + place_text, place_links, sub_width, note)
 		_layout["meta_y"] = y
 		y += maxf(34.0 * u, float(_meta["height"]) + 10.0 * u)
 		_layout["stroke_y"] = y
@@ -284,7 +284,7 @@ func _add_event(top: float, node: Dictionary, indent: float, width: float, body:
 	var para := LedgerText.paragraph(EventText.line(node), links_of(node), width - indent, body)
 	var height := LedgerText.line_height(note) + float(para["height"]) + ROW_GAP * _unit
 	_rows.append({"kind": "event", "top": top, "height": height, "indent": indent, "event": int(node["id"]), "level": int(node.get("level", 0)),
-		"seal": EventText.seal(node["kind"]), "date": EventText.stamp(int(node["year"]), int(node["month"])), "paragraph": para})
+		"seal": EventText.seal(node["kind"]), "date": EventText.event_label(node), "paragraph": para})
 	return top + height
 
 

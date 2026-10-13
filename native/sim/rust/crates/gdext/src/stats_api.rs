@@ -240,6 +240,10 @@ impl SimWorld {
             row.set("name", &gs(&r.name));
             row.set("founded_year", r.founded_year as i32);
             row.set("fallen_year", r.fallen_year as i32);
+            row.set("founded_era", &gs(&r.founded_era));
+            row.set("founded_era_year", r.founded_era_year as i32);
+            row.set("fallen_era", &gs(&r.fallen_era));
+            row.set("fallen_era_year", r.fallen_era_year as i32);
             row.set("lasted_years", r.lasted_years as i32);
             row.set("evil", r.evil);
             row.set("province", r.province as i32);

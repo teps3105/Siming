@@ -152,10 +152,9 @@ static func _link(word: String, target: String) -> Dictionary:
 	return {"text": word, "target": target}
 
 
-## 年份：與現在不同紀元才帶紀元名。
-func _year_text(era: String, year: int) -> String:
-	var key := "sect_year_era" if era != _info["now_era"] else "sect_year"
-	return Locale.t(key).format({"E": era, "Y": str(year)})
+## 立派與覆滅的年份：紀元時間加世界時間，只到年。
+func _year_text(prefix: String) -> String:
+	return EventText.year_label(_info[prefix + "_era"], int(_info[prefix + "_year"]), int(_info[prefix + "_world_year"]))
 
 
 func _add_para(y: float, text: String, links: Array[Dictionary], width: float, size: int, color: Color) -> float:
@@ -253,7 +252,7 @@ func _compose() -> void:
 		height = _add_para(y, " · ".join(parts), head_links, sub_width, body, Ink.INK)
 	else:
 		# 覆滅年整段「覆滅 某紀元某年」不拆開：同一行放不下就整段換到第二行。
-		var fell := "%s %s" % [Locale.t("sect_fell"), _year_text(_info["fallen_era"], _info["fallen_year"])]
+		var fell := "%s %s" % [Locale.t("sect_fell"), _year_text("fallen")]
 		var whole := " · ".join(parts + [fell])
 		if Ink.text_size(whole, body).x <= sub_width:
 			height = _add_para(y, whole, head_links, sub_width, body, Ink.INK)
@@ -282,7 +281,7 @@ func _compose() -> void:
 	var facts: Array[String] = []
 	if alive:
 		facts.append("%s %d" % [Locale.t("sect_prestige"), int(round(float(_info["prestige"])))])
-	facts.append("%s %s" % [Locale.t("sect_founded"), _year_text(_info["founded_era"], _info["founded_year"])])
+	facts.append("%s %s" % [Locale.t("sect_founded"), _year_text("founded")])
 	if alive:
 		facts.append("%s %d" % [Locale.t("sect_members"), int(_info["member_count"])])
 	y += _add_para(y, " · ".join(facts), no_links, width, note, Ink.INK_LIGHT) + 6.0 * u
@@ -335,7 +334,6 @@ func _build_rows(list_width: float) -> void:
 		var empty := LedgerText.paragraph(Locale.t("sect_history_none"), [] as Array[Dictionary], list_width, note)
 		_rows.append({"kind": "note", "top": top, "height": float(empty["height"]) + ROW_GAP * u, "paragraph": empty})
 		top += float(empty["height"]) + ROW_GAP * u
-	var era_shown := ""
 	var self_target := "sect:%d" % sect
 	_history_covered = 0
 	_history_rows = 0
@@ -351,7 +349,6 @@ func _build_rows(list_width: float) -> void:
 			var leaders := _leaders_row(run, top, list_width, body, date_height)
 			_rows.append(leaders)
 			top += float(leaders["height"])
-			era_shown = run[-1]["era"]
 			_history_rows += 1
 			_history_covered += run.size()
 			continue
@@ -363,8 +360,7 @@ func _build_rows(list_width: float) -> void:
 			if link["target"] != self_target:
 				links.append(link)
 		var para := LedgerText.paragraph(EventText.history_line(entry, -1), links, list_width, body)
-		var date := EventText.history_date(entry, entry["era"] != era_shown)
-		era_shown = entry["era"]
+		var date := EventText.event_label(entry)
 		var height: float = date_height + float(para["height"]) + ROW_GAP * u
 		_rows.append({"kind": "event", "top": top, "height": height, "event": int(entry["id"]), "date": date, "seal": EventText.seal(entry["kind"]), "paragraph": para})
 		top += height
@@ -389,32 +385,23 @@ func _build_rows(list_width: float) -> void:
 	_rows_height = top
 
 
-## 一段連續繼位合成的「歷任掌門」列：「某某（264年–89年）、某某（89年起）」。起年遇到紀元不同才帶紀元名。
+## 一段連續繼位合成的「歷任掌門」列：「某某（常始紀元八二年（2310年）至常始紀元九三年（2321年））、某某（常始紀元九三年（2321年）起）」。
+## 起訖各自寫完整的日期（只到年）；每位掌門整段是一個 keep，放不下才在「至」前後折開，日期本身不拆。
 func _leaders_row(run: Array[Dictionary], top: float, list_width: float, body: int, date_height: float) -> Dictionary:
-	var names: Array[String] = []
 	var links: Array[Dictionary] = []
-	var era := ""
 	var texts: Array[String] = []
 	for i in run.size():
 		var entry: Dictionary = run[i]
-		var start := _short_year(entry, era)
-		era = entry["era"]
-		var tail := "起"
+		var span := EventText.event_year_inline(entry) + Locale.t("date_since")
 		if i + 1 < run.size():
-			tail = "–" + _short_year(run[i + 1], era)
-		texts.append("%s（%s%s）" % [entry["a"], start, tail])
+			span = EventText.event_year_inline(entry) + Locale.t("date_to") + EventText.event_year_inline(run[i + 1])
+		texts.append("%s（%s）" % [entry["a"], span])
 		links.append(_link(entry["a"], "person:%d" % int(entry["a_person"])))
 	var text := Locale.t("sect_list_sep").join(texts)
 	var para := LedgerText.paragraph(text, links, list_width, body, texts)
 	var height := date_height + float(para["height"]) + ROW_GAP * _unit
-	var span := Locale.t("sect_leaders_span").format({"N": str(run.size())})
-	return {"kind": "leaders", "top": top, "height": height, "seal": EventText.seal("Succession"), "date": span, "paragraph": para}
-
-
-## 年份短寫：與上一個紀元相同只寫「N年」，否則帶紀元名。
-func _short_year(entry: Dictionary, previous_era: String) -> String:
-	var key := "sect_year" if entry["era"] == previous_era else "sect_year_era"
-	return Locale.t(key).format({"E": entry["era"], "Y": str(entry["year"])})
+	var span_label := Locale.t("sect_leaders_span").format({"N": str(run.size())})
+	return {"kind": "leaders", "top": top, "height": height, "seal": EventText.seal("Succession"), "date": span_label, "paragraph": para}
 
 
 func _fixed_height() -> float:

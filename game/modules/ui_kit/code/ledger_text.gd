@@ -27,7 +27,7 @@ static func line_height(size: int) -> float:
 
 
 ## 折行並找出連結的範圍。links 每項有 text（要標成連結的字）與 target；各取第一次出現的位置。
-## 折行的最小單位（不拆開）：連續數字連同緊跟的量詞（「148年」）、行首禁用的標點連同前一個字、可點的連結名、
+## 折行的最小單位（不拆開）：連續數字連同緊跟的量詞（「148年」）、整段日期（紀元名、紀元年、世界年與月）、行首禁用的標點連同前一個字、可點的連結名、
 ## keep 裡指定的片段（呼叫端要整段不拆的，例如「姓名（起年–迄年）」）。單位放不下一行時依序放寬：先允許
 ## keep 與連結名內部折開但括號內仍不拆，再允許括號內折開（數字與量詞仍不拆），最後才逐字折。
 static func paragraph(text: String, links: Array[Dictionary], width: float, size: int, keep: Array[String] = []) -> Dictionary:
@@ -96,7 +96,7 @@ static func paragraph(text: String, links: Array[Dictionary], width: float, size
 	return {"lines": lines, "height": lines.size() * height, "size": size, "line_height": height, "hits": hits}
 
 
-## 三層「這個字黏在前一個字上」的標記：0 層最緊（含連結名與 keep 片段），1 層放開它們但括號內仍黏，2 層只留數字與標點。
+## 四層「這個字黏在前一個字上」的標記：0 層最緊（含連結名與 keep 片段），1 層放開它們但括號與整段日期仍黏，2 層只留日期的段落（紀元名、紀元年、世界年、月各自不拆），3 層只留數字與標點。
 static func _glue(text: String, found: Array[Vector2i], keep: Array[String]) -> Array[PackedByteArray]:
 	var count := text.length()
 	var basic := PackedByteArray()
@@ -104,7 +104,7 @@ static func _glue(text: String, found: Array[Vector2i], keep: Array[String]) -> 
 	for i in range(1, count):
 		var glyph := text[i]
 		var before := text[i - 1]
-		if NO_LINE_START.contains(glyph) or DASHES.contains(glyph):
+		if NO_LINE_START.contains(glyph) or DASHES.contains(glyph) or before == "（":
 			basic[i] = 1
 		elif DIGITS.contains(glyph) and DIGITS.contains(before):
 			basic[i] = 1
@@ -119,6 +119,11 @@ static func _glue(text: String, found: Array[Vector2i], keep: Array[String]) -> 
 			for j in range(open + 1, i + 1):
 				inner[j] = 1
 			open = -1
+	# 日期（「咸寧紀元 一二三年 (12356年) 六月」兩種寫法）整段不拆：與括號同一層放開，比一行寬才逐字折。
+	var date_spans := EventText.date_spans(text)
+	for span in date_spans:
+		for j in range(span.x + 1, span.y):
+			inner[j] = 1
 	var tight := inner.duplicate()
 	var spans: Array[Vector2i] = []
 	for span in found:
@@ -133,7 +138,13 @@ static func _glue(text: String, found: Array[Vector2i], keep: Array[String]) -> 
 	for span in spans:
 		for j in range(span.x + 1, span.y):
 			tight[j] = 1
-	return [tight, inner, basic]
+	# 日期比一行還寬時退一步：只在日期的段落之間折（紀元名｜紀元年｜（世界年）｜月），每一段仍不拆。
+	var parts := basic.duplicate()
+	for span in date_spans:
+		for j in range(span.x + 1, span.y):
+			if not (text[j - 1] == " " or "（(".contains(text[j]) or "）)".contains(text[j - 1])):
+				parts[j] = 1
+	return [tight, inner, parts, basic]
 
 
 ## 把 [from, to) 切成折行單位：依 level 層的標記切，切出來的單位仍比一行寬就換下一層再切。

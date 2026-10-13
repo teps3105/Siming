@@ -28,8 +28,6 @@ const STROKE_STEP := 3.0
 const STROKE_GAP := 4.0
 const PAD := 8.0
 ## 題簽的寬度按年幾位數、月幾位數的最寬日期預留；倍速的數字留幾位數的欄寬並靠右對齊。容器因此不隨內容變寬。
-const YEAR_DIGITS := 4
-const MONTH_DIGITS := 2
 const SPEED_DIGITS := 2
 const DATE_PAD := 12.0
 const PRESSED_PAUSE := 100
@@ -38,6 +36,15 @@ const KEY_GAP := 10.0
 ## 題簽右端的「冊」印邊長，與印、鍵右側的留白。
 const ALMANAC_SEAL := 20.0
 const ALMANAC_PAD := 6.0
+
+## 題簽縮字的下限（字級）。
+const MIN_DATE_SIZE := 11
+
+## 題簽右端最遠能到哪裡（畫面座標）：右邊的命簿攤開時，題簽不蓋到它；日期放不下就縮小字級。
+var max_right := 100000.0:
+	set(value):
+		max_right = value
+		queue_redraw()
 
 ## 目前的輸入裝置是否為搖桿（決定畫哪一種實體鍵圖像）。
 var gamepad := false:
@@ -219,17 +226,24 @@ static func _digit_width(size: int) -> float:
 	return widest
 
 
-## 最寬的日期佔多寬：紀元名四個字、年四位數、月兩位數。題簽的寬度以它為準，不隨當下的日期變。
+## 最寬的日期佔多寬：紀元名兩個字、紀元年四位、世界年六位、十二月。題簽的寬度以它為準，不隨當下的日期變。
 func _date_max_width() -> float:
+	return EventText.widest_label(_date_font_size())
+
+
+## 日期的字級：預設內文字級；最寬的日期放不下題簽（右邊要留給命簿）就一級一級縮小。
+func _date_font_size() -> int:
 	var size := Ink.font_size(Ink.SIZE_BODY, _unit)
-	var sample := "%s 年 月" % Locale.t("date_era_sample")
-	return Ink.text_size(sample, size).x + _digit_width(size) * (YEAR_DIGITS + MONTH_DIGITS)
+	var room := max_right - position.x - _slip_left() - DATE_PAD * 2.0 * _unit - _almanac_strip() * 2.0
+	while size > MIN_DATE_SIZE and EventText.widest_label(size) > room:
+		size -= 1
+	return size
 
 
 ## 日期文字畫在哪裡：整串在題簽裡置中。
 func _date_rect() -> Rect2:
 	var title := _title_rect()
-	var extent := Ink.text_size(_sim.world.date_short(), Ink.font_size(Ink.SIZE_BODY, _unit))
+	var extent := Ink.text_size(EventText.now_label(_sim.world), _date_font_size())
 	return Rect2(title.position + (title.size - extent) * 0.5, extent)
 
 
@@ -304,11 +318,11 @@ func _draw() -> void:
 	draw_line(center + needle * (SEAL_RADIUS + 1.0) * _unit, center + needle * (face - 1.0 * _unit), Ink.SEAL_RED, 2.5, true)
 
 	# 題簽：日期。
-	var date_size := Ink.font_size(Ink.SIZE_BODY, _unit)
+	var date_size := _date_font_size()
 	var title := _title_rect()
 	Ink.paper_slip(self, title)
 	# 整串日期在題簽裡置中。
-	Ink.text(self, _date_rect().position, _sim.world.date_short(), date_size)
+	Ink.text(self, _date_rect().position, EventText.now_label(_sim.world), date_size)
 	_draw_almanac_seal()
 
 	# 時速簽：狀態與暫停鍵；四筆由短到長，已達速度者濃墨；倍速與調速鍵。

@@ -144,7 +144,7 @@ static func _write(path: String, kind: String, slot: int, world: SimWorld) -> St
 		"kind": kind,
 		"slot": slot,
 		"name": options.get("name", ""),
-		"date": world.date_short(),
+		"date": EventText.now_label(world),
 		"tick": world.tick(),
 		"saved_at": Time.get_unix_time_from_system(),
 		"order": Time.get_ticks_usec(),

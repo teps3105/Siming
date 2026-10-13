@@ -229,7 +229,7 @@ func _reload() -> void:
 	_data.clear()
 	_pick = ""
 	_roster = {}
-	_date = _world().date_short()
+	_date = EventText.now_label(_world())
 	_sect_pos.clear()
 	_layout_body()
 	_left.scroll = 0.0
@@ -693,8 +693,8 @@ func _compose_sect(pen: AlmanacPen, width: float, d: Dictionary) -> float:
 			var target := "go:event:%d" % f["event"] if int(f["event"]) >= 0 else ""
 			frows.append({"cells": [
 				{"text": f["name"], "target": target, "color": Ink.SEAL_RED if f["evil"] else Ink.INK},
-				{"text": Locale.t("almanac_year_value").format({"n": f["founded_year"]})},
-				{"text": Locale.t("almanac_year_value").format({"n": f["fallen_year"]})},
+				{"text": EventText.year_label(f["founded_era"], int(f["founded_era_year"]), int(f["founded_year"]))},
+				{"text": EventText.year_label(f["fallen_era"], int(f["fallen_era_year"]), int(f["fallen_year"]))},
 				{"text": Locale.t("almanac_years_value").format({"n": f["lasted_years"]})},
 				{"text": Locale.t("almanac_cause_war") if f["cause_kind"] == "SectWar" else Locale.t("almanac_cause_scatter")},
 			]})
@@ -884,7 +884,7 @@ func _build_roster(target: String) -> void:
 				var event: Dictionary = w.event(id)
 				if event.is_empty():
 					continue
-				rows.append({"id": id, "line": EventText.line(event), "when": EventText.stamp(int(event.get("year", 0)), EventText.month_of(event))})
+				rows.append({"id": id, "line": EventText.line(event), "when": EventText.event_label(event)})
 			_roster = {"type": "event", "title": label, "total": r["total"], "rows": rows, "unit": Locale.t("almanac_unit_event")}
 		"sectcont":
 			var rows: Array = []

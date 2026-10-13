@@ -341,24 +341,15 @@ func test_history_sentences_drop_the_protagonist_and_date_the_era_once() -> void
 		await wait(0.5)
 		var card := _card()
 		var history: Array = EventText.fold_history(_sim.world.person_history(id))
-		var eras := 0
-		var previous_era := ""
-		var with_era := 0
 		for i in history.size():
 			var entry: Dictionary = history[i]
 			var sentence := EventText.history_line(entry, id)
 			assert_false(sentence.contains("{"), "沒有留下未填的模板：" + sentence)
 			assert_false(sentence.begins_with(own_name), "歷程不以主角自己的名字起句：" + sentence)
 			assert_false(sentence.contains("（") and entry["kind"] in ["Tribulation", "Breakthrough"], "歷程沒有境界括號：" + sentence)
-			if entry["era"] != previous_era:
-				eras += 1
-				previous_era = entry["era"]
-			if String(card._rows[i]["date"]).begins_with(String(entry["era"])):
-				with_era += 1
+			assert_eq(card._rows[i]["date"], EventText.event_label(entry), "每一列都寫完整的紀元時間加世界時間（含連續同一紀元）")
 			if entry["kind"] == "Tribulation" and entry["x"] == "Passed":
 				assert_true(sentence.contains(EventText.gain(int(entry["n"]))), "渡劫寫出成就的境界：" + sentence)
-		assert_eq(with_era, eras, "紀元名只在第一筆與換紀元時出現（%d 次）" % eras)
-		assert_true(String(card._rows[0]["date"]).begins_with(history[0]["era"]), "第一筆帶紀元名")
 
 
 func test_history_scrolls_with_the_wheel_to_the_end() -> void:

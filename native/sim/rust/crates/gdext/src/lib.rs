@@ -502,22 +502,20 @@ impl SimWorld {
         self.sim.as_ref().map_or(0, |s| s.world().tick as i64)
     }
 
-    /// GDD 2.6 曆法全稱。
+    /// 現在的日期各部分（GDD 2.6「日期顯示」）：`era`（紀元名，不含「紀元」二字）、`era_year`（紀元內第幾年）、
+    /// `world_year`（開天以來第幾年）、`month`（1..12）。文字由 GDScript 的 `EventText` 日期函式組產生。
     #[func]
-    fn date_text(&self) -> GString {
-        match self.sim.as_ref() {
-            Some(s) => GString::from(calendar::full(s.world().tick, s.world().evolution.history_years, &s.world().eras).as_str()),
-            None => GString::new(),
+    fn date_parts(&self) -> VarDictionary {
+        let mut d = VarDictionary::new();
+        if let Some(s) = self.sim.as_ref() {
+            let w = s.world();
+            let (era, year) = calendar::era_year(w.tick, w.evolution.history_years, &w.eras);
+            d.set("era", &GString::from(era.name.as_str()));
+            d.set("era_year", year as i32);
+            d.set("world_year", calendar::total_year(w.tick, w.evolution.history_years) as i32);
+            d.set("month", calendar::date(w.tick).month as i32);
         }
-    }
-
-    /// GDD 2.6 曆法簡稱（題簽用）。
-    #[func]
-    fn date_short(&self) -> GString {
-        match self.sim.as_ref() {
-            Some(s) => GString::from(calendar::era_date(s.world().tick, s.world().evolution.history_years, &s.world().eras).as_str()),
-            None => GString::new(),
-        }
+        d
     }
 
     /// GDD 2.8 寒暖與靈潮（天時儀的兩道弧）：`warmth`（−1..1）、`tide` 與下一世結算後的 `warmth_next`、`tide_next`；
@@ -1028,6 +1026,7 @@ impl SimWorld {
             let (era, year) = siming_sim::calendar::era_year(e.tick, w.evolution.history_years, &w.eras);
             d.set("era", &GString::from(era.name.as_str()));
             d.set("year", year as i32);
+            d.set("world_year", siming_sim::calendar::total_year(e.tick, w.evolution.history_years) as i32);
             d.set("month", siming_sim::calendar::date(e.tick).month as i32);
             set_day_and_cause(&mut d, e);
             out.push(&d);
@@ -1408,6 +1407,7 @@ impl SimWorld {
         let (date_era, year) = siming_sim::calendar::era_year(e.tick, w.evolution.history_years, &w.eras);
         d.set("date_era", &GString::from(date_era.name.as_str()));
         d.set("year", year as i32);
+        d.set("world_year", siming_sim::calendar::total_year(e.tick, w.evolution.history_years) as i32);
         d.set("month", siming_sim::calendar::date(e.tick).month as i32);
         set_day_and_cause(&mut d, e);
         // 可追對象：牽涉的人物與勢力編號（州郡編號為 province）。
