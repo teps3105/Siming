@@ -70,7 +70,7 @@ func test_importance_decides_slip_or_list_only() -> void:
 	assert_eq(_rumor.shown().size(), 1, "收合時只有重要度 3 以上")
 
 
-func test_slip_shows_eight_newest_first_and_list_keeps_fifty() -> void:
+func test_slip_shows_eight_newest_first_and_list_keeps_three_hundred() -> void:
 	await _boot(FLOW_VIEW)
 	for i in 12:
 		_post(_event("Killed", 3, 100 + i * 20, {"souls": PackedInt32Array([i])}))
@@ -80,10 +80,12 @@ func test_slip_shows_eight_newest_first_and_list_keeps_fifty() -> void:
 	assert_eq(shown[7]["tick"], 100 + 4 * 20)
 	_rumor.expanded = true
 	assert_eq(_rumor.shown().size(), 12, "展開看到全部")
-	for i in 60:
+	for i in 320:
 		_post(_event("Killed", 3, 1000 + i * 20, {"souls": PackedInt32Array([100 + i])}))
-	assert_eq(_rumor.entry_count(), 50, "清單只留近 50 則")
-	assert_eq(_rumor.shown()[0]["tick"], 1000 + 59 * 20, "最舊的被擠掉")
+	assert_eq(_rumor.entry_count(), 300, "清單留近 300 則")
+	assert_eq(_rumor.shown().size(), 300, "全螢幕列出保留的全部，沒有 50 則的上限")
+	assert_eq(_rumor.shown()[0]["tick"], 1000 + 319 * 20, "最舊的被擠掉")
+	assert_eq(_rumor.shown()[299]["tick"], 1000 + 20 * 20, "留下的最舊一則")
 
 
 func test_same_importance_orders_by_time_then_id() -> void:
@@ -180,7 +182,7 @@ func test_expanded_list_scrolls_with_the_wheel() -> void:
 		_post(_event("Killed", 3, 100 + i * 20, {"souls": PackedInt32Array([i])}))
 	_rumor.expanded = true
 	await frames(2)
-	assert_lt(_rumor.size.y, 1080.0, "展開清單不超過畫面")
+	assert_eq(_rumor.size, Vector2(tree.root.get_visible_rect().size), "全螢幕：控制項蓋滿畫面")
 	var rows := _rumor.visible_row_count()
 	assert_lt(rows, 30, "放不下的列要捲動")
 	var first_before: float = _rumor.row_rect(0).position.y
@@ -231,22 +233,27 @@ func test_slip_stays_off_the_other_instruments_on_deck() -> void:
 	await _check_no_overlap(DECK_VIEW)
 
 
-## 收合、命簿開著、展開、兩者並存四種狀態下，傳聞簽不壓到天時儀、題簽、視角鈕、印匣、命簿與引導簽。
+## 收合、命簿開著兩種狀態下，傳聞簽不壓到天時儀、題簽、視角鈕、印匣、命簿與引導簽；
+## 展開（全螢幕）時紙面四邊各留 24 × 介面縮放，其餘器物都在壓暗的底下。
 func _check_no_overlap(view: Vector2i) -> void:
 	await _boot(view)
 	for i in 10:
 		_post(_event("Killed", 3, 100 + i * 20, {"souls": PackedInt32Array([i]), "pos": Vector2(20.0, 20.0)}))
 	await frames(3)
-	for state in ["收合", "命簿開著", "展開", "命簿開著且展開"]:
-		_rumor.expanded = state.contains("展開")
+	var bounds := Rect2(Vector2.ZERO, Vector2(tree.root.get_visible_rect().size))
+	for state in ["收合", "命簿開著", "展開"]:
+		_rumor.expanded = state == "展開"
 		if state.contains("命簿"):
 			_hud._card.show_province(0)
 		else:
 			_hud._card.close()
 		await wait(0.5)
 		var mine: Rect2 = _rumor.occupied_rect()
-		var bounds := Rect2(Vector2.ZERO, Vector2(tree.root.get_visible_rect().size))
 		assert_true(bounds.encloses(mine), "%s %s：傳聞簽在畫面內 %s" % [view, state, mine])
+		if state == "展開":
+			var edge: float = 24.0 * _hud._unit
+			assert_true(_rumor.paper_rect().is_equal_approx(bounds.grow(-edge)), "%s：紙面四邊各留 24 × 縮放 %s" % [view, _rumor.paper_rect()])
+			continue
 		var others := {
 			"天時儀": Rect2(_hud._dial.position, Vector2.ONE * _hud._dial.outer_radius() * 2.0),
 			"題簽": _hud._dial._title_rect().grow(Ink.SLIP_BAND).merge(_hud._dial._speed_rect().grow(Ink.SLIP_BAND)),
@@ -269,10 +276,11 @@ func test_deck_layout_collapses_to_one_slip_and_keeps_text_readable() -> void:
 		_post(_event("Killed", 3, 100 + i * 20, {"souls": PackedInt32Array([i])}))
 	assert_eq(_rumor.shown().size(), 1, "Deck 收合為最新一張")
 	assert_eq(_rumor.shown()[0]["tick"], 180)
-	_rumor.expanded = true
-	assert_eq(_rumor.shown().size(), 5, "展開看到全部")
 	assert_lt(absf(_rumor.header_rect().size.y - RumorSlip.HEADER_HEIGHT * _hud._unit), 0.01, "尺寸乘縮放倍率")
 	assert_lt(absf(_rumor.row_rect(0).size.y - 32.0 * _hud._unit), 0.01, "每張高 32 乘倍率")
+	_rumor.expanded = true
+	assert_eq(_rumor.shown().size(), 5, "展開看到全部")
+	assert_lt(absf(_rumor.row_rect(0).size.y - RumorSlip.FULL_ROW_HEIGHT * _hud._unit), 0.01, "全螢幕每列高乘縮放倍率")
 
 
 func test_desktop_sizes_match_the_layout_table() -> void:
@@ -287,7 +295,8 @@ func test_desktop_sizes_match_the_layout_table() -> void:
 	assert_eq(_rumor.occupied_rect().end.x, bounds.x - 12.0, "右上角內縮 12")
 	assert_eq(_rumor.occupied_rect().position.y, 12.0)
 	_rumor.expanded = true
-	assert_eq(_rumor.header_rect().size.x, 430.0, "展開清單寬 430")
+	assert_eq(_rumor.paper_rect(), Rect2(24.0, 24.0, 1920.0 - 48.0, 1080.0 - 48.0), "展開是蓋滿畫面的一張紙，四邊各留 24")
+	assert_eq(_rumor.row_rect(0).size.y, RumorSlip.FULL_ROW_HEIGHT, "全螢幕每列高")
 
 
 func test_layout_scale_applies_to_the_slip() -> void:
@@ -297,3 +306,239 @@ func test_layout_scale_applies_to_the_slip() -> void:
 	await frames(3)
 	_rumor = _hud.rumor()
 	assert_eq(_rumor.header_rect().size.x, 555.0, "介面縮放 1.5 倍，寬 370 變 555")
+
+
+## 世界裡實際存在的前幾位人物編號（傳聞簽「看人物」要開得起來）。
+func _valid_people(count: int) -> Array[int]:
+	var out: Array[int] = []
+	var id := 0
+	while out.size() < count and id < 5000:
+		if not _sim.world.person(id).is_empty():
+			out.append(id)
+		id += 1
+	return out
+
+
+func test_fullscreen_covers_the_screen_pauses_time_and_restores_it() -> void:
+	await _boot(FLOW_VIEW)
+	_post(_event("Killed", 3, 100, {"souls": PackedInt32Array([1])}))
+	_sim.set_paused(false)
+	_sim.set_speed(1)
+	await key(KEY_T)
+	assert_true(_rumor.expanded, "T 展開")
+	assert_eq(_rumor.position, Vector2.ZERO, "控制項從畫面左上角起")
+	assert_eq(_rumor.size, Vector2(1920.0, 1080.0), "蓋滿畫面")
+	assert_true(_rumor._has_point(Vector2(2.0, 2.0)), "紙外的暗處也攔下輸入，地圖收不到")
+	assert_true(_sim.paused, "展開期間模擬暫停")
+	# 展開中換了介面縮放（器物重建）也不能把「展開前在跑」記成暫停。
+	GameSettings.set_value("ui_scale", 1.5)
+	_hud._layout()
+	await frames(3)
+	_rumor = _hud.rumor()
+	assert_true(_rumor.expanded, "重建後仍展開")
+	assert_true(_sim.paused)
+	await key(KEY_T)
+	assert_false(_rumor.expanded, "T 收合")
+	assert_false(_sim.paused, "展開前在跑，收合後回到在跑")
+	assert_eq(_sim.speed_index, 1, "速度不變")
+	# 展開前本來就暫停的，收合後仍暫停。
+	_sim.set_paused(true)
+	await key(KEY_T)
+	await key(KEY_T)
+	assert_true(_sim.paused, "展開前暫停，收合後仍暫停")
+
+
+func test_time_hotkeys_do_nothing_while_fullscreen() -> void:
+	await _boot(FLOW_VIEW)
+	_post(_event("Killed", 3, 100, {"souls": PackedInt32Array([1])}))
+	_rumor.expanded = true
+	await key(KEY_SPACE)
+	assert_true(_sim.paused, "全螢幕時空白鍵不解除暫停")
+	await key(KEY_TAB)
+	assert_true(_sim.paused, "Tab 不換速也不解除暫停")
+
+
+func test_clicking_the_dim_area_or_a_row_collapses_and_flies() -> void:
+	await _boot(FLOW_VIEW)
+	var target := Vector2(33.0, 21.0)
+	_post(_event("Killed", 3, 100, {"pos": target, "souls": PackedInt32Array([1])}))
+	_sim.set_paused(false)
+	_rumor.expanded = true
+	await frames(2)
+	await click(Vector2(6.0, 6.0))
+	assert_false(_rumor.expanded, "點紙外的暗處收合")
+	assert_false(_sim.paused, "收合回到展開前的行止")
+	_rumor.expanded = true
+	await frames(2)
+	await click(_rumor.position + _rumor.row_rect(0).get_center())
+	assert_false(_rumor.expanded, "點一則：收合")
+	assert_lt(_camera._target_focus.distance_to(target), 0.01, "並飛往該地")
+
+
+func test_arrow_keys_and_pages_scroll_the_list_not_the_map() -> void:
+	await _boot(FLOW_VIEW)
+	for i in 40:
+		_post(_event("Killed", 3, 100 + i * 20, {"souls": PackedInt32Array([i])}))
+	_rumor.expanded = true
+	await frames(3)
+	assert_gt(_rumor._max_scroll(), 0.0, "放不下的列要捲動")
+	var focus := _camera._target_focus
+	await key(KEY_DOWN)
+	assert_gt(_rumor._scroll, 0.0, "方向鍵下捲")
+	assert_eq(_camera._target_focus, focus, "方向鍵不平移地圖")
+	var before: float = _rumor._scroll
+	await key(KEY_PAGEDOWN)
+	assert_gt(_rumor._scroll, before + _rumor._view_rect().size.y * 0.5, "PageDown 捲近一頁")
+	before = _rumor._scroll
+	await key(KEY_PAGEUP)
+	assert_lt(_rumor._scroll, before, "PageUp 往回捲")
+	for i in 20:
+		await key(KEY_PAGEUP)
+	assert_eq(_rumor._scroll, 0.0, "捲到頂為止")
+	# 滑鼠停在清單下緣不會自己捲（邊緣自捲只給搖桿游標）。
+	_rumor._pointer = Vector2(960.0, _rumor._view_rect().end.y - 4.0)
+	await wait(0.4)
+	assert_eq(_rumor._scroll, 0.0, "鍵鼠不邊緣自捲")
+
+
+func test_filter_row_narrows_the_fullscreen_list_only() -> void:
+	await _boot(FLOW_VIEW)
+	_post(_event("Killed", 3, 100, {"souls": PackedInt32Array([1])}))
+	_post(_event("WorldChanged", 5, 90, {"change": "ColdBegan", "era": ""}))
+	_post(_event("PowerFounded", 3, 110, {"souls": PackedInt32Array([2])}))
+	_post(_event("DynastyFounded", 4, 120, {"souls": PackedInt32Array([3])}))
+	_post(_event("ThreadResolved", 4, 130, {"souls": PackedInt32Array([4]), "n": 1}))
+	assert_eq(RumorSlip.FILTERS, ["all", "world", "person", "sect", "dynasty", "karma"], "全部、大事、人物、宗門、王朝、宿緣")
+	_rumor.expanded = true
+	await frames(2)
+	assert_eq(_rumor.shown().size(), 5, "一開始是全部")
+	var labels: Array[String] = []
+	for i in RumorSlip.FILTERS.size():
+		labels.append(_rumor.filter_label(i))
+	assert_eq(labels, ["全部", "大事", "人物", "宗門", "王朝", "宿緣"])
+	await click(_rumor.position + _rumor.filter_rect(5).get_center())
+	assert_eq(_rumor.filter_index(), 5, "點宿緣")
+	assert_eq(_rumor.shown().size(), 1)
+	assert_eq(_rumor.shown()[0]["kind"], "ThreadResolved")
+	await key(KEY_LEFT)
+	assert_eq(_rumor.filter_index(), 4, "左鍵退一格")
+	assert_eq(_rumor.shown()[0]["kind"], "DynastyFounded")
+	await key(KEY_LEFT)
+	assert_eq(_rumor.shown()[0]["kind"], "PowerFounded", "宗門")
+	await key(KEY_LEFT)
+	assert_eq(_rumor.shown()[0]["kind"], "Killed", "人物")
+	await key(KEY_LEFT)
+	assert_true(_rumor.shown()[0]["world"], "大事")
+	await key(KEY_LEFT)
+	await key(KEY_LEFT)
+	assert_eq(_rumor.filter_index(), 0, "到頭為止，不繞回")
+	await key(KEY_RIGHT)
+	assert_eq(_rumor.filter_index(), 1, "右鍵進一格")
+	assert_eq(_rumor.shown().size(), 1)
+	# 篩選只影響全螢幕：收合的簽照舊，再展開從全部開始。
+	_rumor.expanded = false
+	assert_eq(_rumor.shown().size(), 5, "收合不受篩選影響")
+	_rumor.expanded = true
+	assert_eq(_rumor.filter_index(), 0, "再展開從全部開始")
+	assert_eq(_rumor.shown().size(), 5)
+
+
+func test_opening_a_card_collapses_the_fullscreen_list() -> void:
+	await _boot(FLOW_VIEW)
+	var people := _valid_people(1)
+	assert_eq(people.size(), 1, "世界裡有人")
+	_sim.set_paused(false)
+	_rumor.expanded = true
+	_hud.open_event(5)
+	assert_false(_rumor.expanded, "開事件卡即收合")
+	assert_false(_sim.paused, "收合回到展開前的行止")
+	_hud._close_cards()
+	_rumor.expanded = true
+	_hud.open_person(people[0])
+	assert_false(_rumor.expanded, "開人物卡即收合")
+	assert_true(_hud.person_card().is_open())
+	_hud._close_cards()
+	# 從「看人物」小印進去也一樣。
+	_post(_event("Killed", 3, 100, {"persons": PackedInt32Array([people[0]]), "a_person": people[0], "souls": PackedInt32Array([7])}))
+	_rumor.expanded = true
+	await frames(2)
+	await click(_rumor.position + _rumor.action_slots(0)["person"].get_center())
+	assert_true(_hud.person_card().is_open(), "點看人物開卡")
+	assert_false(_rumor.expanded, "開卡的同時全螢幕收合")
+
+
+func test_menu_opens_from_fullscreen_with_the_pause_state_before_the_list() -> void:
+	await _boot(FLOW_VIEW)
+	_sim.set_paused(false)
+	_rumor.expanded = true
+	_hud.open_menu()
+	assert_false(_rumor.expanded, "開選單先收合")
+	_hud.close_menu()
+	assert_false(_sim.paused, "關選單後回到展開前在跑")
+
+
+func test_fullscreen_fits_1920_at_scale_1() -> void:
+	await _check_fullscreen_fits(Vector2i(1920, 1080), 1.0)
+
+
+func test_fullscreen_fits_1920_at_scale_1_5() -> void:
+	await _check_fullscreen_fits(Vector2i(1920, 1080), 1.5)
+
+
+func test_fullscreen_fits_1280_at_scale_1() -> void:
+	await _check_fullscreen_fits(Vector2i(1280, 800), 1.0)
+
+
+func test_fullscreen_fits_1280_at_scale_1_5() -> void:
+	await _check_fullscreen_fits(Vector2i(1280, 800), 1.5)
+
+
+## 全螢幕時：紙面在畫面內、頁首篩選列與每一列都在紙面內、一句話放得進列裡，捲到頂、中段與底都一樣。
+func _check_fullscreen_fits(view: Vector2i, ui_scale: float) -> void:
+	GameSettings.set_value("ui_scale", ui_scale)
+	await _boot(view)
+	var people := _valid_people(3)
+	for i in 30:
+		_post(_event("Killed", 3, 100 + i * 20, {"souls": PackedInt32Array([i]), "pos": Vector2(20.0, 20.0), "a": "鶴微宗長老霍靜沉的弟子", "persons": PackedInt32Array([people[0]]), "a_person": people[0]}))
+	for i in 6:
+		_post(_event("Tribulation", 3, 900, {"souls": PackedInt32Array([50 + i]), "a": "霍靜沉%d" % i, "x": "Passed", "n": 2, "a_role": "Rogue", "a_realm": 1}))
+	_post(_event("WorldChanged", 5, 90, {"change": "ColdBegan", "era": "玄冥"}))
+	_rumor.expanded = true
+	await frames(3)
+	var unit: float = _hud._unit
+	var bounds := Rect2(Vector2.ZERO, Vector2(tree.root.get_visible_rect().size))
+	var tag := "%s 縮放 %s" % [view, ui_scale]
+	assert_eq(_rumor.size, bounds.size, "%s：蓋滿畫面" % tag)
+	var paper: Rect2 = _rumor.paper_rect()
+	assert_true(paper.is_equal_approx(bounds.grow(-24.0 * unit)), "%s：紙面四邊各留 24 × 縮放 %s" % [tag, paper])
+	assert_true(paper.encloses(_rumor.header_rect()), "%s：頁首在紙面內" % tag)
+	var last_end := -1.0e9
+	for i in RumorSlip.FILTERS.size():
+		var chip: Rect2 = _rumor.filter_rect(i)
+		assert_true(paper.encloses(chip), "%s：篩選 %d 在紙面內" % [tag, i])
+		assert_gt(chip.position.x, last_end - 0.01, "%s：篩選不互相壓住" % tag)
+		last_end = chip.end.x
+	var view_rect: Rect2 = _rumor._view_rect()
+	assert_true(paper.encloses(view_rect), "%s：清單在紙面內" % tag)
+	var max_scroll: float = _rumor._max_scroll()
+	assert_gt(max_scroll, 0.0, "%s：這些傳聞要捲動" % tag)
+	for scroll in [0.0, max_scroll * 0.5, max_scroll]:
+		_rumor._scroll = scroll
+		var seen := 0
+		for i in _rumor.shown().size():
+			var row: Rect2 = _rumor.row_rect(i)
+			if not view_rect.intersects(row):
+				continue
+			seen += 1
+			assert_gt(row.position.x, view_rect.position.x - 0.01, "%s：列不出清單左緣" % tag)
+			assert_lt(row.end.x, view_rect.end.x + 0.01, "%s：列不出清單右緣" % tag)
+			var room: Rect2 = _rumor.line_rect(i)
+			assert_true(row.encloses(room), "%s：一句話的範圍在列內" % tag)
+			assert_gt(room.size.x, 240.0 * unit, "%s：一句話有足夠的寬度" % tag)
+			assert_lt(Ink.text_size(_rumor.row_line(i), _rumor._font()).x, room.size.x + 0.5, "%s：一句話放得進列" % tag)
+			if _rumor.has_trace_slot(i):
+				assert_true(row.encloses(_rumor.action_slots(i)["trace"]), "%s：溯因印在列內" % tag)
+			if _rumor.has_person_slot(i):
+				assert_true(row.encloses(_rumor.action_slots(i)["person"]), "%s：看人物印在列內" % tag)
+		assert_gt(seen, 0, "%s：捲到 %s 看得到列" % [tag, scroll])
+		assert_true(bounds.encloses(_rumor.occupied_rect()))

@@ -21,7 +21,11 @@ var gamepad := false:
 		gamepad = value
 		queue_redraw()
 ## 卡片（含軸頭）最高能佔多少畫面高度；清單類的內容超過時改為可捲動。
-var max_height := 100000.0
+var max_height := 100000.0:
+	set(value):
+		if value != max_height:
+			max_height = value
+			_on_max_height_changed()
 
 var _world: SimWorld
 var _unit := 1.0
@@ -84,6 +88,11 @@ func _process(delta: float) -> void:
 	if _open <= 0.0:
 		visible = false
 	queue_redraw()
+
+
+## 子類別：卡高上限改變了。
+func _on_max_height_changed() -> void:
+	pass
 
 
 ## 子類別：關閉時清掉自己的目標（id）；內容字典留著給收卷動畫畫完。

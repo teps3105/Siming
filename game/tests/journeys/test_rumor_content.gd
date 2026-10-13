@@ -172,40 +172,94 @@ func test_routine_events_of_one_month_merge_into_one_statistic() -> void:
 	assert_eq(_rumor.shown()[0]["line"], "本月 2 人渡劫：2 人結成金丹")
 
 
-func test_opening_a_statistic_lists_everyone_one_line_each() -> void:
+func test_fullscreen_lists_every_statistic_open_one_line_each() -> void:
 	await _boot(FLOW_VIEW)
 	for i in 5:
 		_post(_trib(100, i, 2, "Passed", {"a_role": "Member", "a_power": "鶴微宗"}))
 	await frames(2)
 	assert_true(_rumor.is_group(_rumor.shown()[0]))
-	var closed_height := _rumor.size.y
+	assert_false(_rumor.is_open(0), "收合時名單不攤開")
 	_rumor.expanded = true
 	await frames(2)
-	await click(_rumor.position + _rumor.row_rect(0).get_center())
-	await frames(2)
-	assert_true(_rumor.is_open(0), "點統計攤開名單")
-	assert_gt(_rumor.size.y, closed_height, "攤開後器物變高")
+	assert_true(_rumor.is_open(0), "全螢幕的統計直接攤開名單，不必再點")
 	var members: Array = _rumor.shown()[0]["members"]
 	assert_eq(members.size(), 5, "名單人數與統計相符")
 	for j in members.size():
 		var rect := _rumor.member_rect(0, j)
-		assert_eq(rect.size.y, RumorSlip.MEMBER_HEIGHT, "名單每人一行")
+		assert_eq(rect.size.y, RumorSlip.FULL_MEMBER_HEIGHT, "名單每人一行")
 		assert_true(members[j]["who"].begins_with("鶴微宗弟子霍靜沉"), "每行有身分與姓名：" + members[j]["who"])
 		assert_eq(members[j]["what"], "結成金丹", "每行有結果")
 	assert_gt(_rumor.member_rect(0, 1).position.y, _rumor.member_rect(0, 0).position.y)
+	assert_eq(_rumor.row_rect(0).size.y, RumorSlip.FULL_ROW_HEIGHT, "全螢幕每列用內文字級的列高")
+	assert_eq(_rumor._font(), Ink.font_size(Ink.SIZE_BODY, _hud._unit), "字級用內文字級")
+	assert_true(_rumor.row_rect(0).size.x > 1500.0, "寬度用滿")
 	await click(_rumor.position + _rumor.row_rect(0).get_center())
-	assert_false(_rumor.is_open(0), "再點收起")
+	assert_true(_rumor.is_open(0), "點統計那一列不收起名單")
+	assert_true(_rumor.expanded, "也不收合全螢幕")
+	assert_false(_rumor.is_hot(_rumor.row_rect(0).get_center()), "統計列不是按鈕")
 
 
-func test_clicking_a_statistic_while_collapsed_opens_the_list() -> void:
+func test_every_event_kind_belongs_to_exactly_one_filter_class() -> void:
+	var seen := {}
+	for cls: String in EventText.FILTER_KINDS:
+		assert_true(cls in RumorSlip.FILTERS, "歸類名是篩選的一項：" + cls)
+		for kind: String in EventText.FILTER_KINDS[cls]:
+			assert_false(seen.has(kind), "%s 只屬一類（%s 與 %s）" % [kind, seen.get(kind, ""), cls])
+			seen[kind] = cls
+	var text := FileAccess.get_file_as_string("res://modules/locale/resources/ui.zh-Hant.json")
+	var table: Dictionary = JSON.parse_string(text)
+	var seals := 0
+	for key: String in table:
+		if key.begins_with("seal_") and key != "seal_unknown":
+			seals += 1
+			assert_true(seen.has(key.trim_prefix("seal_")), "有印的事件都有歸類：" + key)
+	assert_gt(seals, 40, "掃到的印夠多")
+	assert_eq(EventText.filter_of("WorldChanged"), "world", "世界大事歸大事")
+	assert_eq(EventText.filter_of("Killed"), "person")
+	assert_eq(EventText.filter_of("PowerFounded"), "sect")
+	assert_eq(EventText.filter_of("DynastyFounded"), "dynasty")
+	assert_eq(EventText.filter_of("ThreadResolved"), "karma")
+	assert_eq(EventText.filter_of("NoSuchKind"), "world", "沒歸類的退到大事，不會從全螢幕消失")
+
+
+func test_clicking_a_statistic_while_collapsed_opens_the_fullscreen_list_at_it() -> void:
 	await _boot(FLOW_VIEW)
+	for i in 6:
+		_post(_event("Killed", 3, 300 + i * 20, {"souls": PackedInt32Array([i])}))
+	# 重要度 2 的成婚統計只在全螢幕，把較舊的渡劫統計擠到畫面之外。
+	for month in 12:
+		for k in 3:
+			_post(_event("Married", 2, 600 + month, {"souls": PackedInt32Array([200 + month * 10 + k])}))
 	for i in 3:
 		_post(_trib(100, i, 2))
 	await frames(2)
 	assert_false(_rumor.expanded)
-	assert_eq(_rumor.shown().size(), 1, "重要度 3 的統計收合時也在")
-	await click(_rumor.position + _rumor.row_rect(0).get_center())
-	assert_true(_rumor.expanded and _rumor.is_open(0), "收合時點統計：展開清單並攤開這一則")
+	var index := -1
+	for i in _rumor.shown().size():
+		if _rumor.is_group(_rumor.shown()[i]):
+			index = i
+	assert_gt(index, -1, "重要度 3 的統計收合時也在")
+	_rumor.activate(index)
+	assert_true(_rumor.expanded, "收合時點統計：展開成全螢幕")
+	var at := -1
+	for i in _rumor.shown().size():
+		if _rumor.is_group(_rumor.shown()[i]) and _rumor.shown()[i]["tick"] == 100:
+			at = i
+	assert_gt(at, -1)
+	assert_true(_rumor.is_open(at), "並攤開這一則")
+	assert_gt(_rumor._max_scroll(), 0.0, "這份清單要捲動")
+	assert_true(_rumor._view_rect().intersects(_rumor.row_rect(at)), "捲到那一則")
+
+
+## 世界裡實際存在的前幾位人物編號。
+func _valid_people(count: int) -> Array[int]:
+	var out: Array[int] = []
+	var id := 0
+	while out.size() < count and id < 5000:
+		if not _sim.world.person(id).is_empty():
+			out.append(id)
+		id += 1
+	return out
 
 
 func test_abnormal_events_are_never_merged() -> void:
@@ -260,7 +314,16 @@ func test_omens_of_one_month_merge_too() -> void:
 	_rumor.expanded = true
 	var entries := _rumor.shown()
 	assert_eq(entries.size(), 2, "低境界的預兆合成一則，化神以上的各自成則")
-	assert_eq(entries[0]["line"] if _rumor.is_group(entries[0]) else entries[1]["line"], "本月 4 處山門劫雲將聚")
+	assert_eq(entries[0]["line"] if _rumor.is_group(entries[0]) else entries[1]["line"], "本月 4 人劫期將至，劫雲匯聚")
+
+
+func test_omen_names_a_sect_gate_only_for_sect_members() -> void:
+	var rogue := _event("TribulationOmen", 2, 100, {"a": "廖遠壯", "a_role": "Rogue", "a_realm": 3, "p": "青州"})
+	assert_eq(EventText.line(rogue), "散修廖遠壯（元嬰）劫期將至，青州上空劫雲匯聚", "散修沒有山門，寫所在州郡")
+	var leader := _event("TribulationOmen", 2, 100, {"a": "蔡舞虹", "a_role": "Leader", "a_power": "玄曦宗", "a_realm": 3, "p": "青州"})
+	assert_eq(EventText.line(leader), "玄曦宗掌門蔡舞虹（元嬰）劫期將至，玄曦宗山門上空劫雲匯聚", "宗門中人寫自家山門")
+	var nowhere := _event("TribulationOmen", 2, 100, {"a": "廖遠壯", "a_role": "Rogue", "a_realm": 3, "p": ""})
+	assert_false(EventText.line(nowhere).contains("山門"), "沒有州郡也不寫山門")
 
 
 func _died(tick: int, soul: int, cause: String, realm: int, extra := {}) -> Dictionary:
@@ -315,7 +378,8 @@ func test_person_slot_and_statistic_rows_open_the_person_card() -> void:
 	var flown: Array[Vector2] = []
 	_rumor.person_requested.connect(func(id: int) -> void: opened.append(id))
 	_rumor.fly_requested.connect(func(pos: Vector2) -> void: flown.append(pos))
-	_post(_event("Killed", 3, 100, {"persons": PackedInt32Array([4, 5]), "a_person": 4, "pos": Vector2(10.0, 10.0), "souls": PackedInt32Array([7])}))
+	var people := _valid_people(4)
+	_post(_event("Killed", 3, 100, {"persons": PackedInt32Array([people[0], 5]), "a_person": people[0], "pos": Vector2(10.0, 10.0), "souls": PackedInt32Array([7])}))
 	_rumor.expanded = true
 	await frames(2)
 	var index := 0
@@ -324,16 +388,16 @@ func test_person_slot_and_statistic_rows_open_the_person_card() -> void:
 	assert_true(_rumor.row_rect(index).encloses(slot), "入口在這一則的紙面內")
 	assert_true(slot.size.x >= RumorSlip.SLOT_WIDTH * _hud._unit - 0.1, "入口夠一顆小印大")
 	await click(_rumor.position + slot.get_center())
-	assert_eq(opened, [4], "點小印開這個人的卡")
+	assert_eq(opened, [people[0]], "點小印開這個人的卡")
 	assert_true(flown.is_empty(), "點小印不另外飛往")
-	assert_true(_rumor.expanded, "開卡後清單仍展開，可以接著看下一位")
+	assert_false(_rumor.expanded, "開人物卡即收合全螢幕，卡片與全螢幕紙不同時在畫面上")
 	# 點整則的空白處仍是飛往該地，並收起清單。
 	await click(_rumor.position + _rumor.row_rect(index).position + Vector2(_rumor.row_rect(index).size.x * 0.5, 4.0))
 	assert_eq(flown, [Vector2(10.0, 10.0)], "點空白處飛往")
 	# 統計名單每一行開那個人的卡。
 	_rumor.expanded = true
 	for i in 3:
-		_post(_died(120, 40 + i, "BreakthroughFailed", 2))
+		_post(_died(120, 40 + i, "BreakthroughFailed", 2, {"a_person": people[1 + i], "persons": PackedInt32Array([people[1 + i]])}))
 	await frames(2)
 	var group := -1
 	for i in _rumor.shown().size():
@@ -341,13 +405,12 @@ func test_person_slot_and_statistic_rows_open_the_person_card() -> void:
 			group = i
 	assert_gt(group, -1)
 	assert_false(_rumor.has_person_slot(group), "統計本身沒有看人物入口")
-	_rumor.toggle_group(group)
-	await frames(2)
+	assert_true(_rumor.is_open(group), "全螢幕的名單本來就攤開")
 	opened.clear()
 	var member: Dictionary = _rumor.shown()[group]["members"][1]
 	await click(_rumor.position + _rumor.member_rect(group, 1).get_center())
 	assert_eq(opened, [int(member["a_person"])], "點名單的一行開那個人的卡")
-	assert_true(_rumor.is_open(group), "名單仍攤開")
+	assert_false(_rumor.expanded, "開卡即收合")
 
 
 func test_tribulation_death_counts_once_in_the_death_statistic() -> void:

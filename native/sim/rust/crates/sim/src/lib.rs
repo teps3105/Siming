@@ -25,6 +25,7 @@ pub mod save;
 pub mod schedule;
 pub mod sim;
 pub mod soul;
+pub mod stats;
 pub mod thread;
 pub mod types;
 pub mod worldgen;

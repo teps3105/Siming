@@ -21,6 +21,7 @@ var _bolts: Array[Dictionary] = []
 var _outcome: Array[MeshInstance3D] = []
 var _seed := 0
 var _flash_peak := 0.0
+var _figure: FigureActor
 
 
 func setup(spec: Dictionary) -> void:
@@ -50,6 +51,29 @@ func setup(spec: Dictionary) -> void:
 		"color0": Color(1.0, 0.86, 0.55, 0.9), "color1": Color(1.0, 0.86, 0.55, 0.9), "master": 0.0}, true))
 	_build_bolts()
 	_build_outcome()
+	_build_figure()
+
+
+## 當事人立在事件所在格：樣子由人物編號（沒有就由奇觀種子）決定，橋接給得出的欄位（性別、年紀）照用。
+func _build_figure() -> void:
+	var person := int(item.get("person", -1))
+	_figure = FigureActor.new()
+	add_child(_figure)
+	_figure.setup(FigureActor.look_of(person if person >= 0 else _seed, item.get("given", {})))
+
+
+## 此刻小人該做的動作與動作內的時間：劫雲聚攏時迎雷，每道落雷各受雷一次，其餘站著。
+func figure_action(age: float) -> Dictionary:
+	if age < BOLT_START:
+		return {"action": "brace", "time": age}
+	var struck := _figure.action_length("struck") if _figure != null else 0.75
+	var latest := -1.0
+	for bolt: Dictionary in _bolts:
+		if float(bolt["time"]) <= age:
+			latest = float(bolt["time"])
+	if latest >= 0.0 and age - latest < struck:
+		return {"action": "struck", "time": age - latest}
+	return {"action": "stand", "time": age}
 
 
 func _build_bolts() -> void:
@@ -144,6 +168,10 @@ func tick(age: float, ctx: Dictionary) -> void:
 	for node in _outcome:
 		SpectacleKit.set_u(node, "age", age - OUTCOME_START)
 	_tick_bolts(age, s * CLOUD_HEIGHT / BOLT_NATIVE_HEIGHT)
+	if _figure != null and ctx.has("camera"):
+		var doing := figure_action(age)
+		_figure.play(str(doing["action"]), float(doing["time"]))
+		_figure.place(global_position, ctx["up"], ctx["camera"], float(ctx["u"]), bool(ctx.get("figure_hidden", false)))
 
 
 ## 各道雷打亮劫雲的強度：每道雷一閃（約 0.1 秒衰減），後面再一次較弱的回閃。

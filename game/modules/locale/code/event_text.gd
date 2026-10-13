@@ -13,6 +13,31 @@ const LEAD_KINDS := ["PowerFounded", "SectSplit", "Succession", "Usurpation", "D
 const DEATH_CAUSES := ["BreakthroughFailed", "Tribulation", "ShedBody", "Smite"]
 
 
+## 傳聞簽全螢幕的篩選歸類（5.7）：每個事件種類只屬一類。
+## 大事＝世界大事與天地之變（地形、洞天、天災、魔劫量劫、妖患）；人物＝一個人的生老病死與作為；
+## 宗門＝門派的創立、更替、爭鬥與覆滅（`Succession` 王朝與宗門共用同一代號，歸宗門）；
+## 王朝＝國家的立滅、戰事、政令與賑濟；宿緣＝宿緣的結下、將盡、了結與消散。
+const FILTER_KINDS := {
+	"world": ["WorldChanged", "NodeShifted", "ProvinceLost", "LandLinked", "SeatMoved", "ForestCleared", "Desertified", "BookEntry",
+		"Famine", "Plague", "BeastAwakened", "BeastRaid", "DemonDen", "CataclysmBegan", "CataclysmEnded", "HeavenWrath",
+		"KalpaOmen", "Kalpa", "LeyDamaged", "KalpaSettled"],
+	"person": ["Born", "ComeOfAge", "Married", "Died", "WraithBorn", "Breakthrough", "Tribulation", "TribulationOmen", "Ascended", "FellToDemon",
+		"FruitAttained", "Vow", "Nirvana", "Treatise", "GreatScholar", "Sage", "Killed", "Converted", "Rebirth", "Judged", "Traveled", "Remonstrance"],
+	"sect": ["PowerFounded", "Succession", "SectSplit", "SectWar", "PowerFallen"],
+	"dynasty": ["DynastyFounded", "Annexed", "WarDeclared", "Battle", "CityFell", "Massacre", "Rebellion", "Secession", "Usurpation", "CivilWar",
+		"CapitalMoved", "DynastyChanged", "DynastyCollapsed", "Peace", "Fengshan", "Relief", "Purge", "BanTao"],
+	"karma": ["Genesis", "ThreadCreated", "ThreadOmen", "ThreadResolved", "FeudEscalated", "ThreadFaded"],
+}
+
+
+## 事件種類的篩選歸類；沒歸類的退到「大事」，不會從全螢幕的清單消失。
+static func filter_of(kind: String) -> String:
+	for cls: String in FILTER_KINDS:
+		if kind in FILTER_KINDS[cls]:
+			return cls
+	return "world"
+
+
 ## 世界大事（WorldChanged）：事件代號 change 與開啟的紀元名 era。
 static func world_line(change: String, era: String) -> String:
 	var line := Locale.t("world_" + change)
@@ -237,9 +262,20 @@ static func _key(event: Dictionary) -> String:
 			if to < from:
 				return "event_NodeShifted_out" if to == 0 else "event_NodeShifted_down"
 			return "event_NodeShifted_up"
+	if kind == "TribulationOmen":
+		# 宗門中人的劫雲聚在自家山門；散修等沒有山門的寫所在州郡，連州郡都沒有就不寫地點。
+		if not _sect_of(event).is_empty():
+			return "event_TribulationOmen"
+		return "event_TribulationOmen_roam" if not String(event.get("p", "")).is_empty() else "event_TribulationOmen_bare"
 	if kind == "Succession" and String(event.get("x", "")) == "Dynasty":
 		return "event_Succession_dynasty"
 	return "event_" + kind
+
+
+## 主角所屬的宗門名；不是宗門中人（散修、僧、儒、君臣等）為空。
+static func _sect_of(event: Dictionary) -> String:
+	var code: String = event.get("a_role", "")
+	return event.get("a_power", "") if code == "Leader" or code == "Member" else ""
 
 
 ## 模板的填字表。
@@ -252,6 +288,7 @@ static func _params(event: Dictionary) -> Dictionary:
 		"G": event.get("g", ""),
 		"P": event.get("p", ""),
 		"Q": event.get("q", ""),
+		"S": _sect_of(event),
 		"X": _word(event),
 		"L": Locale.t("node_level_%d" % n),
 		"N": str(n),

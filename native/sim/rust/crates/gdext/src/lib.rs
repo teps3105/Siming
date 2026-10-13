@@ -4,6 +4,7 @@
 mod karma;
 mod mapbake;
 mod relief;
+mod stats_api;
 
 use std::sync::mpsc::{self, Receiver, TryRecvError};
 
