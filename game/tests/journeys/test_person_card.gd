@@ -174,7 +174,7 @@ func test_dead_person_card_shows_cause_and_age_at_death() -> void:
 	for row: Dictionary in _card()._rows:
 		assert_true(EventText.fold_history(_sim.world.person_history(dead)).size() == _card()._rows.size())
 	var last: Dictionary = _sim.world.person_history(dead)[-1]
-	assert_true(last["tick"] <= info["died_tick"], "歷程到死為止")
+	assert_true(last["tick"] <= info["died_tick"] or last["kind"] == "Judged", "歷程到死為止，死後只有魂的歸處")
 
 
 func test_clicking_a_name_in_the_history_opens_that_person_and_back_returns() -> void:

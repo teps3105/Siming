@@ -140,6 +140,9 @@ static func history_line(event: Dictionary, owner: int) -> String:
 	var subject := int(event.get("a_person", -1))
 	var own := subject == owner or subject < 0
 	var template := Locale.t(key + "_own") if own and Locale.has(key + "_own") else Locale.t(key)
+	# 師徒：事件的 A 是徒、B 是師；本人是師時寫「收某為徒」。
+	if key == "event_ThreadCreated_Mentor" and int(event.get("b_person", -1)) == owner and subject != owner:
+		template = Locale.t(key + "_master")
 	if template.begins_with("{I}") or template.begins_with("{A}"):
 		template = template.substr(3) if own else "{A}" + template.substr(3)
 	var tail_extra := ""
@@ -249,11 +252,24 @@ static func _key(event: Dictionary) -> String:
 	var x: String = event.get("x", "")
 	match kind:
 		"ComeOfAge":
-			return "event_ComeOfAge_" + ("join" if not String(event.get("f", "")).is_empty() else "self")
+			# 事件自己帶宗門才寫入某門；沒帶的依成了什麼身分寫（散修、未得入道、或僧儒魔等的「自行…」）。
+			if not String(event.get("f", "")).is_empty():
+				return "event_ComeOfAge_join"
+			match x:
+				"Cultivator":
+					return "event_ComeOfAge_rogue"
+				"Commoner":
+					return "event_ComeOfAge_commoner"
+			return "event_ComeOfAge_self"
 		"Tribulation", "Traveled", "LandLinked":
 			return "event_%s_%s" % [kind, x]
+		"ThreadCreated":
+			return "event_ThreadCreated_Mentor" if x == "Mentor" else "event_ThreadCreated"
+		"ThreadOmen", "FeudEscalated", "ThreadFaded":
+			# n 是這條緣跨了幾世：隔過世的是前世結下的緣。
+			return "event_%s_past" % kind if int(event.get("n", 0)) >= 1 else "event_" + kind
 		"ThreadResolved":
-			return "event_ThreadResolved" if int(event.get("n", 0)) >= 2 else "event_ThreadResolved_once"
+			return "event_ThreadResolved" if int(event.get("n", 0)) >= 1 else "event_ThreadResolved_once"
 		"ProvinceLost":
 			return "event_ProvinceLost" if not String(event.get("q", "")).is_empty() else "event_ProvinceLost_none"
 		"NodeShifted":
@@ -312,6 +328,8 @@ static func _result(event: Dictionary, params: Dictionary) -> String:
 		key = "result_Tribulation_Passed" if event.get("x", "") == "Passed" else ""
 	elif kind == "Died" and event.get("x", "") != "Age":
 		key = ""
+	elif kind == "ThreadCreated" and event.get("x", "") == "Mentor":
+		key = "result_ThreadCreated_Mentor"
 	if not key.is_empty() and Locale.has(key):
 		return Locale.t(key).format(params)
 	var template := Locale.t(_key(event)) if Locale.has(_key(event)) else ""
@@ -328,7 +346,7 @@ static func _word(event: Dictionary) -> String:
 			return Locale.t("realm_%d" % int(event.get("n", 0)))
 		"Tribulation":
 			return Locale.t("tribulation_%d" % int(event.get("n", 0)))
-		"ThreadCreated", "ThreadOmen", "ThreadResolved":
+		"ThreadCreated", "ThreadOmen", "ThreadResolved", "ThreadFaded", "FeudEscalated":
 			return Locale.t("thread_" + x)
 		"Judged":
 			return Locale.t("path_" + x)
