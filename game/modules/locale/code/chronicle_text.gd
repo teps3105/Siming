@@ -92,8 +92,7 @@ static func han(n: int) -> String:
 	return out
 
 
-## 年份：「咸寧紀元一二三年（12356年）」。紀元年逐位寫（零寫〇），括號內是開天以來的年數；每次都完整寫出，不省略紀元名。
-## 日期的字串只在這裡產生；世界年由 tick 與開局前的年數（compose 的 history）算出。
+## 紀元年逐位寫（零寫〇）。日期字串由 EventText 的共用函式產生；世界年由 tick 與開局前的年數（compose 的 history）算出。
 static func digits(n: int) -> String:
 	var out := ""
 	for ch in str(n):
@@ -106,11 +105,12 @@ func _world_year(tick: int) -> int:
 
 
 func _year_text(era: String, year: int, tick: int) -> String:
-	return "%s紀元%s年（%d年）" % [era, digits(year), _world_year(tick)]
+	return EventText.year_inline(era, year, _world_year(tick))
 
 
+## 年表列的日期（獨立一行的題簽寫法）。
 func _stamp(e: Dictionary) -> String:
-	return "%s%s月" % [_year_text(e["era"], int(e["year"]), int(e["tick"])), han(int(e["month"]))]
+	return EventText.date_label(e["era"], int(e["year"]), _world_year(int(e["tick"])), int(e["month"]))
 
 
 # ── 句型庫 ────────────────────────────────────────────────────
@@ -1184,7 +1184,7 @@ func timeline() -> Array[Dictionary]:
 	var units := _units()
 	var rows: Array[Dictionary] = []
 	if not _past.is_empty():
-		var stamp := "%s%s月" % [_year_text(_past["reborn_era"], int(_past["reborn_year"]), int(_past["reborn_tick"])), han(int(_past["reborn_month"]))]
+		var stamp := EventText.date_label(_past["reborn_era"], int(_past["reborn_year"]), _world_year(int(_past["reborn_tick"])), int(_past["reborn_month"]))
 		var clause := _past_clause(_past, false)
 		rows.append(_row(stamp, [clause], int(_past["id"])))
 	for u in units:

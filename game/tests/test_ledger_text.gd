@@ -20,7 +20,7 @@ func _joined(para: Dictionary) -> String:
 
 ## 每個寬度都掃一遍：任何折法下，數字加量詞都在同一行。
 func test_digits_and_quantifiers_never_split() -> void:
-	var text := "岳嶺（常始紀元82年–93年）、夏磊寒（93年–122年）、汪婷嬌（122年–148年）、胡震（148年–156年）、謝慎謐（156年–178年）"
+	var text := "岳嶺（2310年–2321年）、夏磊寒（2321年–2350年）、汪婷嬌（122年–148年）、胡震（148年–156年）、謝慎謐（156年–178年）"
 	for step in range(6, 60):
 		var width := _width("一二三四") * step * 0.25
 		var para := LedgerText.paragraph(text, NO_LINKS, width, SIZE)
@@ -50,9 +50,9 @@ func test_clickable_names_stay_on_one_line() -> void:
 
 
 func test_kept_pieces_wrap_as_a_whole_with_comma_at_line_end() -> void:
-	var pieces: Array[String] = ["岳嶺（常始紀元82年–93年）", "夏磊寒（93年–122年）", "汪婷嬌（122年–148年）"]
+	var pieces: Array[String] = ["岳嶺（常始紀元八二年（2310年）起）", "夏磊寒（常始紀元九三年（2321年）起）", "汪婷嬌（閉易紀元一二二年（2350年）起）"]
 	var text := "、".join(pieces)
-	var width := _width(pieces[0]) + _width("、") + 2.0
+	var width := _width(pieces[2]) + _width("、") + 2.0
 	var para := LedgerText.paragraph(text, NO_LINKS, width, SIZE, pieces)
 	assert_eq(_joined(para), text)
 	assert_eq(para["lines"].size(), 3, "每位各占一行：" + str(para["lines"]))
@@ -64,19 +64,39 @@ func test_kept_pieces_wrap_as_a_whole_with_comma_at_line_end() -> void:
 		assert_true(whole, "整位在同一行：" + piece)
 
 
-func test_oversize_piece_breaks_once_between_name_and_bracket() -> void:
-	var piece := "謝慎謐（常始紀元156年–閉易紀元178年）"
-	var width := _width("（常始紀元156年–閉易紀元178年）") + 4.0
-	var para := LedgerText.paragraph(piece, NO_LINKS, width, SIZE, [piece])
-	assert_eq(_joined(para), piece)
-	assert_eq(para["lines"][0], "謝慎謐", "只在姓名與括號之間折：" + str(para["lines"]))
-	assert_eq(para["lines"].size(), 2)
-	# 括號也放不下時，括號內才折，數字與量詞仍不拆。
-	var narrow := _width("謝慎謐（常始紀元156年")
-	var tight := LedgerText.paragraph(piece, NO_LINKS, narrow * 0.6, SIZE, [piece])
-	assert_eq(_joined(tight), piece)
-	for i in range(1, tight["lines"].size()):
-		assert_false("年".contains(tight["lines"][i][0]), "年不離開數字：" + str(tight["lines"]))
+func test_oversize_piece_breaks_around_dates_never_inside_them() -> void:
+	var date_a := EventText.year_inline("常始", 156, 2384)
+	var date_b := EventText.year_inline("閉易", 178, 2406)
+	var piece := "謝慎謐（%s至%s）" % [date_a, date_b]
+	# 整位放不下一行：只在姓名、日期與「至」之間折，兩個日期各自整段，左括號不留在行尾。
+	for step in range(0, 12):
+		var width := maxf(_width("（%s" % date_a), _width("至%s）" % date_b)) + _width("一") * step * 0.5
+		var para := LedgerText.paragraph(piece, NO_LINKS, width, SIZE, [piece])
+		assert_eq(_joined(para), piece)
+		for date in [date_a, date_b]:
+			var whole := false
+			for line: String in para["lines"]:
+				whole = whole or line.contains(date)
+			assert_true(whole, "日期整段在同一行（寬 %s）：%s／%s" % [width, date, str(para["lines"])])
+		for line: String in para["lines"]:
+			assert_false(line.ends_with("（"), "左括號不留在行尾：" + str(para["lines"]))
+
+
+## 日期（兩種寫法）比一行窄時，任何寬度下都整段在同一行；寬到放不下一整段才逐字折。
+func test_dates_never_split_in_either_style() -> void:
+	var inline_date := EventText.date_inline("咸寧", 123, 12356, 6)
+	var label_date := EventText.date_label("咸寧", 123, 12356, 6)
+	for date in [inline_date, label_date]:
+		var text := "據傳%s，某某壽終，同日還有一事" % date
+		var least := _width(date + "，")
+		for step in range(0, 40):
+			var width := least + _width("一") * step * 0.5
+			var para := LedgerText.paragraph(text, NO_LINKS, width, SIZE)
+			assert_eq(_joined(para), text, "折行不丟字")
+			var whole := false
+			for line: String in para["lines"]:
+				whole = whole or line.contains(date)
+			assert_true(whole, "日期整段在同一行（寬 %s）：%s" % [width, str(para["lines"])])
 
 
 func test_long_unbreakable_word_still_wraps_by_character() -> void:

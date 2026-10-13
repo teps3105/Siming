@@ -151,6 +151,18 @@ func _place_cards(bounds: Vector2) -> void:
 	_person_card.position = Vector2(bounds.x - _person_card.size.x - MARGIN, MARGIN)
 	_event_card.position = Vector2(bounds.x - _event_card.size.x - MARGIN, MARGIN)
 	_sect_card.position = Vector2(bounds.x - _sect_card.size.x - MARGIN, MARGIN)
+	# 題簽（日期最寬）不蓋到攤開的命簿：命簿最寬的那張決定題簽右端的上限。
+	var card_width := maxf(maxf(_card.size.x, _person_card.size.x), maxf(_event_card.size.x, _sect_card.size.x))
+	_dial.max_right = bounds.x - card_width - MARGIN * 2.0
+	_place_view()
+
+
+## 星球鈕在天時儀下面；題簽折成兩行變高時跟著下移。
+func _place_view() -> void:
+	if _view == null or _dial == null:
+		return
+	var under_dial := maxf(_dial.outer_radius() * 2.0, _dial._speed_rect().end.y + Ink.SLIP_BAND)
+	_view.position = _dial.position + Vector2(0.0, under_dial + 8.0 * _unit)
 
 
 ## 命簿（含軸頭）最高能到哪裡：印匣與例簽上緣之上一個間距。
@@ -261,8 +273,7 @@ func _build() -> void:
 	_view.setup(_unit)
 	_view.globe = _camera.globe
 	_view.toggled.connect(func() -> void: _camera.toggle_globe())
-	var under_dial := maxf(_dial.outer_radius() * 2.0, _dial._speed_rect().end.y + Ink.SLIP_BAND)
-	_view.position = _dial.position + Vector2(0.0, under_dial + 8.0 * _unit)
+	_place_view()
 
 	_guide = GuideSlip.new()
 	add_child(_guide)
@@ -385,6 +396,7 @@ func _place_rumor() -> void:
 	var bounds := get_viewport().get_visible_rect().size
 	var open_card := _open_card()
 	var right := open_card.position.x - MARGIN if open_card != null else bounds.x - MARGIN
+	_rumor.max_width = maxf(right - MARGIN, 0.0)
 	var width := _rumor.size.x - RumorSlip.SHADOW * 2.0
 	var dial_right := _dial.position.x + maxf(_dial._title_rect().end.x, _dial._speed_rect().end.x) + Ink.SLIP_BAND
 	var y := MARGIN

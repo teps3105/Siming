@@ -400,7 +400,7 @@ func test_timeline_dates_are_double_dated() -> void:
 		for row: Dictionary in rows:
 			assert_false(String(row["text"]).contains("{"), "沒有留下未填的模板：" + row["text"])
 			assert_true(String(row["date"]).ends_with("月"), "年月到月：" + row["date"])
-			assert_true(String(row["date"]).contains("紀元") and String(row["date"]).contains("年（"), "年月雙表：" + row["date"])
+			assert_true(String(row["date"]).contains("紀元") and String(row["date"]).contains("年 ("), "年月雙表：" + row["date"])
 		card.toggle_timeline()
 
 

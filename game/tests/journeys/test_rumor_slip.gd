@@ -283,12 +283,30 @@ func test_deck_layout_collapses_to_one_slip_and_keeps_text_readable() -> void:
 	assert_lt(absf(_rumor.row_rect(0).size.y - RumorSlip.FULL_ROW_HEIGHT * _hud._unit), 0.01, "全螢幕每列高乘縮放倍率")
 
 
+## 收合的簽：句子與年月同一行放不下時，年月移到第二行（列加高），句子取全寬；放得下仍是單行。
+func test_collapsed_slip_moves_the_date_to_a_second_line_only_when_it_must() -> void:
+	await _boot(DECK_VIEW)
+	_post(_event("Killed", 3, 100, {"a": "沈", "b": "韓", "p": "青"}))
+	await frames(2)
+	var short_row := _rumor.row_rect(0)
+	assert_lt(absf(short_row.size.y - 32.0 * _hud._unit), 0.01, "短句單行，列高不變")
+	var long_a := "沈青霜青霜青霜青霜青霜青霜青霜"
+	_post(_event("Killed", 3, 400, {"a": long_a, "b": "韓烈韓烈韓烈韓烈韓烈", "p": "青州青州青州青州"}))
+	await frames(2)
+	var row := _rumor.row_rect(0)
+	assert_gt(row.size.y, 32.0 * _hud._unit + 1.0, "長句的列加高一行")
+	var line := _rumor.line_rect(0)
+	assert_gt(line.size.x, short_row.size.x * 0.5, "句子取全寬")
+	assert_lt(line.size.y, row.size.y, "句子在第一行")
+	assert_true(_rumor.get_rect().size.y >= row.size.y, "簽高容得下加高的列")
+
+
 func test_desktop_sizes_match_the_layout_table() -> void:
 	await _boot(FLOW_VIEW)
 	_post(_event("Killed", 3, 100))
 	_post(_event("Killed", 3, 120, {"souls": PackedInt32Array([1])}))
 	await frames(2)
-	assert_eq(_rumor.header_rect().size.x, 370.0, "傳聞簽寬 370")
+	assert_eq(_rumor.header_rect().size.x, 520.0, "傳聞簽寬 520")
 	assert_eq(_rumor.row_rect(0).size.y, 32.0, "每張高 32")
 	assert_eq(_rumor.row_rect(1).position.y - _rumor.row_rect(0).end.y, 5.0, "間距 5")
 	var bounds := Vector2(tree.root.get_visible_rect().size)
@@ -305,7 +323,7 @@ func test_layout_scale_applies_to_the_slip() -> void:
 	_hud._layout()
 	await frames(3)
 	_rumor = _hud.rumor()
-	assert_eq(_rumor.header_rect().size.x, 555.0, "介面縮放 1.5 倍，寬 370 變 555")
+	assert_eq(_rumor.header_rect().size.x, 780.0, "介面縮放 1.5 倍，寬 520 變 780")
 
 
 ## 世界裡實際存在的前幾位人物編號（傳聞簽「看人物」要開得起來）。

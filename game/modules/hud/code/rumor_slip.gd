@@ -19,7 +19,8 @@ signal trace_requested(event: int)
 ## 全螢幕展開或收合了（Hud 據此暫停與復原時間、讓鏡頭讓出畫面）。
 signal fullscreen_changed(on: bool)
 
-const WIDTH := 370.0
+## 收合時簽的寬：每筆帶「紀元名＋年＋（世界年）＋月」的日期（約 250 單位），句子才有地方放。
+const WIDTH := 520.0
 const ITEM_HEIGHT := 32.0
 const ITEM_GAP := 5.0
 const HEADER_HEIGHT := 26.0
@@ -128,6 +129,13 @@ var max_height := 600.0:
 		max_height = value
 		_refit()
 
+## 收合時簽最寬能多寬（畫面上簽左邊與別的器物之間的空）；比 WIDTH 窄就縮窄，不出畫面。
+var max_width := 100000.0:
+	set(value):
+		max_width = value
+		_shown_valid = false
+		_refit()
+
 var _unit := 1.0
 ## 逐筆事件，依到達順序，新的在後。
 var _records: Array[Dictionary] = []
@@ -174,6 +182,7 @@ func post(event: Dictionary) -> bool:
 		"kind": event["kind"],
 		"tick": event["tick"],
 		"year": event.get("year", 0),
+		"world_year": event.get("world_year", 0),
 		"era": event.get("date_era", ""),
 		"month": EventText.month_of(event),
 		"importance": importance,
@@ -373,6 +382,7 @@ func _make_group(gkey: String, members: Array) -> Dictionary:
 		"kind": first["kind"],
 		"tick": first["tick"],
 		"year": first["year"],
+		"world_year": first["world_year"],
 		"era": first["era"],
 		"month": first["month"],
 		"importance": importance,
@@ -476,7 +486,7 @@ func _layout() -> void:
 	var y := 0.0
 	for i in _shown_cache.size():
 		_tops[i] = y
-		y += _row_height()
+		y += _row_height_of(_shown_cache[i])
 		if _is_open(_shown_cache[i]):
 			y += _member_gap() + _shown_cache[i]["members"].size() * (_member_height() + _member_gap()) - _member_gap()
 		y += _gap()
@@ -507,7 +517,7 @@ func is_open(index: int) -> bool:
 
 
 func _stamp(entry: Dictionary) -> String:
-	return EventText.era_stamp(entry.get("era", ""), int(entry.get("year", 0)), int(entry["month"]))
+	return EventText.date_label(entry.get("era", ""), int(entry.get("year", 0)), int(entry.get("world_year", 0)), int(entry["month"]))
 
 
 func _queue_refit() -> void:
@@ -524,7 +534,7 @@ func _refit_now() -> void:
 
 ## 收合時簽的寬。
 func _width() -> float:
-	return WIDTH * _unit
+	return minf(WIDTH * _unit, max_width)
 
 
 ## 字級：收合時用註記字級，全螢幕用內文字級。
@@ -534,6 +544,37 @@ func _font() -> int:
 
 func _row_height() -> float:
 	return (FULL_ROW_HEIGHT if expanded else ITEM_HEIGHT) * _unit
+
+
+## 收合時這一則的列高：那句話與年月放不進一行時，年月移到第二行，列加高一行。
+func _row_height_of(entry: Dictionary) -> float:
+	if not _stacked(entry):
+		return _row_height()
+	return _row_height() + Ink.text_size(_stamp(entry), _font()).y + 4.0 * _unit
+
+
+## 收合時那句話最完整的樣子與年月是否擠不進同一行。
+func _stacked(entry: Dictionary) -> bool:
+	if expanded or entry["variants"].is_empty():
+		return false
+	var first: Array = entry["variants"][0]
+	return Ink.text_size(String(first[0]) + String(first[1]), _font()).x > _line_room(entry, false)
+
+
+## 收合時那句話在單行（連年月）或獨佔一行時可用的寬。
+func _line_room(entry: Dictionary, stacked: bool) -> float:
+	var seal_w := SEAL_WIDTH * _unit
+	var room := _width() - PAD * 2.0 * _unit - seal_w - 8.0 * _unit - 8.0 * _unit
+	if not stacked:
+		room -= Ink.text_size(_stamp(entry), _font()).x
+	if not String(entry["reason"]).is_empty():
+		room -= 6.0 * _unit + _mark_size().x
+	return room
+
+
+## 收合時第一行（那句話所在）的高。
+func _band_height() -> float:
+	return _row_height()
 
 
 func _gap() -> float:
@@ -663,7 +704,8 @@ func row_rect(index: int) -> Rect2:
 	var view := _view_rect()
 	shown()
 	var top := _tops[index] if index < _tops.size() else 0.0
-	return Rect2(view.position + Vector2(0.0, top - _scroll), Vector2(view.size.x, _row_height()))
+	var height := _row_height_of(_shown_cache[index]) if index < _shown_cache.size() else _row_height()
+	return Rect2(view.position + Vector2(0.0, top - _scroll), Vector2(view.size.x, height))
 
 
 ## 第 index 張統計攤開後的第 member 行（控制項座標）；全螢幕時縮進在該列的印之下。
@@ -705,11 +747,11 @@ func action_slots(index: int) -> Dictionary:
 	var width := maxf(SLOT_WIDTH * _unit, Ink.text_size(Locale.t("rumor_person"), font).x + 12.0 * _unit)
 	var gap := SLOT_GAP * _unit
 	var right := row.end.x - PAD * _unit - _stamp_reserve()
-	var person := Rect2(Vector2(right - width, row.position.y + 3.0 * _unit), Vector2(width, row.size.y - 6.0 * _unit))
+	var person := Rect2(Vector2(right - width, row.position.y + 3.0 * _unit), Vector2(width, _band_height() - 6.0 * _unit))
 	var trace_x := person.position.x - gap - SLOT_WIDTH * _unit if has_person_slot(index) else right - SLOT_WIDTH * _unit
-	var trace := Rect2(Vector2(trace_x, row.position.y + 3.0 * _unit), Vector2(SLOT_WIDTH * _unit, row.size.y - 6.0 * _unit))
+	var trace := Rect2(Vector2(trace_x, row.position.y + 3.0 * _unit), Vector2(SLOT_WIDTH * _unit, _band_height() - 6.0 * _unit))
 	var sect_width := maxf(SLOT_WIDTH * _unit, Ink.text_size(Locale.t("rumor_sect"), font).x + 12.0 * _unit)
-	var sect := Rect2(Vector2(trace.position.x - gap - sect_width, row.position.y + 3.0 * _unit), Vector2(sect_width, row.size.y - 6.0 * _unit))
+	var sect := Rect2(Vector2(trace.position.x - gap - sect_width, row.position.y + 3.0 * _unit), Vector2(sect_width, _band_height() - 6.0 * _unit))
 	return {"person": person, "trace": trace, "sect": sect}
 
 
@@ -746,12 +788,12 @@ func line_rect(index: int) -> Rect2:
 	var right := row.end.x - PAD * _unit
 	if expanded:
 		right -= _stamp_reserve()
-	else:
+	elif not _stacked(entry):
 		right -= Ink.text_size(_stamp(entry), _font()).x
 	if not String(entry["reason"]).is_empty():
 		right -= 6.0 * _unit + _mark_size().x
 	right -= 8.0 * _unit
-	return Rect2(Vector2(left, row.position.y), Vector2(maxf(right - left, 0.0), row.size.y))
+	return Rect2(Vector2(left, row.position.y), Vector2(maxf(right - left, 0.0), row.size.y if expanded else _band_height()))
 
 
 ## 第 index 張那句話依空間縮到放得進的樣子。
@@ -1033,11 +1075,18 @@ func _draw_row(entry: Dictionary, rect: Rect2, index: int, note: int) -> void:
 	var right := slid.end.x - PAD * _unit
 	var tail := ""
 	var key := ""
+	# 收合且年月擠不進同一行：第一行只放那句話，年月在第二行靠右。
+	var stacked := _stacked(entry)
+	var band := _band_height() if stacked else slid.size.y
+	if stacked:
+		var second := _stamp(entry)
+		var second_size := Ink.text_size(second, note)
+		Ink.text(self, Vector2(slid.end.x - PAD * _unit - second_size.x, slid.position.y + band + (slid.size.y - band - second_size.y) * 0.5), second, note, Color(Ink.INK_LIGHT, fade))
 	if full:
 		# 全螢幕：年月欄固定在最右，入口與「飛往」排在它左邊。
 		var stamp := _stamp(entry)
 		var stamp_size := Ink.text_size(stamp, note)
-		Ink.text(self, Vector2(right - stamp_size.x, slid.position.y + (slid.size.y - stamp_size.y) * 0.5), stamp, note, Color(Ink.INK_LIGHT, fade))
+		Ink.text(self, Vector2(right - stamp_size.x, slid.position.y + (band - stamp_size.y) * 0.5), stamp, note, Color(Ink.INK_LIGHT, fade))
 		right -= _stamp_reserve()
 	if hot and has_person_slot(index):
 		# 最右一顆「看人物」小印，其餘靠左讓出位置。
@@ -1082,21 +1131,21 @@ func _draw_row(entry: Dictionary, rect: Rect2, index: int, note: int) -> void:
 	elif slot_hot or trace_hot or sect_hot:
 		# 游標在小印上：年月讓位，把寬度留給那句話。
 		tail = ""
-	else:
+	elif not stacked:
 		tail = _stamp(entry)
 	var key_width := Ink.key_glyph_width(key, _unit)
 	if not key.is_empty():
 		right -= key_width
-		Ink.key_glyph(self, Vector2(right, slid.position.y + (slid.size.y - Ink.KEY_HEIGHT * _unit) * 0.5), key, _unit)
+		Ink.key_glyph(self, Vector2(right, slid.position.y + (band - Ink.KEY_HEIGHT * _unit) * 0.5), key, _unit)
 		right -= 4.0 * _unit
 	var tail_size := Ink.text_size(tail, note)
 	right -= tail_size.x
-	Ink.text(self, Vector2(right, slid.position.y + (slid.size.y - tail_size.y) * 0.5), tail, note, Color(Ink.SEAL_RED if hot and clickable else Ink.INK_LIGHT, fade))
+	Ink.text(self, Vector2(right, slid.position.y + (band - tail_size.y) * 0.5), tail, note, Color(Ink.SEAL_RED if hot and clickable else Ink.INK_LIGHT, fade))
 	# 原因標記：小方框二字，至多一個。
 	var reason: String = entry["reason"]
 	if not reason.is_empty():
 		var mark := _mark_size()
-		var mark_rect := Rect2(Vector2(right - 6.0 * _unit - mark.x, slid.position.y + (slid.size.y - mark.y) * 0.5), mark)
+		var mark_rect := Rect2(Vector2(right - 6.0 * _unit - mark.x, slid.position.y + (band - mark.y) * 0.5), mark)
 		var mark_color := Color(Ink.SILK if reason == "world" else Ink.SEAL_RED, fade)
 		var mark_text := Locale.t("reason_" + reason)
 		draw_rect(mark_rect, mark_color, false, 1.0)
@@ -1105,7 +1154,7 @@ func _draw_row(entry: Dictionary, rect: Rect2, index: int, note: int) -> void:
 	# 一句話：依空間由全到簡，結果不被截。
 	var text_x := seal_rect.end.x + 8.0 * _unit
 	var line := fit_variants(entry["variants"], right - 8.0 * _unit - text_x, note)
-	Ink.text(self, Vector2(text_x, slid.position.y + (slid.size.y - Ink.text_size(line, note).y) * 0.5), line, note, Color(inked, fade))
+	Ink.text(self, Vector2(text_x, slid.position.y + (band - Ink.text_size(line, note).y) * 0.5), line, note, Color(inked, fade))
 
 
 ## 攤開的名單一行：身分與姓名，空一格接結果。

@@ -110,16 +110,17 @@ func test_date_uses_the_era_form_with_arabic_numerals() -> void:
 	world.step(22)
 	# 世界生成後已預跑一段時間；月份由 tick 換算（tick 1 是 1月）。
 	var months := (world.tick() - 1) / 30
-	var date := world.date_short()
-	var parts := date.split(" ")
-	assert_eq(parts.size(), 3, "日期是「某某紀元 N年 M月」：%s" % date)
-	assert_true(parts[0].ends_with("紀元") and parts[0].length() == 4, "紀元名是兩個字加「紀元」：%s" % parts[0])
-	assert_true(parts[1].ends_with("年") and parts[1].trim_suffix("年").is_valid_int(), "年是阿拉伯數字：%s" % parts[1])
-	assert_eq(parts[2], "%d月" % (months % 12 + 1))
-	# 開天就是第 0 年，沒有開局前的歷史；題簽的「開天以來第 N 年」等於預跑年數加上之後的年數。
+	var parts := world.date_parts()
+	assert_eq(String(parts["era"]).length(), 2, "紀元名是兩個字：%s" % parts["era"])
+	assert_gt(parts["era_year"], 0, "紀元內的年份從 1 起算")
+	assert_eq(parts["month"], months % 12 + 1)
+	# 開天就是第 0 年，沒有開局前的歷史；世界年（開天以來第幾年）等於預跑年數加上之後的年數。
 	var history := world.history_years()
 	assert_eq(history, 0, "開天沒有開局前的歷史")
-	assert_eq(world.date_text(), "%s（開天以來第 %d 年）" % [date, history + months / 12 + 1])
+	assert_eq(parts["world_year"], history + months / 12 + 1)
+	var label := EventText.now_label(world)
+	assert_eq(label, EventText.date_label(parts["era"], parts["era_year"], parts["world_year"], parts["month"]))
+	assert_true(label.contains("紀元 ") and label.contains(" (%d年) " % parts["world_year"]), "題簽寫紀元時間加世界時間：%s" % label)
 
 
 func test_gdd_5_3_range_label_paths_stay_on_land() -> void:
@@ -264,7 +265,7 @@ func test_gdd_4_8_save_text_loads_back_in_steps_to_the_same_date() -> void:
 	assert_gt(rounds, 2, "30 個月每次 8 個，分好幾段")
 	assert_true(loaded.is_ready())
 	assert_eq(loaded.tick(), source.tick())
-	assert_eq(loaded.date_text(), source.date_text())
+	assert_eq(loaded.date_parts(), source.date_parts())
 	assert_eq(loaded.save_text(), text, "讀回來再存，內容相同")
 
 
@@ -367,7 +368,7 @@ func test_gdd_2_8_world_changes_come_out_of_the_event_queue_with_their_era() -> 
 		if event["era"] != "":
 			opened += 1
 	assert_gt(opened, 0, "六十世裡應有改元")
-	assert_true(world.date_short().begins_with(changes.filter(func(e: Dictionary) -> bool: return e["era"] != "")[-1]["era"]), "題簽的紀元應是最後一次改元的名字")
+	assert_eq(world.date_parts()["era"], changes.filter(func(e: Dictionary) -> bool: return e["era"] != "")[-1]["era"], "題簽的紀元應是最後一次改元的名字")
 
 
 func _label_lines(world: SimWorld) -> Array[String]:
@@ -423,7 +424,7 @@ func test_gdd_6_4_events_carry_what_the_templates_need() -> void:
 	for step in 40:
 		world.step(120)
 		for event: Dictionary in world.drain_events():
-			for key in ["id", "tick", "kind", "importance", "province", "cell", "souls", "a", "b", "f", "g", "p", "q", "x", "n", "m", "year", "month", "persons", "powers", "a_power", "a_role", "a_realm"]:
+			for key in ["id", "tick", "kind", "importance", "province", "cell", "souls", "a", "b", "f", "g", "p", "q", "x", "n", "m", "year", "world_year", "month", "persons", "powers", "a_power", "a_role", "a_realm"]:
 				assert_true(event.has(key), "事件帶有「%s」" % key)
 			assert_true(event["souls"] is PackedInt32Array)
 			assert_true(event["persons"] is PackedInt32Array and event["powers"] is PackedInt32Array, "人物與勢力編號")
@@ -662,7 +663,7 @@ func test_gdd_5_8_person_history_is_ordered_and_matches_the_ledger() -> void:
 		var last_tick := -1
 		var last_id := -1
 		for entry: Dictionary in history:
-			for key in ["id", "tick", "kind", "importance", "province", "era", "year", "month", "a", "b", "f", "g", "p", "q", "x", "n", "m", "a_person", "b_person", "q_province"]:
+			for key in ["id", "tick", "kind", "importance", "province", "era", "year", "world_year", "month", "a", "b", "f", "g", "p", "q", "x", "n", "m", "a_person", "b_person", "q_province"]:
 				assert_true(entry.has(key), "歷程帶有「%s」" % key)
 			assert_true(entry["tick"] >= last_tick, "由舊到新")
 			if entry["tick"] == last_tick:
@@ -880,7 +881,7 @@ func test_gdd_5_8_sect_card_fields_agree_with_the_sect_list() -> void:
 		var sect := world.sect(row["id"])
 		for key in ["id", "name", "evil", "alive", "province", "province_name", "pos", "node", "radius", "range", "prestige", "leader", "leader_name",
 				"leader_realm", "member_count", "members", "realm_counts", "other_members", "friends", "foes", "ascended", "ascended_people",
-				"founded", "founded_era", "founded_year", "now_era", "fallen", "fallen_era", "fallen_year", "fallen_month", "fall_event", "fall_cause"]:
+				"founded", "founded_era", "founded_year", "founded_world_year", "now_era", "fallen", "fallen_era", "fallen_year", "fallen_world_year", "fallen_month", "fall_event", "fall_cause"]:
 			assert_true(sect.has(key), "宗門卡欄位 %s" % key)
 		assert_eq(sect["name"], row["name"])
 		assert_eq(sect["alive"], row["alive"])

@@ -67,8 +67,8 @@ func _revenge_facts(because_me: int, because_name: String) -> Array:
 
 func test_every_year_is_written_with_era_and_world_year() -> void:
 	var out := _compose([_fact("breakthrough", 123, 11, {"n": 1}), _fact("breakthrough", 130, 2, {"n": 2})])
-	assert_eq(out["rows"][0]["date"], "咸寧紀元一二三年（12356年）十一月", "年表日期雙表、月照念法")
-	assert_eq(out["rows"][1]["date"], "咸寧紀元一三〇年（12363年）二月", "零寫〇")
+	assert_eq(out["rows"][0]["date"], "咸寧紀元 一二三年 (12356年) 十一月", "年表日期是題簽寫法：紀元與世界年雙表、月照念法")
+	assert_eq(out["rows"][1]["date"], "咸寧紀元 一三〇年 (12363年) 二月", "零寫〇")
 	var para := _para_with(out, "築基")
 	assert_true(para.contains("咸寧紀元一二三年（12356年）"), "小傳的年份雙表：" + para)
 	assert_eq(para.count("咸寧紀元"), 2, "同一紀元連續出現也每次都寫紀元名：" + para)

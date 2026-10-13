@@ -310,8 +310,8 @@ func test_time_slips_keep_one_fixed_width() -> void:
 	for i in 30:
 		_sim.world.step(1)
 		_hud._dial.queue_redraw()
-		assert_eq(_hud._dial._title_rect().size.x, title_width, "日期變了，題簽寬度不變：%s" % _sim.world.date_short())
-		if _sim.world.date_short().ends_with("11月"):
+		assert_eq(_hud._dial._title_rect().size.x, title_width, "日期變了，題簽寬度不變：%s" % EventText.now_label(_sim.world))
+		if EventText.now_label(_sim.world).ends_with("十一月"):
 			seen_two_digit_month = true
 	assert_true(seen_two_digit_month, "測試涵蓋到兩位數的月份")
 	# 切到每一檔速度，寬度都不變。
@@ -332,7 +332,7 @@ func test_date_is_centred_in_the_title_slip() -> void:
 	for i in 3:
 		var title: Rect2 = _hud._dial._title_rect()
 		var date: Rect2 = _hud._dial._date_rect()
-		assert_lt(absf(date.get_center().x - title.get_center().x), 0.5, "整串日期在題簽裡置中：%s" % _sim.world.date_short())
+		assert_lt(absf(date.get_center().x - title.get_center().x), 0.5, "整串日期在題簽裡置中：%s" % EventText.now_label(_sim.world))
 		assert_true(title.encloses(date), "日期不超出題簽")
 		_sim.world.step(700)
 

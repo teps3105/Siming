@@ -407,10 +407,17 @@ func test_leaders_row_lists_names_with_years_and_names_open_person_cards() -> vo
 			row = candidate
 			break
 	assert_false(row.is_empty(), "有歷任掌門列")
-	var text := "".join(row["paragraph"]["lines"])
-	assert_true(text.contains("年起") and text.contains("年）"), "每位附在位年份，最後一位寫「起」：" + text)
-	assert_false(text.contains("紀元 ") or text.contains(" 年"), "年份內沒有多餘空格：" + text)
-	var hit: Dictionary = row["paragraph"]["hits"][0]
+	var text := SectCard.leaders_text(row)
+	assert_true(text.ends_with("年）起"), "每位附在位年份，最後一位寫「起」：" + text)
+	assert_false(text.contains("紀元 ") or text.contains(" (") or text.contains("、"), "句子裡的寫法沒有空格、半形括號與頓號：" + text)
+	assert_eq(EventText.date_spans(text.replace("
+", "")).size(), text.count("紀元"), "每個日期都是完整的「紀元＋年＋（世界年）」：" + text)
+	for block: Dictionary in row["blocks"]:
+		var lines: Array = block["paragraph"]["lines"]
+		for i in range(1, lines.size()):
+			if block["color"] == Ink.INK_LIGHT:
+				assert_true(String(lines[i]).begins_with("至"), "任期只在「至」之前換行：" + str(lines))
+	var hit: Dictionary = row["blocks"][0]["paragraph"]["hits"][0]
 	assert_true(String(hit["target"]).begins_with("person:"))
 	var list := card.list()
 	list.scroll = clampf(float(row["top"]) - 4.0, 0.0, list.max_scroll())
@@ -432,9 +439,21 @@ func test_fallen_sect_head_keeps_the_fall_year_together() -> void:
 		for line: String in block["paragraph"]["lines"]:
 			if line.contains(fell):
 				seen = true
-				assert_true(line.ends_with("年"), "「覆滅」與年份在同一行、紀元名與年不拆開：" + line)
 	assert_true(seen, "首列寫了覆滅年")
-	assert_false(_card().head_text().contains("紀元 "), "年份內沒有多餘空格")
+	var info := _sim.world.sect(_card().sect)
+	var label := EventText.year_label(info["fallen_era"], int(info["fallen_year"]), int(info["fallen_world_year"]))
+	assert_true(_card().head_text().replace(" ", "").contains(label.replace(" ", "")), "覆滅年寫的是帶空格的寫法的字（折行時段落間可能換行）")
+	# 放得下一行就整段在同一行；連一行都放不下才在段落之間折（紀元名｜紀元年｜世界年），段落本身不拆。
+	for block: Dictionary in _card()._blocks:
+		if block["kind"] != "para" or not "".join(block["paragraph"]["lines"]).contains(label):
+			continue
+		var para: Dictionary = block["paragraph"]
+		var widest := 0.0
+		var whole := false
+		for line: String in para["lines"]:
+			widest = maxf(widest, Ink.text_size(line, int(para["size"])).x)
+			whole = whole or line.contains(label)
+		assert_true(whole or Ink.text_size(label, int(para["size"])).x > widest, "日期放得下就不拆：" + str(para["lines"]))
 
 
 func test_fallen_sect_opens_a_card_with_fall_year_and_cause() -> void:
@@ -449,7 +468,7 @@ func test_fallen_sect_opens_a_card_with_fall_year_and_cause() -> void:
 	assert_true(card.is_open() and card.sect == id, "已覆滅的宗門也開得了卡")
 	assert_eq(card.member_row_count(), 0, "沒有門人名單")
 	var head := card.head_text()
-	assert_true(head.contains(Locale.t("sect_fell")) and head.contains(str(info["fallen_year"])), "寫明覆滅年")
+	assert_true(head.contains(Locale.t("sect_fell")) and head.contains("(%d年)" % int(info["fallen_world_year"])), "寫明覆滅年（紀元時間加世界時間）")
 	assert_true(head.contains(Locale.t("sect_fell_war")) or head.contains(Locale.t("sect_fell_scatter")), "寫明覆滅原因")
 	var kinds: Array[String] = []
 	for entry: Dictionary in _sim.world.sect_history(id):

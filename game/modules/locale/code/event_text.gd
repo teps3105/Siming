@@ -62,16 +62,126 @@ static func month_of(event: Dictionary) -> int:
 	return (maxi(int(event["tick"]), 1) - 1) / 30 % 12 + 1
 
 
-## 「71年3月」。
-static func stamp(year: int, month: int) -> String:
-	return Locale.t("rumor_month").format({"y": year, "m": month})
+## ── 日期（GDD 2.6「日期顯示」，決策 #91）──────────────────────────────────────────────
+## 每個日期都同時寫紀元時間（紀元名、紀元內第幾年，中文數字）與世界時間（開天以來第幾年，阿拉伯數字）。
+## 全專案的日期文字只由下面這組函式產生，其他地方不自行拼字串。
+## 帶空格的寫法（_label）：題簽、傳聞簽、卡片欄位、表格；句子裡的寫法（_inline）：全形括號、不留空格。
+
+const CJK_DIGITS := "〇一二三四五六七八九"
+const CJK_MONTHS := ["", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二"]
+## 兩種寫法的日期（含只到年的）；折行時整段不拆（LedgerText 用它找出要黏在一起的範圍），驗收也用它掃描。
+const DATE_PATTERN := "[^\\s，。、；：！？（）()]{2}紀元 ?[〇一二三四五六七八九]+年 ?[（(][0-9]+年[）)]( ?(十[一二]?|[一二三四五六七八九])月)?"
+static var _date_regex: RegEx
+## 題簽預留的位數：紀元年四位、世界年六位。
+const ERA_YEAR_DIGITS := 4
+const WORLD_YEAR_DIGITS := 6
 
 
-## 傳聞簽的年月：帶紀元號，「咸寧 43年 12月」；沒有紀元名時退回「43年12月」。
-static func era_stamp(era: String, year: int, month: int) -> String:
-	if era.is_empty():
-		return stamp(year, month)
-	return Locale.t("rumor_era_month").format({"e": era, "y": year, "m": month})
+## 逐位寫的中文數字：105 → 一〇五。
+static func cjk_digits(n: int) -> String:
+	var out := ""
+	for digit in str(maxi(n, 0)):
+		out += CJK_DIGITS[int(digit)]
+	return out
+
+
+## 月份照念法：1 → 一月、11 → 十一月。
+static func cjk_month(month: int) -> String:
+	return CJK_MONTHS[clampi(month, 1, 12)] + Locale.t("date_month_unit")
+
+
+## 「咸寧紀元 一二三年 (12356年) 六月」；month 為 0 時只到年。
+static func date_label(era: String, era_year: int, world_year: int, month: int = 0) -> String:
+	return _date("date_label", era, era_year, world_year, month)
+
+
+## 「咸寧紀元一二三年（12356年）六月」；month 為 0 時只到年。
+static func date_inline(era: String, era_year: int, world_year: int, month: int = 0) -> String:
+	return _date("date_inline", era, era_year, world_year, month)
+
+
+static func year_label(era: String, era_year: int, world_year: int) -> String:
+	return date_label(era, era_year, world_year, 0)
+
+
+static func year_inline(era: String, era_year: int, world_year: int) -> String:
+	return date_inline(era, era_year, world_year, 0)
+
+
+static func _date(key: String, era: String, era_year: int, world_year: int, month: int) -> String:
+	var text := Locale.t(key).format({"E": era, "Y": cjk_digits(era_year), "W": str(world_year)})
+	if month <= 0:
+		return text
+	return text + Locale.t(key + "_month").format({"M": cjk_month(month)})
+
+
+## 事件（橋接的事件字典）發生的日期：紀元名在 date_era（橋接的 event）或 era（個人歷程、門史）。
+static func event_label(event: Dictionary) -> String:
+	return date_label(_event_era(event), int(event["year"]), int(event["world_year"]), int(event["month"]))
+
+
+static func event_inline(event: Dictionary) -> String:
+	return date_inline(_event_era(event), int(event["year"]), int(event["world_year"]), int(event["month"]))
+
+
+static func event_year_inline(event: Dictionary) -> String:
+	return year_inline(_event_era(event), int(event["year"]), int(event["world_year"]))
+
+
+static func _event_era(event: Dictionary) -> String:
+	return String(event["date_era"] if event.has("date_era") else event["era"])
+
+
+## 現在的日期（題簽、存檔列表）；world 是 SimWorld。
+static func now_label(world: Object) -> String:
+	var parts: Dictionary = world.date_parts()
+	if parts.is_empty():
+		return ""
+	return date_label(parts["era"], parts["era_year"], parts["world_year"], parts["month"])
+
+
+## 帶空格的日期折成兩行：「竭黃紀元 一五年」「(11145年) 十二月」（題簽放不下單行時用）。
+static func label_lines(label: String) -> PackedStringArray:
+	var at := label.find(" (")
+	if at < 0:
+		return PackedStringArray([label])
+	return PackedStringArray([label.substr(0, at), label.substr(at + 1)])
+
+
+## 題簽最寬的日期（單行）：紀元名兩個字、紀元年四位、世界年六位、十二月；數字各位取該字體最寬者。
+static func widest_label(size: int) -> float:
+	return _widest_text(date_label(Locale.t("date_era_sample"), 0, 0, 12), size)
+
+
+## 題簽兩行時各行最寬的寬度：第一行紀元名與紀元年，第二行世界年與月。
+static func widest_label_lines(size: int) -> float:
+	var lines := label_lines(date_label(Locale.t("date_era_sample"), 0, 0, 12))
+	return maxf(_widest_text(lines[0], size), _widest_text(lines[1], size))
+
+
+## 樣本字串裡的「〇」「0」各是一位數字的佔位：換成該字體最寬的那個字，位數照預留的算。
+static func _widest_text(sample: String, size: int) -> float:
+	var cjk := sample.count("〇")
+	var arabic := sample.count("0")
+	var base := Ink.text_size(sample, size).x - cjk * Ink.text_size("〇", size).x - arabic * Ink.text_size("0", size).x
+	return base + (ERA_YEAR_DIGITS * _widest_glyph(CJK_DIGITS, size) if cjk > 0 else 0.0) + (WORLD_YEAR_DIGITS * _widest_glyph("0123456789", size) if arabic > 0 else 0.0)
+
+
+static func _widest_glyph(glyphs: String, size: int) -> float:
+	var widest := 0.0
+	for glyph in glyphs:
+		widest = maxf(widest, Ink.text_size(glyph, size).x)
+	return widest
+
+
+## 文字裡所有日期（兩種寫法）的範圍 [起, 迄)，供折行整段不拆。
+static func date_spans(text: String) -> Array[Vector2i]:
+	if _date_regex == null:
+		_date_regex = RegEx.create_from_string(DATE_PATTERN)
+	var out: Array[Vector2i] = []
+	for found in _date_regex.search_all(text):
+		out.append(Vector2i(found.get_start(), found.get_end()))
+	return out
 
 
 ## 低境界身死時可以同月同死因合成統計的死因（7.2）；被殺（有兇手與宿緣脈絡）與飛升、涅槃、成聖不在內。
@@ -202,12 +312,6 @@ static func _is_echo(entry: Dictionary, history: Array) -> bool:
 			if pair.has(int(entry["a_person"])) and pair.has(int(entry["b_person"])):
 				return true
 	return false
-
-
-## 歷程的年月：with_era 為真才帶紀元名（同一紀元內只有第一筆與換紀元的那筆帶，由呼叫端判斷）。
-static func history_date(event: Dictionary, with_era: bool) -> String:
-	var key := "card_history_date" if with_era else "card_history_date_short"
-	return Locale.t(key).format({"E": event.get("era", ""), "Y": str(event["year"]), "M": str(event["month"])})
 
 
 ## 人物的身分與姓名，由全到簡：「鶴微宗長老霍靜沉」「長老霍靜沉」「霍靜沉」。境界另放在 realm_tag，空間不夠時只截這一段。
