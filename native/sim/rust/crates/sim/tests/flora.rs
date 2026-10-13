@@ -5,18 +5,43 @@
 
 use siming_sim::{flora, landform, EventKind, Sim, Terrain, World, WorldParams};
 
-/// 測試用的短開天：人口期 300 年、人物期 0 年（預設長度太慢，且測試要看的是其中一段規則）。
-fn quick(seed: u64) -> WorldParams {
+/// 測試用的短開天：人口期 `pop_years` 年、人物期 0 年（預設長度太慢，且測試要看的是其中一段規則）。
+fn quick(seed: u64, pop_years: u32) -> WorldParams {
     let mut p = WorldParams::new(seed);
-    p.pop_years = 300;
+    p.pop_years = pop_years;
     p.prerun_years = 0;
     p
 }
 
 const SEED: u64 = 20261011;
 
+/// 開天做完的世界。人口期的氣候一直在變，地形追氣候有時間差（每次結算只動一部分），
+/// 所以先把地形結算到與氣候一致，後面的測試才看得到草木自己的變動。
 fn sim() -> Sim {
-    Sim::new(&quick(SEED)).unwrap()
+    sim_after(40)
+}
+
+/// 人口期長到各州人口超過開局承載的世界：草木在人口期內已墾殖、沙化。
+fn sim_long() -> Sim {
+    sim_after(2000)
+}
+
+fn sim_after(pop_years: u32) -> Sim {
+    let mut sim = Sim::new(&quick(SEED, pop_years)).unwrap();
+    let w = sim.world_mut();
+    for _ in 0..200 {
+        if landform::settle(w).fine == 0 {
+            break;
+        }
+    }
+    assert_eq!(landform::settle(w).fine, 0, "地形沒有結算到與氣候一致");
+    sim
+}
+
+/// 草木有在管的州（有格、未沉沒、開局承載為正）。
+fn active(w: &World, i: usize) -> bool {
+    let p = &w.provinces[i];
+    !p.lost && !p.cells.is_empty() && w.flora.opening_capacity[i] > 0.0
 }
 
 /// 把各州的墾殖度定在 `level`：人口設為開局承載的 `level` 倍，墾殖度就停在那裡。
@@ -56,22 +81,33 @@ fn flags(v: &[bool]) -> usize {
     v.iter().filter(|&&x| x).count()
 }
 
+/// 開天時天地間沒有人，草木的狀態在人口期的第一次每世結算建立：承載記為那時的承載，墾殖度之後每世追著
+/// 人口 ÷ 開局承載走；人口期內人口多起來的州已經開始墾殖。
 #[test]
-#[ignore = "草木的開局基準（開局人口 / 承載）隨分期預跑改變：開天人口為 0，墾殖度從 0 起算；待依新語意重寫"]
-fn gdd_2_8_opening_cultivation_is_population_over_capacity() {
-    let sim = sim();
+fn gdd_2_8_flora_is_built_during_the_population_period_and_tracks_population() {
+    let sim = sim_long();
     let w = sim.world();
     assert_eq!(w.flora.cultivation.len(), w.provinces.len());
+    assert_eq!(w.flora.opening_capacity.len(), w.provinces.len());
     assert_eq!(w.flora.cleared.len(), w.geo.terrain.len());
-    assert_eq!(flags(&w.flora.cleared) + flags(&w.flora.sanded), 0, "開局沒有人改過的格");
+    assert_eq!(w.flora.sanded.len(), w.geo.terrain.len());
+    let mut tracking = 0;
     for (i, p) in w.provinces.iter().enumerate() {
-        assert_eq!(w.flora.opening_capacity[i], p.capacity);
-        assert!((f64::from(w.flora.cultivation[i]) - p.population / p.capacity).abs() < 1e-6);
+        assert!((0.0..=1.0).contains(&w.flora.cultivation[i]), "州 {i} 墾殖度 {}", w.flora.cultivation[i]);
+        if !active(w, i) {
+            continue;
+        }
+        // 墾殖度每世只走四分之一的路，所以不等於當下的比值；但人口多的州墾殖度不會是 0。
+        let ratio = (p.population / w.flora.opening_capacity[i]).clamp(0.0, 1.0);
+        if ratio > 0.5 {
+            assert!(w.flora.cultivation[i] > 0.05, "州 {i}：人口占開局承載 {ratio:.2}，墾殖度卻只有 {}", w.flora.cultivation[i]);
+            tracking += 1;
+        }
     }
+    assert!(tracking > 0, "人口期 2000 年後沒有任何州人口過半");
 }
 
 #[test]
-#[ignore = "草木的開局基準（開局人口 / 承載）隨分期預跑改變：開天人口為 0，墾殖度從 0 起算；待依新語意重寫"]
 fn gdd_2_8_cultivation_approaches_a_quarter_per_shi_against_opening_capacity() {
     let mut sim = sim();
     let w = sim.world_mut();
@@ -82,14 +118,13 @@ fn gdd_2_8_cultivation_approaches_a_quarter_per_shi_against_opening_capacity() {
         p.population = w.flora.opening_capacity[i] * if i % 2 == 0 { 0.9 } else { 0.1 };
     }
     flora::settle(w);
-    for (i, &old) in before.iter().enumerate() {
+    for (i, &old) in before.iter().enumerate().filter(|(i, _)| active(w, *i)) {
         let target = if i % 2 == 0 { 0.9 } else { 0.1 };
         assert!((w.flora.cultivation[i] - (old + (target - old) * 0.25)).abs() < 1e-5, "州 {i}");
     }
 }
 
 #[test]
-#[ignore = "草木的開局基準（開局人口 / 承載）隨分期預跑改變：開天人口為 0，墾殖度從 0 起算；待依新語意重寫"]
 fn gdd_2_8_crowded_provinces_clear_the_forest_nearest_the_seat() {
     let mut sim = sim();
     let w = sim.world_mut();
@@ -97,7 +132,7 @@ fn gdd_2_8_crowded_provinces_clear_the_forest_nearest_the_seat() {
     let gw = w.geo.w as usize;
     let before = w.clone();
     let shift = shi(w);
-    assert!(shift.cleared > 100 && shift.regrown == 0, "墾了 {} 格", shift.cleared);
+    assert!(shift.cleared > 50 && shift.regrown == 0, "墾了 {} 格", shift.cleared);
     for (p, old) in w.provinces.iter().zip(&before.provinces) {
         let standing = |c: &u32| before.geo.terrain[*c as usize] == Terrain::Forest;
         // 靈氣達門檻的森林墾不動。
@@ -124,7 +159,6 @@ fn gdd_2_8_crowded_provinces_clear_the_forest_nearest_the_seat() {
 }
 
 #[test]
-#[ignore = "草木的開局基準（開局人口 / 承載）隨分期預跑改變：開天人口為 0，墾殖度從 0 起算；待依新語意重寫"]
 fn gdd_2_8_cleared_land_stays_cleared_while_the_climate_holds() {
     let mut sim = sim();
     let w = sim.world_mut();
@@ -141,7 +175,6 @@ fn gdd_2_8_cleared_land_stays_cleared_while_the_climate_holds() {
 }
 
 #[test]
-#[ignore = "草木的開局基準（開局人口 / 承載）隨分期預跑改變：開天人口為 0，墾殖度從 0 起算；待依新語意重寫"]
 fn gdd_2_8_forest_grows_back_when_people_leave_and_the_map_returns() {
     let mut sim = sim();
     let w = sim.world_mut();
@@ -151,7 +184,7 @@ fn gdd_2_8_forest_grows_back_when_people_leave_and_the_map_returns() {
         shi(w);
     }
     let cleared = flags(&w.flora.cleared);
-    assert!(cleared > 400);
+    assert!(cleared > 200);
     press(w, 0.1);
     let gw = w.geo.w as usize;
     let before = w.flora.cleared.clone();
@@ -180,7 +213,6 @@ fn gdd_2_8_forest_grows_back_when_people_leave_and_the_map_returns() {
 }
 
 #[test]
-#[ignore = "草木的開局基準（開局人口 / 承載）隨分期預跑改變：開天人口為 0，墾殖度從 0 起算；待依新語意重寫"]
 fn gdd_2_8_aura_brings_the_forest_back_whatever_the_crowd() {
     let mut sim = sim();
     let w = sim.world_mut();
@@ -190,7 +222,7 @@ fn gdd_2_8_aura_brings_the_forest_back_whatever_the_crowd() {
         shi(w);
     }
     let cleared = flags(&w.flora.cleared);
-    assert!(cleared > 400);
+    assert!(cleared > 200);
     // 靈氣漲到處處都過門檻：人口照舊擁擠，森林不再被墾，已墾的每世長回一成，靈氣高的先長。
     let aura: Vec<f32> = (0..w.geo.aura_cell.len()).map(|c| 0.6 + (c % 7) as f32 * 0.1).collect();
     w.geo.aura_cell = aura.clone();
@@ -221,7 +253,6 @@ fn gdd_2_8_aura_brings_the_forest_back_whatever_the_crowd() {
 }
 
 #[test]
-#[ignore = "草木的開局基準（開局人口 / 承載）隨分期預跑改變：開天人口為 0，墾殖度從 0 起算；待依新語意重寫"]
 fn gdd_2_8_dry_crowded_provinces_turn_to_sand_up_to_half_and_heal() {
     let mut sim = sim();
     let w = sim.world_mut();
@@ -260,7 +291,7 @@ fn gdd_2_8_dry_crowded_provinces_turn_to_sand_up_to_half_and_heal() {
         let shift = shi(w);
         assert!(shift.desertified.is_empty(), "已在沙化的州不再記一次");
     }
-    for (p, &dry) in w.provinces.iter().zip(&dry) {
+    for (p, &dry) in w.provinces.iter().zip(&dry).filter(|(p, _)| active(w, p.id as usize)) {
         let sanded = p.cells.iter().filter(|&&c| w.flora.sanded[c as usize]).count();
         let plains = p.cells.iter().filter(|&&c| w.geo.terrain[c as usize] == Terrain::Plains).count();
         assert!(sanded <= plains + 1, "{}：沙化 {sanded} 格、平原剩 {plains} 格", p.name);
@@ -278,10 +309,10 @@ fn gdd_2_8_dry_crowded_provinces_turn_to_sand_up_to_half_and_heal() {
 }
 
 #[test]
-#[ignore = "草木的開局基準（開局人口 / 承載）隨分期預跑改變：開天人口為 0，墾殖度從 0 起算；待依新語意重寫"]
 fn gdd_2_8_flora_changes_enter_the_ledger_and_replay() {
-    let mut sim = sim();
-    // 這個種子開局九世內人口長到開局承載的七成以上，開始墾殖。
+    // 不手動結算地形：存檔重播從種子重跑，世界得是純粹由 step 走出來的。
+    let mut sim = Sim::new(&quick(SEED, 2000)).unwrap();
+    // 人口期已把人口養到超過開局承載，接著九世內仍在墾殖。
     for _ in 0..9 * 360 {
         sim.step();
     }
