@@ -351,6 +351,7 @@ pub fn resolve_why(w: &mut World, tid: ThreadId, how: Resolution, cause: Option<
     e.causes = causes;
     let eid = ledger::record(w, e);
     w.threads[tid as usize].resolved = Some((w.tick, eid));
+    settle(w, tid, eid);
     Some(eid)
 }
 
@@ -365,7 +366,23 @@ pub(crate) fn fade(w: &mut World, tid: ThreadId) {
     e.cell = cell;
     e.souls = smallvec![t.debtor, t.creditor];
     e.causes = smallvec![t.created.1];
-    ledger::record(w, e);
+    let eid = ledger::record(w, e);
+    settle(w, tid, eid);
+}
+
+/// 線已了結或消散：從雙方魂的現行名單移除，改記一筆精簡紀錄（上限 [`SETTLED_CAP`]）。
+fn settle(w: &mut World, tid: ThreadId, event: EventId) {
+    let t = &w.threads[tid as usize];
+    let (kind, d, c) = (t.kind, t.debtor, t.creditor);
+    for (me, other, debtor) in [(d, c, true), (c, d, false)] {
+        let s = &mut w.souls[me as usize];
+        s.threads.retain(|&x| x != tid);
+        if s.settled.len() >= SETTLED_CAP {
+            let k = s.settled.iter().position(|r| r.kind != ThreadKind::Mentor).unwrap_or(0);
+            s.settled.remove(k);
+        }
+        s.settled.push(Settled { other, kind, debtor, event });
+    }
 }
 
 // ── 殺業 ─────────────────────────────────────────────────

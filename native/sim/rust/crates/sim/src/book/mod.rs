@@ -72,12 +72,13 @@ pub fn detect(w: &mut World, id: EventId) {
                 ThreadKind::Mentor => {
                     let Some(t) = w.threads.get(thread as usize) else { return };
                     let reverse = w.souls.get(t.debtor as usize).is_some_and(|s| {
-                        s.threads.iter().any(|&o| {
-                            o != thread
-                                && w.threads
-                                    .get(o as usize)
-                                    .is_some_and(|x| x.kind == ThreadKind::Mentor && x.debtor == t.creditor && x.creditor == t.debtor)
-                        })
+                        s.settled.iter().any(|r| r.kind == ThreadKind::Mentor && r.other == t.creditor && !r.debtor)
+                            || s.threads.iter().any(|&o| {
+                                o != thread
+                                    && w.threads
+                                        .get(o as usize)
+                                        .is_some_and(|x| x.kind == ThreadKind::Mentor && x.debtor == t.creditor && x.creditor == t.debtor)
+                            })
                     });
                     if !reverse {
                         return;

@@ -78,20 +78,11 @@ pub(super) fn marry_now(w: &mut World, pid: PersonId) -> bool {
         return false;
     }
     let (age, gender, power, prov) = (p.age(tick), p.gender, p.power, p.province);
-    let near: Vec<u16> = std::iter::once(prov).chain(w.provinces[prov as usize].neighbors.iter().copied()).collect();
-    let mut cands: Vec<PersonId> = w
-        .alive_ids
-        .iter()
-        .copied()
-        .filter(|&c| {
-            let q = &w.persons[c as usize];
-            c != pid
-                && q.gender != gender
-                && near.contains(&q.province)
-                && q.age(tick).abs_diff(age) <= MARRY_AGE_GAP_MAX
-                && eligible(q, tick)
-        })
-        .collect();
+    let mut cands: Vec<PersonId> = w.near_alive(prov);
+    cands.retain(|&c| {
+        let q = &w.persons[c as usize];
+        c != pid && q.gender != gender && q.age(tick).abs_diff(age) <= MARRY_AGE_GAP_MAX && eligible(q, tick)
+    });
     if cands.is_empty() {
         return false;
     }

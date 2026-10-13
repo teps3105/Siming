@@ -24,8 +24,15 @@ fn gdd_6_5_rng_seed_changes_people_but_not_the_land() {
     let params = WorldParams::new(12345);
     let a = Sim::new_seeded(&params, Some(1)).unwrap();
     let b = Sim::new_seeded(&params, Some(2)).unwrap();
-    assert_eq!(a.world().geo, b.world().geo);
-    assert_eq!(a.world().settlements, b.world().settlements);
+    // 天地：高度、水位、河、州郡、大洲由世界種子決定。地形、格點靈氣與靈脈節點屬於演變（人物落地後
+    // 由世界亂數推動），不同亂數種子可以不同。
+    let (ga, gb) = (&a.world().geo, &b.world().geo);
+    assert_eq!(ga.height, gb.height);
+    assert_eq!(ga.sea_level, gb.sea_level);
+    assert_eq!(ga.river, gb.river);
+    assert_eq!(ga.province_of, gb.province_of);
+    assert_eq!(ga.continent_of, gb.continent_of);
+    assert!(a.world().fine.height == b.world().fine.height, "細格高度屬於天地");
     assert_ne!(a.hash(), b.hash());
 }
 

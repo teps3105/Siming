@@ -273,6 +273,16 @@ pub struct NodeShift {
 /// [`EVO_NODE_CHANCE`] 降一級（福地則沉寂）；高於 [`EVO_NODE_RISE_ABOVE`] 時，降過級的以同樣的機率
 /// 回復一級，至多回到生成時的等級。擲骰只看種子、節點與年份，開局前後用的是同一套。
 pub fn shift_nodes(seed: u64, year: u32, tide: f32, nodes: &mut [LeyNode]) -> Vec<NodeShift> {
+    shift_nodes_by(tide, nodes, |i| (mix(mix(seed ^ (7 << 48)) ^ ((i as u64) << 32) ^ u64::from(year)) >> 40) as f32 / (1u64 << 24) as f32)
+}
+
+/// 同 [`shift_nodes`]，但擲骰取自世界的演化亂數流（人物落地之後的演化每次不同，隨存檔保存）。
+pub fn shift_nodes_rng(rng: &mut rand_chacha::ChaCha8Rng, tide: f32, nodes: &mut [LeyNode]) -> Vec<NodeShift> {
+    use rand::Rng;
+    shift_nodes_by(tide, nodes, |_| rng.gen::<f32>())
+}
+
+fn shift_nodes_by(tide: f32, nodes: &mut [LeyNode], mut roll_of: impl FnMut(usize) -> f32) -> Vec<NodeShift> {
     let fading = tide < EVO_NODE_FADE_BELOW;
     let rising = tide > EVO_NODE_RISE_ABOVE;
     let mut shifts = Vec::new();
@@ -288,8 +298,7 @@ pub fn shift_nodes(seed: u64, year: u32, tide: f32, nodes: &mut [LeyNode]) -> Ve
         } else {
             continue;
         };
-        let roll = (mix(mix(seed ^ (7 << 48)) ^ ((i as u64) << 32) ^ u64::from(year)) >> 40) as f32 / (1u64 << 24) as f32;
-        if roll < EVO_NODE_CHANCE {
+        if roll_of(i) < EVO_NODE_CHANCE {
             node.strength = LeyNode::LADDER[to as usize];
             shifts.push(NodeShift { node: i as NodeId, from, to });
         }
@@ -345,7 +354,7 @@ pub fn shi_settle(w: &mut World) {
     let changes = w.evolution.settle(year);
     let flora = crate::flora::settle(w);
     let land = crate::landform::settle_with(w, &flora.touched);
-    let shifts = shift_nodes(w.params.seed, year, w.evolution.tide, &mut w.geo.nodes);
+    let shifts = shift_nodes_rng(&mut w.rng.evolution, w.evolution.tide, &mut w.geo.nodes);
     refresh_aura(w);
     if !changes.is_empty() {
         let new_era = open_era(&w.evolution, &changes, year, w.params.seed, &Lexicon::builtin(), &mut w.eras);

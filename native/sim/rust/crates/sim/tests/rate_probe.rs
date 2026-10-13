@@ -157,18 +157,32 @@ fn measure_year_cost() {
             }
             year += 1;
         }
-        let t = std::time::Instant::now();
-        for _ in 0..10 {
-            for _ in 0..12 {
-                sim.step();
+        // 每格量三個連續的 10 年窗，取中位數；三次原值都記下。
+        let mut windows = Vec::new();
+        for _ in 0..3 {
+            let t = std::time::Instant::now();
+            for _ in 0..10 {
+                for _ in 0..12 {
+                    sim.step();
+                }
+                year += 1;
             }
-            year += 1;
+            windows.push(t.elapsed().as_secs_f64() * 1000.0 / 10.0);
         }
-        let ms = t.elapsed().as_secs_f64() * 1000.0 / 10.0;
+        let mut sorted = windows.clone();
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let ms = sorted[1];
         let w = sim.world();
-        eprintln!("人物期第 {m} 年附近：每年 {ms:.2} 毫秒（在世 {}，帳 {} 筆）", w.alive_ids.len(), w.ledger.events.len());
+        eprintln!(
+            "人物期第 {m} 年附近：每年 {ms:.2} 毫秒（三次 {windows:.2?}；在世 {}，帳 {} 筆，佇列 {}，宿緣 {}）",
+            w.alive_ids.len(),
+            w.ledger.events.len(),
+            w.queue.len(),
+            w.threads.len()
+        );
         out.push(serde_json::json!({
-            "year": m, "ms_per_year": ms, "alive": w.alive_ids.len(), "ledger_events": w.ledger.events.len(), "souls": w.souls.len(),
+            "year": m, "ms_per_year": ms, "runs": windows, "alive": w.alive_ids.len(), "ledger_events": w.ledger.events.len(),
+            "souls": w.souls.len(), "threads": w.threads.len(), "queue": w.queue.len(),
         }));
     }
     let json = serde_json::json!({ "engine": "monthly-sweep", "seed": seed, "marks": out });

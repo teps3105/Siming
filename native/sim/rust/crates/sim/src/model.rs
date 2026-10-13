@@ -153,6 +153,24 @@ pub struct Soul {
     /// 最後所在的州郡與格（不在世時，因果線懸在此處，GDD 5.4）。
     pub last_place: (ProvinceId, u32),
     pub guide: Option<GuideOrder>,
+    /// 已了結（或消散）宿緣的精簡紀錄，供天書偵測等回看；每魂上限 [`SETTLED_CAP`]。
+    #[serde(default)]
+    pub settled: Vec<Settled>,
+}
+
+/// 每魂保留的已了結宿緣紀錄上限；滿了先丟最舊的非師徒紀錄，全是師徒才丟最舊的。
+pub const SETTLED_CAP: usize = 16;
+
+/// 一條已了結宿緣的精簡紀錄。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Settled {
+    /// 對方的魂。
+    pub other: SoulId,
+    pub kind: ThreadKind,
+    /// 本魂是否為欠債方（師徒線：欠債方是徒弟，債主是師父）。
+    pub debtor: bool,
+    /// 了結（或消散）的事件。
+    pub event: EventId,
 }
 
 impl Soul {
@@ -537,12 +555,8 @@ pub enum Why {
     /// 其他。
     KillOther = 5,
     // FellToDemon
-    /// 突破失敗後心魔。
-    BtFailDemon = 10,
     /// 罪業積累的心魔。
     SinDemon = 11,
-    /// 濁氣侵染。
-    TurbidTaint = 12,
     /// 前世入魔（修羅）印記。
     PastLifeMark = 13,
     // PowerFounded

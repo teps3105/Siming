@@ -98,17 +98,14 @@ pub(super) fn heart_demon_roll(w: &mut World, pid: PersonId) -> bool {
     true
 }
 
-/// 本州與陸鄰中仍符合 `keep` 的非幼年在世者，依 ID 升冪（不含 `me`）。直接掃在世名單，不另維護索引。
-fn near(w: &World, province: ProvinceId, me: PersonId, keep: impl Fn(&Person) -> bool) -> Vec<PersonId> {
-    let nb: &[ProvinceId] = w.provinces.get(province as usize).map_or(&[], |p| p.neighbors.as_slice());
-    w.alive_ids
-        .iter()
-        .copied()
-        .filter(|&id| {
-            let q = &w.persons[id as usize];
-            id != me && q.alive() && q.role != Role::Child && (q.province == province || nb.contains(&q.province)) && keep(q)
-        })
-        .collect()
+/// 本州與陸鄰中仍符合 `keep` 的非幼年在世者，依 ID 升冪（不含 `me`）。走世界的州郡索引，不逐一掃在世名單。
+fn near(w: &mut World, province: ProvinceId, me: PersonId, keep: impl Fn(&Person) -> bool) -> Vec<PersonId> {
+    let mut v = w.near_alive(province);
+    v.retain(|&id| {
+        let q = &w.persons[id as usize];
+        id != me && q.role != Role::Child && keep(q)
+    });
+    v
 }
 
 /// 雙方決鬥：勝率 `r/(1+r)`，r = 攻方戰力 / 守方戰力；敗者死亡，業依 3.1。
@@ -150,7 +147,8 @@ pub(super) fn hunt(w: &mut World, pid: PersonId) {
     if w.rng.people.gen::<f32>() >= HUNT_CHANCE {
         return;
     }
-    let cands = near(w, w.persons[pid as usize].province, pid, |q| q.role == Role::Demonic);
+    let prov = w.persons[pid as usize].province;
+    let cands = near(w, prov, pid, |q| q.role == Role::Demonic);
     if cands.is_empty() {
         return;
     }
@@ -168,7 +166,8 @@ pub(super) fn assassinate(w: &mut World, pid: PersonId) {
     if chance <= 0.0 || w.rng.people.gen::<f32>() >= chance {
         return;
     }
-    let cands = near(w, w.persons[pid as usize].province, pid, |q| q.role != Role::Child);
+    let prov = w.persons[pid as usize].province;
+    let cands = near(w, prov, pid, |q| q.role != Role::Child);
     if cands.is_empty() {
         return;
     }

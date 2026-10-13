@@ -53,6 +53,8 @@ pub struct World {
     /// 在世者依判定月分的 12 桶（效能快取，GDD 6.8；不納入雜湊與存檔）。`people::spawn`、`people::die` 同步維護；
     /// 與 `alive_ids` 對不上時（測試直接改了 `alive_ids`）下次使用時重建。
     pub alive_months: AliveMonths,
+    /// 在世者依所在州郡分桶的索引快取，最多隔一個月重建一次（見 [`World::near_alive`]）。
+    pub prov_index: ProvIndex,
     /// 宿緣線依債務方判定月分的 12 桶（效能快取，GDD 6.8；不納入雜湊與存檔）。宿緣只增不減、債務方建線後不變，
     /// 所以只需追加新線；線數比已建的少時（測試換了線表）重建。
     pub thread_months: ThreadMonths,
@@ -81,6 +83,17 @@ impl Default for AliveMonths {
         Self { seed: 0, total: usize::MAX, by_month: Default::default() }
     }
 }
+
+/// 在世者依所在州郡分桶（桶內 ID 升冪）的快取。是由世界狀態導出的，不進存檔與雜湊；
+/// 最多隔 [`PROV_INDEX_TTL`] 日重建，使用端須自行核對人物仍在世、仍在該州。
+#[derive(Debug, Clone, Default)]
+pub struct ProvIndex {
+    built: Option<Tick>,
+    by_province: Vec<Vec<PersonId>>,
+}
+
+/// 州郡索引的有效日數。
+pub const PROV_INDEX_TTL: Tick = DAYS_PER_MONTH;
 
 /// 宿緣線依債務方判定月分桶（桶內 ThreadId 升冪）。
 #[derive(Debug, Clone, Default)]
@@ -122,6 +135,7 @@ impl World {
             thread_stamp: Vec::new(),
             range_cache: Default::default(),
             alive_months: Default::default(),
+            prov_index: Default::default(),
             thread_months: Default::default(),
             settlements: Vec::new(),
             calamity: Default::default(),
@@ -194,9 +208,43 @@ impl World {
                         .push(tm.built as ThreadId);
                     tm.built += 1;
                 }
-                tm.by_month[m as usize % 12].clone()
+                // 已了結的線不會再開，順手從桶裡剔除，桶的大小只隨未了的線而定。
+                let threads = &self.threads;
+                let bucket = &mut tm.by_month[m as usize % 12];
+                bucket.retain(|&t| crate::thread::is_open(&threads[t as usize]));
+                bucket.clone()
             }
         }
+    }
+
+    /// 本州與陸鄰的在世者（升冪，含自己；索引最多舊一個月，所在州郡已核對、死者已排除）。
+    pub fn near_alive(&mut self, province: crate::types::ProvinceId) -> Vec<PersonId> {
+        let stale = self.prov_index.built.is_none_or(|b| self.tick >= b + PROV_INDEX_TTL || self.tick < b)
+            || self.prov_index.by_province.len() != self.provinces.len();
+        if stale {
+            let mut v: Vec<Vec<PersonId>> = vec![Vec::new(); self.provinces.len()];
+            for &i in &self.alive_ids {
+                if let Some(b) = v.get_mut(self.persons[i as usize].province as usize) {
+                    b.push(i);
+                }
+            }
+            self.prov_index = ProvIndex { built: Some(self.tick), by_province: v };
+        }
+        let mut out = Vec::new();
+        let mut add = |prov: crate::types::ProvinceId, w: &World| {
+            if let Some(b) = w.prov_index.by_province.get(prov as usize) {
+                out.extend(b.iter().copied().filter(|&id| w.persons[id as usize].alive() && w.persons[id as usize].province == prov));
+            }
+        };
+        add(province, self);
+        if let Some(p) = self.provinces.get(province as usize) {
+            for &n in &p.neighbors {
+                add(n, self);
+            }
+        }
+        out.sort_unstable();
+        out.dedup();
+        out
     }
 
     /// 在世者中本輪輪到判定月者（升冪）。等價於 [`World::alive_snapshot`] 再以
