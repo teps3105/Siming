@@ -4,6 +4,7 @@
 mod karma;
 mod mapbake;
 mod relief;
+mod sect_api;
 mod stats_api;
 
 use std::sync::mpsc::{self, Receiver, TryRecvError};
@@ -1048,6 +1049,7 @@ impl SimWorld {
             d.set("realm", realm);
             let fruit = if let siming_sim::PathState::Monk { fruit, .. } = p.path { fruit as i32 } else { -1 };
             d.set("fruit", fruit);
+            d.set("power", power.map_or(-1, |pw| pw.id as i32));
             d.set("power_name", &GString::from(power.map_or("", |pw| pw.name.as_str())));
             d.set("is_leader", power.is_some_and(|pw| pw.leader == Some(p.id)));
             d.set("age", p.age(w.tick) as i32);
@@ -1391,6 +1393,7 @@ impl SimWorld {
         let identity = identity.or_else(|| subjects(w, e).0.map(|p| identity_of(w, p)));
         let identity = identity.unwrap_or(Identity { power: String::new(), role: "", realm: -1 });
         d.set("a_power", &GString::from(identity.power.as_str()));
+        d.set("a_power_id", w.powers.iter().find(|pw| !identity.power.is_empty() && pw.name == identity.power).map_or(-1, |pw| pw.id as i32));
         d.set("a_role", &GString::from(identity.role));
         d.set("a_realm", identity.realm);
         d
@@ -1411,6 +1414,7 @@ impl SimWorld {
         let (first, second_power) = if e.kind == siming_sim::EventKind::SectSplit { (1, 0) } else { (0, 1) };
         let mut f = power(first).map_or("", |p| p.name.as_str());
         let mut g = power(second_power).map_or("", |p| p.name.as_str());
+        let (mut f_power, mut g_power) = (power(first).map_or(-1, |p| p.id as i32), power(second_power).map_or(-1, |p| p.id as i32));
         let mut m = 0i64;
         let mut second = "";
         let mut second_id: Option<siming_sim::ProvinceId> = None;
@@ -1453,6 +1457,7 @@ impl SimWorld {
                 g = other.and_then(|id| w.dynasty.get(id)).map_or("", |d| d.name.as_str());
                 n = *count as i64;
                 x = "Dynasty".to_string();
+                (f_power, g_power) = (-1, -1);
             }
             siming_sim::EventArgs::Node { node, from, to } => {
                 x = w.geo.nodes.get(*node as usize).map_or(String::new(), |nd| nd.name.clone());
@@ -1487,6 +1492,8 @@ impl SimWorld {
         d.set("a_person", person_a.map_or(-1, |p| p.id as i32));
         d.set("b_person", person_b.map_or(-1, |p| p.id as i32));
         d.set("q_province", second_id.map_or(-1, |id| id as i32));
+        d.set("f_power", f_power);
+        d.set("g_power", g_power);
         if let siming_sim::EventArgs::World { change, new_era } = &e.args {
             let year = w.evolution.history_years + siming_sim::evolution::year_of(e.tick);
             let era = w.eras.iter().find(|era| era.start_year == year + 1);

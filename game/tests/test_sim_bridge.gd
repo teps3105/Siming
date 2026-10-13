@@ -854,3 +854,136 @@ func test_gdd_5_8_person_last_event_points_at_a_live_event() -> void:
 			found += 1
 		id += 1
 	assert_gt(found, 0, "有人有最近事件")
+
+
+## 走一段時間的世界：有在世宗門，也盡量有已覆滅的。
+func _sect_world() -> SimWorld:
+	var world := SimWorld.new()
+	world.create(SEED, "small")
+	world.step(12 * 120)
+	return world
+
+
+func test_gdd_5_8_sect_card_fields_agree_with_the_sect_list() -> void:
+	var world := SimWorld.new()
+	assert_true(world.sect(0).is_empty(), "沒有世界時宗門卡資料為空")
+	world = _sect_world()
+	assert_true(world.sect(-1).is_empty() and world.sect(1000000).is_empty(), "無此宗門回傳空字典")
+	var listed := world.sects()
+	assert_gt(listed.size(), 0)
+	var alive_seen := 0
+	for row: Dictionary in listed:
+		var sect := world.sect(row["id"])
+		for key in ["id", "name", "evil", "alive", "province", "province_name", "pos", "node", "radius", "range", "prestige", "leader", "leader_name",
+				"leader_realm", "member_count", "members", "realm_counts", "other_members", "friends", "foes", "ascended", "ascended_people",
+				"founded", "founded_era", "founded_year", "now_era", "fallen", "fallen_era", "fallen_year", "fallen_month", "fall_event", "fall_cause"]:
+			assert_true(sect.has(key), "宗門卡欄位 %s" % key)
+		assert_eq(sect["name"], row["name"])
+		assert_eq(sect["alive"], row["alive"])
+		assert_eq(sect["province"], row["province"])
+		var members: Array = sect["members"]
+		assert_eq(members.size(), sect["member_count"], "門人數等於名單條數")
+		var counts: PackedInt32Array = sect["realm_counts"]
+		var total := int(sect["other_members"])
+		for n in counts:
+			total += n
+		assert_eq(total, int(sect["member_count"]), "各境界人數總和等於門人數")
+		var last_realm := 100
+		for member: Dictionary in members:
+			assert_true(int(member["realm"]) <= last_realm, "門人依境界由高到低")
+			last_realm = member["realm"]
+			assert_eq(world.person(member["id"])["power"], row["id"], "名單裡的人確屬此宗")
+		if row["alive"]:
+			alive_seen += 1
+			assert_eq(members.size(), row["members"], "名單條數等於宗門清單的成員數")
+			if sect["leader"] >= 0:
+				var found := false
+				for member: Dictionary in members:
+					found = found or member["id"] == sect["leader"]
+				assert_true(found, "掌門在門人名單裡")
+		else:
+			assert_eq(members.size(), 0, "已覆滅的宗門沒有門人")
+			assert_gt(int(sect["fallen_year"]), 0, "已覆滅的宗門有覆滅年")
+	assert_gt(alive_seen, 0)
+
+
+func test_gdd_5_8_sect_relations_are_ranked_and_capped() -> void:
+	var world := _sect_world()
+	for row: Dictionary in world.sects():
+		var sect := world.sect(row["id"])
+		var friends: Array = sect["friends"]
+		var foes: Array = sect["foes"]
+		assert_true(friends.size() <= 5 and foes.size() <= 5, "友好、敵對各至多前五名")
+		var last := 1000
+		for entry: Dictionary in friends:
+			assert_gt(int(entry["value"]), 0)
+			assert_true(int(entry["value"]) <= last, "友好由高到低")
+			last = entry["value"]
+			assert_true(entry.has("id") and entry.has("name") and entry.has("is_sect"))
+		last = -1000
+		for entry: Dictionary in foes:
+			assert_lt(int(entry["value"]), 0)
+			assert_true(int(entry["value"]) >= last, "敵對由深到淺")
+			last = entry["value"]
+
+
+func test_gdd_5_8_sect_history_is_ordered_and_names_the_sect() -> void:
+	var world := _sect_world()
+	var fallen_seen := 0
+	var kinds := {}
+	for row: Dictionary in world.sects():
+		var id: int = row["id"]
+		var history := world.sect_history(id)
+		assert_gt(history.size(), 0, "宗門 %d 至少有創立或分宗那一則" % id)
+		var last_tick := -1
+		for entry: Dictionary in history:
+			assert_true((entry["powers"] as PackedInt32Array).has(id), "門史每則的勢力裡有這個宗門")
+			assert_true(int(entry["tick"]) >= last_tick, "門史由舊到新")
+			last_tick = entry["tick"]
+			kinds[entry["kind"]] = true
+			assert_false(world.event(entry["id"]).is_empty(), "門史的事件編號取得到事件")
+		assert_true(["PowerFounded", "SectSplit"].has(history[0]["kind"]), "門史第一則是立派或分出")
+		if not row["alive"]:
+			fallen_seen += 1
+			assert_eq(history[-1]["kind"], "PowerFallen", "已覆滅宗門的門史以覆滅作結")
+			assert_eq(world.sect(id)["fall_event"], history[-1]["id"], "覆滅事件編號對得上")
+	assert_true(kinds.has("PowerFounded") or kinds.has("SectSplit"))
+	print("[sect] 門史見到的事件種類：%s；已覆滅宗門 %d 個" % [str(kinds.keys()), fallen_seen])
+
+
+func test_gdd_5_8_sect_ascended_list_matches_the_counter_or_is_pruned() -> void:
+	var world := _sect_world()
+	var mismatch := 0
+	for row: Dictionary in world.sects():
+		var sect := world.sect(row["id"])
+		var list: Array = sect["ascended_people"]
+		assert_true(list.size() <= int(sect["ascended"]), "飛升名錄不多於飛升人數")
+		mismatch += 1 if list.size() != int(sect["ascended"]) else 0
+		for entry: Dictionary in list:
+			assert_true(entry.has("id") and entry.has("name") and entry.has("event"))
+	print("[sect] 飛升名錄與計數不一致的宗門：%d" % mismatch)
+
+
+func test_gdd_5_8_events_and_people_carry_sect_ids() -> void:
+	var world := _sect_world()
+	var checked := 0
+	for row: Dictionary in world.sects():
+		if row["members"] <= 0:
+			continue
+		for member: Dictionary in world.sect(row["id"])["members"]:
+			var info := world.person(member["id"])
+			assert_eq(info["power"], row["id"])
+			for entry: Dictionary in world.person_history(member["id"]):
+				assert_true(entry.has("f_power") and entry.has("g_power"), "歷程事件帶宗門編號")
+				if entry["f_power"] >= 0:
+					assert_eq(world.power_name(entry["f_power"]), entry["f"], "f_power 對得上勢力名")
+					checked += 1
+				if entry["g_power"] >= 0:
+					assert_eq(world.power_name(entry["g_power"]), entry["g"], "g_power 對得上勢力名")
+		if checked > 0:
+			break
+	assert_gt(checked, 0, "至少驗到一筆帶宗門名的歷程事件")
+	assert_eq(world.power_name(-1), "")
+	for id in world.province_count():
+		for person: Dictionary in world.people_in(id):
+			assert_true(person.has("power"), "州郡的有名之人帶宗門編號")
