@@ -24,8 +24,20 @@ pub fn heart_demon_chance(sin: f32, merit: f32, asura: bool) -> f32 {
     }
 }
 
+/// 一次脫離宗門的結果，供呼叫端在寫完主事件後補記（宗門與師徒的紀錄以主事件為因）。
+pub(super) struct Departure {
+    pub person: PersonId,
+    /// 離開的宗門。
+    pub sect: Option<PowerId>,
+    /// 解除師徒的本人師父。
+    pub master: Option<PersonId>,
+    /// 因此失師的徒弟（不含隨行者）。
+    pub dropped: Vec<PersonId>,
+}
+
 /// 脫離宗門：自成員移除、`power` 清空、解除師徒（`leader` 欄位保持原值，由繼任處理偵測）。
-pub(super) fn leave_sect(w: &mut World, pid: PersonId) {
+/// `keep` 內的徒弟只暫時失師（呼叫端隨即還原），不列入 [`Departure::dropped`]。不寫事件。
+pub(super) fn leave_sect(w: &mut World, pid: PersonId, keep: &[PersonId]) -> Departure {
     let (power, master, disciples) = {
         let p = &w.persons[pid as usize];
         (p.power, p.master, p.disciples.clone())
@@ -36,10 +48,14 @@ pub(super) fn leave_sect(w: &mut World, pid: PersonId) {
     if let Some(m) = master.and_then(|id| w.persons.get_mut(id as usize)) {
         m.disciples.retain(|&d| d != pid);
     }
+    let mut dropped = Vec::new();
     for d in disciples {
-        if let Some(d) = w.persons.get_mut(d as usize) {
-            if d.master == Some(pid) {
-                d.master = None;
+        if let Some(x) = w.persons.get_mut(d as usize) {
+            if x.master == Some(pid) {
+                x.master = None;
+                if !keep.contains(&d) {
+                    dropped.push(d);
+                }
             }
         }
     }
@@ -47,6 +63,20 @@ pub(super) fn leave_sect(w: &mut World, pid: PersonId) {
     p.power = None;
     p.master = None;
     p.disciples.clear();
+    Departure { person: pid, sect: power, master, dropped }
+}
+
+/// 補記脫離的紀錄：`SectLeft`（`why_left` 為空則不記，分宗的掌門由 `SectSplit` 交代）、本人師徒解除、門下失師。
+pub(super) fn note_departure(w: &mut World, dep: &Departure, why_left: Option<Why>, cause: Option<EventId>) {
+    if let (Some(sect), Some(why)) = (dep.sect, why_left) {
+        ledger::note_sect_left(w, dep.person, sect, why, cause);
+    }
+    if let Some(m) = dep.master {
+        ledger::note_master_ended(w, dep.person, m, Why::DiscipleLeft, cause);
+    }
+    for &d in &dep.dropped {
+        ledger::note_master_ended(w, d, dep.person, Why::MasterLeft, cause);
+    }
 }
 
 /// GDD 3.5 入魔：身分轉為魔修、離開宗門、魂加「曾入魔」印記、寫入 `FellToDemon`。
@@ -63,7 +93,7 @@ pub fn fall_to_demon_why(w: &mut World, pid: PersonId, why: Why) {
         return;
     }
     let soul = p.soul;
-    leave_sect(w, pid);
+    let departure = leave_sect(w, pid, &[]);
     w.persons[pid as usize].role = Role::Demonic;
     if let Some(s) = w.souls.get_mut(soul as usize) {
         s.marks.set(SoulMarks::FELL_TO_DEMON);
@@ -78,7 +108,8 @@ pub fn fall_to_demon_why(w: &mut World, pid: PersonId, why: Why) {
     if let Some(c) = p.last_event {
         e.causes = smallvec![c];
     }
-    ledger::record(w, e);
+    let fell = ledger::record(w, e);
+    note_departure(w, &departure, Some(Why::LeftForDemon), Some(fell));
 }
 
 fn s_asura(w: &World, pid: PersonId) -> bool {

@@ -4,7 +4,8 @@ extends "res://tests/harness/suite.gd"
 
 const CF := preload("res://modules/ui_kit/code/cultivator_figure.gd")
 const ACTIONS_PATH := "res://modules/figure/resources/actions.json"
-const ACTIONS := ["stand", "brace", "struck"]
+const ACTIONS := ["stand", "brace", "struck", "walk", "fall", "rise", "strike", "seal", "bow"]
+const NEW_ACTIONS := ["walk", "fall", "rise", "strike", "seal", "bow"]
 const JOINTS := ["hip", "neck", "elbow_f", "hand_f", "elbow_b", "hand_b"]
 
 
@@ -73,6 +74,184 @@ func test_gdd_8_11_timing_notes_become_events_and_lengths() -> void:
 	assert_gt(FigureMotion.event_time("brace", "raised"), 0.2)
 	assert_true(FigureMotion.loop_start("brace") >= FigureMotion.event_time("brace", "raised") - 1e-6, "舉臂到頂之後才循環")
 	assert_eq(FigureMotion.event_time("stand", "hit"), -1.0, "沒有的事件是 −1")
+
+
+## 兩格姿勢的最大關節差（含選用的雙腳、剛體鍵）。
+func _pose_gap(a: Dictionary, b: Dictionary) -> float:
+	var gap := 0.0
+	for key in JOINTS + ["foot_f", "foot_b"]:
+		if a.has(key) or b.has(key):
+			var pa: Vector2 = a.get(key, Vector2.ZERO)
+			var pb: Vector2 = b.get(key, Vector2.ZERO)
+			gap = maxf(gap, pa.distance_to(pb))
+	for key in ["head_roll"] + FigureMotion.OPTIONAL_FLOATS:
+		gap = maxf(gap, absf(float(a.get(key, 0.0)) - float(b.get(key, 0.0))))
+	return gap
+
+
+func test_gdd_8_11_six_more_actions_exist_with_timing_note_lengths_and_events() -> void:
+	# sources/figure/direct/<動作>/timing.md：格數與事件（事件名自訂，格號照筆記的關鍵時刻）。
+	var expect := {
+		"walk": {"frames": 22, "loop": true, "events": {"step_a": 0, "step_b": 11}},
+		"fall": {"frames": 36, "loop": false, "events": {"buckle": 8, "land": 18, "still": 22}},
+		"rise": {"frames": 50, "loop": false, "events": {"liftoff": 12, "apex": 24, "touch": 46}},
+		"strike": {"frames": 44, "loop": false, "events": {"draw": 16, "raise": 26, "hit": 32}},
+		"seal": {"frames": 44, "loop": false, "events": {"form": 16, "release": 36}},
+		"bow": {"frames": 44, "loop": false, "events": {"bend": 14, "rise": 36}},
+	}
+	for action: String in NEW_ACTIONS:
+		assert_true(FigureMotion.names().has(action), "有動作 " + action)
+		assert_eq(FigureMotion.frame_count(action), expect[action]["frames"], action + " 格數")
+		assert_eq(FigureMotion.loops(action), expect[action]["loop"], action + " 是否循環")
+		var events: Dictionary = FigureMotion.events(action)
+		assert_eq(events.size(), (expect[action]["events"] as Dictionary).size(), action + " 事件數")
+		for name: String in expect[action]["events"]:
+			assert_true(absf(FigureMotion.event_time(action, name) - float(expect[action]["events"][name]) / 24.0) < 1e-6, "%s 的事件 %s 在第 %d 格" % [action, name, expect[action]["events"][name]])
+	# 筆記的節奏：劈下 4–6 格（最快）、舉劍較慢；結印停住約 16 格；行禮停住約 20 格。
+	assert_true(FigureMotion.event_time("strike", "hit") - FigureMotion.event_time("strike", "raise") <= 6.5 / 24.0, "出手（蓄勢到頂到前刺）不超過 6 格")
+	assert_true(FigureMotion.event_time("bow", "rise") - FigureMotion.event_time("bow", "bend") >= 18.0 / 24.0, "行禮停住約 20 格")
+
+
+func test_gdd_8_11_walk_loops_seamlessly_and_the_other_new_actions_start_from_stand() -> void:
+	var last := FigureMotion.frame_count("walk")
+	assert_true(_pose_gap(FigureMotion.frame_pose("walk", 0), FigureMotion.frame_pose("walk", last)) < 1e-3, "步行首尾格相同，循環不跳")
+	assert_eq(FigureMotion.loop_start("walk"), 0.0, "步行從第 0 格起循環")
+	var stand := FigureMotion.frame_pose("stand", 0)
+	for action in ["fall", "rise", "strike", "seal", "bow"]:
+		assert_true(_pose_gap(FigureMotion.frame_pose(action, 0), stand) < 1e-3, action + " 第 0 格是立姿")
+	for action in ["strike", "seal", "bow", "rise"]:
+		assert_true(_pose_gap(FigureMotion.frame_pose(action, FigureMotion.frame_count(action)), stand) < 1e-3, action + " 最後一格回到立姿")
+	assert_true(_pose_gap(FigureMotion.frame_pose("struck", FigureMotion.frame_count("struck")), FigureMotion.frame_pose("fall", 0)) < 1e-3, "受雷的結尾接得上倒地的開頭")
+
+
+func test_gdd_8_11_fall_ends_lying_down_and_rise_floats_above_the_ground() -> void:
+	var stand_crown: Vector2 = FigureMotion.frame_pose("stand", 0)["anchors"]["crown"]
+	var end := FigureMotion.frame_pose("fall", FigureMotion.frame_count("fall"))
+	var lying: Vector2 = end["anchors"]["crown"]
+	assert_true(-lying.y < -stand_crown.y * 0.5, "倒地後頭頂低於站立身高的一半：%s" % lying)
+	assert_true(absf(lying.x) > 0.7, "倒地後頭在身體的後方（+x），平躺")
+	assert_true(float(end["body_roll"]) > 1.4, "倒地用整體後仰")
+	var apex := FigureMotion.pose("rise", FigureMotion.event_time("rise", "apex") + 0.2)
+	assert_true((apex["anchors"]["foot"] as Vector2).y < -0.1, "浮空時腳底離地")
+	assert_true(absf((FigureMotion.pose("rise", 0.0)["anchors"]["foot"] as Vector2).y) < 1e-6, "浮空前腳底在地面")
+	var seal_hold := FigureMotion.pose("seal", 0.8)
+	assert_true(seal_hold["point"], "結印停住時右手前指")
+	assert_true((seal_hold["hand_f"] as Vector2).x < (seal_hold["neck"] as Vector2).x - 0.25, "右臂向前（−x）伸出")
+	var bow_hold := FigureMotion.pose("bow", 0.8)
+	var stand_pose := FigureMotion.frame_pose("stand", 0)
+	assert_true((bow_hold["neck"] as Vector2).x < (stand_pose["neck"] as Vector2).x - 0.1, "行禮時上身前傾（頸往 −x）")
+	var walk_a := FigureMotion.frame_pose("walk", 0)
+	var walk_b := FigureMotion.frame_pose("walk", 11)
+	assert_true(((walk_a["foot_f"] as Vector2).x - (walk_b["foot_f"] as Vector2).x) * ((walk_a["foot_b"] as Vector2).x - (walk_b["foot_b"] as Vector2).x) < 0.0, "兩步之間兩腳前後互換")
+
+
+func test_gdd_8_11_strike_thrusts_farthest_on_the_hit_frame_after_coiling_back() -> void:
+	var count := FigureMotion.frame_count("strike")
+	var hit := int(FigureMotion.events("strike")["hit"])
+	var stand_palm: Vector2 = FigureMotion.frame_pose("stand", 0)["anchors"]["palm_f"]
+	var reach_at_hit := stand_palm.x - (FigureMotion.frame_pose("strike", hit)["anchors"]["palm_f"] as Vector2).x
+	for i in count + 1:
+		var reach := stand_palm.x - (FigureMotion.frame_pose("strike", i)["anchors"]["palm_f"] as Vector2).x
+		assert_true(reach <= reach_at_hit + 1e-6, "第 %d 格的前伸不超過 hit 格（整組最遠）" % i)
+	assert_true(reach_at_hit >= 0.5 / 7.0 * 1.0, "hit 格的手比立姿多伸出至少半個頭寬：%s" % reach_at_hit)
+	assert_true(reach_at_hit >= 0.3, "前刺是整條手臂伸直，實得 %s" % reach_at_hit)
+	var coil := FigureMotion.frame_pose("strike", int(FigureMotion.events("strike")["raise"]))
+	var stand := FigureMotion.frame_pose("stand", 0)
+	assert_true((coil["anchors"]["palm_f"] as Vector2).x > stand_palm.x + 0.03, "蓄勢時右手往後引：%s" % coil["anchors"]["palm_f"])
+	assert_true((coil["neck"] as Vector2).x > (stand["neck"] as Vector2).x + 0.02 and (coil["hip"] as Vector2).y > (stand["hip"] as Vector2).y + 0.05, "蓄勢時身體後坐、重心降低")
+	assert_true((FigureMotion.frame_pose("strike", hit)["neck"] as Vector2).x < (stand["neck"] as Vector2).x - 0.05, "出手時上身前傾")
+	assert_true(float(FigureMotion.frame_pose("strike", hit)["wind"]) > 0.25, "出手時衣擺與飄帶向後甩")
+	for i in [hit - 1, hit, hit + 1]:
+		var anchors: Dictionary = FigureMotion.frame_pose("strike", i)["anchors"]
+		assert_true(anchors.has("aim_f"), "hit 前後標有劍光方向的錨點")
+		assert_true(((anchors["aim_f"] as Vector2) - (anchors["palm_f"] as Vector2)).x < -0.05, "劍光方向朝前（−x）")
+	assert_true(FigureMotion.frame_pose("strike", hit)["point"], "出手並指")
+
+
+func test_gdd_8_11_walk_has_a_bob_planted_feet_alternating_shoes_and_a_calm_hem() -> void:
+	var hip_y := []
+	for i in 22:
+		hip_y.append((FigureMotion.frame_pose("walk", i)["hip"] as Vector2).y)
+	assert_true(hip_y[0] > hip_y[5] + 0.02 and hip_y[0] > hip_y[6] + 0.02, "接觸格身體最低、過渡格最高")
+	assert_true(hip_y[11] > hip_y[16] + 0.02 and hip_y[11] > hip_y[17] + 0.02, "第二步同樣")
+	# 支撐腳著地期間（高度恆為 0）相對身體等速往後 = 相對地面不動：右腳（foot_f）第 0–11 格、左腳（foot_b）第 11–22 格。
+	for pair: Array in [["foot_f", 0], ["foot_b", 11]]:
+		var key: String = pair[0]
+		var from: int = pair[1]
+		var step := ((FigureMotion.frame_pose("walk", from + 11)[key] as Vector2).x - (FigureMotion.frame_pose("walk", from)[key] as Vector2).x) / 11.0
+		assert_true(step > 0.01,"%s 支撐期每格往後 %s（每步前進量 %s）" % [key, step, step * 11.0])
+		for i in range(from, from + 11):
+			var a: Vector2 = FigureMotion.frame_pose("walk", i)[key]
+			var b: Vector2 = FigureMotion.frame_pose("walk", i + 1)[key]
+			assert_true(absf(a.y) < 0.004, "%s 第 %d 格著地" % [key, i])
+			assert_true(absf((b.x - a.x) - step) < 0.03 * absf(step) + 1e-4, "%s 第 %d 格不滑：每格 %s，應為 %s" % [key, i, b.x - a.x, step])
+	# 前後鞋尖交替：第 0 格右腳在前、第 11 格左腳在前。
+	assert_true((FigureMotion.frame_pose("walk", 0)["foot_f"] as Vector2).x < (FigureMotion.frame_pose("walk", 0)["foot_b"] as Vector2).x - 0.15, "第 0 格右腳在前")
+	assert_true((FigureMotion.frame_pose("walk", 11)["foot_b"] as Vector2).x < (FigureMotion.frame_pose("walk", 11)["foot_f"] as Vector2).x - 0.15, "第 11 格左腳在前")
+	# 鞋不脫離衣擺：每格每隻鞋的鞋跟端（最靠後的點）在衣擺內，或離衣擺邊緣不超過鞋長的四分之一。
+	for given in [{}, {"sex": CF.Sex.FEMALE}, {"age": CF.Age.ELDER}]:
+		var shoe_look := FigureActor.look_of(19, given)
+		for i in 23:
+			var shoe_pose := FigureMotion.frame_pose("walk", i)
+			var robes: Array[PackedVector2Array] = []
+			for part in [CF.ROBE, CF.SKIRT]:
+				robes.append_array(CF.pieces(shoe_look, shoe_pose, part, 0.0))
+			var shoes := CF.pieces(shoe_look, shoe_pose, CF.SHOE, 0.0)
+			assert_true(shoes.size() >= 2, "步行第 %d 格兩隻鞋都畫" % i)
+			for shoe in shoes:
+				var heel := shoe[0]
+				var toe_x := shoe[0].x
+				for point in shoe:
+					if point.x > heel.x:
+						heel = point
+					toe_x = minf(toe_x, point.x)
+				var length := heel.x - toe_x
+				var gap := INF
+				for robe in robes:
+					if Geometry2D.is_point_in_polygon(heel, robe):
+						gap = 0.0
+						break
+					for k in robe.size():
+						var nearest := Geometry2D.get_closest_point_to_segment(heel, robe[k], robe[(k + 1) % robe.size()])
+						gap = minf(gap, heel.distance_to(nearest))
+				assert_true(gap <= length * 0.25, "步行第 %d 格鞋跟離衣擺 %s，超過鞋長 %s 的四分之一" % [i, gap, length])
+	# 雙臂反向擺：兩手的前後位置在極點相反。
+	var p0 := FigureMotion.frame_pose("walk", 0)
+	assert_true(((p0["hand_f"] as Vector2).x - (p0["hand_b"] as Vector2).x) * ((FigureMotion.frame_pose("walk", 11)["hand_f"] as Vector2).x - (FigureMotion.frame_pose("walk", 11)["hand_b"] as Vector2).x) < 0.0, "兩步之間雙臂前後互換")
+	# 衣擺下緣最寬不超過立姿的 1.5 倍。
+	for given in [{}, {"sex": CF.Sex.FEMALE}, {"age": CF.Age.ELDER}]:
+		var look := FigureActor.look_of(19, given)
+		var stand_width := _hem_width(look, FigureMotion.frame_pose("stand", 0))
+		for i in 23:
+			assert_true(_hem_width(look, FigureMotion.frame_pose("walk", i)) <= stand_width * 1.5, "步行第 %d 格下襬 %s 不超過立姿 %s 的 1.5 倍" % [i, _hem_width(look, FigureMotion.frame_pose("walk", i)), stand_width])
+
+
+## 衣擺下緣（身高 0.1 以下的袍與裙）的左右寬度。
+func _hem_width(look: Dictionary, pose: Dictionary) -> float:
+	var low := INF
+	var high := -INF
+	for part in [CF.ROBE, CF.SKIRT]:
+		for piece in CF.pieces(look, pose, part, 0.0):
+			for point in piece:
+				if point.y > -0.1:
+					low = minf(low, point.x)
+					high = maxf(high, point.x)
+	return high - low
+
+
+func test_gdd_8_11_new_actions_play_every_look_without_errors_and_stay_inside_the_frame() -> void:
+	var actor := _actor(31)
+	for action: String in NEW_ACTIONS:
+		var span := FigureMotion.length(action)
+		for k in 9:
+			actor.play(action, span * k / 8.0)
+			assert_gt(actor.polygons().size(), 6, "%s 播到 %d/8 有畫出東西" % [action, k])
+		for given in [{"sex": CF.Sex.FEMALE, "wealth": CF.Wealth.POOR}, {"age": CF.Age.ELDER, "school": CF.School.SHI}, {"sex": CF.Sex.FEMALE, "wealth": CF.Wealth.RICH}]:
+			var look := FigureActor.look_of(77, given)
+			for index in FigureMotion.frame_count(action) + 1:
+				var shapes := CF.shapes(look, FigureMotion.frame_pose(action, index), index / 24.0)
+				var box := CF.bounds_of(shapes)
+				assert_true(FigureActor.FRAME.encloses(box), "%s 第 %d 格的畫面在畫框內：%s" % [action, index, box])
 
 
 func test_gdd_8_11_three_actions_have_different_poses() -> void:
@@ -312,3 +491,54 @@ func test_gdd_5_6_spec_of_carries_the_principal_of_a_tribulation() -> void:
 	var none := spectacle.spec_of({"id": 5, "kind": "Tribulation", "pos": Vector2(4, 4), "x": "Passed"})
 	assert_eq(none["person"], -1, "都沒有就是 -1")
 	assert_eq(none["given"], {}, "沒有當事人：樣子全由種子決定")
+
+
+## 多邊形的面積（鞋帶公式取絕對值）。
+func _area(polygon: PackedVector2Array) -> float:
+	var total := 0.0
+	for i in polygon.size():
+		var a := polygon[i]
+		var b := polygon[(i + 1) % polygon.size()]
+		total += a.x * b.y - b.x * a.y
+	return absf(total) * 0.5
+
+
+func test_gdd_8_11_hair_ribbons_never_fill_the_gap_between_strands_in_any_action_frame() -> void:
+	# 腦後兩縷飄帶交叉圍出洞時，只留外輪廓會把洞填成一整片葉形：合併後的面積不得超過各縷面積的總和。
+	for seed_value in [25, 19, 7, 3]:
+		var look := FigureActor.look_of(seed_value, {"school": 1})
+		for action in ACTIONS:
+			var count := int(FigureMotion.length(action))
+			for i in range(0, count + 1):
+				var pose := FigureMotion.frame_pose(action, i)
+				for time in [0.0, float(i) / 24.0, 1.3 + float(i) * 0.07]:
+					for part in [CF.HAT, CF.TRIM, CF.HAIR]:
+						var raw := CF.pieces(look, pose, part, time)
+						var raw_area := 0.0
+						for polygon in raw:
+							raw_area += _area(polygon)
+						var united_area := 0.0
+						for polygon in CF._unite(raw):
+							united_area += _area(polygon)
+						assert_true(united_area <= raw_area + 1e-6, "%s 第 %d 格（時間 %s）部位 %d 合併後面積 %s 超過各塊總和 %s，兩縷之間的洞被填滿" % [action, i, time, part, united_area, raw_area])
+
+
+func test_gdd_8_11_bleed_halo_never_becomes_a_filled_leaf_between_strands() -> void:
+	# 暈染外擴後若把兩縷細帶之間的縫吃掉，會畫出整片灰葉：每一塊的暈染面積不得超過本身面積加上周長乘外擴寬度的 1.5 倍，且不含洞多邊形。
+	for seed_value in [25, 19, 7, 3]:
+		var look := FigureActor.look_of(seed_value, {"school": 1})
+		for action in ACTIONS:
+			for i in range(0, int(FigureMotion.length(action)) + 1):
+				var pose := FigureMotion.frame_pose(action, i)
+				var time := float(i) / 24.0
+				for part in [CF.HAT, CF.TRIM, CF.SHAWL, CF.ROBE]:
+					for piece in CF._unite(CF.pieces(look, pose, part, time)):
+						var halo := 0.0
+						for polygon in CF._bleed(piece, 0.011):
+							assert_true(not Geometry2D.is_polygon_clockwise(polygon), "%s 第 %d 格部位 %d 暈染含洞" % [action, i, part])
+							halo += _area(polygon)
+						var rim := 0.0
+						for k in piece.size():
+							rim += piece[k].distance_to(piece[(k + 1) % piece.size()])
+						var allowed := _area(piece) + rim * 0.011 * 1.5 + 0.0005
+						assert_true(halo <= allowed, "%s 第 %d 格部位 %d 暈染面積 %s 超過外擴應有的 %s" % [action, i, part, halo, allowed])

@@ -69,7 +69,10 @@ def main(argv=None):
         cmd.append(f"--case={args.case}")
     if args.report:
         cmd.append(f"--report={args.report.resolve()}")
-    return run_bounded(cmd, args.timeout)[0]
+    # 人物落地起的演變由亂數決定；給整批測試同一個亂數種子，失敗才重現得出來。個別測試仍可用 rng_seed 另外指定。
+    env = dict(os.environ)
+    env.setdefault("SIMING_TEST_RNG_SEED", "20261013")
+    return run_bounded(cmd, args.timeout, env=env)[0]
 
 
 if __name__ == "__main__":

@@ -322,7 +322,7 @@ static func paint(canvas: CanvasItem, look: Dictionary, pose: Variant, time: flo
 		for piece in _unite(fills.slice(cut[3], cut[4])):
 			# 暈染：顏色略略滲出墨線之外。
 			if part != SKIN and part != HAIR:
-				for bleed in Geometry2D.offset_polygon(piece, stroke * 1.1):
+				for bleed in _bleed(piece, stroke * 1.1):
 					canvas.draw_colored_polygon(bleed, Color(base, base.a * 0.3))
 			canvas.draw_polygon(piece, _graded(piece, base, DEPTH.get(part, 0.1)))
 			if cut[2] < OPEN and part != HAIR:
@@ -334,6 +334,16 @@ static func paint(canvas: CanvasItem, look: Dictionary, pose: Variant, time: flo
 			canvas.draw_polyline(band[0], tint, band[2], true)
 		for i in range(cut[5], cut[6]):
 			_brush(canvas, lines[i], ink, stroke * 0.8)
+
+
+## 暈染用的外擴輪廓。外擴後圍出洞（兩縷細帶靠得太近、中間的縫被吃掉）時整塊不畫：洞也是個多邊形，照畫會把縫填成一整片灰葉。
+static func _bleed(piece: PackedVector2Array, grow: float) -> Array[PackedVector2Array]:
+	var grown: Array[PackedVector2Array] = []
+	for polygon in Geometry2D.offset_polygon(piece, grow):
+		if Geometry2D.is_polygon_clockwise(polygon):
+			return []
+		grown.append(polygon)
+	return grown
 
 
 ## 這個人某個部位的色塊（由後往前）：看剪影裡哪一塊是裙、哪一塊是披帛用。
@@ -433,10 +443,14 @@ static func _unite(polygons: Array) -> Array[PackedVector2Array]:
 		var apart: Array[PackedVector2Array] = []
 		for piece in pieces:
 			var outers: Array[PackedVector2Array] = []
+			var holes := 0
 			for merged in Geometry2D.merge_polygons(whole, piece):
-				if not Geometry2D.is_polygon_clockwise(merged):
+				if Geometry2D.is_polygon_clockwise(merged):
+					holes += 1
+				else:
 					outers.append(merged)
-			if outers.size() == 1:
+			# 合併後圍出洞（兩縷飄帶交叉成葉形）時不合併：只留外輪廓會把洞填成一整片。
+			if outers.size() == 1 and holes == 0:
 				whole = outers[0]
 			else:
 				apart.append(piece)
@@ -506,6 +520,12 @@ static func _build(look: Dictionary, pose: Variant, time: float, fills: Array[Pa
 	var hem := -0.14 if poor and not seated and not dress else 0.0
 	var rag := 0.014 if poor and not dress else 0.0
 	var behind: bool = look["prop"] in BEHIND_PROPS
+	# 步行：衣擺的前緣跟著較前的腳、後緣跟著較後的腳（沒有 foot_f、foot_b 就全為 0，與舊畫法相同）。
+	var step_a: float = (joints.get("foot_f", Vector2.ZERO) as Vector2).x
+	var step_b: float = (joints.get("foot_b", Vector2.ZERO) as Vector2).x
+	var hem_front := minf(step_a, step_b) * 0.8
+	var hem_back := maxf(step_a, step_b) * 0.8
+	var hem_mid := (hem_front + hem_back) * 0.5
 
 	# 身後的東西先畫：背著或掛著的持物、披在背後的大氅、女子的披帛、朝前那隻手（上臂在身後）。
 	_stage(cuts, Layer.BACK_PROP)
@@ -537,15 +557,18 @@ static func _build(look: Dictionary, pose: Variant, time: float, fills: Array[Pa
 		if poor and not dress:
 			# 腿腳露在短褐底下，赤足；重心在一腳，另一腳略往前。
 			for leg: float in [-0.05, 0.035]:
-				var ankle := Vector2(hip.x + leg - (0.02 if leg < 0.0 else 0.0), -0.012 + (0.006 if leg < 0.0 else 0.0))
+				var stride: Vector2 = joints.get("foot_f" if leg < 0.0 else "foot_b", Vector2.ZERO)
+				var ankle := Vector2(hip.x + leg - (0.02 if leg < 0.0 else 0.0), -0.012 + (0.006 if leg < 0.0 else 0.0)) + stride
 				fills.append(_limb(Vector2(hip.x + leg * 0.9, hem - 0.03), ankle, 0.024, 0.016))
 				fills.append(smooth_outline([ankle + Vector2(0.02, -0.012), ankle + Vector2(0.022, 0.012), ankle + Vector2(-0.06, 0.012), ankle + Vector2(-0.068, 0.0), ankle + Vector2(-0.02, -0.014)]))
 				_cut(cuts, fills, lines, bands, SKIN)
 		else:
 			# 鞋尖：衣擺前緣露出翹頭履。
-			var toe := Vector2(hip.x - f * 0.5, 0.0)
-			fills.append(smooth_outline([toe + Vector2(0.03, 0.006), toe + Vector2(-0.05, 0.006), toe + Vector2(-0.085, -0.012), toe + Vector2(-0.075, -0.034), toe + Vector2(-0.04, -0.018)]))
-			_cut(cuts, fills, lines, bands, SHOE)
+			# 步行等動作帶 foot_f、foot_b（相對立姿的雙腳位移）：兩隻鞋各自擺；沒有這兩個鍵時只畫一隻，與舊畫法相同。
+			for foot_key: String in (["foot_f", "foot_b"] if joints.has("foot_f") else [""]):
+				var toe := Vector2(hip.x - f * 0.5, 0.0) + (joints[foot_key] as Vector2 if foot_key != "" else Vector2.ZERO)
+				fills.append(smooth_outline([toe + Vector2(0.03, 0.006), toe + Vector2(-0.05, 0.006), toe + Vector2(-0.085, -0.012), toe + Vector2(-0.075, -0.034), toe + Vector2(-0.04, -0.018)]))
+				_cut(cuts, fills, lines, bands, SHOE)
 
 	_stage(cuts, Layer.ROBE)
 	# 袍：衣領、肩、胸、腰，再到衣擺（站）或盤起的腿（坐）。
@@ -561,10 +584,10 @@ static func _build(look: Dictionary, pose: Variant, time: float, fills: Array[Pa
 	else:
 		# 衣擺下緣是一道往下鼓的弧（從略高處看下去的圓擺）。
 		body.append_array([
-			hip + Vector2(-g, -0.03), hip + Vector2(-g - 0.012, 0.06), Vector2(hip.x - f * 0.55, -0.24 + hem * 0.4), Vector2(hip.x - f * 0.74, -0.045 + hem),
-			Vector2(hip.x - f * 0.5, -0.008 + hem - rag), Vector2(hip.x - f * 0.05, 0.012 + 0.004 * sway + hem + rag), Vector2(hip.x + f * 0.42, 0.006 + hem - rag),
-			Vector2(hip.x + f * 0.8 + w, -0.006 - w * 0.12 + hem + rag), Vector2(hip.x + f + w * 1.7 + 0.02 * sway, -0.035 - w * 0.45 + hem),
-			Vector2(hip.x + f * 0.8 + w, -0.22 + hem * 0.4), hip + Vector2(g + 0.03 + w * 0.3, 0.05), hip + Vector2(g + 0.006, -0.03),
+			hip + Vector2(-g, -0.03), hip + Vector2(-g - 0.012, 0.06), Vector2(hip.x - f * 0.55 + hem_front * 0.5, -0.24 + hem * 0.4), Vector2(hip.x - f * 0.74 + hem_front, -0.045 + hem),
+			Vector2(hip.x - f * 0.5 + hem_front, -0.008 + hem - rag), Vector2(hip.x - f * 0.05 + hem_mid, 0.012 + 0.004 * sway + hem + rag), Vector2(hip.x + f * 0.42 + hem_back * 0.6, 0.006 + hem - rag),
+			Vector2(hip.x + f * 0.8 + w + hem_back, -0.006 - w * 0.12 + hem + rag), Vector2(hip.x + f + w * 1.7 + 0.02 * sway + hem_back, -0.035 - w * 0.45 + hem),
+			Vector2(hip.x + f * 0.8 + w + hem_back * 0.5, -0.22 + hem * 0.4), hip + Vector2(g + 0.03 + w * 0.3, 0.05), hip + Vector2(g + 0.006, -0.03),
 		])
 	body.append_array([neck + Vector2(s * 0.98, 0.17), near, neck + Vector2(s * 0.7, 0.018), neck + Vector2(0.03, 0.0)])
 	fills.append(smooth_outline(body))
@@ -708,6 +731,34 @@ static func _build(look: Dictionary, pose: Variant, time: float, fills: Array[Pa
 	_stage(cuts, Layer.FRONT_PROP)
 	_front_prop(fills, lines, look, hand_f, time)
 	_cut(cuts, fills, lines, bands, PROP)
+	_move_body(fills, lines, bands, joints)
+
+
+## 整個人當剛體移動（姿勢字典帶 body_roll 才用）：繞 body_pivot 轉 body_roll 弧度（正值是頭往後倒），再整體上移 body_lift。
+## 倒地與浮空用；各部位仍照直立的關節畫好，最後一起搬。
+static func _move_body(fills: Array[PackedVector2Array], lines: Array[PackedVector2Array], bands: Array, joints: Dictionary) -> void:
+	if not joints.has("body_roll"):
+		return
+	var roll: float = joints["body_roll"]
+	var pivot: Vector2 = joints["body_pivot"]
+	var lift := Vector2(0.0, -float(joints["body_lift"]))
+	# 倒地時衣擺攤在地上：低於地面的點壓到地面（浮空時不壓）。
+	var floor_y: float = -0.004 if absf(roll) > 0.05 else 1e9
+	var move := func(shape: PackedVector2Array) -> PackedVector2Array:
+		var out := PackedVector2Array()
+		for point in shape:
+			var moved := (point - pivot).rotated(roll) + pivot + lift
+			if moved.y > floor_y:
+				# 壓成近乎貼地的一層（單調壓縮，不讓點疊成同一高度而無法三角化）。
+				moved.y = floor_y + (moved.y - floor_y) * 0.3
+			out.append(moved)
+		return out
+	for i in fills.size():
+		fills[i] = move.call(fills[i])
+	for i in lines.size():
+		lines[i] = move.call(lines[i])
+	for band: Array in bands:
+		band[0] = move.call(band[0])
 
 
 ## 頭整個繞頸根轉 roll 弧度（正值是頭往後仰、臉朝上）：頸、臉、鬚、髮、冠帽一起轉，衣領不動。

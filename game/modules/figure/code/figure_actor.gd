@@ -24,7 +24,7 @@ const MAX_CAMERA_FRACTION := 0.4
 static var depth_pull_factor := 2.0
 ## 畫框（身高為 1 的座標）：涵蓋雙臂過頭、甩開與風吹的大氅袖擺髮帶；實測 160 種樣子 × 三個動作的範圍是
 ## x −0.38 到 1.11、y −1.41 到 0.02（tests/harness/figure_extent.gd），人朝 −x、衣擺飄向身後（+x），所以畫框偏右。
-const FRAME := Rect2(-0.45, -1.45, 1.6, 1.5)
+const FRAME := Rect2(-0.55, -1.45, 1.8, 1.7)
 ## 面片貼圖的密度以幾個像素為一階（縮放時不逐像素重配貼圖）；貼圖比畫面略密，墨線約 1.6 畫面像素。
 const DENSITY_STEP := 16.0
 const DENSITY_MARGIN := 1.25

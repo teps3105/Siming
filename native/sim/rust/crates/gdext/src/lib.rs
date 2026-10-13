@@ -1,9 +1,11 @@
 //! GDD 6.4 Godot 橋接：`SimWorld` 持有一個 [`Sim`]，Godot 端只經由本類別讀取世界、推進時間。
 //! 本 crate 不含遊戲規則；規則一律在 siming-sim（GDD 6.1 依賴原則）。
 
+mod chronicle_api;
 mod karma;
 mod mapbake;
 mod relief;
+mod sect_api;
 mod stats_api;
 
 use std::sync::mpsc::{self, Receiver, TryRecvError};
@@ -238,7 +240,9 @@ impl SimWorld {
         };
         // 測試開關：`create_with` 的 `rng_seed` 指定人物落地起的亂數種子；沒指定時從作業系統取。
         let fixed = FIXED_RNG.swap(u64::MAX, Ordering::Relaxed);
-        let fixed = (fixed != u64::MAX).then_some(fixed);
+        // 測試執行器以環境變數 `SIMING_TEST_RNG_SEED` 給全部測試一個固定的亂數種子，同一批測試才重跑得出同一個世界。
+        let fixed =
+            (fixed != u64::MAX).then_some(fixed).or_else(|| std::env::var("SIMING_TEST_RNG_SEED").ok().and_then(|v| v.parse::<u64>().ok()));
         match Sim::new_with_progress_seeded(&params, fixed, &mut |_, _| {}, &mut progress) {
             Ok(sim) => {
                 self.adopt(sim);
@@ -997,7 +1001,8 @@ impl SimWorld {
             return out;
         };
         // 只記了魂的事件（判入六道）只算本世存在期間內的。
-        let mut events: Vec<&siming_sim::Event> = w.ledger.events.iter().filter(|e| e.importance > 0 && belongs_to(w, e, p)).collect();
+        let mut events: Vec<&siming_sim::Event> =
+            w.ledger.events.iter().filter(|e| e.importance > 0 && !e.kind.is_chronicle_only() && belongs_to(w, e, p)).collect();
         events.sort_by_key(|e| (e.tick, e.id));
         let gw = w.geo.w as u32;
         // 故里日後可能變：遊歷是否為歸來，改看它是不是回到上一趟的出發地，或回到現在的故里。
@@ -1057,6 +1062,7 @@ impl SimWorld {
             d.set("realm", realm);
             let fruit = if let siming_sim::PathState::Monk { fruit, .. } = p.path { fruit as i32 } else { -1 };
             d.set("fruit", fruit);
+            d.set("power", power.map_or(-1, |pw| pw.id as i32));
             d.set("power_name", &GString::from(power.map_or("", |pw| pw.name.as_str())));
             d.set("is_leader", power.is_some_and(|pw| pw.leader == Some(p.id)));
             d.set("age", p.age(w.tick) as i32);
@@ -1183,7 +1189,8 @@ impl SimWorld {
         };
         let w = sim.world();
         for id in ids {
-            let Some(e) = siming_sim::ledger::get(w, id) else {
+            // 只供人物生平的紀錄（`person_chronicle`）不上傳聞與事件流。
+            let Some(e) = siming_sim::ledger::get(w, id).filter(|e| !e.kind.is_chronicle_only()) else {
                 continue;
             };
             // 主角（{A}）的身分：事件發生當月月底的樣子；沒有記下（讀檔重播的事件）才取現況。
@@ -1275,7 +1282,7 @@ fn set_day_and_cause(d: &mut VarDictionary, e: &siming_sim::Event) {
 }
 
 fn event_by_id(w: &siming_sim::World, id: i64) -> Option<&siming_sim::Event> {
-    u32::try_from(id).ok().and_then(|i| siming_sim::ledger::get(w, i))
+    u32::try_from(id).ok().and_then(|i| siming_sim::ledger::get(w, i)).filter(|e| !e.kind.is_chronicle_only())
 }
 
 struct TreeWalk<'a> {
@@ -1320,7 +1327,7 @@ fn ripple_ids(w: &siming_sim::World, root: siming_sim::EventId, cap: usize) -> V
     while let Some(id) = queue.pop_front() {
         let Some(list) = w.ledger.effects.get(id as usize) else { continue };
         for &x in list {
-            if siming_sim::ledger::get(w, x).is_some() && seen.insert(x) {
+            if siming_sim::ledger::get(w, x).is_some_and(|e| !e.kind.is_chronicle_only()) && seen.insert(x) {
                 out.push(x);
                 queue.push_back(x);
             }
@@ -1411,6 +1418,10 @@ impl SimWorld {
         let identity = identity.or_else(|| subjects(w, e).0.map(|p| identity_of(w, p)));
         let identity = identity.unwrap_or(Identity { power: String::new(), role: "", realm: -1 });
         d.set("a_power", &GString::from(identity.power.as_str()));
+        d.set(
+            "a_power_id",
+            w.powers.iter().find(|pw| !identity.power.is_empty() && pw.name == identity.power).map_or(-1, |pw| pw.id as i32),
+        );
         d.set("a_role", &GString::from(identity.role));
         d.set("a_realm", identity.realm);
         d
@@ -1431,6 +1442,7 @@ impl SimWorld {
         let (first, second_power) = if e.kind == siming_sim::EventKind::SectSplit { (1, 0) } else { (0, 1) };
         let mut f = power(first).map_or("", |p| p.name.as_str());
         let mut g = power(second_power).map_or("", |p| p.name.as_str());
+        let (mut f_power, mut g_power) = (power(first).map_or(-1, |p| p.id as i32), power(second_power).map_or(-1, |p| p.id as i32));
         let mut m = 0i64;
         let mut second = "";
         let mut second_id: Option<siming_sim::ProvinceId> = None;
@@ -1473,6 +1485,7 @@ impl SimWorld {
                 g = other.and_then(|id| w.dynasty.get(id)).map_or("", |d| d.name.as_str());
                 n = *count as i64;
                 x = "Dynasty".to_string();
+                (f_power, g_power) = (-1, -1);
             }
             siming_sim::EventArgs::Node { node, from, to } => {
                 x = w.geo.nodes.get(*node as usize).map_or(String::new(), |nd| nd.name.clone());
@@ -1507,6 +1520,8 @@ impl SimWorld {
         d.set("a_person", person_a.map_or(-1, |p| p.id as i32));
         d.set("b_person", person_b.map_or(-1, |p| p.id as i32));
         d.set("q_province", second_id.map_or(-1, |id| id as i32));
+        d.set("f_power", f_power);
+        d.set("g_power", g_power);
         if let siming_sim::EventArgs::World { change, new_era } = &e.args {
             let year = w.evolution.history_years + siming_sim::evolution::year_of(e.tick);
             let era = w.eras.iter().find(|era| era.start_year == year + 1);
@@ -1795,7 +1810,10 @@ mod tests {
             assert!(ids.iter().all(|&x| x > e.id), "後果必在事件之後");
             assert!(ids.windows(2).all(|p| p[0] < p[1]));
             // 直接後果一定在漣漪裡。
-            for &x in w.ledger.effects[e.id as usize].iter().filter(|&&x| siming_sim::ledger::get(w, x).is_some()) {
+            for &x in w.ledger.effects[e.id as usize]
+                .iter()
+                .filter(|&&x| siming_sim::ledger::get(w, x).is_some_and(|c| !c.kind.is_chronicle_only()))
+            {
                 assert!(ids.contains(&x) || ids.len() == RIPPLE_CAP);
             }
             any |= !ids.is_empty();

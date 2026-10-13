@@ -143,6 +143,54 @@ pub fn record(w: &mut World, e: NewEvent) -> EventId {
     id
 }
 
+/// 寫入只供人物卡生平的紀錄（`EventKind::is_chronicle_only`）：寫入後把涉及人物的 `last_event` 還原，
+/// 讓既有事件的因果鏈與寫入前完全相同。
+pub fn record_note(w: &mut World, e: NewEvent) -> EventId {
+    let saved: SmallVec<[(PersonId, Option<EventId>); 2]> =
+        e.persons.iter().filter_map(|&p| w.persons.get(p as usize).map(|x| (p, x.last_event))).collect();
+    let id = record(w, e);
+    for (p, last) in saved {
+        w.persons[p as usize].last_event = last;
+    }
+    id
+}
+
+/// 人物加入宗門的紀錄（`SectJoined`）。呼叫端已完成 `join_sect`。
+pub fn note_sect_joined(w: &mut World, pid: PersonId, sect: PowerId, why: Why, cause: Option<EventId>) -> EventId {
+    note_sect(w, EventKind::SectJoined, pid, sect, why, cause)
+}
+
+/// 人物離開宗門的紀錄（`SectLeft`）。`sect` 為離開的那一宗。
+pub fn note_sect_left(w: &mut World, pid: PersonId, sect: PowerId, why: Why, cause: Option<EventId>) -> EventId {
+    note_sect(w, EventKind::SectLeft, pid, sect, why, cause)
+}
+
+fn note_sect(w: &mut World, kind: EventKind, pid: PersonId, sect: PowerId, why: Why, cause: Option<EventId>) -> EventId {
+    let p = &w.persons[pid as usize];
+    let mut e = NewEvent::new(kind, 1, EventArgs::None);
+    e.why = why;
+    e.province = Some(p.province);
+    e.cell = Some(p.cell);
+    e.souls.push(p.soul);
+    e.persons.push(pid);
+    e.powers.push(sect);
+    e.causes.extend(cause);
+    record_note(w, e)
+}
+
+/// 師徒解除的紀錄（`MasterEnded`），人物順序同師徒線的建立事件：徒、師。
+pub fn note_master_ended(w: &mut World, disciple: PersonId, master: PersonId, why: Why, cause: Option<EventId>) -> EventId {
+    let (d, m) = (&w.persons[disciple as usize], &w.persons[master as usize]);
+    let mut e = NewEvent::new(EventKind::MasterEnded, 1, EventArgs::None);
+    e.why = why;
+    e.province = Some(d.province);
+    e.cell = Some(d.cell);
+    e.souls.extend([d.soul, m.soul]);
+    e.persons.extend([disciple, master]);
+    e.causes.extend(cause);
+    record_note(w, e)
+}
+
 /// 讀取事件；已被修剪（墓碑）或不存在時回傳 `None`。
 pub fn get(w: &World, id: EventId) -> Option<&Event> {
     w.ledger.events.get(id as usize).filter(|e| e.importance > 0)
