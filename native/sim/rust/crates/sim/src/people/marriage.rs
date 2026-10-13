@@ -56,6 +56,48 @@ pub fn yearly_marriage(w: &mut World) {
     marriage_round(w, Round::All);
 }
 
+/// 事件隊列的婚配抽中：在世未婚者找同州或陸鄰、年齡差內的未婚異性（同宗門優先），挑一位結為夫妻。
+/// 回傳是否成婚；沒有候選時回傳 `false`，由呼叫端重抽下一次。
+pub(super) fn marry_now(w: &mut World, pid: PersonId) -> bool {
+    let tick = w.tick;
+    let p = &w.persons[pid as usize];
+    if !eligible(p, tick) {
+        return false;
+    }
+    let (age, gender, power, prov) = (p.age(tick), p.gender, p.power, p.province);
+    let near: Vec<u16> = std::iter::once(prov).chain(w.provinces[prov as usize].neighbors.iter().copied()).collect();
+    let mut cands: Vec<PersonId> = w
+        .alive_ids
+        .iter()
+        .copied()
+        .filter(|&c| {
+            let q = &w.persons[c as usize];
+            c != pid
+                && q.gender != gender
+                && near.contains(&q.province)
+                && q.age(tick).abs_diff(age) <= MARRY_AGE_GAP_MAX
+                && eligible(q, tick)
+        })
+        .collect();
+    if cands.is_empty() {
+        return false;
+    }
+    if power.is_some() {
+        let same: Vec<PersonId> = cands.iter().copied().filter(|&c| w.persons[c as usize].power == power).collect();
+        if !same.is_empty() {
+            cands = same;
+        }
+    }
+    let other = cands[w.rng.people.gen_range(0..cands.len())];
+    marry(w, pid, other);
+    true
+}
+
+/// 可婚配（供事件隊列判定）。
+pub(super) fn can_marry(w: &World, pid: PersonId) -> bool {
+    eligible(&w.persons[pid as usize], w.tick)
+}
+
 fn marriage_round(w: &mut World, round: Round) {
     let tick = w.tick;
     // 以所在州郡分組的候選名單（ID 升冪）；第一次有人通過機率抽樣時才建（單月輪次多半沒有人要配對）。

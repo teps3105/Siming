@@ -1,7 +1,6 @@
 //! GDD 6.3 判定月：個人與宗門的年度判定攤到各月後，事件在月份上的分布。
 
 use siming_sim::calendar;
-use siming_sim::schedule::{judge_month, Domain};
 use siming_sim::{EventKind, Sim, WorldParams};
 
 /// 測試用的短開天：人口期 600 年、人物期 200 年（預設長度太慢，且測試要看的是其中一段規則）。
@@ -92,11 +91,10 @@ fn gdd_6_3_died_famine_and_dynasty_events_spread_across_months() {
     }
 }
 
-/// 入道事件發生在人物自己的判定月（補足宗門的新弟子不經入道判定，以出生時間排除）。
+/// 入道事件發生在人物滿 12 歲之後、13 歲之前（出生日 + 12 年 + 0–359 日的延遲；補足宗門的新弟子不經入道判定，以勢力排除）。
 #[test]
-fn gdd_6_3_come_of_age_happens_in_own_judge_month() {
+fn gdd_6_3_come_of_age_happens_between_twelve_and_thirteen() {
     let mut sim = Sim::new(&quick(42)).unwrap();
-    let seed = sim.world().params.seed;
     let start = sim.world().tick;
     for _ in 0..600 {
         sim.step();
@@ -111,7 +109,8 @@ fn gdd_6_3_come_of_age_happens_in_own_judge_month() {
         if !e.powers.is_empty() {
             continue;
         }
-        assert_eq!((calendar::date(e.tick).month - 1) as u8, judge_month(seed, Domain::Person, pid), "人 {pid}");
+        let age_days = e.tick as i64 - w.persons[pid as usize].born as i64;
+        assert!((12 * 360..13 * 360).contains(&age_days), "人 {pid} 入道時 {age_days} 日");
         assert!(seen.insert(pid), "人 {pid} 重複入道");
         checked += 1;
     }

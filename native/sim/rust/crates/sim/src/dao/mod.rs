@@ -38,7 +38,7 @@ mod tests;
 mod war;
 
 pub use breakthrough::{ascension_survival, breakthrough_chance, cooldown_ready, fail_death_chance, tribulation_survival, ASCENSION_REALM};
-pub use cultivate::cultivation_coefficient;
+pub use cultivate::{cultivation_coefficient, person_year};
 pub use demon::{fall_to_demon, heart_demon_chance};
 pub use kill::kill;
 pub use sect::RangeCache;

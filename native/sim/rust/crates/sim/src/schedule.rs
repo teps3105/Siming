@@ -36,6 +36,12 @@ pub fn judge_month(seed: u64, domain: Domain, id: u32) -> u8 {
     (h % 12) as u8
 }
 
+/// 實體在一年內固定的結算日（1–360）。與 [`judge_month`] 同源雜湊。
+pub fn judge_day(seed: u64, domain: Domain, id: u32) -> u32 {
+    let h = mix(mix(seed ^ 0x2545_f491_4f6c_dd1d) ^ ((domain as u64) << 40 | id as u64));
+    (h % crate::calendar::DAYS_PER_YEAR as u64) as u32 + 1
+}
+
 /// 某個 (種子, 類別) 下，編號依判定月分成 12 桶（桶內編號升冪）。判定月只由種子、類別、編號決定，
 /// 因此這份表是純函式 [`judge_month`] 的備忘，與任何世界狀態無關，可跨世界、跨存讀檔共用。
 #[derive(Default)]

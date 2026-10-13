@@ -84,6 +84,10 @@ pub fn die(w: &mut World, pid: PersonId, cause: DeathCause, liberation: Option<L
     if let Some(s) = spouse.and_then(|id| w.persons.get_mut(id as usize)) {
         if s.spouse == Some(pid) {
             s.spouse = None;
+            let (sid, rearm) = (s.id, s.alive() && s.role != Role::Monk);
+            if rearm {
+                super::events::arm_marry(w, sid);
+            }
         }
     }
     if let Some(m) = master.and_then(|id| w.persons.get_mut(id as usize)) {

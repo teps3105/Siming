@@ -388,7 +388,8 @@ fn marriage_prefers_same_sect() {
     for &i in &ids[0..2] {
         w.persons[i as usize].power = Some(0);
     }
-    run_marriage_years(&mut w, 300);
+    // 男方抽中時，同宗門的女方優先於另一位候選。
+    assert!(super::marriage::marry_now(&mut w, ids[0]));
     assert_eq!(w.persons[ids[0] as usize].spouse, Some(ids[1]));
     assert_eq!(w.persons[ids[2] as usize].spouse, None);
 }

@@ -451,6 +451,7 @@ fn fill_sects(w: &mut World, round: Round) {
             p.lifespan = p.lifespan.max(REALM_LIFESPAN[0] as u16);
             join_sect(w, pid, id);
             w.persons[pid as usize].cell = seat_cell;
+            crate::people::events::arm_adult(w, pid);
             let p = &w.persons[pid as usize];
             let mut e = NewEvent::new(EventKind::ComeOfAge, 1, EventArgs::Role { role: Role::Cultivator });
             e.province = Some(p.province);

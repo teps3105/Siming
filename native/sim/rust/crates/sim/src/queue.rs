@@ -18,6 +18,26 @@ use crate::calendar::Day;
 pub enum Action {
     /// 標記事件：執行時什麼都不做，只計入 [`EventQueue::fired`]。測試與工具用。
     Marker(u32),
+    /// 某人的個人規則（見 [`PersonAct`]）。
+    Person(u32, PersonAct),
+}
+
+/// 個人規則的事件種類。算得出時刻者（壽終、入道、遊歷返回）直接排定；
+/// 隨機觸發者（遊歷出發、婚配）每人各抽一個指數等待時間；年度結算（修煉、突破、心魔、斬妖）在每人固定的日子。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PersonAct {
+    /// 壽元已盡（出生日 + 壽元）。壽元之後延長則在觸發時重排。
+    Age,
+    /// 滿 12 歲後入道。
+    ComeOfAge,
+    /// 遊歷期滿返回。
+    Return,
+    /// 遊歷出發的抽中。
+    Travel,
+    /// 婚配的抽中。
+    Marry,
+    /// 修士與魔修的年度結算：突破、修煉、心魔、斬妖或襲殺、劫雲預兆。
+    Year,
 }
 
 /// 排程的句柄，用來取消或重排。

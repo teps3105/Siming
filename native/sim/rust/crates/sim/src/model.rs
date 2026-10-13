@@ -279,6 +279,8 @@ pub struct Person {
     pub travel_until: Option<Tick>,
     /// GDD 4.6 開局保證：排定的強制突破 tick。
     pub forced_breakthrough: Option<Tick>,
+    /// 婚配的下一次抽中日；隊列裡只有日序等於它的婚配事件有效（重排時舊事件自然失效）。
+    pub next_marry: Option<Tick>,
     pub last_event: Option<EventId>,
 }
 

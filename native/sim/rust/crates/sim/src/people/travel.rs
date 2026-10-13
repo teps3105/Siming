@@ -70,26 +70,32 @@ pub fn yearly_travel(w: &mut World) {
 }
 
 fn travel_round(w: &mut World, round: Round) {
-    let tick = w.tick;
     for i in w.round_alive(round).into_iter().map(|x| x as usize) {
+        if travel_eligible(w, i) && w.rng.people.gen::<f32>() < TRAVEL_CHANCE {
+            depart(w, i);
+        }
+    }
+}
+
+/// 可出遊：在世修士、不在遊歷中、築基以上、非掌門。
+pub(super) fn travel_eligible(w: &World, i: usize) -> bool {
+    let p = &w.persons[i];
+    if !p.alive() || p.role != Role::Cultivator || p.travel_until.is_some() {
+        return false;
+    }
+    let PathState::Cultivator { realm, .. } = p.path else { return false };
+    realm >= TRAVEL_MIN_REALM && p.power.and_then(|id| w.powers.get(id as usize)).is_none_or(|pw| pw.leader != Some(p.id))
+}
+
+/// 出發：抽目的地、格、停留月數並移動。沒有可去的州郡時回傳 `false`。
+pub(super) fn depart(w: &mut World, i: usize) -> bool {
+    let tick = w.tick;
+    {
         let p = &w.persons[i];
-        if !p.alive() || p.role != Role::Cultivator || p.travel_until.is_some() {
-            continue;
-        }
-        let PathState::Cultivator { realm, .. } = p.path else { continue };
-        if realm < TRAVEL_MIN_REALM {
-            continue;
-        }
-        if p.power.and_then(|id| w.powers.get(id as usize)).is_some_and(|pw| pw.leader == Some(p.id)) {
-            continue;
-        }
-        if w.rng.people.gen::<f32>() >= TRAVEL_CHANCE {
-            continue;
-        }
         let (pid, from, from_cell) = (p.id, p.province, p.cell);
         let cands = travel_candidates(w, from);
         if cands.is_empty() {
-            continue;
+            return false;
         }
         let weights: Vec<f64> = cands.iter().map(|&c| w.provinces[c as usize].aura.max(0.0) as f64).collect();
         let total: f64 = weights.iter().sum();
@@ -115,7 +121,10 @@ fn travel_round(w: &mut World, round: Round) {
         p.cell = cell;
         p.travel_until = Some(tick + stay);
         travel_event(w, pid, from, to, from_cell);
+        let until = tick + stay;
+        w.queue.schedule(until, crate::queue::Action::Person(pid, crate::queue::PersonAct::Return));
     }
+    true
 }
 
 /// 返回 home：回到山門格（所屬勢力在 home 州時），否則 home 州隨機一格。
@@ -134,4 +143,5 @@ pub(super) fn return_home(w: &mut World, i: usize) {
     p.cell = cell;
     p.travel_until = None;
     travel_event(w, pid, from, home, cell);
+    super::events::arm_travel(w, pid);
 }

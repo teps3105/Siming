@@ -53,33 +53,35 @@ pub(super) fn add_exp(w: &mut World, pid: PersonId, amount: f32) {
     }
 }
 
-/// GDD 6.3 步驟 11（修士與魔修部分），依人物 ID 升冪：
-/// 突破（含天劫）→ 修煉 → 心魔 → 斬妖除魔（修士）／襲殺（魔修）。
-pub(super) fn yearly_actions(w: &mut World, round: Round) {
-    let tick = w.tick;
-    // 人物索引只在第一次需要斬妖或襲殺時才建（單月輪次多半只有修煉）。
-    let mut index: Option<demon::PersonIndex> = None;
-    for i in w.round_alive(round).into_iter().map(|x| x as usize) {
-        let p = &w.persons[i];
-        if !p.alive() || !matches!(p.role, Role::Cultivator | Role::Demonic) {
-            continue;
-        }
-        if !matches!(p.path, PathState::Cultivator { .. }) {
-            continue;
-        }
-        let pid = p.id;
-        if breakthrough::eligible(p, tick) && !breakthrough::attempt(w, pid, false) {
-            continue;
-        }
-        cultivate(w, pid);
-        match w.persons[i].role {
-            Role::Cultivator => {
-                if demon::heart_demon_roll(w, pid) {
-                    continue;
-                }
-                demon::hunt(w, &mut index, pid);
+/// 修士或魔修的年度行動，依序：突破（含天劫）→ 修煉 → 心魔 → 斬妖除魔（修士）／襲殺（魔修）。
+fn actions_one(w: &mut World, pid: PersonId) {
+    let p = &w.persons[pid as usize];
+    if !p.alive() || !matches!(p.role, Role::Cultivator | Role::Demonic) || !matches!(p.path, PathState::Cultivator { .. }) {
+        return;
+    }
+    if breakthrough::eligible(p, w.tick) && !breakthrough::attempt(w, pid, false) {
+        return;
+    }
+    cultivate(w, pid);
+    match w.persons[pid as usize].role {
+        Role::Cultivator => {
+            if !demon::heart_demon_roll(w, pid) {
+                demon::hunt(w, pid);
             }
-            _ => demon::assassinate(w, &mut index, pid),
         }
+        _ => demon::assassinate(w, pid),
+    }
+}
+
+/// 一個修士或魔修的年度結算：年度行動，再接劫雲預兆。事件隊列在每人固定的日子觸發。
+pub fn person_year(w: &mut World, pid: PersonId) {
+    actions_one(w, pid);
+    breakthrough::omen_one(w, pid);
+}
+
+/// GDD 6.3 步驟 11（修士與魔修部分），一次判定本輪輪到的全部人（測試與工具用；`Sim` 走事件隊列）。
+pub(super) fn yearly_actions(w: &mut World, round: Round) {
+    for i in w.round_alive(round) {
+        actions_one(w, i);
     }
 }

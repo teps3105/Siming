@@ -343,6 +343,7 @@ impl Sim {
         self.world.tick = self.world.tick.max(day);
         match action {
             crate::queue::Action::Marker(_) => self.world.queue.fired += 1,
+            crate::queue::Action::Person(pid, act) => crate::people::events::fire(&mut self.world, pid, act),
         }
     }
 
@@ -387,11 +388,7 @@ impl Sim {
             crate::command::apply(w, &cmd);
             self.log.push((tick, cmd));
         }
-        // 3 到期處理（含開局保證的強制突破）
-        let any_forced = crate::people::monthly_due(w);
-        if any_forced {
-            crate::dao::monthly_forced(w);
-        }
+        // 3 個人規則（壽終、入道、遊歷、婚配、修煉突破）已改走事件隊列（`people::events`）。
         // 4 軍隊（M3）
         // 5 中陰、他道、等待、出生
         crate::soul::monthly(w);
@@ -405,15 +402,7 @@ impl Sim {
         crate::ledger::record_famines(w, &famines);
         crate::dynasty::on_famines(w, &famines);
         // 8、9 氣場與勢力的年度效果（M3、M4）
-        // 10 年齡與壽元：年齡由 tick 與出生月即時算出（滿一歲落在出生月），壽元已盡者在滿壽元的那個月死亡。
-        crate::people::monthly_aging(w);
-        // 11 依身分行動
-        crate::dao::monthly_personal(w);
-        crate::people::monthly_travel(w);
-        // 12 入道
-        crate::people::monthly_coming_of_age(w);
-        // 13 婚配
-        crate::people::monthly_marriage(w);
+        // 10–13 壽終、修煉突破、遊歷、入道、婚配：事件隊列。
         if yearly {
             //    補魂（GDD 3.4 來源第 3 項）
             crate::soul::yearly_refill(w);

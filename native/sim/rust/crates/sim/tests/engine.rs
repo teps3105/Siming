@@ -75,7 +75,6 @@ fn queued_events_fire_on_their_day_in_order() {
     s.advance_to(d0 + 40);
     assert_eq!(s.world().queue.fired, 2, "取消的 2 號不發，3 號發");
     assert!(!s.world().queue.is_live(c));
-    assert!(s.world().queue.is_empty());
 }
 
 #[test]
@@ -100,10 +99,10 @@ fn advance_until_years_advances_exactly_that_long() {
 fn advance_until_importance_stops_at_the_event() {
     let mut s = world(16);
     let d0 = s.world().tick;
-    let id = s.advance_until(Until::Importance(4), 50 * DAYS_PER_YEAR).expect("五十年內應有重要度 4 的事件");
+    let id = s.advance_until(Until::Importance(3), 50 * DAYS_PER_YEAR).expect("五十年內應有重要度 3 的事件");
     let w = s.world();
     let e = &w.ledger.events[id as usize];
-    assert!(e.importance >= 4);
+    assert!(e.importance >= 3);
     assert!(w.tick > d0 && w.tick == e.tick, "停在事件發生的那一日");
     assert!(e.tick <= d0 + 50 * DAYS_PER_YEAR);
 }

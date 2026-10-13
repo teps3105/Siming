@@ -184,31 +184,36 @@ fn tribulation(w: &mut World, pid: PersonId, new: u8, ascension: bool, forced: b
     }
 }
 
-/// GDD 6.3 步驟 11 末尾：境界 ≥ 元嬰、修為已滿、突破冷卻將在一年內結束者，寫入 `TribulationOmen`。
+/// GDD 6.3 步驟 11 末尾：境界 ≥ 元嬰、修為已滿、突破冷卻將在一年內結束者，寫入 `TribulationOmen`。一次判定全部人。
 pub(super) fn yearly_omens(w: &mut World, round: Round) {
-    let tick = w.tick;
-    for i in w.round_alive(round).into_iter().map(|x| x as usize) {
-        let p = &w.persons[i];
-        if !p.alive() {
-            continue;
-        }
-        let Some((realm, exp, last)) = realm_state(p) else { continue };
-        if realm < OMEN_MIN_REALM || exp < REALM_EXP[realm as usize] || !cooldown_ready(last, tick + DAYS_PER_YEAR) {
-            continue;
-        }
-        let mut e = NewEvent::new(EventKind::TribulationOmen, OMEN_IMPORTANCE, EventArgs::None);
-        e.province = Some(p.province);
-        e.cell = Some(p.cell);
-        e.souls = smallvec![p.soul];
-        e.persons = smallvec![p.id];
-        if let Some(pw) = p.power {
-            e.powers = smallvec![pw];
-        }
-        if let Some(c) = p.last_event {
-            e.causes = smallvec![c];
-        }
-        ledger::record(w, e);
+    for i in w.round_alive(round) {
+        omen_one(w, i);
     }
+}
+
+/// 單一人物的劫雲預兆判定。
+pub(super) fn omen_one(w: &mut World, pid: PersonId) {
+    let tick = w.tick;
+    let p = &w.persons[pid as usize];
+    if !p.alive() {
+        return;
+    }
+    let Some((realm, exp, last)) = realm_state(p) else { return };
+    if realm < OMEN_MIN_REALM || exp < REALM_EXP[realm as usize] || !cooldown_ready(last, tick + DAYS_PER_YEAR) {
+        return;
+    }
+    let mut e = NewEvent::new(EventKind::TribulationOmen, OMEN_IMPORTANCE, EventArgs::None);
+    e.province = Some(p.province);
+    e.cell = Some(p.cell);
+    e.souls = smallvec![p.soul];
+    e.persons = smallvec![pid];
+    if let Some(pw) = p.power {
+        e.powers = smallvec![pw];
+    }
+    if let Some(c) = p.last_event {
+        e.causes = smallvec![c];
+    }
+    ledger::record(w, e);
 }
 
 /// 7.2 `TribulationOmen` 重要度 2。

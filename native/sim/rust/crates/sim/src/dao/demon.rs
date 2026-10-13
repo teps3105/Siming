@@ -87,44 +87,17 @@ pub(super) fn heart_demon_roll(w: &mut World, pid: PersonId) -> bool {
     true
 }
 
-/// 各州在世、成年的有名之人（年度行動開始時建立；使用時再檢查是否仍在世）。
-pub(super) struct PersonIndex {
-    by_province: Vec<Vec<PersonId>>,
-}
-
-impl PersonIndex {
-    pub(super) fn build(w: &World) -> Self {
-        let mut by_province = vec![Vec::new(); w.provinces.len()];
-        for p in w.alive_ids.iter().map(|&i| &w.persons[i as usize]) {
-            if p.alive() && p.role != Role::Child {
-                if let Some(v) = by_province.get_mut(p.province as usize) {
-                    v.push(p.id);
-                }
-            }
-        }
-        Self { by_province }
-    }
-
-    /// 本州與陸鄰中仍符合 `keep` 的人物，依 ID 升冪（不含 `me`）。
-    fn near(&self, w: &World, province: ProvinceId, me: PersonId, keep: impl Fn(&Person) -> bool) -> Vec<PersonId> {
-        let mut out = Vec::new();
-        let mut add = |prov: ProvinceId| {
-            if let Some(v) = self.by_province.get(prov as usize) {
-                out.extend(v.iter().copied().filter(|&id| {
-                    id != me && w.persons[id as usize].alive() && w.persons[id as usize].province == prov && keep(&w.persons[id as usize])
-                }));
-            }
-        };
-        add(province);
-        if let Some(p) = w.provinces.get(province as usize) {
-            for &n in &p.neighbors {
-                add(n);
-            }
-        }
-        out.sort_unstable();
-        out.dedup();
-        out
-    }
+/// 本州與陸鄰中仍符合 `keep` 的非幼年在世者，依 ID 升冪（不含 `me`）。直接掃在世名單，不另維護索引。
+fn near(w: &World, province: ProvinceId, me: PersonId, keep: impl Fn(&Person) -> bool) -> Vec<PersonId> {
+    let nb: &[ProvinceId] = w.provinces.get(province as usize).map_or(&[], |p| p.neighbors.as_slice());
+    w.alive_ids
+        .iter()
+        .copied()
+        .filter(|&id| {
+            let q = &w.persons[id as usize];
+            id != me && q.alive() && q.role != Role::Child && (q.province == province || nb.contains(&q.province)) && keep(q)
+        })
+        .collect()
 }
 
 /// 雙方決鬥：勝率 `r/(1+r)`，r = 攻方戰力 / 守方戰力；敗者死亡，業依 3.1。
@@ -151,7 +124,7 @@ fn pick(w: &mut World, cands: &[PersonId]) -> PersonId {
 
 /// GDD 3.5 斬妖除魔：金丹以上、淨業力 ≥ 0 的修士，每年 10% 尋找本州或陸鄰的魔修（M2 無妖），有則挑戰一名。
 /// 恆對符合資格者消耗 1 次機率抽樣；有候選者另抽選目標與勝負。
-pub(super) fn hunt(w: &mut World, index: &mut Option<PersonIndex>, pid: PersonId) {
+pub(super) fn hunt(w: &mut World, pid: PersonId) {
     let p = &w.persons[pid as usize];
     if !p.alive() {
         return;
@@ -166,8 +139,7 @@ pub(super) fn hunt(w: &mut World, index: &mut Option<PersonIndex>, pid: PersonId
     if w.rng.people.gen::<f32>() >= HUNT_CHANCE {
         return;
     }
-    let index = index.get_or_insert_with(|| PersonIndex::build(w));
-    let cands = index.near(w, w.persons[pid as usize].province, pid, |q| q.role == Role::Demonic);
+    let cands = near(w, w.persons[pid as usize].province, pid, |q| q.role == Role::Demonic);
     if cands.is_empty() {
         return;
     }
@@ -176,7 +148,7 @@ pub(super) fn hunt(w: &mut World, index: &mut Option<PersonIndex>, pid: PersonId
 }
 
 /// GDD 3.10 魔修襲殺：每年以 `戾氣 × 0.02` 機率襲殺本州或陸鄰一名有名之人（幼年者除外）。
-pub(super) fn assassinate(w: &mut World, index: &mut Option<PersonIndex>, pid: PersonId) {
+pub(super) fn assassinate(w: &mut World, pid: PersonId) {
     let p = &w.persons[pid as usize];
     if !p.alive() {
         return;
@@ -185,8 +157,7 @@ pub(super) fn assassinate(w: &mut World, index: &mut Option<PersonIndex>, pid: P
     if chance <= 0.0 || w.rng.people.gen::<f32>() >= chance {
         return;
     }
-    let index = index.get_or_insert_with(|| PersonIndex::build(w));
-    let cands = index.near(w, w.persons[pid as usize].province, pid, |q| q.role != Role::Child);
+    let cands = near(w, w.persons[pid as usize].province, pid, |q| q.role != Role::Child);
     if cands.is_empty() {
         return;
     }
