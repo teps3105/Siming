@@ -107,6 +107,219 @@
     }
    },
    "time": "2026-10-13 18:19:40"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/collar-dao_rich.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "trim": {
+     "file": ".shiftblame/tmp/parts/portrait/key/collar-dao_rich.trim.png",
+     "pixels": 8878,
+     "dye": "trim",
+     "centers": [
+      68.9,
+      83.8,
+      105.2
+     ],
+     "share": [
+      0.098,
+      0.847,
+      0.055
+     ],
+     "levels": [
+      "shadow",
+      "base",
+      "high"
+     ]
+    },
+    "gold": {
+     "file": ".shiftblame/tmp/parts/portrait/key/collar-dao_rich.gold.png",
+     "pixels": 3219,
+     "dye": "gold",
+     "centers": [
+      101.5,
+      114.8,
+      133.4
+     ],
+     "share": [
+      0.105,
+      0.261,
+      0.634
+     ],
+     "levels": [
+      "shadow",
+      "shadow",
+      "base"
+     ]
+    },
+    "robe": {
+     "file": ".shiftblame/tmp/parts/portrait/key/collar-dao_rich.robe.png",
+     "pixels": 22434,
+     "dye": "robe",
+     "centers": [
+      49.5,
+      88.2,
+      108.7,
+      121.8
+     ],
+     "share": [
+      0.035,
+      0.182,
+      0.099,
+      0.685
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "shadow",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 19:30:58"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/collar-dao_rich.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "trim": {
+     "file": ".shiftblame/tmp/parts/portrait/key/collar-dao_rich.trim.png",
+     "pixels": 8912,
+     "dye": "trim",
+     "centers": [
+      68.7,
+      83.9,
+      107.0
+     ],
+     "share": [
+      0.094,
+      0.854,
+      0.052
+     ],
+     "levels": [
+      "shadow",
+      "base",
+      "high"
+     ]
+    },
+    "gold": {
+     "file": ".shiftblame/tmp/parts/portrait/key/collar-dao_rich.gold.png",
+     "pixels": 3234,
+     "dye": "gold",
+     "centers": [
+      102.9,
+      128.7
+     ],
+     "share": [
+      0.143,
+      0.857
+     ],
+     "levels": [
+      "shadow",
+      "base"
+     ]
+    },
+    "robe": {
+     "file": ".shiftblame/tmp/parts/portrait/key/collar-dao_rich.robe.png",
+     "pixels": 22385,
+     "dye": "robe",
+     "centers": [
+      49.5,
+      88.3,
+      108.9,
+      121.8
+     ],
+     "share": [
+      0.035,
+      0.182,
+      0.101,
+      0.682
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "shadow",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 19:32:18"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/collar-dao_rich.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "trim": {
+     "file": ".shiftblame/tmp/parts/portrait/key/collar-dao_rich.trim.png",
+     "pixels": 8449,
+     "dye": "trim",
+     "centers": [
+      64.5,
+      83.4
+     ],
+     "share": [
+      0.053,
+      0.947
+     ],
+     "levels": [
+      "shadow",
+      "base"
+     ]
+    },
+    "gold": {
+     "file": ".shiftblame/tmp/parts/portrait/key/collar-dao_rich.gold.png",
+     "pixels": 3697,
+     "dye": "gold",
+     "centers": [
+      122.8
+     ],
+     "share": [
+      1.0
+     ],
+     "levels": [
+      "base"
+     ]
+    },
+    "robe": {
+     "file": ".shiftblame/tmp/parts/portrait/key/collar-dao_rich.robe.png",
+     "pixels": 22385,
+     "dye": "robe",
+     "centers": [
+      49.5,
+      88.3,
+      108.9,
+      121.8
+     ],
+     "share": [
+      0.035,
+      0.182,
+      0.101,
+      0.682
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "shadow",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 19:33:08"
   }
  ],
  "check": [
@@ -179,6 +392,176 @@
     }
    },
    "time": "2026-10-13 18:34:23"
+  },
+  {
+   "metrics": {
+    "collar-dao_rich.robe": {
+     "edge_len": 4103,
+     "bare_edge": 2971,
+     "bare_ratio": 0.724,
+     "blobs": 14,
+     "specks": 12,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 27332
+    },
+    "collar-dao_rich.trim": {
+     "edge_len": 3346,
+     "bare_edge": 3346,
+     "bare_ratio": 1.0,
+     "blobs": 41,
+     "specks": 30,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 6849
+    },
+    "collar-dao_rich.union": {
+     "edge_len": 639,
+     "bare_edge": 0,
+     "bare_ratio": 0.0,
+     "blobs": 1,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 34181
+    }
+   },
+   "time": "2026-10-13 19:24:03"
+  },
+  {
+   "metrics": {
+    "collar-dao_rich.robe": {
+     "edge_len": 999,
+     "bare_edge": 77,
+     "bare_ratio": 0.077,
+     "blobs": 34,
+     "specks": 32,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 22088
+    },
+    "collar-dao_rich.trim": {
+     "edge_len": 4718,
+     "bare_edge": 4718,
+     "bare_ratio": 1.0,
+     "blobs": 16,
+     "specks": 8,
+     "holes": 0,
+     "high_on_edge": 0.123,
+     "pixels": 8874
+    },
+    "collar-dao_rich.gold": {
+     "edge_len": 2996,
+     "bare_edge": 2996,
+     "bare_ratio": 1.0,
+     "blobs": 20,
+     "specks": 7,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 3219
+    },
+    "collar-dao_rich.union": {
+     "edge_len": 639,
+     "bare_edge": 0,
+     "bare_ratio": 0.0,
+     "blobs": 1,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 34181
+    }
+   },
+   "time": "2026-10-13 19:31:16"
+  },
+  {
+   "metrics": {
+    "collar-dao_rich.robe": {
+     "edge_len": 950,
+     "bare_edge": 28,
+     "bare_ratio": 0.029,
+     "blobs": 14,
+     "specks": 12,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 22039
+    },
+    "collar-dao_rich.trim": {
+     "edge_len": 4628,
+     "bare_edge": 4628,
+     "bare_ratio": 1.0,
+     "blobs": 16,
+     "specks": 8,
+     "holes": 0,
+     "high_on_edge": 0.103,
+     "pixels": 8908
+    },
+    "collar-dao_rich.gold": {
+     "edge_len": 2958,
+     "bare_edge": 2958,
+     "bare_ratio": 1.0,
+     "blobs": 20,
+     "specks": 7,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 3234
+    },
+    "collar-dao_rich.union": {
+     "edge_len": 639,
+     "bare_edge": 0,
+     "bare_ratio": 0.0,
+     "blobs": 1,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 34181
+    }
+   },
+   "time": "2026-10-13 19:32:19"
+  },
+  {
+   "metrics": {
+    "collar-dao_rich.robe": {
+     "edge_len": 950,
+     "bare_edge": 28,
+     "bare_ratio": 0.029,
+     "blobs": 14,
+     "specks": 12,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 22039
+    },
+    "collar-dao_rich.trim": {
+     "edge_len": 4469,
+     "bare_edge": 4469,
+     "bare_ratio": 1.0,
+     "blobs": 36,
+     "specks": 30,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 8445
+    },
+    "collar-dao_rich.gold": {
+     "edge_len": 3363,
+     "bare_edge": 3363,
+     "bare_ratio": 1.0,
+     "blobs": 12,
+     "specks": 4,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 3697
+    },
+    "collar-dao_rich.union": {
+     "edge_len": 639,
+     "bare_edge": 0,
+     "bare_ratio": 0.0,
+     "blobs": 1,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 34181
+    }
+   },
+   "time": "2026-10-13 19:33:09"
   }
  ]
 }

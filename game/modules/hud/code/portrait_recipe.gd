@@ -124,7 +124,7 @@ static func from_person(info: Dictionary) -> Dictionary:
 	var hair_name: String = HAIRS[look["hair"]]
 	var items: Array[Dictionary] = []
 	items.append(_item("back_hair." + hair_name, ["hair"], tints))
-	items.append(_item("collar.%s_%s" % [SCHOOLS[look["school"]], WEALTH[look["wealth"]]], ["robe", "trim"], tints))
+	items.append(_item("collar.%s_%s" % [SCHOOLS[look["school"]], WEALTH[look["wealth"]]], ["robe", "trim", "gold"], tints))
 	items.append(_item("face.%s%d" % [sex_letter, _pick(id, 1, 3)], ["skin"], tints, shrink))
 	if life_stage == Stage.ELDER:
 		items.append(_item("wrinkle.%d" % _pick(id, 5, 2), [], tints, shrink))

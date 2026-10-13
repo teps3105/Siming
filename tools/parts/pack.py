@@ -73,7 +73,7 @@ def main():
         e["anchor"] = [round((min(t[0] for t in b) + max(t[2] for t in b)) / 2), round((min(t[1] for t in b) + max(t[3] for t in b)) / 2)]
     # 順序在字典裡由後往前：子層依 SLOT 順序已由 PARTS 宣告順序決定（同一款的子層：主材質在前、緣邊在後）
     for e in parts.values():
-        e["layers"].sort(key=lambda l: 1 if l["tint"] == "trim" else 0)
+        e["layers"].sort(key=lambda l: {"trim": 1, "gold": 2}.get(l["tint"], 0))
     lm = json.load(open(P.SRC + "base.json", encoding="utf-8"))["sex"]["m"]["points"]
     cx, top, chin = lm["cx"]["out"], lm["top_y"]["out"], lm["chin_y"]["out"]
     counts = {}
