@@ -18,6 +18,10 @@ signal back_requested
 const ROW_GAP := 10.0
 ## 歷程清單至少留多高（畫面再矮也不低於這個）。
 const MIN_LIST := 120.0
+## 頭像（GDD 5.8、8.12）：160×200 乘版面倍率，靠左；與右側首列資訊之間的空白。預設寬度的卡為它加寬一個頭像寬。
+const PORTRAIT_W := 160.0
+const PORTRAIT_H := 200.0
+const PORTRAIT_GAP := 12.0
 
 var person := -1
 ## 是否有上一張卡可以返回（Hud 設定）；有的話 Esc／B 是返回，關閉鈕不掛鍵。
@@ -30,6 +34,9 @@ var can_back := false:
 
 var _info: Dictionary = {}
 var _list: LedgerList
+var _portrait: PartStack
+## 頭像縮放（1 是 160×200）：畫面矮到連歷程清單的最低高度都放不下時先縮成一半，仍放不下就收起（0），不讓頭像把卡撐出畫面。
+var _portrait_k := 1.0
 ## 首列身分與基本資料的段落（依序：首列、年齡、地點、資質、魂）。
 var _subtitle: Dictionary = {}
 var _paragraphs: Array[Dictionary] = []
@@ -41,7 +48,11 @@ var _layout := {}
 
 
 func setup(world: SimWorld, unit: float, width := -1.0) -> void:
-	super.setup(world, unit, width)
+	super.setup(world, unit, width if width > 0.0 else (WIDTH + PORTRAIT_W) * unit)
+	_portrait = PartStack.new()
+	add_child(_portrait)
+	_portrait.size = _portrait_size()
+	_portrait.visible = false
 	_list = LedgerList.new()
 	add_child(_list)
 	_list.setup(unit)
@@ -69,6 +80,8 @@ func refresh() -> void:
 	if person < 0:
 		return
 	_info = _world.person(person)
+	if not _info.is_empty():
+		_portrait.set_recipe(PortraitRecipe.from_person(_info), PartCatalog.load_class(PortraitRecipe.CLASS_ID))
 	_relayout()
 	queue_redraw()
 
@@ -106,10 +119,38 @@ func _province_link(word: String, id: int) -> Dictionary:
 	return {"text": word, "target": "province:%d" % id}
 
 
+## 頭像佔去的左側寬度（含空白）；收起時為 0。
+func _side() -> float:
+	return 0.0 if _portrait_k <= 0.0 else _portrait_size().x + PORTRAIT_GAP * _unit
+
+
+func _portrait_size() -> Vector2:
+	return Vector2(PORTRAIT_W, PORTRAIT_H) * _unit * _portrait_k
+
+
+## 卡高上限改變時（畫面大小、例簽顯示）重排：頭像縮放取決於放不放得下。
+func _on_max_height_changed() -> void:
+	if not _info.is_empty() and _unit > 0.0 and _layout.has("fixed"):
+		var before := _portrait_k
+		_relayout()
+		if before != _portrait_k:
+			queue_redraw()
+
+
 ## 依目前資料重算所有段落與高度；改了資料、寬度或「可返回」時呼叫。
 func _relayout() -> void:
 	if _info.is_empty() or _unit <= 0.0:
 		return
+	_portrait_k = 1.0
+	_compose()
+	for k: float in [0.5, 0.0]:
+		if min_height() <= max_height:
+			break
+		_portrait_k = k
+		_compose()
+
+
+func _compose() -> void:
 	var u := _unit
 	var body := Ink.font_size(Ink.SIZE_BODY, u)
 	var note := Ink.font_size(Ink.SIZE_NOTE, u)
@@ -117,8 +158,12 @@ func _relayout() -> void:
 	var alive: bool = _info["alive"]
 	var no_links: Array[Dictionary] = []
 
+	# 頭像靠左，首列與基本資料前幾段排在它右邊；排到頭像下緣之後回到滿寬。
+	var side := _side()
+	var side_width := width - side
+	_layout["portrait_bottom"] = 14.0 * u + _portrait_size().y
 	# 首列：身分（避開右上的關閉鈕與它的文字、鍵）。
-	var sub_width := width - _close_cluster_width(_close_has_key()) - 10.0 * u - CLOSE_RADIUS * 2.0 * u
+	var sub_width := side_width - _close_cluster_width(_close_has_key()) - 10.0 * u - CLOSE_RADIUS * 2.0 * u
 	_subtitle = LedgerText.paragraph(PersonText.identity_line(_info), no_links, sub_width, body)
 
 	# 基本資料。
@@ -143,14 +188,32 @@ func _relayout() -> void:
 		Locale.t("card_sin"), int(round(float(_info.get("sin", 0.0)))),
 		Locale.t("card_wisdom"), int(round(float(_info.get("wisdom", 0.0)))),
 	]
-	_paragraphs = [LedgerText.paragraph(line1, no_links, width, body), LedgerText.paragraph(line2, places, width, body)]
+	# 各段：[文字, 連結, 字級]；依序排下去，起點在頭像下緣之上的排窄欄，其餘滿寬。
+	var specs: Array = [[line1, no_links, body], [line2, places, body]]
 	if not alive:
 		var cause := Locale.t("card_death_cause").format({"X": PersonText.death_word(_info["death_cause"])})
-		_paragraphs.append(LedgerText.paragraph(cause, no_links, width, body))
-	_paragraphs.append(LedgerText.paragraph(line3, no_links, width, note))
-	_paragraphs.append(LedgerText.paragraph(line4, no_links, width, note))
-	for i in _paragraphs.size():
-		_paragraphs[i]["strong"] = i < (2 if alive else 3)
+		specs.append([cause, no_links, body])
+	specs.append([line3, no_links, note])
+	specs.append([line4, no_links, note])
+
+	# 版面位移（歷程的各筆之後再算，這裡先排到基本資料）。
+	var y := 14.0 * u
+	_layout["subtitle_y"] = y
+	y += maxf(34.0 * u, float(_subtitle["height"]) + 10.0 * u)
+	_layout["stroke_y"] = y
+	y += 12.0 * u
+	_layout["para_y"] = []
+	_layout["para_x"] = []
+	_paragraphs = []
+	for i in specs.size():
+		var beside := y < float(_layout["portrait_bottom"])
+		var para := LedgerText.paragraph(specs[i][0], specs[i][1], side_width if beside else width, specs[i][2])
+		para["strong"] = i < (2 if alive else 3)
+		_paragraphs.append(para)
+		_layout["para_y"].append(y)
+		_layout["para_x"].append(side if beside else 0.0)
+		y += float(para["height"]) + 6.0 * u
+	y = maxf(y, float(_layout["portrait_bottom"]) + 6.0 * u) + 4.0 * u
 
 	# 歷程各筆。
 	_rows.clear()
@@ -179,17 +242,6 @@ func _relayout() -> void:
 		top += height
 	_rows_height = top
 
-	# 版面位移。
-	var y := 14.0 * u
-	_layout["subtitle_y"] = y
-	y += maxf(34.0 * u, float(_subtitle["height"]) + 10.0 * u)
-	_layout["stroke_y"] = y
-	y += 12.0 * u
-	_layout["para_y"] = []
-	for para: Dictionary in _paragraphs:
-		_layout["para_y"].append(y)
-		y += float(para["height"]) + 6.0 * u
-	y += 4.0 * u
 	_layout["section_y"] = y
 	y += 26.0 * u
 	_layout["fixed"] = y + (8.0 + 12.0 + ACTION_RADIUS * 2.0 + 14.0) * u + Ink.CARD_BAND * 2.0
@@ -228,9 +280,20 @@ func _list_rect() -> Rect2:
 	return Rect2(Vector2(x, bottom - height), Vector2(_inner_width(), height))
 
 
+## 頭像的範圍（卡片座標）：紙面左上、題簽右邊。
+func _portrait_rect() -> Rect2:
+	var paper := _paper_rect(_content_height())
+	return Rect2(Vector2(paper.position.x + (STRIP + 14.0) * _unit, paper.position.y + 14.0 * _unit), _portrait_size())
+
+
 func _arrange(unrolled: bool) -> void:
 	if _list == null:
 		return
+	if _portrait != null:
+		var frame := _portrait_rect()
+		_portrait.visible = unrolled and _portrait_k > 0.0
+		_portrait.position = frame.position
+		_portrait.size = frame.size
 	_list.visible = unrolled
 	_list.edge_scroll = gamepad
 	if unrolled:
@@ -265,12 +328,18 @@ func _draw_body(paper: Rect2) -> void:
 	var section := Ink.font_size(Ink.SIZE_SECTION, u)
 	var note := Ink.font_size(Ink.SIZE_NOTE, u)
 	var top := paper.position.y
-	LedgerText.draw(self, Vector2(x, top + float(_layout["subtitle_y"])), _subtitle, Ink.INK)
+	# 頭像的紙底與細框（頭像本身是子節點 PartStack，畫在它們上面）。
+	var frame := _portrait_rect()
+	if _portrait_k > 0.0:
+		draw_rect(frame, Ink.PAPER_LIGHT, true)
+		draw_rect(frame.grow(1.0), Color(Ink.INK, 0.8), false, 1.5)
+	var side := _side()
+	LedgerText.draw(self, Vector2(x + side, top + float(_layout["subtitle_y"])), _subtitle, Ink.INK)
 	var stroke_y := top + float(_layout["stroke_y"])
-	Ink.stroke(self, Vector2(x, stroke_y), Vector2(right, stroke_y), 2.0 * u, Color(Ink.INK, 0.7))
+	Ink.stroke(self, Vector2(x + side, stroke_y), Vector2(right, stroke_y), 2.0 * u, Color(Ink.INK, 0.7))
 	for i in _paragraphs.size():
 		var color := Ink.INK if _paragraphs[i]["strong"] else Ink.INK_LIGHT
-		LedgerText.draw(self, Vector2(x, top + float(_layout["para_y"][i])), _paragraphs[i], color, _hover, _pressed)
+		LedgerText.draw(self, Vector2(x + float(_layout["para_x"][i]), top + float(_layout["para_y"][i])), _paragraphs[i], color, _hover, _pressed)
 	var section_y := top + float(_layout["section_y"])
 	Ink.section(self, Vector2(x, section_y), Locale.t("card_history_title").format({"N": str(_rows.size())}), section)
 	if _rows.is_empty():
@@ -337,7 +406,7 @@ func _activate(target: String) -> void:
 
 func _paragraph_origin(index: int) -> Vector2:
 	var paper := _paper_rect(_content_height())
-	return Vector2(paper.position.x + (STRIP + 14.0) * _unit, paper.position.y + float(_layout["para_y"][index]))
+	return Vector2(paper.position.x + (STRIP + 14.0) * _unit + float(_layout["para_x"][index]), paper.position.y + float(_layout["para_y"][index]))
 
 
 func _target_at(pos: Vector2) -> String:
