@@ -36,6 +36,12 @@ pub fn judge_month(seed: u64, domain: Domain, id: u32) -> u8 {
     (h % 12) as u8
 }
 
+/// 實體在一年內固定的結算日（1–360）。與 [`judge_month`] 同源雜湊。
+pub fn judge_day(seed: u64, domain: Domain, id: u32) -> u32 {
+    let h = mix(mix(seed ^ 0x2545_f491_4f6c_dd1d) ^ ((domain as u64) << 40 | id as u64));
+    (h % crate::calendar::DAYS_PER_YEAR as u64) as u32 + 1
+}
+
 /// 某個 (種子, 類別) 下，編號依判定月分成 12 桶（桶內編號升冪）。判定月只由種子、類別、編號決定，
 /// 因此這份表是純函式 [`judge_month`] 的備忘，與任何世界狀態無關，可跨世界、跨存讀檔共用。
 #[derive(Default)]
@@ -74,12 +80,12 @@ pub fn month_ids(seed: u64, domain: Domain, n: usize, month: u8) -> Vec<u32> {
 
 /// tick 對應的月（0–11）：tick 1 是一月，tick 12 是十二月（年底月）。與 [`crate::calendar::date`] 一致。
 pub fn month_of(tick: Tick) -> u8 {
-    (tick.saturating_sub(1) % 12) as u8
+    (tick.saturating_sub(1) / crate::calendar::DAYS_PER_MONTH % 12) as u8
 }
 
 /// tick 所屬的年序（從 0 起算）：tick 1–12 為第 0 年。
 pub fn year_of(tick: Tick) -> u32 {
-    tick.saturating_sub(1) / 12
+    tick.saturating_sub(1) / crate::calendar::DAYS_PER_YEAR
 }
 
 /// 本次呼叫要處理哪些實體。
@@ -156,7 +162,7 @@ mod tests {
     fn gdd_6_3_each_entity_is_judged_exactly_once_per_year() {
         for id in 0..300 {
             for start in [1u32, 5, 13, 100] {
-                let n = (start..start + 12).filter(|&t| Round::at(t).takes(9, Domain::Person, id)).count();
+                let n = (start..start + 12).map(|k| k * 30).filter(|&t| Round::at(t).takes(9, Domain::Person, id)).count();
                 assert_eq!(n, 1, "id {id} 起 tick {start}");
             }
         }
@@ -164,10 +170,10 @@ mod tests {
 
     #[test]
     fn gdd_6_3_year_end_tick_is_month_twelve() {
-        assert_eq!(month_of(12), 11);
-        assert_eq!(month_of(13), 0);
-        assert_eq!(year_of(12), 0);
-        assert_eq!(year_of(13), 1);
-        assert_eq!(crate::calendar::date(12).month, 12);
+        assert_eq!(month_of(12 * 30), 11);
+        assert_eq!(month_of(13 * 30), 0);
+        assert_eq!(year_of(12 * 30), 0);
+        assert_eq!(year_of(13 * 30), 1);
+        assert_eq!(crate::calendar::date(12 * 30).month, 12);
     }
 }

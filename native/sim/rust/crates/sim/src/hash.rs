@@ -213,6 +213,9 @@ pub fn world_hash(world: &World) -> u64 {
     }
     h.write_u32(world.calamity.ends.unwrap_or(u32::MAX));
     h.write_u32(world.calamity.slow_until);
+    // 事件驅動引擎（隊列、日序、亂數重設種子）：附加在最後。
+    h.write_u64(world.rng_origin.unwrap_or(0));
+    feed(&mut h, &world.queue);
     h.finish()
 }
 

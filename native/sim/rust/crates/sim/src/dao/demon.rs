@@ -53,6 +53,11 @@ pub(super) fn leave_sect(w: &mut World, pid: PersonId) {
 ///
 /// M2 沒有人對宗門的關係值，「原宗門對其關係 −100」不實作（見 3.5 註記）。
 pub fn fall_to_demon(w: &mut World, pid: PersonId) {
+    fall_to_demon_why(w, pid, Why::SinDemon);
+}
+
+/// 同 [`fall_to_demon`]，並記錄入魔的成因。
+pub fn fall_to_demon_why(w: &mut World, pid: PersonId, why: Why) {
     let Some(p) = w.persons.get(pid as usize) else { return };
     if !p.alive() || p.role == Role::Demonic {
         return;
@@ -65,6 +70,7 @@ pub fn fall_to_demon(w: &mut World, pid: PersonId) {
     }
     let p = &w.persons[pid as usize];
     let mut e = NewEvent::new(EventKind::FellToDemon, FELL_IMPORTANCE, EventArgs::Role { role: Role::Demonic });
+    e.why = why;
     e.province = Some(p.province);
     e.cell = Some(p.cell);
     e.souls = smallvec![soul];
@@ -75,6 +81,10 @@ pub fn fall_to_demon(w: &mut World, pid: PersonId) {
     ledger::record(w, e);
 }
 
+fn s_asura(w: &World, pid: PersonId) -> bool {
+    w.souls.get(w.persons[pid as usize].soul as usize).is_some_and(|s| s.marks.has(SoulMarks::ASURA))
+}
+
 /// 每年心魔判定（修士，非魔修）。機率為 0 時不消耗亂數。回傳是否入魔。
 pub(super) fn heart_demon_roll(w: &mut World, pid: PersonId) -> bool {
     let p = &w.persons[pid as usize];
@@ -83,60 +93,31 @@ pub(super) fn heart_demon_roll(w: &mut World, pid: PersonId) -> bool {
     if c <= 0.0 || w.rng.people.gen::<f32>() >= c {
         return false;
     }
-    fall_to_demon(w, pid);
+    let why = if s_asura(w, pid) { Why::PastLifeMark } else { Why::SinDemon };
+    fall_to_demon_why(w, pid, why);
     true
 }
 
-/// 各州在世、成年的有名之人（年度行動開始時建立；使用時再檢查是否仍在世）。
-pub(super) struct PersonIndex {
-    by_province: Vec<Vec<PersonId>>,
-}
-
-impl PersonIndex {
-    pub(super) fn build(w: &World) -> Self {
-        let mut by_province = vec![Vec::new(); w.provinces.len()];
-        for p in w.alive_ids.iter().map(|&i| &w.persons[i as usize]) {
-            if p.alive() && p.role != Role::Child {
-                if let Some(v) = by_province.get_mut(p.province as usize) {
-                    v.push(p.id);
-                }
-            }
-        }
-        Self { by_province }
-    }
-
-    /// 本州與陸鄰中仍符合 `keep` 的人物，依 ID 升冪（不含 `me`）。
-    fn near(&self, w: &World, province: ProvinceId, me: PersonId, keep: impl Fn(&Person) -> bool) -> Vec<PersonId> {
-        let mut out = Vec::new();
-        let mut add = |prov: ProvinceId| {
-            if let Some(v) = self.by_province.get(prov as usize) {
-                out.extend(v.iter().copied().filter(|&id| {
-                    id != me && w.persons[id as usize].alive() && w.persons[id as usize].province == prov && keep(&w.persons[id as usize])
-                }));
-            }
-        };
-        add(province);
-        if let Some(p) = w.provinces.get(province as usize) {
-            for &n in &p.neighbors {
-                add(n);
-            }
-        }
-        out.sort_unstable();
-        out.dedup();
-        out
-    }
+/// 本州與陸鄰中仍符合 `keep` 的非幼年在世者，依 ID 升冪（不含 `me`）。走世界的州郡索引，不逐一掃在世名單。
+fn near(w: &mut World, province: ProvinceId, me: PersonId, keep: impl Fn(&Person) -> bool) -> Vec<PersonId> {
+    let mut v = w.near_alive(province);
+    v.retain(|&id| {
+        let q = &w.persons[id as usize];
+        id != me && q.role != Role::Child && keep(q)
+    });
+    v
 }
 
 /// 雙方決鬥：勝率 `r/(1+r)`，r = 攻方戰力 / 守方戰力；敗者死亡，業依 3.1。
 /// 回傳 `(勝者, 敗者)`。
-fn duel(w: &mut World, attacker: PersonId, target: PersonId) -> Option<(PersonId, PersonId)> {
+fn duel(w: &mut World, attacker: PersonId, target: PersonId, why: Why) -> Option<(PersonId, PersonId)> {
     let pa = combat_power(&w.persons[attacker as usize]);
     let pt = combat_power_as_target(&w.persons[target as usize]);
     let r = if pt > 0.0 { pa / pt } else { f32::MAX };
     let win = if r.is_finite() { r / (1.0 + r) } else { 1.0 };
     let (winner, loser) = if w.rng.people.gen::<f32>() < win { (attacker, target) } else { (target, attacker) };
     let loser_power = combat_power(&w.persons[loser as usize]);
-    if !kill(w, winner, loser, DeathCause::Killed, None) {
+    if !kill(w, winner, loser, DeathCause::Killed, None, why) {
         return None;
     }
     if w.persons[winner as usize].role == Role::Demonic {
@@ -151,7 +132,7 @@ fn pick(w: &mut World, cands: &[PersonId]) -> PersonId {
 
 /// GDD 3.5 斬妖除魔：金丹以上、淨業力 ≥ 0 的修士，每年 10% 尋找本州或陸鄰的魔修（M2 無妖），有則挑戰一名。
 /// 恆對符合資格者消耗 1 次機率抽樣；有候選者另抽選目標與勝負。
-pub(super) fn hunt(w: &mut World, index: &mut Option<PersonIndex>, pid: PersonId) {
+pub(super) fn hunt(w: &mut World, pid: PersonId) {
     let p = &w.persons[pid as usize];
     if !p.alive() {
         return;
@@ -166,17 +147,17 @@ pub(super) fn hunt(w: &mut World, index: &mut Option<PersonIndex>, pid: PersonId
     if w.rng.people.gen::<f32>() >= HUNT_CHANCE {
         return;
     }
-    let index = index.get_or_insert_with(|| PersonIndex::build(w));
-    let cands = index.near(w, w.persons[pid as usize].province, pid, |q| q.role == Role::Demonic);
+    let prov = w.persons[pid as usize].province;
+    let cands = near(w, prov, pid, |q| q.role == Role::Demonic);
     if cands.is_empty() {
         return;
     }
     let target = pick(w, &cands);
-    duel(w, pid, target);
+    duel(w, pid, target, Why::SlayDemon);
 }
 
 /// GDD 3.10 魔修襲殺：每年以 `戾氣 × 0.02` 機率襲殺本州或陸鄰一名有名之人（幼年者除外）。
-pub(super) fn assassinate(w: &mut World, index: &mut Option<PersonIndex>, pid: PersonId) {
+pub(super) fn assassinate(w: &mut World, pid: PersonId) {
     let p = &w.persons[pid as usize];
     if !p.alive() {
         return;
@@ -185,11 +166,11 @@ pub(super) fn assassinate(w: &mut World, index: &mut Option<PersonIndex>, pid: P
     if chance <= 0.0 || w.rng.people.gen::<f32>() >= chance {
         return;
     }
-    let index = index.get_or_insert_with(|| PersonIndex::build(w));
-    let cands = index.near(w, w.persons[pid as usize].province, pid, |q| q.role != Role::Child);
+    let prov = w.persons[pid as usize].province;
+    let cands = near(w, prov, pid, |q| q.role != Role::Child);
     if cands.is_empty() {
         return;
     }
     let target = pick(w, &cands);
-    duel(w, pid, target);
+    duel(w, pid, target, Why::DemonAssassin);
 }

@@ -9,6 +9,8 @@ const AUTO_KEEP := 5
 const FORMAT := 1
 ## 自動存檔的間隔：一世（30 年）。
 const AUTO_INTERVAL_MONTHS := 360
+## tick 以日為單位（2.6）：每月 30 日。
+const DAYS_PER_MONTH := 30
 const SHARE_PREFIX := "SMG1-"
 ## 分享碼解壓後的大小上限（位元組）。
 const SHARE_MAX_BYTES := 16 * 1024 * 1024
@@ -119,7 +121,7 @@ static func _digest(data: PackedByteArray) -> PackedByteArray:
 
 
 static func _period(tick: int) -> int:
-	return maxi(tick - 1, 0) / AUTO_INTERVAL_MONTHS
+	return maxi(tick - 1, 0) / (AUTO_INTERVAL_MONTHS * DAYS_PER_MONTH)
 
 
 static func _manual_path(slot: int) -> String:

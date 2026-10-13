@@ -144,7 +144,7 @@ fn gdd_2_3_each_province_grows_exactly_once_per_year_in_monthly_rounds() {
     let mut b = make();
     yearly(&mut a);
     for tick in 1..=12u32 {
-        monthly_with(&mut b, &[], 77, Round::at(tick));
+        monthly_with(&mut b, &[], 77, Round::at(tick * 30));
     }
     for (x, y) in a.iter().zip(&b) {
         assert!((x.population - y.population).abs() < 1e-9, "州 {} 整年 {} 分月 {}", x.id, x.population, y.population);
@@ -152,7 +152,7 @@ fn gdd_2_3_each_province_grows_exactly_once_per_year_in_monthly_rounds() {
     // 第二年同樣恰好一次。
     yearly(&mut a);
     for tick in 13..=24u32 {
-        monthly_with(&mut b, &[], 77, Round::at(tick));
+        monthly_with(&mut b, &[], 77, Round::at(tick * 30));
     }
     for (x, y) in a.iter().zip(&b) {
         assert!((x.population - y.population).abs() < 1e-9);

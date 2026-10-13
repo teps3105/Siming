@@ -301,9 +301,9 @@ fn gdd_2_8_land_changes_enter_the_ledger() {
     let lost: Vec<_> = w.ledger.events.iter().filter(|e| e.kind == EventKind::ProvinceLost).collect();
     assert!(!lost.is_empty(), "海進六世，這個種子應有州郡消失");
     assert!(lost.iter().all(|e| e.province.is_some_and(|p| w.provinces[p as usize].lost)));
-    assert!(lost.iter().any(|e| e.tick < w.tick - 360), "州郡消失後至少又推演了一世");
+    assert!(lost.iter().any(|e| e.tick < w.tick - 10_800), "州郡消失後至少又推演了一世");
     for event in &moved {
-        assert_eq!(event.tick % 360, 0, "只在每世結算時發生");
+        assert_eq!(event.tick % 10_800, 0, "只在每世結算時發生");
         let EventArgs::Seat { from, to } = event.args else { panic!("治所遷移的參數") };
         assert_ne!(from, to);
         assert_eq!(event.cell, Some(to));

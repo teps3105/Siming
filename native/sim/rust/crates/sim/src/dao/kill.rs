@@ -18,12 +18,13 @@ const KILLED_IMPORTANCE: u8 = 3;
 /// 2. `people::die(victim, cause)`，死因事件為 `Killed`。
 /// 3. `thread::kill_karma`：依 3.1 計業（死者是惡人 → 兇手 G += 5，否則 S += 10 × 無辜係數）。
 /// 4. `thread::on_kill`：殺業線（復仇了結、冤冤相報、新線；斬殺惡人不建線）。
-pub fn kill(w: &mut World, killer: PersonId, victim: PersonId, cause: DeathCause, cause_event: Option<EventId>) -> bool {
+pub fn kill(w: &mut World, killer: PersonId, victim: PersonId, cause: DeathCause, cause_event: Option<EventId>, why: Why) -> bool {
     let (Some(k), Some(v)) = (w.persons.get(killer as usize), w.persons.get(victim as usize)) else { return false };
     if !k.alive() || !v.alive() || killer == victim {
         return false;
     }
     let mut e = NewEvent::new(EventKind::Killed, KILLED_IMPORTANCE, EventArgs::None);
+    e.why = why;
     e.province = Some(v.province);
     e.cell = Some(v.cell);
     e.souls = smallvec![k.soul, v.soul];

@@ -24,6 +24,7 @@
 
 mod combat;
 mod death;
+pub mod events;
 mod marriage;
 mod names;
 mod path;

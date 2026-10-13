@@ -98,10 +98,11 @@ func test_gdd_4_8_delete_removes_one_save() -> void:
 
 
 func test_gdd_4_8_auto_save_is_due_once_per_shi() -> void:
-	assert_false(SaveStore.auto_due(1, 200))
-	assert_true(SaveStore.auto_due(360, 361), "跨過世的邊界")
-	assert_true(SaveStore.auto_due(100, 900))
-	assert_false(SaveStore.auto_due(361, 720))
+	# tick 以日計，一世 10800 日。
+	assert_false(SaveStore.auto_due(1, 6000))
+	assert_true(SaveStore.auto_due(10800, 10801), "跨過世的邊界")
+	assert_true(SaveStore.auto_due(3000, 27000))
+	assert_false(SaveStore.auto_due(10801, 21600))
 
 
 func test_gdd_4_8_share_code_round_trips() -> void:

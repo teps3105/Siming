@@ -153,6 +153,24 @@ pub struct Soul {
     /// 最後所在的州郡與格（不在世時，因果線懸在此處，GDD 5.4）。
     pub last_place: (ProvinceId, u32),
     pub guide: Option<GuideOrder>,
+    /// 已了結（或消散）宿緣的精簡紀錄，供天書偵測等回看；每魂上限 [`SETTLED_CAP`]。
+    #[serde(default)]
+    pub settled: Vec<Settled>,
+}
+
+/// 每魂保留的已了結宿緣紀錄上限；滿了先丟最舊的非師徒紀錄，全是師徒才丟最舊的。
+pub const SETTLED_CAP: usize = 16;
+
+/// 一條已了結宿緣的精簡紀錄。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Settled {
+    /// 對方的魂。
+    pub other: SoulId,
+    pub kind: ThreadKind,
+    /// 本魂是否為欠債方（師徒線：欠債方是徒弟，債主是師父）。
+    pub debtor: bool,
+    /// 了結（或消散）的事件。
+    pub event: EventId,
 }
 
 impl Soul {
@@ -279,6 +297,8 @@ pub struct Person {
     pub travel_until: Option<Tick>,
     /// GDD 4.6 開局保證：排定的強制突破 tick。
     pub forced_breakthrough: Option<Tick>,
+    /// 婚配的下一次抽中日；隊列裡只有日序等於它的婚配事件有效（重排時舊事件自然失效）。
+    pub next_marry: Option<Tick>,
     pub last_event: Option<EventId>,
 }
 
@@ -287,10 +307,10 @@ impl Person {
         self.died.is_none()
     }
 
-    /// GDD 3.4 年齡 = floor((tick − born) / 12)。
+    /// GDD 3.4 年齡 = floor((tick − born) / 360)。
     pub fn age(&self, tick: Tick) -> u32 {
         let end = self.died.map(|d| d.0).unwrap_or(tick);
-        ((end as i64 - self.born as i64).max(0) / 12) as u32
+        ((end as i64 - self.born as i64).max(0) / crate::calendar::DAYS_PER_YEAR as i64) as u32
     }
 }
 
@@ -516,6 +536,130 @@ pub enum EventArgs {
     },
 }
 
+/// 事件的成因分類（隨事件記錄；`None` 表示該種事件沒有分類或查不到）。
+/// 每種事件只用自己那組值，編碼對照見 `docs/7-附錄/7.2-事件總表.md`。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[repr(u8)]
+pub enum Why {
+    #[default]
+    None = 0,
+    // Killed
+    /// 尋仇：兩魂間有未了的殺業或怨線。
+    Vendetta = 1,
+    /// 除魔：修士斬殺魔修。
+    SlayDemon = 2,
+    /// 魔修襲殺。
+    DemonAssassin = 3,
+    /// 爭脈戰死。
+    SectWarDeath = 4,
+    /// 其他。
+    KillOther = 5,
+    // FellToDemon
+    /// 罪業積累的心魔。
+    SinDemon = 11,
+    /// 前世入魔（修羅）印記。
+    PastLifeMark = 13,
+    // PowerFounded
+    /// 自立：散修自行創宗。
+    SelfFounded = 20,
+    // Married
+    /// 前世宿緣牽引：兩魂有未了、已隔世的情緣線。
+    FateTug = 30,
+    /// 同門。
+    SameSect = 31,
+    /// 同鄉。
+    SameHometown = 32,
+    // ThreadResolved
+    /// 還清（贖罪）。
+    Repaid = 40,
+    /// 殺償（復仇了結）。
+    Avenged = 41,
+    /// 成婚了結（再續前緣）。
+    WedSettled = 42,
+    /// 其他了結（再結師徒等）。
+    ResolvedOther = 43,
+    // Rebellion、Secession、Usurpation 的主因
+    /// 天命低。
+    LowMandate = 50,
+    /// 國庫不足，武將叛離。
+    Finances = 52,
+    /// 無儲君，文武篡位。
+    NoHeir = 53,
+}
+
+impl Why {
+    /// 給介面與文件用的代碼字串（對照見 `docs/7-附錄/7.2-事件總表.md`）。
+    pub fn code(self) -> &'static str {
+        match self {
+            Why::None => "",
+            Why::Vendetta => "vendetta",
+            Why::SlayDemon => "slay_demon",
+            Why::DemonAssassin => "demon_assassin",
+            Why::SectWarDeath => "sect_war_death",
+            Why::KillOther => "kill_other",
+            Why::SinDemon => "sin_demon",
+            Why::PastLifeMark => "past_life_mark",
+            Why::SelfFounded => "self_founded",
+            Why::FateTug => "fate_tug",
+            Why::SameSect => "same_sect",
+            Why::SameHometown => "same_hometown",
+            Why::Repaid => "repaid",
+            Why::Avenged => "avenged",
+            Why::WedSettled => "wed_settled",
+            Why::ResolvedOther => "resolved_other",
+            Why::LowMandate => "low_mandate",
+            Why::Finances => "finances",
+            Why::NoHeir => "no_heir",
+        }
+    }
+}
+
+/// 事件兩方關係的位元旗標快照（事件有兩方時記錄；查不到的位元留空）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct Rel(pub u16);
+
+impl Rel {
+    pub const MASTER_DISCIPLE: u16 = 1 << 0;
+    pub const SAME_SECT: u16 = 1 << 1;
+    pub const SPOUSES: u16 = 1 << 2;
+    pub const PARENT_CHILD: u16 = 1 << 3;
+    pub const SAME_HOMETOWN: u16 = 1 << 4;
+    /// 兩魂之間有未了的宿緣線，依種類：殺業、恩義、情緣、師徒、怨。
+    pub const THREAD_FEUD: u16 = 1 << 5;
+    pub const THREAD_GRACE: u16 = 1 << 6;
+    pub const THREAD_LOVE: u16 = 1 << 7;
+    pub const THREAD_MENTOR: u16 = 1 << 8;
+    pub const THREAD_GRUDGE: u16 = 1 << 9;
+    /// 未了宿緣線已隔的世數（取最多者，上限 7）：第 10–12 位。
+    pub const LIVES_SHIFT: u16 = 10;
+
+    /// 成立的關係旗標名稱（不含世數；介面用）。
+    pub fn names(self) -> Vec<&'static str> {
+        const TABLE: [(u16, &str); 10] = [
+            (Rel::MASTER_DISCIPLE, "master_disciple"),
+            (Rel::SAME_SECT, "same_sect"),
+            (Rel::SPOUSES, "spouses"),
+            (Rel::PARENT_CHILD, "parent_child"),
+            (Rel::SAME_HOMETOWN, "same_hometown"),
+            (Rel::THREAD_FEUD, "thread_feud"),
+            (Rel::THREAD_GRACE, "thread_grace"),
+            (Rel::THREAD_LOVE, "thread_love"),
+            (Rel::THREAD_MENTOR, "thread_mentor"),
+            (Rel::THREAD_GRUDGE, "thread_grudge"),
+        ];
+        TABLE.iter().filter(|(b, _)| self.has(*b)).map(|(_, n)| *n).collect()
+    }
+
+    pub fn has(self, flag: u16) -> bool {
+        self.0 & flag != 0
+    }
+
+    /// 宿緣線已隔的世數。
+    pub fn lives(self) -> u16 {
+        (self.0 >> Self::LIVES_SHIFT) & 7
+    }
+}
+
 /// GDD 3.3 因果帳中的一筆事件。文字不存在模擬中（由介面依 7.2 模板產生）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Event {
@@ -530,6 +674,12 @@ pub struct Event {
     pub causes: SmallVec<[EventId; 3]>,
     pub importance: u8,
     pub args: EventArgs,
+    /// 成因分類（見 [`Why`]）。
+    #[serde(default)]
+    pub why: Why,
+    /// 兩方關係快照（見 [`Rel`]）。
+    #[serde(default)]
+    pub rel: Rel,
 }
 
 /// GDD 3.3 因果帳。`effects[i]` 為以事件 i 為直接原因的事件（漣漪用）。

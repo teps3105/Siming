@@ -59,7 +59,7 @@ static func seal(kind: String) -> String:
 static func month_of(event: Dictionary) -> int:
 	if event.has("month"):
 		return int(event["month"])
-	return (maxi(int(event["tick"]), 1) - 1) % 12 + 1
+	return (maxi(int(event["tick"]), 1) - 1) / 30 % 12 + 1
 
 
 ## 「71年3月」。

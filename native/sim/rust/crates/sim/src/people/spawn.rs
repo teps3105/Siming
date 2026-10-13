@@ -80,7 +80,9 @@ pub fn spawn(w: &mut World, soul: SoulId, province: ProvinceId, cell: u32) -> Pe
         blessed_until: None,
         travel_until: None,
         forced_breakthrough: None,
+        next_marry: None,
         last_event: None,
     });
+    super::events::arm_birth(w, id);
     id
 }

@@ -92,12 +92,12 @@ func test_gdd_5_3_labels_cover_every_province() -> void:
 	assert_eq(provinces, world.province_count())
 
 
-func test_gdd_6_5_same_seed_gives_same_hash() -> void:
+## 世界種子只決定天地；人物落地起的演變由作業系統亂數決定。測試用 `rng_seed` 固定亂數種子，才得到同一個世界。
+func test_gdd_6_5_same_seed_and_rng_seed_give_same_hash() -> void:
 	var other := SimWorld.new()
-	other.create(SEED, "small")
-	var world := _small_world()
-	other.step(maxi(int(world.tick() - other.tick()), 0))
-	world.step(maxi(int(other.tick() - world.tick()), 0))
+	other.create_with({"seed": SEED, "size": "small", "rng_seed": 7})
+	var world := SimWorld.new()
+	world.create_with({"seed": SEED, "size": "small", "rng_seed": 7})
 	assert_eq(other.hash_hex(), world.hash_hex())
 	world.step(12)
 	other.step(12)
@@ -109,7 +109,7 @@ func test_date_uses_the_era_form_with_arabic_numerals() -> void:
 	assert_eq(world.create(20261011, "small"), "", "世界應能生成")
 	world.step(22)
 	# 世界生成後已預跑一段時間；月份由 tick 換算（tick 1 是 1月）。
-	var months := world.tick() - 1
+	var months := (world.tick() - 1) / 30
 	var date := world.date_short()
 	var parts := date.split(" ")
 	assert_eq(parts.size(), 3, "日期是「某某紀元 N年 M月」：%s" % date)
@@ -343,7 +343,7 @@ func test_gdd_2_8_climate_reports_where_the_world_is_and_where_it_is_heading() -
 		assert_true(float(before["tide"]) >= float(before["tide_min"]) and float(before["tide"]) <= float(before["tide_max"]))
 		assert_true(before["climate"] in ["Cold", "Mild", "Warm"])
 		assert_true(before["aura"] in ["Decline", "Plain", "Revival"])
-		world.step(360 - world.tick() % 360)
+		world.step(360 - world.tick() / 30 % 360)
 		var after: Dictionary = world.climate()
 		assert_eq(float(before["warmth_next"]), float(after["warmth"]), "預告的寒暖應等於下一世結算後的寒暖")
 		assert_eq(float(before["tide_next"]), float(after["tide"]), "預告的靈潮應等於下一世結算後的靈潮")
@@ -382,7 +382,7 @@ func test_gdd_2_8_every_settlement_gives_the_map_a_new_batch() -> void:
 	assert_eq(world.create(SEED, "small"), "")
 	var shown := world.map_revision()
 	# 開天時預跑過一段，離下一次結算不一定是整整一世。
-	world.step(359 - world.tick() % 360)
+	world.step(359 - world.tick() / 30 % 360)
 	assert_false(world.map_pending(), "一世結算之前不重算")
 	world.step(1)
 	assert_true(world.map_pending(), "結算後在背景重算靈氣與州界")
@@ -427,7 +427,9 @@ func test_gdd_6_4_events_carry_what_the_templates_need() -> void:
 				assert_true(event.has(key), "事件帶有「%s」" % key)
 			assert_true(event["souls"] is PackedInt32Array)
 			assert_true(event["persons"] is PackedInt32Array and event["powers"] is PackedInt32Array, "人物與勢力編號")
-			assert_eq(event["month"], (maxi(event["tick"], 1) - 1) % 12 + 1, "月份與曆法（GDD 2.6）一致")
+			assert_eq(event["month"], (maxi(event["tick"], 1) - 1) / 30 % 12 + 1, "月份與曆法（GDD 2.6）一致")
+			assert_eq(event["day"], (maxi(event["tick"], 1) - 1) % 30 + 1, "日與曆法一致")
+			assert_true(event["why"] is String and event["rel"] is PackedStringArray, "事件帶成因與關係")
 			assert_true(event["a_realm"] >= -1 and event["a_realm"] <= 8, "境界在表內，非修士為 −1")
 			assert_true(event["a_role"] in ["", "Ruler", "Leader", "Member", "Rogue", "Monk", "Scholar", "Demonic", "Beast", "Official", "General", "Royal"], "職分代號：" + str(event["a_role"]))
 			if event["a_role"] == "Leader" or event["a_role"] == "Member":
@@ -460,10 +462,10 @@ func test_gdd_6_4_events_carry_what_the_templates_need() -> void:
 ## 快轉一次推進多個月，事件的主角身分（門派、職分、境界）仍是事件當月月底的樣子，與逐月推進、逐月取走的結果一致。
 func test_gdd_6_4_batched_steps_keep_the_identity_at_event_time() -> void:
 	var single := SimWorld.new()
-	single.create(SEED, "small")
+	single.create_with({"seed": SEED, "size": "small", "rng_seed": 7})
 	single.drain_events()
 	var batched := SimWorld.new()
-	batched.create(SEED, "small")
+	batched.create_with({"seed": SEED, "size": "small", "rng_seed": 7})
 	batched.drain_events()
 	var expected := {}
 	for month in 360:

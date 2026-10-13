@@ -342,6 +342,11 @@ fn hops_in(w: &World, di: usize, from: ProvinceId) -> Vec<u32> {
 /// GDD 3.7 割據：武將據駐地自立為新王朝。取得駐地及相連的本國州郡中，距駐地比距都城近者。
 /// 武將駐在都城時無法割據，回傳 `None`。
 pub fn secede(w: &mut World, di: usize, general: PersonId) -> Option<DynastyId> {
+    secede_why(w, di, general, Why::LowMandate)
+}
+
+/// 同 [`secede`]，另記成因。
+pub fn secede_why(w: &mut World, di: usize, general: PersonId, why: Why) -> Option<DynastyId> {
     let id = di as DynastyId;
     let (station, capital) = {
         let d = &w.dynasty.list[di];
@@ -363,7 +368,7 @@ pub fn secede(w: &mut World, di: usize, general: PersonId) -> Option<DynastyId> 
     }
     let cause: Vec<EventId> = w.persons[general as usize].last_event.into_iter().collect();
     let nid = found_raw(w, general, station, &set);
-    rec(w, EventKind::Secession, 4, Some(station), &[general], nid, Some(id), 0, &cause);
+    super::rec_why(w, EventKind::Secession, 4, Some(station), &[general], nid, Some(id), 0, &cause, why);
     Some(nid)
 }
 
@@ -532,7 +537,7 @@ pub(super) fn unrest(w: &mut World, di: usize, broke: bool) {
             .max_by(|a, b| w.persons[a.0 as usize].attrs.talent.total_cmp(&w.persons[b.0 as usize].attrs.talent).then(b.0.cmp(&a.0)));
         if let Some((g, _)) = top {
             if w.rng.dynasty.gen::<f32>() < BROKE_DEFECT_CHANCE {
-                secede(w, di, g);
+                secede_why(w, di, g, Why::Finances);
             }
         }
     }
@@ -546,7 +551,7 @@ pub(super) fn unrest(w: &mut World, di: usize, broke: bool) {
             // 首領：該州才略最高的散人或武將候補（叛軍與戰鬥屬 3.9）；不憑空造人，沒有就不起義。
             let Some(leader) = best_commoner(w, prov, 0.0) else { continue };
             let cause: Vec<EventId> = w.persons[leader as usize].last_event.into_iter().collect();
-            rec(w, EventKind::Rebellion, 3, Some(prov), &[leader], id, None, 0, &cause);
+            super::rec_why(w, EventKind::Rebellion, 3, Some(prov), &[leader], id, None, 0, &cause, Why::LowMandate);
         }
     }
 }

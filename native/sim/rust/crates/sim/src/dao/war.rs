@@ -114,7 +114,7 @@ pub(super) fn fight(w: &mut World, a: PowerId, b: PowerId, node: NodeId) {
             crate::people::die(w, victim, DeathCause::War, None, &[war]);
         } else {
             let k = killers[w.rng.powers.gen_range(0..killers.len())];
-            kill(w, k, victim, DeathCause::War, Some(war));
+            kill(w, k, victim, DeathCause::War, Some(war), Why::SectWarDeath);
         }
     }
     let after: f32 = tl.iter().map(|x| power_of(w, x.0)).sum();

@@ -151,26 +151,31 @@ pub fn yearly_coming_of_age(w: &mut World) {
 }
 
 fn coming_of_age_round(w: &mut World, round: Round) {
-    let tick = w.tick;
-    for i in w.round_alive(round).into_iter().map(|x| x as usize) {
-        let p = &w.persons[i];
-        if !p.alive() || p.role != Role::Child || p.age(tick) < COMING_OF_AGE_YEARS {
-            continue;
-        }
-        let pid = p.id;
-        let role = enter_path(w, pid);
-        let p = &w.persons[i];
-        let mut e = NewEvent::new(EventKind::ComeOfAge, 1, EventArgs::Role { role });
-        e.province = Some(p.province);
-        e.cell = Some(p.cell);
-        e.souls = smallvec![p.soul];
-        e.persons = smallvec![pid];
-        if let Some(pw) = p.power {
-            e.powers = smallvec![pw];
-        }
-        if let Some(c) = p.last_event {
-            e.causes = smallvec![c];
-        }
-        ledger::record(w, e);
+    for i in w.round_alive(round) {
+        come_of_age_one(w, i);
     }
+}
+
+/// 單一人物入道：在世、仍是幼年且滿 12 歲才做事。入道後依身分排定年度結算、遊歷與婚配。
+pub(super) fn come_of_age_one(w: &mut World, pid: PersonId) {
+    let tick = w.tick;
+    let p = &w.persons[pid as usize];
+    if !p.alive() || p.role != Role::Child || p.age(tick) < COMING_OF_AGE_YEARS {
+        return;
+    }
+    let role = enter_path(w, pid);
+    let p = &w.persons[pid as usize];
+    let mut e = NewEvent::new(EventKind::ComeOfAge, 1, EventArgs::Role { role });
+    e.province = Some(p.province);
+    e.cell = Some(p.cell);
+    e.souls = smallvec![p.soul];
+    e.persons = smallvec![pid];
+    if let Some(pw) = p.power {
+        e.powers = smallvec![pw];
+    }
+    if let Some(c) = p.last_event {
+        e.causes = smallvec![c];
+    }
+    ledger::record(w, e);
+    super::events::arm_adult(w, pid);
 }

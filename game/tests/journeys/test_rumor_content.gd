@@ -50,18 +50,18 @@ func _trib(tick: int, soul: int, realm: int, outcome := "Passed", extra := {}) -
 
 func test_every_slip_shows_year_and_month() -> void:
 	await _boot(FLOW_VIEW)
-	# tick 1 是第一年一月，tick 26 是第三年二月（GDD 2.6）。
-	_post(_event("Killed", 3, 26, {"year": 3}))
+	# tick 以日計（每月 30 日）：tick 1 是第一年一月，tick 780 是第三年二月（GDD 2.6）。
+	_post(_event("Killed", 3, 780, {"year": 3}))
 	var entry := _rumor.shown()[0]
-	assert_eq(entry["month"], 2, "月由 tick 算：26 → 2 月")
+	assert_eq(entry["month"], 2, "月由 tick 算：780 → 2 月")
 	assert_eq(EventText.stamp(entry["year"], entry["month"]), "3年2月", "寫成「3年2月」")
-	_post(_event("Killed", 3, 27, {"year": 43, "date_era": "咸寧", "souls": PackedInt32Array([7])}))
+	_post(_event("Killed", 3, 810, {"year": 43, "date_era": "咸寧", "souls": PackedInt32Array([7])}))
 	entry = _rumor.shown()[0]
 	assert_eq(entry["era"], "咸寧", "記下事件當時的紀元名")
 	assert_eq(EventText.era_stamp(entry["era"], entry["year"], entry["month"]), "咸寧 43年 3月", "年月前面帶紀元號")
-	_post(_event("Killed", 3, 36, {"year": 3, "souls": PackedInt32Array([9])}))
-	assert_eq(_rumor.shown()[0]["month"], 12, "tick 36 是 12 月")
-	_post(_event("Killed", 3, 37, {"year": 4, "month": 7, "souls": PackedInt32Array([8])}))
+	_post(_event("Killed", 3, 1080, {"year": 3, "souls": PackedInt32Array([9])}))
+	assert_eq(_rumor.shown()[0]["month"], 12, "tick 1080 是 12 月")
+	_post(_event("Killed", 3, 1110, {"year": 4, "month": 7, "souls": PackedInt32Array([8])}))
 	assert_eq(_rumor.shown()[0]["month"], 7, "橋接帶了月份就用橋接的")
 
 
