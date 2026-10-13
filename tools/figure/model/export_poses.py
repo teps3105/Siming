@@ -119,7 +119,7 @@ def body_move(pose, point):
     return (pivot[0] + moved[0], pivot[1] + moved[1] - pose["body_lift"])
 
 
-def anchors_of(pose):
+def anchors_of(pose, aim=False):
     roll = pose["head_roll"]
     top = (-0.014, -HEAD_RADIUS * 2.12)
     crown = (pose["neck"][0] + top[0] * math.cos(roll) - top[1] * math.sin(roll), pose["neck"][1] + top[0] * math.sin(roll) + top[1] * math.cos(roll))
@@ -128,6 +128,11 @@ def anchors_of(pose):
         along = sub(pose["hand_" + tag], pose["elbow_" + tag])
         length = math.hypot(*along) or 1.0
         out["palm_" + tag] = add(pose["hand_" + tag], along, 0.05 / length)
+    if aim:
+        # 劍光的方向：沿遠手前臂的方向，自掌心再伸 0.1（特效用 palm_f 當起點、aim_f 定方向）。
+        along = sub(pose["hand_f"], pose["elbow_f"])
+        length = math.hypot(*along) or 1.0
+        out["aim_f"] = add(out["palm_f"], along, 0.1 / length)
     if "body_roll" in pose:
         out = {k: body_move(pose, v) for k, v in out.items()}
     return out
@@ -183,7 +188,7 @@ def main(path):
             pose = pose_of(now, ref, wind_at(spec["wind"], index), spec.get("rigid", False), spec.get("feet", False))
             pose["seated"] = False
             pose["point"] = bool(actions.curve_at(spec["point"], index) > 0.5) if spec.get("point") else False
-            pose["anchors"] = anchors_of(pose)
+            pose["anchors"] = anchors_of(pose, spec.get("aim", False))
             poses.append(r5(pose))
         result["actions"][name] = {"loop": spec["loop"], "loop_start": spec["loop_start"], "length": spec["frames"],
                                    "events": spec["events"], "poses": poses}
