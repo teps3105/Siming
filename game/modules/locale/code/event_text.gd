@@ -262,9 +262,20 @@ static func _key(event: Dictionary) -> String:
 			if to < from:
 				return "event_NodeShifted_out" if to == 0 else "event_NodeShifted_down"
 			return "event_NodeShifted_up"
+	if kind == "TribulationOmen":
+		# 宗門中人的劫雲聚在自家山門；散修等沒有山門的寫所在州郡，連州郡都沒有就不寫地點。
+		if not _sect_of(event).is_empty():
+			return "event_TribulationOmen"
+		return "event_TribulationOmen_roam" if not String(event.get("p", "")).is_empty() else "event_TribulationOmen_bare"
 	if kind == "Succession" and String(event.get("x", "")) == "Dynasty":
 		return "event_Succession_dynasty"
 	return "event_" + kind
+
+
+## 主角所屬的宗門名；不是宗門中人（散修、僧、儒、君臣等）為空。
+static func _sect_of(event: Dictionary) -> String:
+	var code: String = event.get("a_role", "")
+	return event.get("a_power", "") if code == "Leader" or code == "Member" else ""
 
 
 ## 模板的填字表。
@@ -277,6 +288,7 @@ static func _params(event: Dictionary) -> Dictionary:
 		"G": event.get("g", ""),
 		"P": event.get("p", ""),
 		"Q": event.get("q", ""),
+		"S": _sect_of(event),
 		"X": _word(event),
 		"L": Locale.t("node_level_%d" % n),
 		"N": str(n),

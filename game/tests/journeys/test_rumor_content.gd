@@ -314,7 +314,16 @@ func test_omens_of_one_month_merge_too() -> void:
 	_rumor.expanded = true
 	var entries := _rumor.shown()
 	assert_eq(entries.size(), 2, "低境界的預兆合成一則，化神以上的各自成則")
-	assert_eq(entries[0]["line"] if _rumor.is_group(entries[0]) else entries[1]["line"], "本月 4 處山門劫雲將聚")
+	assert_eq(entries[0]["line"] if _rumor.is_group(entries[0]) else entries[1]["line"], "本月 4 人劫期將至，劫雲匯聚")
+
+
+func test_omen_names_a_sect_gate_only_for_sect_members() -> void:
+	var rogue := _event("TribulationOmen", 2, 100, {"a": "廖遠壯", "a_role": "Rogue", "a_realm": 3, "p": "青州"})
+	assert_eq(EventText.line(rogue), "散修廖遠壯（元嬰）劫期將至，青州上空劫雲匯聚", "散修沒有山門，寫所在州郡")
+	var leader := _event("TribulationOmen", 2, 100, {"a": "蔡舞虹", "a_role": "Leader", "a_power": "玄曦宗", "a_realm": 3, "p": "青州"})
+	assert_eq(EventText.line(leader), "玄曦宗掌門蔡舞虹（元嬰）劫期將至，玄曦宗山門上空劫雲匯聚", "宗門中人寫自家山門")
+	var nowhere := _event("TribulationOmen", 2, 100, {"a": "廖遠壯", "a_role": "Rogue", "a_realm": 3, "p": ""})
+	assert_false(EventText.line(nowhere).contains("山門"), "沒有州郡也不寫山門")
 
 
 func _died(tick: int, soul: int, cause: String, realm: int, extra := {}) -> Dictionary:
