@@ -20,6 +20,7 @@ func setup() -> void:
 
 func teardown() -> void:
 	GameSettings.set_value("ui_scale", 1.0)
+	PersonCard.show_placeholder = false
 
 
 func _boot(view: Vector2i) -> void:
@@ -390,3 +391,54 @@ func test_history_folds_the_echo_of_one_happening() -> void:
 	for entry: Dictionary in EventText.fold_history(history):
 		kinds.append("%s@%d" % [entry["kind"], entry["tick"]])
 	assert_eq(kinds, ["Married@30", "ThreadCreated@31", "Breakthrough@40", "Tribulation@90"] as Array[String], "歷程去掉重複的那一筆")
+
+
+func test_placeholder_portrait_stays_hidden_by_default() -> void:
+	PersonCard.show_placeholder = false
+	await _boot(FLOW_VIEW)
+	_hud.open_person(_find_people()["alive"])
+	await wait(0.5)
+	var card := _card()
+	assert_true(PartCatalog.load_class(PortraitRecipe.CLASS_ID).placeholder, "現在的頭像部件是佔位的")
+	assert_false(card._portrait.visible, "佔位頭像不給玩家看")
+	assert_eq(card._side(), 0.0, "基本資料滿寬")
+	assert_eq(card.size.x, LedgerCard.WIDTH * card._unit, "卡寬回到沒有頭像的寬度")
+
+
+func test_portrait_sits_top_left_at_160_by_200_and_the_first_rows_move_right() -> void:
+	PersonCard.show_placeholder = true
+	await _boot(FLOW_VIEW)
+	var found := _find_people()
+	for key_name in ["alive", "dead"]:
+		var id: int = found[key_name]
+		_hud.open_person(id)
+		await wait(0.5)
+		var card := _card()
+		var unit: float = card._unit
+		var frame := card._portrait_rect()
+		assert_eq(frame.size, Vector2(160.0, 200.0) * unit, "頭像 160×200 乘介面縮放")
+		assert_true(card._portrait.visible, "展開後顯示頭像")
+		assert_eq(card._portrait.position, frame.position)
+		assert_lt(absf(frame.position.x - (card._paper_rect(card._content_height()).position.x + (LedgerCard.STRIP + 14.0) * unit)), 0.01, "靠左，在題簽右邊")
+		assert_lt(absf(frame.position.y - (card._paper_rect(card._content_height()).position.y + 14.0 * unit)), 0.01, "在紙面頂端")
+		assert_gt(card._layout["para_x"][0], frame.size.x, "首列以下的基本資料排在頭像右側")
+		for x: float in card._layout["para_x"]:
+			assert_true(x == 0.0 or x == card._side(), "段落不是排在頭像右側就是滿寬")
+		assert_true(card._layout["section_y"] >= card._layout["portrait_bottom"], "歷程標題在頭像之下")
+		var info: Dictionary = _sim.world.person(id)
+		assert_eq(card._portrait.recipe(), PortraitRecipe.from_person(info), "頭像是這個人的資料推出的那一串")
+		assert_eq(float(card._portrait.recipe()["grade"]["fade"]) > 0.0, not info["alive"], "身故者褪成淡墨")
+		assert_true(Rect2(Vector2.ZERO, Vector2(tree.root.get_visible_rect().size)).encloses(Rect2(card.position, card.size)), "卡不出畫面")
+		assert_true(card.size.y <= card.max_height + 0.5, "卡高不超過上限")
+
+
+func test_portrait_steps_aside_when_the_card_cannot_hold_it() -> void:
+	PersonCard.show_placeholder = true
+	GameSettings.set_value("ui_scale", 1.5)
+	await _boot(DECK_VIEW)
+	var id: int = _find_people()["alive"]
+	_hud.open_person(id)
+	await wait(0.5)
+	var card := _card()
+	assert_true(card._portrait_k < 1.0, "Steam Deck 縮放 150% 放不下，頭像縮小或收起")
+	assert_true(card.min_height() > card.max_height or card._portrait_k > 0.0, "已經收起或仍放得下")
