@@ -1,0 +1,216 @@
+{
+ "part": "collar-none_poor",
+ "paint": [
+  {
+   "tag": "collar-none_poor-t1",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20262687,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/sources/parts/portrait/base-face-m.png",
+     "6eb81df3857716d33152534009eecf9090d5c7a2a6b3c29c3f5a48bfdca3b318"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版（背景是純綠色），圖2是畫風基準圖。請給圖1的人穿上一件窮苦人的粗布短衣：灰藍色的粗麻布交領短衫，領口窄而淺，交領疊成一個小的V形，衣身有兩塊顏色略深的方形補丁（一塊在左肩、一塊在右胸），領口與衣邊沒有任何滾邊與花紋，衣褶少而粗。衣服蓋住頸根以下的肩與胸，肩線一路畫到畫面左右邊緣與下緣；衣服用兩階明暗（底色加一階硬邊陰影），衣褶只用少數幾條粗而乾淨的線。領口的內緣貼著頸子，沿著整條貼頸的邊都要有一圈完整的墨線。頭、臉、耳與頸子的皮膚不許動、不許被蓋住；V形領口露出的是頸子與鎖骨的皮膚，保持原樣；V形開口裡面只有皮膚，不畫內衫、不畫灰色塊、不畫陰影塊，領口的邊乾淨利落。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫的這一件，人物的頭、臉、頸、肩與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純綠色（#00FF00），純色無漸層。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/.shiftblame/tmp/parts/portrait/paint/collar-none_poor-t1.png",
+   "output_sha256": "c0462b5a6786c5e9e13b0ce6f143537b564c635a267a48ff7d86f29491631ec1",
+   "seconds": 72.3,
+   "time": "2026-10-13 19:49:18"
+  },
+  {
+   "tag": "collar-none_poor-t2",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20262704,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/sources/parts/portrait/base-face-m.png",
+     "6eb81df3857716d33152534009eecf9090d5c7a2a6b3c29c3f5a48bfdca3b318"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版（背景是純綠色），圖2是畫風基準圖。請給圖1的人穿上一件窮苦人的粗布短衣：灰藍色的粗麻布交領短衫，領口窄而淺，交領疊成一個小的V形，衣身有兩塊顏色略深的方形補丁（一塊在左肩、一塊在右胸），領口與衣邊沒有任何滾邊與花紋，衣褶少而粗。衣服蓋住頸根以下的肩與胸，衣服的肩外緣必須把圖1裸露的肩完全蓋住：肩線比圖1的肩外緣略寬、略高，肩外側不露出任何皮膚，皮膚只出現在領口與頸子裡；肩線一路畫到畫面左右邊緣與下緣；衣服用兩階明暗（底色加一階硬邊陰影），衣褶只用少數幾條粗而乾淨的線。領口的內緣貼著頸子，沿著整條貼頸的邊都要有一圈完整的墨線。頭、臉、耳與頸子的皮膚不許動、不許被蓋住；V形領口露出的是頸子與鎖骨的皮膚，保持原樣；V形開口裡面只有皮膚，不畫內衫、不畫灰色塊、不畫陰影塊，領口的邊乾淨利落。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫的這一件，人物的頭、臉、頸、肩與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純綠色（#00FF00），純色無漸層。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/.shiftblame/tmp/parts/portrait/paint/collar-none_poor-t2.png",
+   "output_sha256": "be9a325d392728f8ab41457959013203a529a99e96a346384c88c2232fb6bdcf",
+   "seconds": 60.1,
+   "time": "2026-10-13 19:55:47"
+  }
+ ],
+ "collect": [
+  {
+   "from": "paint/collar-none_poor-t1.png",
+   "affine": [
+    [
+     0.9820399880409241,
+     9.999999747378752e-06,
+     7.562280178070068
+    ],
+    [
+     0.00041000000783242285,
+     0.982200026512146,
+     -1.0774199962615967
+    ]
+   ],
+   "ecc": 0.99772,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 336729,
+   "bbox": [
+    0,
+    807,
+    1024,
+    1280
+   ],
+   "components": 1,
+   "output": "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/.shiftblame/tmp/parts/portrait/collect/collar-none_poor.png",
+   "time": "2026-10-13 19:49:18"
+  },
+  {
+   "from": "paint/collar-none_poor-t2.png",
+   "affine": [
+    [
+     0.9981499910354614,
+     0.0007800000021234155,
+     -0.3352699875831604
+    ],
+    [
+     -0.00026000000070780516,
+     0.9972100257873535,
+     -1.6648099422454834
+    ]
+   ],
+   "ecc": 0.99906,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 337751,
+   "bbox": [
+    0,
+    819,
+    1024,
+    1280
+   ],
+   "components": 1,
+   "output": "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/.shiftblame/tmp/parts/portrait/collect/collar-none_poor.png",
+   "time": "2026-10-13 19:55:48"
+  }
+ ],
+ "key": [
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/collar-none_poor.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "robe": {
+     "file": ".shiftblame/tmp/parts/portrait/key/collar-none_poor.robe.png",
+     "pixels": 33090,
+     "dye": "robe",
+     "centers": [
+      51.1,
+      76.0,
+      105.3
+     ],
+     "share": [
+      0.017,
+      0.18,
+      0.803
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 19:49:19"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/collar-none_poor.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "robe": {
+     "file": ".shiftblame/tmp/parts/portrait/key/collar-none_poor.robe.png",
+     "pixels": 33194,
+     "dye": "robe",
+     "centers": [
+      50.2,
+      77.3,
+      90.7,
+      113.9
+     ],
+     "share": [
+      0.034,
+      0.171,
+      0.164,
+      0.63
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "shadow",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 19:55:48"
+  }
+ ],
+ "check": [
+  {
+   "metrics": {
+    "collar-none_poor.robe": {
+     "edge_len": 632,
+     "bare_edge": 54,
+     "bare_ratio": 0.085,
+     "blobs": 1,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 32750
+    }
+   },
+   "time": "2026-10-13 19:49:19"
+  },
+  {
+   "metrics": {
+    "collar-none_poor.robe": {
+     "edge_len": 632,
+     "bare_edge": 35,
+     "bare_ratio": 0.055,
+     "blobs": 1,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 32848
+    }
+   },
+   "time": "2026-10-13 19:55:48"
+  }
+ ]
+}

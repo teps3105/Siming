@@ -1,0 +1,115 @@
+{
+ "part": "collar-ru_plain",
+ "paint": [
+  {
+   "tag": "collar-ru_plain-t1",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20262570,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/sources/parts/portrait/base-face-m.png",
+     "6eb81df3857716d33152534009eecf9090d5c7a2a6b3c29c3f5a48bfdca3b318"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版（背景是純綠色），圖2是畫風基準圖。請給圖1的人穿上一件儒生的交領右衽直裰長衫：衣身是灰藍色，交領在胸前交疊成一個較淺的V形（比道袍的V形淺一些），領口露出一道白色的中衣領緣（窄窄的一條），衣身沒有任何紅色或彩色的滾邊、沒有花紋。衣服蓋住頸根以下的肩與胸，肩線一路畫到畫面左右邊緣與下緣；衣服用兩階明暗（底色加一階硬邊陰影），衣褶只用少數幾條粗而乾淨的線。領口的內緣貼著頸子，沿著整條貼頸的邊都要有一圈完整的墨線。頭、臉、耳與頸子的皮膚不許動、不許被蓋住；V形領口露出的是頸子與鎖骨的皮膚，保持原樣；V形開口裡面只有皮膚，不畫內衫、不畫灰色塊、不畫陰影塊，領口的邊乾淨利落。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫的這一件，人物的頭、臉、頸、肩與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純綠色（#00FF00），純色無漸層。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/.shiftblame/tmp/parts/portrait/paint/collar-ru_plain-t1.png",
+   "output_sha256": "2d4949222832ff04d892fd9f04b4a5779957ba7638697fab57f586410015fbc4",
+   "seconds": 64.3,
+   "time": "2026-10-13 19:46:39"
+  }
+ ],
+ "collect": [
+  {
+   "from": "paint/collar-ru_plain-t1.png",
+   "affine": [
+    [
+     0.9871500134468079,
+     0.0031799999997019768,
+     2.4490699768066406
+    ],
+    [
+     -7.000000186963007e-05,
+     0.9878000020980835,
+     -5.844799995422363
+    ]
+   ],
+   "ecc": 0.9948,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 346293,
+   "bbox": [
+    0,
+    795,
+    1024,
+    1280
+   ],
+   "components": 1,
+   "output": "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/.shiftblame/tmp/parts/portrait/collect/collar-ru_plain.png",
+   "time": "2026-10-13 19:46:41"
+  }
+ ],
+ "key": [
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/collar-ru_plain.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "robe": {
+     "file": ".shiftblame/tmp/parts/portrait/key/collar-ru_plain.robe.png",
+     "pixels": 34020,
+     "dye": "robe",
+     "centers": [
+      65.9,
+      97.9,
+      116.2,
+      134.9
+     ],
+     "share": [
+      0.017,
+      0.124,
+      0.311,
+      0.547
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "shadow",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 19:46:42"
+  }
+ ],
+ "check": [
+  {
+   "metrics": {
+    "collar-ru_plain.robe": {
+     "edge_len": 636,
+     "bare_edge": 110,
+     "bare_ratio": 0.173,
+     "blobs": 1,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 33685
+    }
+   },
+   "time": "2026-10-13 19:46:42"
+  }
+ ]
+}

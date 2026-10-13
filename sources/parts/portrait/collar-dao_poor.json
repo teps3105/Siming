@@ -1,0 +1,216 @@
+{
+ "part": "collar-dao_poor",
+ "paint": [
+  {
+   "tag": "collar-dao_poor-t1",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20262563,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/sources/parts/portrait/base-face-m.png",
+     "6eb81df3857716d33152534009eecf9090d5c7a2a6b3c29c3f5a48bfdca3b318"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版（背景是純綠色），圖2是畫風基準圖。請給圖1的人穿上一件貧寒道士的舊道袍：灰青色的交領右衽道袍，交領疊成一個窄而深的V形，領口窄，衣身沒有任何紅色或彩色的滾邊、沒有花紋，衣色略舊，衣褶少而粗，肩上有一小塊補丁。衣服蓋住頸根以下的肩與胸，肩線一路畫到畫面左右邊緣與下緣；衣服用兩階明暗（底色加一階硬邊陰影），衣褶只用少數幾條粗而乾淨的線。領口的內緣貼著頸子，沿著整條貼頸的邊都要有一圈完整的墨線。頭、臉、耳與頸子的皮膚不許動、不許被蓋住；V形領口露出的是頸子與鎖骨的皮膚，保持原樣；V形開口裡面只有皮膚，不畫內衫、不畫灰色塊、不畫陰影塊，領口的邊乾淨利落。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫的這一件，人物的頭、臉、頸、肩與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純綠色（#00FF00），純色無漸層。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/.shiftblame/tmp/parts/portrait/paint/collar-dao_poor-t1.png",
+   "output_sha256": "a0c72fc6b94ebfe5efa9f2430b13abe177c093fbb4bfec6a9abd336ad21f2a9e",
+   "seconds": 80.4,
+   "time": "2026-10-13 19:50:43"
+  },
+  {
+   "tag": "collar-dao_poor-t2",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20262580,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/sources/parts/portrait/base-face-m.png",
+     "6eb81df3857716d33152534009eecf9090d5c7a2a6b3c29c3f5a48bfdca3b318"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版（背景是純綠色），圖2是畫風基準圖。請給圖1的人穿上一件貧寒道士的舊道袍：灰青色的交領右衽道袍，交領疊成一個窄而深的V形，領口窄，衣身沒有任何紅色或彩色的滾邊、沒有花紋，衣色略舊，衣褶少而粗，肩上有一小塊補丁。衣服蓋住頸根以下的肩與胸，衣服的肩外緣必須把圖1裸露的肩完全蓋住：肩線比圖1的肩外緣略寬、略高，肩外側不露出任何皮膚，皮膚只出現在領口與頸子裡；肩線一路畫到畫面左右邊緣與下緣；衣服用兩階明暗（底色加一階硬邊陰影），衣褶只用少數幾條粗而乾淨的線。領口的內緣貼著頸子，沿著整條貼頸的邊都要有一圈完整的墨線。頭、臉、耳與頸子的皮膚不許動、不許被蓋住；V形領口露出的是頸子與鎖骨的皮膚，保持原樣；V形開口裡面只有皮膚，不畫內衫、不畫灰色塊、不畫陰影塊，領口的邊乾淨利落。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫的這一件，人物的頭、臉、頸、肩與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純綠色（#00FF00），純色無漸層。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/.shiftblame/tmp/parts/portrait/paint/collar-dao_poor-t2.png",
+   "output_sha256": "cec240543fe02a5717a9510c1ee2a72d158c765feb212c5f91bd35f101329d6a",
+   "seconds": 60.4,
+   "time": "2026-10-13 19:56:52"
+  }
+ ],
+ "collect": [
+  {
+   "from": "paint/collar-dao_poor-t1.png",
+   "affine": [
+    [
+     1.0006699562072754,
+     -0.0005699999746866524,
+     -0.08003000169992447
+    ],
+    [
+     4.999999873689376e-05,
+     0.9991099834442139,
+     0.6830400228500366
+    ]
+   ],
+   "ecc": 0.99803,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 349204,
+   "bbox": [
+    0,
+    795,
+    1024,
+    1280
+   ],
+   "components": 1,
+   "output": "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/.shiftblame/tmp/parts/portrait/collect/collar-dao_poor.png",
+   "time": "2026-10-13 19:50:44"
+  },
+  {
+   "from": "paint/collar-dao_poor-t2.png",
+   "affine": [
+    [
+     1.0008800029754639,
+     -0.0015899999998509884,
+     -0.29012998938560486
+    ],
+    [
+     0.00026000000070780516,
+     1.0013799667358398,
+     -1.7824699878692627
+    ]
+   ],
+   "ecc": 0.99735,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 345337,
+   "bbox": [
+    0,
+    795,
+    1024,
+    1280
+   ],
+   "components": 1,
+   "output": "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/.shiftblame/tmp/parts/portrait/collect/collar-dao_poor.png",
+   "time": "2026-10-13 19:56:53"
+  }
+ ],
+ "key": [
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/collar-dao_poor.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "robe": {
+     "file": ".shiftblame/tmp/parts/portrait/key/collar-dao_poor.robe.png",
+     "pixels": 34325,
+     "dye": "robe",
+     "centers": [
+      60.8,
+      91.5,
+      119.6
+     ],
+     "share": [
+      0.035,
+      0.203,
+      0.763
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 19:50:44"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/collar-dao_poor.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "robe": {
+     "file": ".shiftblame/tmp/parts/portrait/key/collar-dao_poor.robe.png",
+     "pixels": 33944,
+     "dye": "robe",
+     "centers": [
+      54.6,
+      92.2,
+      111.2,
+      131.8
+     ],
+     "share": [
+      0.027,
+      0.127,
+      0.318,
+      0.527
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "shadow",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 19:56:53"
+  }
+ ],
+ "check": [
+  {
+   "metrics": {
+    "collar-dao_poor.robe": {
+     "edge_len": 673,
+     "bare_edge": 106,
+     "bare_ratio": 0.158,
+     "blobs": 1,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 33960
+    }
+   },
+   "time": "2026-10-13 19:50:44"
+  },
+  {
+   "metrics": {
+    "collar-dao_poor.robe": {
+     "edge_len": 663,
+     "bare_edge": 63,
+     "bare_ratio": 0.095,
+     "blobs": 1,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 33582
+    }
+   },
+   "time": "2026-10-13 19:56:53"
+  }
+ ]
+}

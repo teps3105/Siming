@@ -43,26 +43,31 @@
   {
    "id": "collar",
    "order": 30,
-   "count": 2
+   "count": 6
   },
   {
    "id": "eyes",
    "order": 60,
-   "count": 3
+   "count": 4
   },
   {
    "id": "brows",
    "order": 70,
-   "count": 3
+   "count": 4
   },
   {
    "id": "beard",
    "order": 80,
-   "count": 2
+   "count": 5
   },
   {
    "id": "front_hair",
    "order": 100,
+   "count": 3
+  },
+  {
+   "id": "hat",
+   "order": 110,
    "count": 3
   }
  ],
@@ -133,6 +138,28 @@
     }
    ]
   },
+  "portrait_trial/back_hair.loose": {
+   "anchor": [
+    158,
+    224
+   ],
+   "layers": [
+    {
+     "rect": [
+      0,
+      307,
+      259,
+      224
+     ],
+     "offset": [
+      29,
+      112
+     ],
+     "mode": "keyed",
+     "tint": "hair"
+    }
+   ]
+  },
   "portrait_trial/front_hair.loose": {
    "anchor": [
     162,
@@ -141,7 +168,7 @@
    "layers": [
     {
      "rect": [
-      0,
+      263,
       307,
       131,
       162
@@ -163,7 +190,7 @@
    "layers": [
     {
      "rect": [
-      135,
+      398,
       307,
       320,
       152
@@ -177,7 +204,7 @@
     },
     {
      "rect": [
-      459,
+      722,
       307,
       162,
       152
@@ -199,8 +226,8 @@
    "layers": [
     {
      "rect": [
-      625,
-      307,
+      0,
+      535,
       320,
       152
      ],
@@ -213,8 +240,8 @@
     },
     {
      "rect": [
-      0,
-      473,
+      324,
+      535,
       152,
       152
      ],
@@ -224,28 +251,196 @@
      ],
      "mode": "keyed",
      "tint": "trim"
+    },
+    {
+     "rect": [
+      648,
+      691,
+      150,
+      145
+     ],
+     "offset": [
+      82,
+      255
+     ],
+     "mode": "keyed",
+     "tint": "gold"
     }
    ]
   },
-  "portrait_trial/back_hair.loose": {
+  "portrait_trial/collar.ru_plain": {
    "anchor": [
-    156,
-    244
+    160,
+    324
    ],
    "layers": [
     {
      "rect": [
-      156,
-      473,
-      257,
-      127
+      480,
+      535,
+      320,
+      152
      ],
      "offset": [
-      27,
-      180
+      0,
+      248
+     ],
+     "mode": "keyed",
+     "tint": "robe"
+    }
+   ]
+  },
+  "portrait_trial/collar.shi_plain": {
+   "anchor": [
+    160,
+    324
+   ],
+   "layers": [
+    {
+     "rect": [
+      0,
+      691,
+      320,
+      152
+     ],
+     "offset": [
+      0,
+      248
+     ],
+     "mode": "keyed",
+     "tint": "robe"
+    }
+   ]
+  },
+  "portrait_trial/collar.dao_poor": {
+   "anchor": [
+    160,
+    324
+   ],
+   "layers": [
+    {
+     "rect": [
+      324,
+      691,
+      320,
+      152
+     ],
+     "offset": [
+      0,
+      248
+     ],
+     "mode": "keyed",
+     "tint": "robe"
+    }
+   ]
+  },
+  "portrait_trial/collar.none_poor": {
+   "anchor": [
+    160,
+    328
+   ],
+   "layers": [
+    {
+     "rect": [
+      0,
+      847,
+      320,
+      144
+     ],
+     "offset": [
+      0,
+      256
+     ],
+     "mode": "keyed",
+     "tint": "robe"
+    }
+   ]
+  },
+  "portrait_trial/beard.five": {
+   "anchor": [
+    163,
+    278
+   ],
+   "layers": [
+    {
+     "rect": [
+      324,
+      847,
+      56,
+      128
+     ],
+     "offset": [
+      135,
+      214
      ],
      "mode": "keyed",
      "tint": "hair"
+    }
+   ]
+  },
+  "portrait_trial/hat.straw0": {
+   "anchor": [
+    160,
+    123
+   ],
+   "layers": [
+    {
+     "rect": [
+      384,
+      847,
+      296,
+      106
+     ],
+     "offset": [
+      12,
+      70
+     ],
+     "mode": "keyed",
+     "tint": "robe"
+    }
+   ]
+  },
+  "portrait_trial/beard.three": {
+   "anchor": [
+    158,
+    262
+   ],
+   "layers": [
+    {
+     "rect": [
+      684,
+      847,
+      64,
+      100
+     ],
+     "offset": [
+      126,
+      212
+     ],
+     "mode": "keyed",
+     "tint": "hair"
+    }
+   ]
+  },
+  "portrait_trial/hat.scholar0": {
+   "anchor": [
+    158,
+    118
+   ],
+   "layers": [
+    {
+     "rect": [
+      752,
+      847,
+      131,
+      99
+     ],
+     "offset": [
+      93,
+      68
+     ],
+     "mode": "keyed",
+     "tint": "robe"
     }
    ]
   },
@@ -257,8 +452,8 @@
    "layers": [
     {
      "rect": [
-      417,
-      473,
+      887,
+      847,
       125,
       97
      ],
@@ -279,14 +474,36 @@
    "layers": [
     {
      "rect": [
-      546,
-      473,
+      0,
+      995,
       125,
       92
      ],
      "offset": [
       98,
       96
+     ],
+     "mode": "keyed",
+     "tint": "hair"
+    }
+   ]
+  },
+  "portrait_trial/beard.full": {
+   "anchor": [
+    162,
+    228
+   ],
+   "layers": [
+    {
+     "rect": [
+      129,
+      995,
+      102,
+      68
+     ],
+     "offset": [
+      111,
+      194
      ],
      "mode": "keyed",
      "tint": "hair"
@@ -301,8 +518,8 @@
    "layers": [
     {
      "rect": [
-      675,
-      473,
+      235,
+      995,
       114,
       67
      ],
@@ -323,8 +540,8 @@
    "layers": [
     {
      "rect": [
-      793,
-      473,
+      353,
+      995,
       76,
       44
      ],
@@ -345,8 +562,8 @@
    "layers": [
     {
      "rect": [
-      873,
-      473,
+      433,
+      995,
       25,
       40
      ],
@@ -359,6 +576,28 @@
     }
    ]
   },
+  "portrait_trial/hat.crown0": {
+   "anchor": [
+    160,
+    82
+   ],
+   "layers": [
+    {
+     "rect": [
+      462,
+      995,
+      93,
+      33
+     ],
+     "offset": [
+      114,
+      65
+     ],
+     "mode": "keyed",
+     "tint": "robe"
+    }
+   ]
+  },
   "portrait_trial/beard.moustache": {
    "anchor": [
     165,
@@ -367,8 +606,8 @@
    "layers": [
     {
      "rect": [
-      902,
-      473,
+      559,
+      995,
       56,
       21
      ],
@@ -389,8 +628,8 @@
    "layers": [
     {
      "rect": [
-      0,
-      629,
+      619,
+      995,
       84,
       13
      ],
@@ -405,34 +644,34 @@
   },
   "portrait_trial/eyes.m1": {
    "anchor": [
-    164,
-    182
+    163,
+    174
    ],
    "layers": [
     {
      "rect": [
-      88,
-      629,
-      90,
+      707,
+      995,
+      92,
       13
      ],
      "offset": [
-      119,
-      175
+      117,
+      168
      ],
      "mode": "fixed",
      "tint": null
     },
     {
      "rect": [
-      667,
-      629,
-      61,
+      545,
+      1091,
+      60,
       6
      ],
      "offset": [
-      134,
-      180
+      133,
+      175
      ],
      "mode": "keyed",
      "tint": "iris"
@@ -447,8 +686,8 @@
    "layers": [
     {
      "rect": [
-      182,
-      629,
+      803,
+      995,
       87,
       13
      ],
@@ -461,8 +700,8 @@
     },
     {
      "rect": [
-      534,
-      629,
+      348,
+      1091,
       64,
       8
      ],
@@ -475,6 +714,28 @@
     }
    ]
   },
+  "portrait_trial/brows.3": {
+   "anchor": [
+    164,
+    170
+   ],
+   "layers": [
+    {
+     "rect": [
+      894,
+      995,
+      87,
+      12
+     ],
+     "offset": [
+      120,
+      164
+     ],
+     "mode": "keyed",
+     "tint": "hair"
+    }
+   ]
+  },
   "portrait_trial/brows.1": {
    "anchor": [
     165,
@@ -483,8 +744,8 @@
    "layers": [
     {
      "rect": [
-      273,
-      629,
+      0,
+      1091,
       80,
       11
      ],
@@ -497,6 +758,42 @@
     }
    ]
   },
+  "portrait_trial/eyes.m3": {
+   "anchor": [
+    162,
+    178
+   ],
+   "layers": [
+    {
+     "rect": [
+      84,
+      1091,
+      83,
+      11
+     ],
+     "offset": [
+      121,
+      173
+     ],
+     "mode": "fixed",
+     "tint": null
+    },
+    {
+     "rect": [
+      416,
+      1091,
+      60,
+      8
+     ],
+     "offset": [
+      133,
+      176
+     ],
+     "mode": "keyed",
+     "tint": "iris"
+    }
+   ]
+  },
   "portrait_trial/eyes.m0": {
    "anchor": [
     164,
@@ -505,8 +802,8 @@
    "layers": [
     {
      "rect": [
-      357,
-      629,
+      171,
+      1091,
       82,
       10
      ],
@@ -519,8 +816,8 @@
     },
     {
      "rect": [
-      602,
-      629,
+      480,
+      1091,
       61,
       7
      ],
@@ -541,8 +838,8 @@
    "layers": [
     {
      "rect": [
-      443,
-      629,
+      257,
+      1091,
       87,
       9
      ],
