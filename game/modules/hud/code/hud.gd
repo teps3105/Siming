@@ -655,7 +655,7 @@ func _place_director_card(bounds: Vector2) -> void:
 	for rect in _occupied():
 		if rect.position.y < seals_top - GUIDE_GAP:
 			avoid.append(rect)
-	_director_card.layout(bounds, seals_top - GUIDE_GAP, _seals.position.x - GUIDE_GAP, avoid)
+	_director_card.layout(bounds, seals_top - GUIDE_GAP, avoid)
 
 
 ## 導演要讓出的時刻：玩家開著卡片、天下冊、傳聞簽全螢幕或選單。

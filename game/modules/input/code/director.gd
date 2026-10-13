@@ -28,8 +28,10 @@ const COOLDOWN := 30.0
 const CAPTION_MIN := 3.0
 ## 事件的重要度等級最高一級（3.3）才算大事。
 const BIG_LEVEL := 5
-## 沒處理到的大事保留多久（真實秒）。
-const BIG_KEEP := 60.0
+## 沒處理到的大事保留多久（真實秒），超過就不去了。
+const BIG_KEEP := 15.0
+## 事件記錄保留多久（真實秒）；計分只看計分窗內的。
+const EVENT_KEEP := 60.0
 ## 過場最長等多久；鏡頭沒回報到位就當作到了。
 const TRAVEL_LIMIT := 6.0
 ## 節奏三檔對停留的倍率：慢、標準、快。
@@ -53,6 +55,8 @@ var clock := 0.0
 var _events: Array[Dictionary] = []
 var _big: Dictionary = {}
 var _left: Dictionary = {}
+## 剛離開的州郡；它的大事也受回訪冷卻，其他州郡的大事不受。
+var _last := -1
 var _idle := 0.0
 var _travel := 0.0
 var _slow := false
@@ -74,6 +78,7 @@ func reset() -> void:
 	_events.clear()
 	_big.clear()
 	_left.clear()
+	_last = -1
 	state = State.OFF
 	current = -1
 	target = -1
@@ -130,6 +135,11 @@ func best_event(province: int) -> Dictionary:
 
 func caption() -> Dictionary:
 	return _caption
+
+
+## 這趟過場要看的那件事（計分窗內分數最高、同級取新的；沒有則是大事的原事件）；沒有為空字典。
+func target_event() -> Dictionary:
+	return _target_event
 
 
 func slowing() -> bool:
@@ -244,6 +254,8 @@ func _big_pending() -> int:
 	var pick := -1
 	var stamp := -1.0
 	for province: int in _big:
+		if province == _last and clock - float(_left.get(province, -1000.0)) < COOLDOWN:
+			continue
 		if float(_big[province]["t"]) > stamp:
 			pick = province
 			stamp = float(_big[province]["t"])
@@ -255,6 +267,7 @@ func _begin(province: int) -> void:
 	var held: Dictionary = _big[province]["payload"] if was_big else {}
 	if current >= 0:
 		_left[current] = clock
+		_last = current
 	_set_slow(was_big)
 	_big.erase(province)
 	target = province
@@ -296,7 +309,7 @@ func _leave_scene() -> void:
 
 
 func _prune() -> void:
-	while not _events.is_empty() and clock - float(_events[0]["t"]) > BIG_KEEP:
+	while not _events.is_empty() and clock - float(_events[0]["t"]) > EVENT_KEEP:
 		_events.pop_front()
 	for province: int in _big.keys():
 		if clock - float(_big[province]["t"]) > BIG_KEEP:

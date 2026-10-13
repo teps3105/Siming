@@ -43,6 +43,8 @@ pub struct World {
     pub land_basis: Option<crate::landform::LandBasis>,
     /// GDD 3.7 王朝與州郡歸屬。新狀態，世界雜湊附加在最後。
     pub dynasty: crate::dynasty::DynastyState,
+    /// GDD 3.4 門人：每州五門的門人數、養分與世界層級的加成期限。新狀態，世界雜湊附加在最後。
+    pub adepts: crate::adepts::AdeptState,
     /// GDD 3.3 宿緣相遇的年度戳記（魂）：值為「年序 + 1」，等於本年表示該魂本年已相遇過。各魂在自己的判定月處理相遇，
     /// 每魂每年的次數上限因此要跨月記帳。世界雜湊附加在最後。
     pub meet_stamp: Vec<u32>,
@@ -109,6 +111,7 @@ impl World {
         let rng = RngStreams::new(params.seed);
         let (evolution, eras) = crate::evolution::genesis(params.seed, params.era, params.pop_years + params.prerun_years);
         let dynasty = crate::dynasty::DynastyState::new(provinces.len());
+        let adepts = crate::adepts::AdeptState::new(provinces.len());
         Self {
             params,
             tick: 0,
@@ -131,6 +134,7 @@ impl World {
             aura_basis: None,
             land_basis: None,
             dynasty,
+            adepts,
             meet_stamp: Vec::new(),
             thread_stamp: Vec::new(),
             range_cache: Default::default(),
@@ -452,6 +456,11 @@ impl Sim {
         let famines = crate::population::monthly_with(&mut w.provinces, &mult, w.params.seed, crate::schedule::Round::at(tick));
         crate::ledger::record_famines(w, &famines);
         crate::dynasty::on_famines(w, &famines);
+        // 7a 門人（GDD 3.4）：州郡在自己的判定月，接在人口更新之後；世界層級的加成每年在年底月先更新一次
+        if is_yearly(tick) {
+            crate::adepts::refresh_world(w);
+        }
+        crate::adepts::settle(w, crate::schedule::Round::at(tick));
         // 8、9 氣場與勢力的年度效果（M3、M4）
         // 10–13 壽終、修煉突破、遊歷、入道、婚配：事件隊列。
         if yearly {

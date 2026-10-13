@@ -128,7 +128,7 @@ func test_person_card_sect_name_opens_the_sect_card_and_back_returns() -> void:
 	assert_false(_card().is_open())
 
 
-func test_person_history_sect_name_opens_the_sect_card() -> void:
+func test_biography_sect_name_opens_the_sect_card() -> void:
 	await _boot(FLOW_VIEW)
 	var picked := -1
 	var wanted := -1
@@ -137,31 +137,32 @@ func test_person_history_sect_name_opens_the_sect_card() -> void:
 		for member: Dictionary in members:
 			if picked >= 0:
 				break
-			for entry: Dictionary in _sim.world.person_history(member["id"]):
-				# 只挑句子真的寫了宗門名的歷程（突破、渡劫等句子不寫自己的宗門）。
-				if int(entry["f_power"]) >= 0 and not String(entry["f"]).is_empty() and EventText.history_line(entry, member["id"]).contains(String(entry["f"])):
-					picked = member["id"]
-					wanted = entry["f_power"]
-					break
-	assert_gt(picked, -1, "有歷程提到宗門的人")
+			var out := ChronicleText.compose(_sim.world.person(member["id"]), _sim.world.person_chronicle(member["id"]), func(p: int) -> Dictionary: return _sim.world.person(p))
+			for para: Dictionary in out["bio"]:
+				for link: Dictionary in para["links"]:
+					if picked < 0 and String(link["target"]).begins_with("sect:"):
+						picked = member["id"]
+						wanted = int(String(link["target"]).substr(5))
+	assert_gt(picked, -1, "有小傳提到宗門的人")
 	_hud.open_person(picked)
 	await wait(0.5)
 	var card := _hud.person_card()
 	var list: LedgerList = card._list
 	var point := Vector2.INF
 	for row: Dictionary in card._rows:
-		var base := Vector2(0.0, float(row["top"]) + LedgerText.line_height(Ink.font_size(Ink.SIZE_NOTE, card._unit)))
+		if row["kind"] != "bio":
+			continue
 		for hit: Dictionary in row["paragraph"]["hits"]:
 			if hit["target"] == "sect:%d" % wanted:
 				list.scroll = maxf(float(row["top"]) - 8.0, 0.0)
 				await frames(2)
-				point = list.get_global_rect().position + base + (hit["rect"] as Rect2).get_center() - Vector2(0.0, list.scroll)
+				point = list.get_global_rect().position + Vector2(0.0, float(row["top"])) + (hit["rect"] as Rect2).get_center() - Vector2(0.0, list.scroll)
 				break
 		if point != Vector2.INF:
 			break
-	assert_ne(point, Vector2.INF, "歷程的句子裡宗門名可點")
+	assert_ne(point, Vector2.INF, "小傳的句子裡宗門名可點")
 	await click(point)
-	assert_true(_card().is_open() and _card().sect == wanted, "點歷程裡的宗門名開那一宗的卡")
+	assert_true(_card().is_open() and _card().sect == wanted, "點小傳裡的宗門名開那一宗的卡")
 
 
 ## 凡句子裡寫了宗門名的事件，都要接成 `sect:<編號>` 連結：掃遍各宗門的門史與門人的歷程，

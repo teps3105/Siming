@@ -112,7 +112,7 @@ func test_maximum_stay_forces_a_move_regardless_of_hysteresis() -> void:
 	assert_eq(_log[1][1], 2)
 
 
-func test_revisit_cooldown_with_big_exception() -> void:
+func test_revisit_cooldown_also_binds_a_big_event_of_the_province_just_left() -> void:
 	_visit(1)
 	_run(Director.STAY_MIN)
 	_dir.post(2, 3, _event(3))
@@ -125,8 +125,40 @@ func test_revisit_cooldown_with_big_exception() -> void:
 	assert_eq(_log.size(), 2, "剛離開的 1 號州郡冷卻中，不回去")
 	_dir.post(1, Director.BIG_LEVEL, _event(5))
 	_run(STEP)
-	assert_eq(_log.size(), 3, "大事不受冷卻")
-	assert_eq(_log[2][1], 1)
+	assert_eq(_log.size(), 2, "剛離開的州郡的大事也受冷卻")
+
+
+func test_a_big_event_of_another_province_ignores_the_cooldown() -> void:
+	_visit(1)
+	_run(Director.STAY_MIN)
+	_dir.post(2, Director.BIG_LEVEL, _event(5))
+	_run(STEP)
+	_dir.arrive()
+	_run(Director.STAY_MIN)
+	_dir.post(3, Director.BIG_LEVEL, _event(5))
+	_run(STEP)
+	_dir.arrive()
+	_run(Director.STAY_MIN)
+	assert_eq(_log.size(), 3, "三處都在 30 秒內換過")
+	_dir.post(1, Director.BIG_LEVEL, _event(5))
+	_run(STEP)
+	assert_eq(_log.size(), 4, "1 號州郡不是剛離開的那一處，大事照去")
+	assert_eq(_log[3][1], 1)
+
+
+func test_a_big_event_that_waits_too_long_is_dropped() -> void:
+	var stage := FakeStage.new()
+	stage.add_to_group("event_stage")
+	track(stage)
+	tree.root.add_child(stage)
+	_visit(1)
+	_dir.post(2, Director.BIG_LEVEL, _event(5))
+	stage.remaining = 1000.0
+	_run(Director.BIG_KEEP + 2.0)
+	stage.remaining = 0.0
+	_run(STEP)
+	assert_eq(_log.size(), 1, "超過保留時間的大事不去了")
+	assert_eq(_dir.current, 1)
 
 
 func test_cooldown_ends_after_thirty_seconds() -> void:

@@ -13,9 +13,8 @@ const PAD_X := 18.0
 const PAD_Y := 9.0
 const FADE_SECONDS := 0.35
 const MAX_LINES := 2
-## 字卡最寬佔畫面寬度的比例。
-const MAX_WIDTH_FRAC := 0.6
-const MARGIN := 12.0
+## 字卡左右各留的邊。
+const MARGIN := 24.0
 
 var _unit := 1.0
 var _event: Dictionary = {}
@@ -25,7 +24,6 @@ var _hover := ""
 var _pressed := ""
 var _bounds := Vector2(1920.0, 1080.0)
 var _bottom := 1000.0
-var _right_limit := 1900.0
 var _avoid: Array[Rect2] = []
 var _dirty := true
 
@@ -66,14 +64,13 @@ func hide_card() -> void:
 	_shown = false
 
 
-## 擺放：畫面大小、字卡下緣、右側不能越過的位置，以及要避開的矩形（時間盤、傳聞簽、模式列等）。
-func layout(bounds: Vector2, bottom: float, right_limit: float, avoid: Array[Rect2]) -> void:
-	if bounds == _bounds and bottom == _bottom and right_limit == _right_limit and avoid == _avoid and not _dirty:
+## 擺放：水平置中於整個畫面，下緣在 bottom（模式列正上方）；真的與某個器物（avoid）重疊時，才整張上移一行高。
+func layout(bounds: Vector2, bottom: float, avoid: Array[Rect2]) -> void:
+	if bounds == _bounds and bottom == _bottom and avoid == _avoid and not _dirty:
 		return
 	_dirty = false
 	_bounds = bounds
 	_bottom = bottom
-	_right_limit = right_limit
 	_avoid = avoid
 	_rebuild()
 
@@ -83,17 +80,8 @@ func _rebuild() -> void:
 		return
 	var body := Ink.font_size(Ink.SIZE_BODY, _unit)
 	var band_height := LedgerText.line_height(body) * MAX_LINES + PAD_Y * 2.0 * _unit
-	var left := MARGIN
-	var right := _right_limit
 	var mid := _bounds.x * 0.5
-	for rect in _avoid:
-		if rect.end.y < _bottom - band_height - 4.0 or rect.position.y > _bottom + 4.0:
-			continue
-		if rect.get_center().x < mid:
-			left = maxf(left, rect.end.x + MARGIN)
-		else:
-			right = minf(right, rect.position.x - MARGIN)
-	var width := minf(_bounds.x * MAX_WIDTH_FRAC, right - left) - (PAD_X * 2.0 + Ink.SLIP_BAND * 2.0) * _unit
+	var width := _bounds.x - MARGIN * 2.0 - (PAD_X * 2.0 + Ink.SLIP_BAND * 2.0) * _unit
 	var links := EventCard.links_of(_event)
 	var prefix := String(_event.get("p", ""))
 	prefix = prefix + "　" if not prefix.is_empty() else ""
@@ -109,8 +97,17 @@ func _rebuild() -> void:
 		inner.x = maxf(inner.x, Ink.text_size(line, body).x)
 	inner.y = float(_para["height"])
 	size = (inner + Vector2(PAD_X, PAD_Y) * 2.0 * _unit).round()
-	var x := clampf(mid - size.x * 0.5, left, maxf(right - size.x, left))
+	var x := clampf(mid - size.x * 0.5, MARGIN, maxf(_bounds.x - MARGIN - size.x, MARGIN))
 	position = Vector2(x, _bottom - size.y).round()
+	var step := LedgerText.line_height(body)
+	for i in 3:
+		var rect := Rect2(position, size).grow(Ink.SLIP_BAND)
+		var clash := false
+		for other in _avoid:
+			clash = clash or rect.intersects(other)
+		if not clash:
+			break
+		position.y -= step
 	queue_redraw()
 
 
