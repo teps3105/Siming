@@ -48,6 +48,11 @@ var _paragraphs: Array[Dictionary] = []
 ## 歷程各筆：top（內容座標的上緣）、height、date、seal、paragraph。
 var _rows: Array[Dictionary] = []
 var _rows_height := 0.0
+## 年表是否展開（換人時收合）。
+var _expanded := false
+## 年表的列數與小傳的段數（組合結果）。
+var _timeline_count := 0
+var _toggle_top := 0.0
 ## 版面（相對於紙面上緣的位移，已含版面倍率）。
 var _layout := {}
 
@@ -70,6 +75,8 @@ func setup(world: SimWorld, unit: float, width := -1.0) -> void:
 func show_person(id: int) -> void:
 	var fresh := id != person
 	person = id
+	if fresh:
+		_expanded = false
 	refresh()
 	if fresh and _list != null:
 		_list.scroll = 0.0
@@ -233,34 +240,8 @@ func _compose() -> void:
 		y += float(para["height"]) + 6.0 * u
 	y = maxf(y, float(_layout["portrait_bottom"]) + 6.0 * u) + 4.0 * u
 
-	# 歷程各筆。
-	_rows.clear()
-	var history: Array = EventText.fold_history(_world.person_history(person))
-	var list_width := width - 8.0 * u
-	var date_height := LedgerText.line_height(note)
-	var top := 0.0
-	var era_shown := ""
-	for entry: Dictionary in history:
-		var sentence := EventText.history_line(entry, person)
-		var links: Array[Dictionary] = []
-		if int(entry["a_person"]) >= 0 and int(entry["a_person"]) != person:
-			links.append({"text": entry["a"], "target": "person:%d" % entry["a_person"]})
-		if int(entry["b_person"]) >= 0 and int(entry["b_person"]) != person:
-			links.append({"text": entry["b"], "target": "person:%d" % entry["b_person"]})
-		if int(entry["province"]) >= 0 and not String(entry["p"]).is_empty():
-			links.append(_province_link(entry["p"], entry["province"]))
-		if int(entry["q_province"]) >= 0 and not String(entry["q"]).is_empty():
-			links.append(_province_link(entry["q"], entry["q_province"]))
-		links.append_array(EventCard.sect_links(entry))
-		var para := LedgerText.paragraph(sentence, links, list_width, body)
-		# 同一紀元內只有第一筆與換紀元的那筆帶紀元名。
-		var date := EventText.history_date(entry, entry["era"] != era_shown)
-		era_shown = entry["era"]
-		var height: float = date_height + float(para["height"]) + ROW_GAP * u
-		_rows.append({"top": top, "height": height, "event": int(entry["id"]), "date": date, "seal": EventText.seal(entry["kind"]), "paragraph": para})
-		top += height
-	_rows_height = top
-
+	# 小傳、年表（GDD 5.12）。
+	_compose_chronicle(width - 8.0 * u, body, note)
 	_layout["section_y"] = y
 	y += 26.0 * u
 	_layout["fixed"] = y + (8.0 + 12.0 + ACTION_RADIUS * 2.0 + 14.0) * u + Ink.CARD_BAND * 2.0
@@ -360,19 +341,18 @@ func _draw_body(paper: Rect2) -> void:
 		var color := Ink.INK if _paragraphs[i]["strong"] else Ink.INK_LIGHT
 		LedgerText.draw(self, Vector2(x + float(_layout["para_x"][i]), top + float(_layout["para_y"][i])), _paragraphs[i], color, _hover, _pressed)
 	var section_y := top + float(_layout["section_y"])
-	Ink.section(self, Vector2(x, section_y), Locale.t("card_history_title").format({"N": str(_rows.size())}), section)
-	if _rows.is_empty():
-		Ink.text(self, Vector2(x, section_y + 28.0 * u), Locale.t("card_history_none"), note, Ink.INK_LIGHT)
+	Ink.section(self, Vector2(x, section_y), Locale.t("card_bio_title"), section)
 	# 頁尾動作印。
 	_draw_action(_center_rect(), &"center", Locale.t("act_center"), _center_key(), "center")
 	if can_back:
 		_draw_action(_back_rect(), &"back", Locale.t("act_back"), _back_key(), "back")
 
 
-## 歷程清單的畫法（內容座標）：一行小字的年月與印章，下面是那句話。
+## 小傳與年表的清單畫法（內容座標）：小傳各段、「年表 N 條」一列、展開後每條一行小字的年月加那句話。
 func _paint_history(list: LedgerList) -> void:
 	var u := _unit
 	var note := Ink.font_size(Ink.SIZE_NOTE, u)
+	var body := Ink.font_size(Ink.SIZE_BODY, u)
 	var date_height := LedgerText.line_height(note)
 	var first := list.scroll
 	var last := list.scroll + list.size.y
@@ -380,16 +360,25 @@ func _paint_history(list: LedgerList) -> void:
 		var top: float = row["top"]
 		if top + float(row["height"]) < first or top > last:
 			continue
-		if list.hover == "event:%d" % int(row["event"]):
-			list.draw_rect(Rect2(Vector2(-2.0, top), Vector2(list.size.x - 4.0 * u, float(row["height"]) - ROW_GAP * u * 0.5)), Color(Ink.INK, 0.07), true)
-		var seal_text: String = row["seal"]
-		var seal_x := Ink.text_size(seal_text, note).x
-		Ink.text(list, Vector2(0.0, top + (date_height - Ink.text_size(seal_text, note).y) * 0.5), seal_text, note, Ink.SEAL_RED)
-		var date: String = row["date"]
-		Ink.text(list, Vector2(seal_x + 6.0 * u, top + (date_height - Ink.text_size(date, note).y) * 0.5), date, note, Ink.INK_LIGHT)
-		LedgerText.draw(list, Vector2(0.0, top + date_height), row["paragraph"], Ink.INK, list.hover, list.pressed)
-		var base: float = top + float(row["height"]) - ROW_GAP * u * 0.5
-		list.draw_line(Vector2(0.0, base), Vector2(list.size.x - 8.0 * u, base), Color(Ink.INK_LIGHT, 0.22), 1.0)
+		match row["kind"]:
+			"bio":
+				LedgerText.draw(list, Vector2(0.0, top), row["paragraph"], Ink.INK, list.hover, list.pressed)
+			"toggle":
+				var lit := list.hover == "chronicle:toggle"
+				if lit:
+					list.draw_rect(Rect2(Vector2(-2.0, top), Vector2(list.size.x - 4.0 * u, float(row["height"]) - ROW_GAP * u * 0.5)), Color(Ink.INK, 0.07), true)
+				var label: String = row["label"]
+				Ink.text(list, Vector2(0.0, top + (float(row["height"]) - ROW_GAP * u - Ink.text_size(label, body).y) * 0.5), label, body, Ink.SEAL_RED)
+				var base2: float = top + float(row["height"]) - ROW_GAP * u * 0.5
+				list.draw_line(Vector2(0.0, base2), Vector2(list.size.x - 8.0 * u, base2), Color(Ink.INK_LIGHT, 0.4), 1.0)
+			_:
+				if list.hover == "event:%d" % int(row["event"]):
+					list.draw_rect(Rect2(Vector2(-2.0, top), Vector2(list.size.x - 4.0 * u, float(row["height"]) - ROW_GAP * u * 0.5)), Color(Ink.INK, 0.07), true)
+				var date: String = row["date"]
+				Ink.text(list, Vector2(0.0, top + (date_height - Ink.text_size(date, note).y) * 0.5), date, note, Ink.INK_LIGHT)
+				LedgerText.draw(list, Vector2(0.0, top + date_height), row["paragraph"], Ink.INK, list.hover, list.pressed)
+				var base: float = top + float(row["height"]) - ROW_GAP * u * 0.5
+				list.draw_line(Vector2(0.0, base), Vector2(list.size.x - 8.0 * u, base), Color(Ink.INK_LIGHT, 0.22), 1.0)
 
 
 # ── 點擊 ──────────────────────────────────────────────────────
@@ -398,15 +387,23 @@ func _history_target_at(point: Vector2) -> String:
 	var date_height := LedgerText.line_height(Ink.font_size(Ink.SIZE_NOTE, _unit))
 	for row: Dictionary in _rows:
 		var top: float = row["top"]
-		if point.y >= top and point.y < top + float(row["height"]):
-			# 人名、地名的連結優先，其餘部分是這一筆事件本身。
-			var link := LedgerText.target_at(Vector2(0.0, top + date_height), row["paragraph"], point)
-			return link if not link.is_empty() else "event:%d" % int(row["event"])
+		if point.y < top or point.y >= top + float(row["height"]):
+			continue
+		if row["kind"] == "toggle":
+			return "chronicle:toggle"
+		var offset := 0.0 if row["kind"] == "bio" else date_height
+		var link := LedgerText.target_at(Vector2(0.0, top + offset), row["paragraph"], point)
+		if not link.is_empty() or row["kind"] == "bio":
+			return link
+		# 人名、地名的連結優先，其餘部分是這一條所記的事件（對得到事件時）。
+		return "event:%d" % int(row["event"]) if bool(row["has_event"]) else ""
 	return ""
 
 
 func _on_target(target: String) -> void:
-	if target.begins_with("person:"):
+	if target == "chronicle:toggle":
+		toggle_timeline()
+	elif target.begins_with("person:"):
 		person_requested.emit(int(target.substr(7)))
 	elif target.begins_with("province:"):
 		province_requested.emit(int(target.substr(9)))
@@ -449,3 +446,50 @@ func _target_at(pos: Vector2) -> String:
 		if not target.is_empty():
 			return target
 	return ""
+
+
+# ── 小傳與年表 ─────────────────────────────────────────────────
+
+## 小傳與年表的組合：人物現況加生平事實清單（GDD 5.12）。
+func _chronicle() -> Dictionary:
+	var lookup := func(id: int) -> Dictionary: return _world.person(id)
+	return ChronicleText.compose(_info, _world.person_chronicle(person), lookup, _world.history_years())
+
+
+func _compose_chronicle(list_width: float, body: int, note: int) -> void:
+	_rows.clear()
+	var chronicle := _chronicle()
+	var top := 0.0
+	for para: Dictionary in chronicle["bio"]:
+		var laid := LedgerText.paragraph(para["text"], para["links"], list_width, body, ChronicleText.keep_pieces(para["text"]))
+		_rows.append({"kind": "bio", "top": top, "height": float(laid["height"]) + 8.0 * _unit, "paragraph": laid})
+		top += float(laid["height"]) + 8.0 * _unit
+	var rows: Array = chronicle["rows"]
+	_timeline_count = rows.size()
+	if _timeline_count > 0:
+		_toggle_top = top
+		var label := Locale.t("card_timeline_close" if _expanded else "card_timeline_open").format({"N": str(_timeline_count)})
+		var toggle_h := LedgerText.line_height(body) + ROW_GAP * _unit + 4.0 * _unit
+		_rows.append({"kind": "toggle", "top": top, "height": toggle_h, "label": label})
+		top += toggle_h
+		if _expanded:
+			var date_height := LedgerText.line_height(note)
+			for row: Dictionary in rows:
+				var para := LedgerText.paragraph(row["text"], row["links"], list_width, body, ChronicleText.keep_pieces(row["text"]))
+				var height: float = date_height + float(para["height"]) + ROW_GAP * _unit
+				var event := int(row["event"])
+				_rows.append({"kind": "row", "top": top, "height": height, "event": event, "has_event": event >= 0 and not _world.event(event).is_empty(),
+					"date": row["date"], "paragraph": para, "text": row["text"]})
+				top += height
+	_rows_height = top
+
+
+## 展開或收合年表；展開時把「年表」一列捲到清單頂端。
+func toggle_timeline() -> void:
+	if _timeline_count == 0:
+		return
+	_expanded = not _expanded
+	_relayout()
+	if _expanded and _list != null:
+		_list.scroll = _toggle_top
+	queue_redraw()
