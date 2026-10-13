@@ -56,6 +56,21 @@
    ],
    "output": "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/collect/wrinkle-0.png",
    "time": "2026-10-14 00:18:08"
+  },
+  {
+   "from": "paint/wrinkle-0-t1.png",
+   "ecc": 0.98923,
+   "method": "line",
+   "components": 3,
+   "pixels": 2222,
+   "bbox": [
+    391,
+    419,
+    659,
+    493
+   ],
+   "output": "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/collect/wrinkle-0.png",
+   "time": "2026-10-14 00:52:43"
   }
  ],
  "key": [
@@ -94,6 +109,24 @@
     }
    },
    "time": "2026-10-14 00:18:08"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/wrinkle-0.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "line": {
+     "file": ".shiftblame/tmp/parts/portrait/key/wrinkle-0.line.png",
+     "pixels": 406,
+     "dye": "定色",
+     "fixed": true
+    }
+   },
+   "time": "2026-10-14 00:52:43"
   }
  ],
  "check": [
@@ -111,6 +144,21 @@
     }
    },
    "time": "2026-10-14 00:18:58"
+  },
+  {
+   "metrics": {
+    "wrinkle-0.line": {
+     "edge_len": 244,
+     "bare_edge": 0,
+     "bare_ratio": 0.0,
+     "blobs": 5,
+     "specks": 2,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 244
+    }
+   },
+   "time": "2026-10-14 01:02:57"
   }
  ]
 }

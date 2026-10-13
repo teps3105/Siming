@@ -24,6 +24,54 @@
    "output_sha256": "59c16c21d806fcf4a176d4db282f7cb43386d303d95334ef25a8d701a187e298",
    "seconds": 64.1,
    "time": "2026-10-14 00:36:17"
+  },
+  {
+   "tag": "front_hair-short-t2",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261015,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/sources/parts/portrait/base-face-m.png",
+     "6eb81df3857716d33152534009eecf9090d5c7a2a6b3c29c3f5a48bfdca3b318"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版（背景是純綠色），圖2是畫風基準圖。請在圖1的頭上畫「短髮」的前髮：剪得很短的頭髮緊貼頭皮，整片頭髮的外緣必須完全包住頭頂：頭頂最高處的髮要比光頭的頭頂輪廓再高出約半個眼高（頭髮是蓬起來有厚度的，不是薄薄貼著），頭頂與兩側上方都不得露出任何一絲頭皮或膚色，前面的髮際線是一道平整的橫線落在額頭上方三分之一處，兩鬢收在耳朵上緣之上並剪短（鬢角不超過耳朵上緣），耳朵完整露出，額頭下半與眉眼完整露出。只畫貼著頭皮的短髮，不畫髮髻、不畫垂下的髮、頭頂上方不畫任何多出頭外的東西，頭髮的外輪廓緊貼頭的輪廓。髮束用少數幾條乾淨的短線表示，不畫細碎髮絲。整片頭髮的外緣用墨線包成一圈封閉的形狀，髮際線也有墨線。【只有這一件畫成灰色】這一件是灰階稿，之後才會上色，所以這一件只用中性灰、完全沒有色相（不要棕、不要黑藍、不要泛藍的白髮）：底色是明亮的中淺灰（約 #B0B0B0，不是黑色、不是深灰），陰影塊是明顯較深的灰（約 #606060），少量近白的高光塊（約 #F2F2F2），輪廓線與髮束線條才用近黑（約 #151515），外緣一圈墨線必須完整封閉、沒有任何缺口（髮際線、眉與鬚的外緣、髮束的邊都要有墨線），墨線比色塊暗得多、在 1024 寬的圖上約 3 到 4 像素寬；底色、陰影、高光三階要一眼分得開：髮束與髮束之間、髮的下緣與髻的下側用陰影灰塊明確表示（陰影約占髮面積的三分之一），頭頂與髮束的上緣留幾條高光灰塊，不要把整件塗成同一個灰。人物其餘的地方——臉、耳、頸、肩、胸的皮膚——必須保持圖1原本的暖膚色，一點都不要變灰、不要加紋理或顆粒，整張圖其他部分與圖1完全一樣。眉眼口鼻、耳朵、臉與頸不許被蓋住。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫的這一件，人物的頭、臉、頸、肩與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純綠色（#00FF00），純色無漸層。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/paint/front_hair-short-t2.png",
+   "output_sha256": "345ad00d955e7f29c962e534b09d6dd711c21748a2157dbad68b61dff3e5b218",
+   "seconds": 48.0,
+   "time": "2026-10-14 00:56:08"
+  },
+  {
+   "tag": "front_hair-short-t3",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261016,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/sources/parts/portrait/base-face-m.png",
+     "6eb81df3857716d33152534009eecf9090d5c7a2a6b3c29c3f5a48bfdca3b318"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版（背景是純綠色），圖2是畫風基準圖。請在圖1的頭上畫「短髮」的前髮：剪得很短的頭髮緊貼頭皮，整片頭髮的外緣必須完全包住頭頂：頭頂最高處的髮要比光頭的頭頂輪廓再高出約三分之二個眼高，在頭頂正中央尤其要高過頭頂輪廓、把頂端的頭皮整個蓋住（頭髮是蓬起來有厚度的，不是薄薄貼著），頭頂與兩側上方都不得露出任何一絲頭皮或膚色，前面的髮際線是一道平整的橫線落在額頭上方三分之一處，兩鬢收在耳朵上緣之上並剪短（鬢角不超過耳朵上緣），耳朵完整露出，額頭下半與眉眼完整露出。只畫貼著頭皮的短髮，不畫髮髻、不畫垂下的髮、頭頂上方不畫任何多出頭外的東西，頭髮的外輪廓緊貼頭的輪廓。髮束用少數幾條乾淨的短線表示，不畫細碎髮絲。整片頭髮的外緣用墨線包成一圈封閉的形狀，髮際線也有墨線。【只有這一件畫成灰色】這一件是灰階稿，之後才會上色，所以這一件只用中性灰、完全沒有色相（不要棕、不要黑藍、不要泛藍的白髮）：底色是明亮的中淺灰（約 #B0B0B0，不是黑色、不是深灰），陰影塊是明顯較深的灰（約 #606060），少量近白的高光塊（約 #F2F2F2），輪廓線與髮束線條才用近黑（約 #151515），外緣一圈墨線必須完整封閉、沒有任何缺口（髮際線、眉與鬚的外緣、髮束的邊都要有墨線），墨線比色塊暗得多、在 1024 寬的圖上約 3 到 4 像素寬；底色、陰影、高光三階要一眼分得開：髮束與髮束之間、髮的下緣與髻的下側用陰影灰塊明確表示（陰影約占髮面積的三分之一），頭頂與髮束的上緣留幾條高光灰塊，不要把整件塗成同一個灰。人物其餘的地方——臉、耳、頸、肩、胸的皮膚——必須保持圖1原本的暖膚色，一點都不要變灰、不要加紋理或顆粒，整張圖其他部分與圖1完全一樣。眉眼口鼻、耳朵、臉與頸不許被蓋住。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫的這一件，人物的頭、臉、頸、肩與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純綠色（#00FF00），純色無漸層。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/paint/front_hair-short-t3.png",
+   "output_sha256": "7fd822027037272b576a4a9e8af4999ae41ca4e9ceaeed6a957f1f7bfb26597e",
+   "seconds": 56.4,
+   "time": "2026-10-14 00:59:14"
   }
  ],
  "collect": [
@@ -56,6 +104,96 @@
    "components": 1,
    "output": "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/collect/front_hair-short.png",
    "time": "2026-10-14 00:37:49"
+  },
+  {
+   "from": "paint/front_hair-short-t2.png",
+   "affine": [
+    [
+     0.9988700151443481,
+     -0.0005300000193528831,
+     0.5966899991035461
+    ],
+    [
+     -0.00013000000035390258,
+     0.999459981918335,
+     2.800570011138916
+    ]
+   ],
+   "ecc": 0.9974,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 45019,
+   "bbox": [
+    324,
+    305,
+    701,
+    594
+   ],
+   "components": 1,
+   "output": "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/collect/front_hair-short.png",
+   "time": "2026-10-14 00:57:13"
+  },
+  {
+   "from": "paint/front_hair-short-t3.png",
+   "affine": [
+    [
+     0.9984400272369385,
+     0.0018400000408291817,
+     -1.9950300455093384
+    ],
+    [
+     -0.0001900000061141327,
+     1.0010600090026855,
+     -0.7759400010108948
+    ]
+   ],
+   "ecc": 0.99615,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 44069,
+   "bbox": [
+    326,
+    308,
+    704,
+    591
+   ],
+   "components": 1,
+   "output": "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/collect/front_hair-short.png",
+   "time": "2026-10-14 00:59:29"
+  },
+  {
+   "from": "paint/front_hair-short-t2.png",
+   "affine": [
+    [
+     0.9988700151443481,
+     -0.0005300000193528831,
+     0.5966899991035461
+    ],
+    [
+     -0.00013000000035390258,
+     0.999459981918335,
+     2.800570011138916
+    ]
+   ],
+   "ecc": 0.9974,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 45019,
+   "bbox": [
+    324,
+    305,
+    701,
+    594
+   ],
+   "components": 1,
+   "output": "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/collect/front_hair-short.png",
+   "time": "2026-10-14 00:59:49"
   }
  ],
  "key": [
@@ -93,6 +231,111 @@
     }
    },
    "time": "2026-10-14 00:37:50"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/front_hair-short.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "hair": {
+     "file": ".shiftblame/tmp/parts/portrait/key/front_hair-short.hair.png",
+     "pixels": 4582,
+     "dye": "hair",
+     "centers": [
+      47.1,
+      78.5,
+      105.2,
+      149.8
+     ],
+     "share": [
+      0.042,
+      0.194,
+      0.671,
+      0.093
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "base",
+      "high"
+     ]
+    }
+   },
+   "time": "2026-10-14 00:57:13"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/front_hair-short.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "hair": {
+     "file": ".shiftblame/tmp/parts/portrait/key/front_hair-short.hair.png",
+     "pixels": 4503,
+     "dye": "hair",
+     "centers": [
+      37.1,
+      64.5,
+      89.6,
+      121.9
+     ],
+     "share": [
+      0.049,
+      0.285,
+      0.63,
+      0.036
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "base",
+      "high"
+     ]
+    }
+   },
+   "time": "2026-10-14 00:59:29"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/front_hair-short.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "hair": {
+     "file": ".shiftblame/tmp/parts/portrait/key/front_hair-short.hair.png",
+     "pixels": 4582,
+     "dye": "hair",
+     "centers": [
+      47.1,
+      78.5,
+      105.2,
+      149.8
+     ],
+     "share": [
+      0.042,
+      0.194,
+      0.671,
+      0.093
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "base",
+      "high"
+     ]
+    }
+   },
+   "time": "2026-10-14 00:59:49"
   }
  ],
  "check": [
@@ -110,6 +353,21 @@
     }
    },
    "time": "2026-10-14 00:43:36"
+  },
+  {
+   "metrics": {
+    "front_hair-short.hair": {
+     "edge_len": 536,
+     "bare_edge": 148,
+     "bare_ratio": 0.276,
+     "blobs": 1,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.011,
+     "pixels": 4239
+    }
+   },
+   "time": "2026-10-14 01:02:58"
   }
  ]
 }

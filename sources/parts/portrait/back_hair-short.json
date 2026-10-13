@@ -24,6 +24,30 @@
    "output_sha256": "e2efd094687f1f6d1894c1fa48f197958962872da5c477938cc5d7121e71c076",
    "seconds": 59.8,
    "time": "2026-10-14 00:37:20"
+  },
+  {
+   "tag": "back_hair-short-t2",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261015,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/sources/parts/portrait/base-face-m.png",
+     "6eb81df3857716d33152534009eecf9090d5c7a2a6b3c29c3f5a48bfdca3b318"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版（背景是純綠色），圖2是畫風基準圖。請在圖1的頭後面畫「短髮」的後髮：只在頭的後面與兩側露出一圈很窄的短髮輪廓——從頭頂後方沿著頭的輪廓外側到耳朵後面、再到後頸上緣，頭頂上方也要畫：在頭頂輪廓外側多出約一個眼寬的三分之一，讓頭頂外緣不會有任何縫隙或露出的頭皮，其餘部分比頭的輪廓多出的寬度只有約一個眼寬的四分之一，後頸的髮際收成一道平整的橫線落在耳朵下緣高度。頭本身（光頭的頭皮、額、臉、耳）完全不要被蓋住、不要畫髮際線，仍然是光頭；頭髮只畫在頭的後面、頭的輪廓線之外，不畫髮髻、不畫垂到肩上的髮。髮束用少數幾條乾淨的短線表示。【只有這一件畫成灰色】這一件是灰階稿，之後才會上色，所以這一件只用中性灰、完全沒有色相（不要棕、不要黑藍、不要泛藍的白髮）：底色是明亮的中淺灰（約 #B0B0B0，不是黑色、不是深灰），陰影塊是明顯較深的灰（約 #606060），少量近白的高光塊（約 #F2F2F2），輪廓線與髮束線條才用近黑（約 #151515），外緣一圈墨線必須完整封閉、沒有任何缺口（髮際線、眉與鬚的外緣、髮束的邊都要有墨線），墨線比色塊暗得多、在 1024 寬的圖上約 3 到 4 像素寬；底色、陰影、高光三階要一眼分得開：髮束與髮束之間、髮的下緣與髻的下側用陰影灰塊明確表示（陰影約占髮面積的三分之一），頭頂與髮束的上緣留幾條高光灰塊，不要把整件塗成同一個灰。人物其餘的地方——臉、耳、頸、肩、胸的皮膚——必須保持圖1原本的暖膚色，一點都不要變灰、不要加紋理或顆粒，整張圖其他部分與圖1完全一樣。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫的這一件，人物的頭、臉、頸、肩與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純綠色（#00FF00），純色無漸層。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/paint/back_hair-short-t2.png",
+   "output_sha256": "49d0cf78cacce8a1c0a6f03a4971757f10d05a63839cd98fdfa5e45cea503ab7",
+   "seconds": 44.1,
+   "time": "2026-10-14 00:57:11"
   }
  ],
  "collect": [
@@ -56,6 +80,36 @@
    "components": 2,
    "output": "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/collect/back_hair-short.png",
    "time": "2026-10-14 00:37:51"
+  },
+  {
+   "from": "paint/back_hair-short-t2.png",
+   "affine": [
+    [
+     1.0012799501419067,
+     -0.0005099999834783375,
+     -0.5992400050163269
+    ],
+    [
+     -7.000000186963007e-05,
+     1.0002199411392212,
+     1.5164599418640137
+    ]
+   ],
+   "ecc": 0.99576,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 8750,
+   "bbox": [
+    323,
+    324,
+    719,
+    553
+   ],
+   "components": 2,
+   "output": "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/collect/back_hair-short.png",
+   "time": "2026-10-14 00:57:19"
   }
  ],
  "key": [
@@ -90,6 +144,41 @@
     }
    },
    "time": "2026-10-14 00:37:51"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/back_hair-short.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "hair": {
+     "file": ".shiftblame/tmp/parts/portrait/key/back_hair-short.hair.png",
+     "pixels": 1005,
+     "dye": "hair",
+     "centers": [
+      50.1,
+      74.1,
+      91.0,
+      110.1
+     ],
+     "share": [
+      0.042,
+      0.052,
+      0.22,
+      0.686
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "shadow",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-14 00:57:19"
   }
  ],
  "check": [
@@ -107,6 +196,21 @@
     }
    },
    "time": "2026-10-14 00:43:37"
+  },
+  {
+   "metrics": {
+    "back_hair-short.hair": {
+     "edge_len": 387,
+     "bare_edge": 258,
+     "bare_ratio": 0.667,
+     "blobs": 3,
+     "specks": 1,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 741
+    }
+   },
+   "time": "2026-10-14 01:02:59"
   }
  ]
 }

@@ -18,12 +18,20 @@ import check as C  # noqa: E402
 
 SKINS = [(238, 208, 184), (222, 177, 130), (107, 74, 52)]
 HAIRS = [(46, 42, 40), (228, 228, 222)]
+IRISES = [(59, 42, 34), (47, 59, 54), (58, 58, 74), (85, 64, 42)]   # 與 PortraitRecipe.IRISES 相同：深褐與黑為主
+LIP_BASE, LIP_MIX, LIP_DARK = (189, 76, 71), 0.4, 0.88   # 與 PortraitRecipe.lip_of 相同：唇色往膚色靠、略暗
+
+
+def lip_of(skin):
+    return tuple(int(round((s + (b - s) * LIP_MIX) * LIP_DARK)) for s, b in zip(skin, LIP_BASE))
+
+
 ROBE = [(92, 112, 128), (150, 118, 82), (86, 128, 108)]
 
 
 def palette(skin, hair, k=0):
-    return {"skin": skin, "hair": hair, "robe": ROBE[k % 3], "trim": (178, 58, 46), "iris": (70, 110, 150), "violet": (107, 74, 142),
-            "gold": (201, 162, 70), "lip": (190, 110, 96)}
+    return {"skin": skin, "hair": hair, "robe": ROBE[k % 3], "trim": (178, 58, 46), "iris": IRISES[k % len(IRISES)], "violet": (107, 74, 142),
+            "gold": (201, 162, 70), "lip": lip_of(skin)}
 
 
 def render(names, pal, bg=C.PAPER):
