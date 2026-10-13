@@ -494,8 +494,20 @@ func test_gdd_7_2_event_text_fills_each_template() -> void:
 		["Tribulation", {"n": 3, "x": "Perished"}, "沈青霜（金丹）渡四九雷劫未成元嬰，形神俱滅"],
 		["ThreadCreated", {"x": "Feud"}, "沈青霜與韓烈結下殺業"],
 		["ThreadResolved", {"x": "Love", "n": 3}, "歷經3次轉世，沈青霜與韓烈的情緣了結"],
+		["ThreadCreated", {"x": "Mentor"}, "沈青霜拜韓烈為師"],
+		["ThreadOmen", {"x": "Feud", "n": 0}, "沈青霜與韓烈的殺業將有分曉"],
+		["ThreadOmen", {"x": "Feud", "n": 1}, "沈青霜與韓烈前世的殺業將有分曉"],
+		["FeudEscalated", {"x": "Feud", "n": 0}, "沈青霜再殺韓烈，冤冤相報"],
+		["FeudEscalated", {"x": "Feud", "n": 2}, "沈青霜再殺韓烈，延續前世的冤仇，冤冤相報"],
+		["ThreadFaded", {"x": "Grace", "n": 0}, "沈青霜與韓烈有緣無分"],
+		["ThreadFaded", {"x": "Grace", "n": 1}, "沈青霜與韓烈前世的恩義消散，有緣無分"],
+		["ThreadResolved", {"x": "Love", "n": 0}, "沈青霜與韓烈的情緣了結"],
+		["ThreadResolved", {"x": "Love", "n": 1}, "歷經1次轉世，沈青霜與韓烈的情緣了結"],
 		["ComeOfAge", {}, "沈青霜入玄清宗"],
+		["ComeOfAge", {"f": "", "x": "Cultivator"}, "沈青霜自行入道，為散修"],
+		["ComeOfAge", {"f": "", "x": "Commoner"}, "沈青霜年滿十二，未得入道"],
 		["ComeOfAge", {"f": "", "x": "Monk"}, "沈青霜自行出家"],
+		["Judged", {"x": "Human"}, "沈青霜之魂判入人道"],
 		["Traveled", {"x": "Out"}, "沈青霜出外遊歷雲州"],
 		["Traveled", {"x": "Back"}, "沈青霜遊歷歸來"],
 		["SectSplit", {}, "玄清宗內亂，沈青霜率眾另立赤霄門"],
@@ -515,6 +527,17 @@ func test_gdd_7_2_event_text_fills_each_template() -> void:
 		event["kind"] = c[0]
 		event.merge(c[1], true)
 		assert_eq(EventText.line(event), c[2], "「%s」的一句話" % c[0])
+
+
+func test_history_lines_read_from_the_owners_side() -> void:
+	var mentor := {"kind": "ThreadCreated", "x": "Mentor", "a": "徒甲", "b": "師乙", "a_person": 5, "b_person": 9, "n": 0, "importance": 1}
+	assert_eq(EventText.history_line(mentor, 5), "拜師乙為師", "本人是徒")
+	assert_eq(EventText.history_line(mentor, 9), "收徒甲為徒", "本人是師")
+	assert_eq(EventText.line(mentor), "徒甲拜師乙為師", "傳聞與事件卡")
+	var judged := {"kind": "Judged", "x": "Human", "a": "前世甲", "a_person": 5}
+	assert_eq(EventText.history_line(judged, 5), "死後魂入人道")
+	for role in ["Child", "Cultivator", "Monk", "Scholar", "Official", "General", "GeneralCandidate", "Ruler", "Royal", "Demonic", "Beast", "Commoner"]:
+		assert_true(Locale.has("role_" + role), "職分「%s」有詞" % role)
 
 
 func test_gdd_5_5_sects_report_seat_province_and_range() -> void:
@@ -652,17 +675,15 @@ func test_gdd_5_8_person_history_is_ordered_and_matches_the_ledger() -> void:
 					# 遊歷的「出門或歸來」事件流在當下以故里判斷；歷程事後以行程順序判斷，兩者可以不同，不比。
 					if key == "x" and entry["kind"] == "Traveled":
 						continue
-					# 以魂取主角的事件（人數少於魂數），事後取得時是魂現在的肉身，轉世後會不同，不比。
 					var streamed: Dictionary = stream[entry["id"]]
-					if key in ["a", "b"] and (streamed["persons"] as Array).size() < (streamed["souls"] as Array).size():
-						continue
 					assert_eq(entry[key], streamed[key], "與事件流同一筆的「%s」" % key)
 	var dead_id: int = picks[1]
 	var dead := world.person(dead_id)
 	assert_false(dead["alive"])
 	assert_ne(dead["death_cause"], "", "已歿者有死因")
 	for entry: Dictionary in world.person_history(dead_id):
-		assert_true(entry["tick"] <= dead["died_tick"], "歷程到死為止")
+		# 魂判入六道是死後的事，仍屬這一世的最後一條。
+		assert_true(entry["tick"] <= dead["died_tick"] or entry["kind"] == "Judged", "歷程到死為止（死後只有魂的歸處）")
 	var in_history := {}
 	for entry: Dictionary in world.person_history(dead_id):
 		in_history[entry["id"]] = true
@@ -675,6 +696,68 @@ func test_gdd_5_8_person_history_is_ordered_and_matches_the_ledger() -> void:
 			found += 1
 	assert_gt(found, 0, "事件流裡找到這位已歿者的身故事件")
 
+
+
+## 魂的各世（依出生順序，兩世以上者）：魂編號 → 人物編號陣列。
+func _lives_by_soul(world: SimWorld) -> Dictionary:
+	var by_soul := {}
+	var id := 0
+	while not world.person(id).is_empty():
+		var soul: int = world.person(id)["soul"]
+		if not by_soul.has(soul):
+			by_soul[soul] = []
+		by_soul[soul].append(id)
+		id += 1
+	for soul: int in by_soul.keys():
+		if (by_soul[soul] as Array).size() < 2:
+			by_soul.erase(soul)
+	return by_soul
+
+
+func test_person_history_judged_closes_the_previous_life_and_the_next_starts_at_rebirth() -> void:
+	var world := SimWorld.new()
+	world.create(SEED, "small")
+	world.step(12 * 80)
+	var by_soul := _lives_by_soul(world)
+	assert_gt(by_soul.size(), 0, "八十年後有轉世過的魂")
+	var closed := 0
+	for soul: int in by_soul:
+		var lives: Array = by_soul[soul]
+		for i in lives.size():
+			var history := world.person_history(lives[i])
+			var judged := history.filter(func(h: Dictionary) -> bool: return h["kind"] == "Judged")
+			if i > 0:
+				assert_ne(history[0]["kind"] if not history.is_empty() else "", "Judged", "新一世的歷程不以上一世的判入起頭")
+			if i < lives.size() - 1 and not judged.is_empty():
+				assert_eq(history[-1]["kind"], "Judged", "判入六道是上一世歷程的最後一條")
+				assert_eq(judged[0]["a_person"], lives[i], "判入那筆的人名是上一世")
+				closed += 1
+			if i == lives.size() - 1:
+				for h: Dictionary in judged:
+					assert_true(h["tick"] >= world.person(lives[i])["died_tick"], "這一世的判入發生在這一世之後")
+	assert_gt(closed, 0, "有上一世以判入六道收尾")
+
+
+func test_event_names_follow_the_life_at_the_time_of_the_event() -> void:
+	var stream := _stream_after(100)
+	var world: SimWorld = stream["world"]
+	stream.erase("world")
+	var past := 0
+	for id: int in stream:
+		var event: Dictionary = stream[id]
+		if not (event["kind"] in ["ThreadCreated", "ThreadOmen", "ThreadResolved", "ThreadFaded", "FeudEscalated", "Judged"]):
+			continue
+		for pair in [["a", "a_person", 0], ["b", "b_person", 1]]:
+			var person_id: int = event[pair[1]]
+			if person_id < 0:
+				continue
+			var card := world.person(person_id)
+			assert_eq(event[pair[0]], card["name"], "事件%d的「%s」是 a_person／b_person 那一世的名字" % [id, pair[0]])
+			if (event["souls"] as Array).size() > pair[2]:
+				assert_eq(card["soul"], event["souls"][pair[2]], "那一世屬於事件裡的那個魂")
+			if card["life_index"] < card["lives_total"]:
+				past += 1
+	assert_gt(past, 0, "有事件寫的是已轉世者當時的那一世")
 
 
 ## 把世界推進 years 年，回傳這段期間的事件流（依編號），另以 "world" 鍵帶回世界。
@@ -708,12 +791,6 @@ func test_gdd_5_8_event_matches_the_stream_and_missing_is_empty() -> void:
 		for key in ["id", "tick", "kind", "importance", "province", "a", "b", "f", "g", "p", "q", "x", "n", "m", "year", "month", "a_person", "b_person", "q_province", "persons", "powers", "souls"]:
 			# 遊歷的「出門或歸來」事件流在當下以故里判斷，事後取得時故里可能已變，不比。
 			if key == "x" and streamed["kind"] == "Traveled":
-				continue
-			# 入道事件的宗門欄在事件流當下是空的，事後取得時是此人現在所屬的宗門（入道後才入宗），不比。
-			if key == "f" and streamed["kind"] == "ComeOfAge":
-				continue
-			# 以魂取主角的事件（人數少於魂數），事後取得時是魂現在的肉身，轉世後會不同，不比。
-			if key in ["a", "b", "a_person", "b_person"] and (streamed["persons"] as Array).size() < (streamed["souls"] as Array).size():
 				continue
 			assert_eq(got[key], streamed[key], "event(%d) 的「%s」與事件流相同" % [id, key])
 		for key in ["a_power", "a_role", "a_realm"]:
