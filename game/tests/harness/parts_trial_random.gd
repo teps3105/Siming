@@ -28,18 +28,20 @@ func _recipe(catalog: PartCatalog, rng: RandomNumberGenerator) -> Dictionary:
 		"trim": Color(_pick(rng, TRIMS)), "iris": Color(_pick(rng, IRISES))}
 	var chosen := {}
 	for slot in catalog.slots():
+		if slot in ["back_hair", "front_hair", "hat"]:
+			continue
 		var codes := catalog.parts_in(slot)
 		if codes.is_empty():
 			continue
 		if slot == "beard" and rng.randi() % 3 == 0:
 			continue   # 三分之一無鬚
 		chosen[slot] = codes[rng.randi() % codes.size()]
-	# 前後髮成對
-	if chosen.has("front_hair"):
-		var style := String(chosen["front_hair"]).get_slice(".", 1)
-		for code in catalog.parts_in("back_hair"):
-			if String(code).get_slice(".", 1) == style:
-				chosen["back_hair"] = code
+	# 先定髮式（前後髮成對），再只從相容的冠帽裡挑（含不戴）
+	var look := PortraitRecipe.pair_hair_hat(catalog, rng.randi())
+	chosen["back_hair"] = "%s/back_hair.%s" % [CLASS_ID, look["hair"]]
+	chosen["front_hair"] = "%s/front_hair.%s" % [CLASS_ID, look["hair"]]
+	if not String(look["hat"]).is_empty():
+		chosen["hat"] = look["hat"]
 	var items: Array[Dictionary] = []
 	for slot in catalog.slots():
 		if chosen.has(slot):

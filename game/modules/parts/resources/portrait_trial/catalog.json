@@ -398,6 +398,9 @@
      "mode": "keyed",
      "tint": "robe"
     }
+   ],
+   "hairs": [
+    "loose"
    ]
   },
   "portrait_trial/beard.three": {
@@ -442,6 +445,9 @@
      "mode": "keyed",
      "tint": "robe"
     }
+   ],
+   "hairs": [
+    "topknot"
    ]
   },
   "portrait_trial/front_hair.topknot": {
@@ -596,6 +602,9 @@
      "mode": "keyed",
      "tint": "robe"
     }
+   ],
+   "hairs": [
+    "crown"
    ]
   },
   "portrait_trial/beard.moustache": {

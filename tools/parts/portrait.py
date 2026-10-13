@@ -312,6 +312,9 @@ BATCH4 = {
 }
 PARTS.update(BATCH4)
 
+# 冠帽可搭配的髮式（寫進目錄的 hairs；款名同前後髮）。依 8.12：以帽上方露出的髮像素實測，只留不冒出帽緣的款
+HAIRS = {"hat-scholar0": ["topknot"], "hat-crown0": ["crown"], "hat-straw0": ["loose"]}
+
 
 def prompt(key):
     s = PARTS[key]

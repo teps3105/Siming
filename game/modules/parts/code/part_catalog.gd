@@ -58,7 +58,10 @@ func _read(id: String) -> bool:
 				"tint": String(raw["tint"]) if raw["tint"] != null else "",
 			})
 		var anchor: Array = data["parts"][code]["anchor"]
-		_parts[code] = {"layers": layers, "anchor": Vector2(float(anchor[0]), float(anchor[1]))}
+		var hairs: Array[String] = []
+		for style: Variant in data["parts"][code].get("hairs", []):
+			hairs.append(String(style))
+		_parts[code] = {"layers": layers, "anchor": Vector2(float(anchor[0]), float(anchor[1])), "hairs": hairs}
 	return true
 
 
@@ -114,6 +117,11 @@ func layers_of(code: String) -> Array[Dictionary]:
 
 func anchor_of(code: String) -> Vector2:
 	return _parts[code]["anchor"]
+
+
+## 一款冠帽可搭配的髮式（目錄的 `hairs`，款名同前後髮的末段，如 `crown`）；沒有宣告者為空。
+func hairs_of(code: String) -> Array[String]:
+	return _parts[code]["hairs"]
 
 
 func atlas_image() -> Image:

@@ -165,6 +165,32 @@ static func _item(code: String, channels: Array, tints: Dictionary, scale := 1.0
 	return item
 
 
+## 目錄裡前髮與後髮成對的髮式（款名是代號末段）。有髮才算：光頭只留給規格裡本來就該光頭的身分（僧），不在這裡。
+static func hair_styles(catalog: PartCatalog) -> Array[String]:
+	var back := {}
+	for code in catalog.parts_in("back_hair"):
+		back[code.get_slice(".", 1)] = true
+	var out: Array[String] = []
+	for code in catalog.parts_in("front_hair"):
+		var style := code.get_slice(".", 1)
+		if back.has(style):
+			out.append(style)
+	out.sort()
+	return out
+
+
+## 先定髮式、再只從相容的冠帽裡挑（含不戴）：回 {hair: 款名, hat: 部件代號或空字串}。冠帽相容與否由目錄的 `hairs` 宣告。
+static func pair_hair_hat(catalog: PartCatalog, seed_value: int) -> Dictionary:
+	var styles := hair_styles(catalog)
+	var style := styles[_pick(seed_value, 8, styles.size())]
+	var fits: Array[String] = [""]
+	for code in catalog.parts_in("hat"):
+		if style in catalog.hairs_of(code):
+			fits.append(code)
+	fits.sort()
+	return {"hair": style, "hat": fits[_pick(seed_value, 9, fits.size())]}
+
+
 ## 這一串的部件代號（依序），測試與除錯用。
 static func codes(recipe: Dictionary) -> Array[String]:
 	var out: Array[String] = []
