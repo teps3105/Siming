@@ -75,14 +75,14 @@ def collect_face(key="face-m0", n=1, as_base=False):
     cv2.imwrite(path, cv2.cvtColor(out, cv2.COLOR_RGBA2BGRA))
     import shutil
     if as_base:
-        shutil.copy(src, P.base_path(P.PARTS[key]["sex"]))
+        shutil.copy(src, P.SRC + f"base-bare-{P.PARTS[key]['sex']}.png")   # 無口鼻的臉底版；原底版 base-face-m.png 不動（舊部件的收件以它為準）
     info = {"from": f"paint/{key}-t{n}.png", "bg": G.astype(int).tolist(), "pixels": int((a > 0.5).sum()), "output": path}
     P.log(key, "collect", info)
     print(key, info)
     return path
 
 
-def extract_lines(warped, base, zone, face_mask, dark_min=0.25, min_area=30, min_extent=18):
+def extract_lines(warped, base, zone, face_mask, dark_min=0.25, min_area=30, min_extent=18, lip=False):
     """細線稿的收件：皺紋、口鼻的細線過不了一般收件的膚色排除與厚度門檻，改以「比底版暗多少」直接解混成墨線。
 
     1. 每個像素的墨線不透明度 a = (底版亮度 − 畫家圖亮度) ÷ (底版亮度 − 墨色亮度)，夾在 0 到 1；a 低於 dark_min 的不收。這一步不看色相，
@@ -114,6 +114,19 @@ def extract_lines(warped, base, zone, face_mask, dark_min=0.25, min_area=30, min
     out = np.zeros(a.shape + (4,), np.uint8)
     out[..., :3] = ink.round().astype(np.uint8)
     out[..., 3] = (alpha * 255).round().astype(np.uint8)
+    if lip:   # 口鼻：唇是帶色的實心塊（紅色相、有彩度），不是暗線；取原色、完全不透明，疊在墨線層下面
+        hsv = cv2.cvtColor(warped.astype(np.uint8), cv2.COLOR_RGB2HSV).astype(np.float32)
+        hue, sat, val = hsv[..., 0] * 2, hsv[..., 1] / 255, hsv[..., 2] / 255
+        diff = np.abs(warped.astype(int) - base.astype(int)).max(2) > 30
+        red = ((hue < 25) | (hue > 335)) & (sat > 0.28) & (val > 0.3) & zone & inner & diff
+        red = cv2.morphologyEx(red.astype(np.uint8), cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+        n2, lab2, st2, _ = cv2.connectedComponentsWithStats(red, connectivity=8)
+        lipm = np.zeros(red.shape, bool)
+        for i in range(1, n2):
+            if st2[i, cv2.CC_STAT_AREA] >= 80:
+                lipm |= lab2 == i
+        out[lipm, :3] = warped[lipm]
+        out[lipm, 3] = 255
     out[out[..., 3] == 0, :3] = 0
     return out, kept
 
@@ -129,7 +142,7 @@ def collect_line(key, n=1):
     mat, cc = register(painted, base, anchor)
     warped = cv2.warpAffine(painted, mat, (wd, h), flags=cv2.INTER_LINEAR + cv2.WARP_INVERSE_MAP, borderMode=cv2.BORDER_REPLICATE)
     face = np.abs(base.astype(int) - bg_color(base)[None, None]).max(2) > 60   # 底版不是純綠底的地方
-    out, kept = extract_lines(warped, base, zone, face, spec.get("dark_min", 0.25))
+    out, kept = extract_lines(warped, base, zone, face, spec.get("dark_min", 0.25), lip=spec.get("lip", False))
     os.makedirs(P.TMP + "collect", exist_ok=True)
     path = P.TMP + f"collect/{key}.png"
     cv2.imwrite(path, cv2.cvtColor(out, cv2.COLOR_RGBA2BGRA))

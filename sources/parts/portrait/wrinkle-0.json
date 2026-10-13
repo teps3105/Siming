@@ -1,0 +1,116 @@
+{
+ "part": "wrinkle-0",
+ "paint": [
+  {
+   "tag": "wrinkle-0-t1",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261014,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/sources/parts/portrait/base-face-m.png",
+     "6eb81df3857716d33152534009eecf9090d5c7a2a6b3c29c3f5a48bfdca3b318"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版（背景是純綠色），圖2是畫風基準圖。請在圖1的臉上畫一組老年的「皺紋」：只畫細墨線，不改變任何皮膚底色、不畫陰影塊。款式是額紋與魚尾紋：額頭上三道平行的水平弧線（微微上拱，由上到下依次略短，最長的一道約為額頭寬的三分之二，三道整組落在額頭上半、離眉眼位置至少一個眼高）；左右眼睛外側（眼線的高度、靠耳朵那一側的臉上）各畫三道由外眼角向耳朵方向扇形散開的短細紋，左右對稱。每一道皺紋都是一條單獨、連續、乾淨的細線（在 1024 寬的圖上線寬約 5 到 6 像素），顏色是深暗的棕黑色（接近墨色，比皮膚暗得多），兩端自然收細；線與線之間分得開、不相交、不連成一片。不畫眉毛、不畫眼睛，鼻、口、臉的外輪廓、耳、頸與肩都不許動、不許被線蓋住，皺紋避開鼻與口。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫的這一件，人物的頭、臉、頸、肩與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純綠色（#00FF00），純色無漸層。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/paint/wrinkle-0-t1.png",
+   "output_sha256": "de32db4e1f6d052d258a814dbaa6a1c1c4dbaf93116088a2424b587659a28b0e",
+   "seconds": 52.0,
+   "time": "2026-10-14 00:10:08"
+  }
+ ],
+ "collect": [
+  {
+   "from": "paint/wrinkle-0-t1.png",
+   "ecc": 0.99492,
+   "method": "line",
+   "components": 19,
+   "pixels": 5430,
+   "bbox": [
+    356,
+    419,
+    673,
+    690
+   ],
+   "output": "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/collect/wrinkle-0.png",
+   "time": "2026-10-14 00:10:30"
+  },
+  {
+   "from": "paint/wrinkle-0-t1.png",
+   "ecc": 0.99492,
+   "method": "line",
+   "components": 19,
+   "pixels": 5430,
+   "bbox": [
+    356,
+    419,
+    673,
+    690
+   ],
+   "output": "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/collect/wrinkle-0.png",
+   "time": "2026-10-14 00:18:08"
+  }
+ ],
+ "key": [
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/wrinkle-0.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "line": {
+     "file": ".shiftblame/tmp/parts/portrait/key/wrinkle-0.line.png",
+     "pixels": 1017,
+     "dye": "定色",
+     "fixed": true
+    }
+   },
+   "time": "2026-10-14 00:10:31"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/wrinkle-0.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "line": {
+     "file": ".shiftblame/tmp/parts/portrait/key/wrinkle-0.line.png",
+     "pixels": 1017,
+     "dye": "定色",
+     "fixed": true
+    }
+   },
+   "time": "2026-10-14 00:18:08"
+  }
+ ],
+ "check": [
+  {
+   "metrics": {
+    "wrinkle-0.line": {
+     "edge_len": 561,
+     "bare_edge": 0,
+     "bare_ratio": 0.0,
+     "blobs": 24,
+     "specks": 19,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 561
+    }
+   },
+   "time": "2026-10-14 00:18:58"
+  }
+ ]
+}
