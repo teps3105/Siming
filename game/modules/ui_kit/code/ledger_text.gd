@@ -104,7 +104,7 @@ static func _glue(text: String, found: Array[Vector2i], keep: Array[String]) -> 
 	for i in range(1, count):
 		var glyph := text[i]
 		var before := text[i - 1]
-		if NO_LINE_START.contains(glyph) or DASHES.contains(glyph) or before == "（":
+		if NO_LINE_START.contains(glyph) or DASHES.contains(glyph) or before == "（" or before == "至":
 			basic[i] = 1
 		elif DIGITS.contains(glyph) and DIGITS.contains(before):
 			basic[i] = 1

@@ -385,23 +385,42 @@ func _build_rows(list_width: float) -> void:
 	_rows_height = top
 
 
-## 一段連續繼位合成的「歷任掌門」列：「某某（常始紀元八二年（2310年）至常始紀元九三年（2321年））、某某（常始紀元九三年（2321年）起）」。
-## 起訖各自寫完整的日期（只到年）；每位掌門整段是一個 keep，放不下才在「至」前後折開，日期本身不拆。
+## 一段連續繼位合成的「歷任掌門」列：每位一個小段，第一行是可點的姓名；第二行起是任期（次要字色、小一級字），
+## 「常始紀元八二年（2310年）至常始紀元九三年（2321年）」，最後一位寫「…起」。放不下時只在「至」之前換行，
+## 換行後「至…」那行與上一行左對齊。位與位之間留半行距。起訖各自寫完整的日期（句子裡的寫法）。
 func _leaders_row(run: Array[Dictionary], top: float, list_width: float, body: int, date_height: float) -> Dictionary:
-	var links: Array[Dictionary] = []
-	var texts: Array[String] = []
+	var note := Ink.font_size(Ink.SIZE_NOTE, _unit)
+	var blocks: Array[Dictionary] = []
+	var y := 0.0
 	for i in run.size():
 		var entry: Dictionary = run[i]
-		var span := EventText.event_year_inline(entry) + Locale.t("date_since")
+		var links: Array[Dictionary] = [_link(entry["a"], "person:%d" % int(entry["a_person"]))]
+		var name_para := LedgerText.paragraph(entry["a"], links, list_width, body)
+		blocks.append({"y": y, "paragraph": name_para, "color": Ink.INK})
+		y += float(name_para["height"])
+		var start := EventText.event_year_inline(entry)
+		var tail := start + Locale.t("date_since")
+		var keep: Array[String] = []
 		if i + 1 < run.size():
-			span = EventText.event_year_inline(entry) + Locale.t("date_to") + EventText.event_year_inline(run[i + 1])
-		texts.append("%s（%s）" % [entry["a"], span])
-		links.append(_link(entry["a"], "person:%d" % int(entry["a_person"])))
-	var text := Locale.t("sect_list_sep").join(texts)
-	var para := LedgerText.paragraph(text, links, list_width, body, texts)
-	var height := date_height + float(para["height"]) + ROW_GAP * _unit
+			var to := Locale.t("date_to") + EventText.event_year_inline(run[i + 1])
+			tail = start + to
+			keep.append(to)
+		var term_para := LedgerText.paragraph(tail, [] as Array[Dictionary], list_width, note, keep)
+		blocks.append({"y": y, "paragraph": term_para, "color": Ink.INK_LIGHT})
+		y += float(term_para["height"]) + (LedgerText.line_height(body) * 0.5 if i + 1 < run.size() else 0.0)
+	var height := date_height + y + ROW_GAP * _unit
 	var span_label := Locale.t("sect_leaders_span").format({"N": str(run.size())})
-	return {"kind": "leaders", "top": top, "height": height, "seal": EventText.seal("Succession"), "date": span_label, "paragraph": para}
+	return {"kind": "leaders", "top": top, "height": height, "seal": EventText.seal("Succession"), "date": span_label, "blocks": blocks}
+
+
+## 歷任掌門列的全部文字（測試用）：每個小段的姓名與任期各自一行，行與行以換行分開。
+static func leaders_text(row: Dictionary) -> String:
+	var out: Array[String] = []
+	for block: Dictionary in row["blocks"]:
+		out.append("
+".join(block["paragraph"]["lines"]))
+	return "
+".join(out)
 
 
 func _fixed_height() -> float:
@@ -506,7 +525,8 @@ func _paint_rows(list: LedgerList) -> void:
 				Ink.text(list, Vector2(0.0, top + (date_height - Ink.text_size(seal_text, note).y) * 0.5), seal_text, note, Ink.SEAL_RED)
 				var span: String = row["date"]
 				Ink.text(list, Vector2(Ink.text_size(seal_text, note).x + 6.0 * u, top + (date_height - Ink.text_size(span, note).y) * 0.5), span, note, Ink.INK_LIGHT)
-				LedgerText.draw(list, Vector2(0.0, top + date_height), row["paragraph"], Ink.INK, list.hover, list.pressed)
+				for block: Dictionary in row["blocks"]:
+					LedgerText.draw(list, Vector2(0.0, top + date_height + float(block["y"])), block["paragraph"], block["color"], list.hover, list.pressed)
 				var leaders_base: float = top + float(row["height"]) - ROW_GAP * u * 0.5
 				list.draw_line(Vector2(0.0, leaders_base), Vector2(list.size.x - 8.0 * u, leaders_base), Color(Ink.INK_LIGHT, 0.22), 1.0)
 			"event":
@@ -554,7 +574,11 @@ func _row_target_at(point: Vector2) -> String:
 			"para":
 				return LedgerText.target_at(Vector2(0.0, top), row["paragraph"], point)
 			"leaders":
-				return LedgerText.target_at(Vector2(0.0, top + date_height), row["paragraph"], point)
+				for block: Dictionary in row["blocks"]:
+					var hit := LedgerText.target_at(Vector2(0.0, top + date_height + float(block["y"])), block["paragraph"], point)
+					if not hit.is_empty():
+						return hit
+				return ""
 			"event":
 				# 人名、地名、宗門名的連結優先，其餘部分是這一筆事件本身。
 				var link := LedgerText.target_at(Vector2(0.0, top + date_height), row["paragraph"], point)

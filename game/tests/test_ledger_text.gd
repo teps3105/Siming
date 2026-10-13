@@ -70,7 +70,7 @@ func test_oversize_piece_breaks_around_dates_never_inside_them() -> void:
 	var piece := "謝慎謐（%s至%s）" % [date_a, date_b]
 	# 整位放不下一行：只在姓名、日期與「至」之間折，兩個日期各自整段，左括號不留在行尾。
 	for step in range(0, 12):
-		var width := _width("（%s" % date_a) + _width("一") * step * 0.5
+		var width := maxf(_width("（%s" % date_a), _width("至%s）" % date_b)) + _width("一") * step * 0.5
 		var para := LedgerText.paragraph(piece, NO_LINKS, width, SIZE, [piece])
 		assert_eq(_joined(para), piece)
 		for date in [date_a, date_b]:

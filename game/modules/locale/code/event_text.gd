@@ -140,11 +140,31 @@ static func now_label(world: Object) -> String:
 	return date_label(parts["era"], parts["era_year"], parts["world_year"], parts["month"])
 
 
-## 題簽最寬的日期：紀元名兩個字、紀元年四位、世界年六位、十二月；數字各位取該字體最寬者。
+## 帶空格的日期折成兩行：「竭黃紀元 一五年」「(11145年) 十二月」（題簽放不下單行時用）。
+static func label_lines(label: String) -> PackedStringArray:
+	var at := label.find(" (")
+	if at < 0:
+		return PackedStringArray([label])
+	return PackedStringArray([label.substr(0, at), label.substr(at + 1)])
+
+
+## 題簽最寬的日期（單行）：紀元名兩個字、紀元年四位、世界年六位、十二月；數字各位取該字體最寬者。
 static func widest_label(size: int) -> float:
-	var sample := date_label(Locale.t("date_era_sample"), 0, 0, 12)
-	var base := Ink.text_size(sample, size).x - Ink.text_size("〇", size).x - Ink.text_size("0", size).x
-	return base + _widest_glyph(CJK_DIGITS, size) * ERA_YEAR_DIGITS + _widest_glyph("0123456789", size) * WORLD_YEAR_DIGITS
+	return _widest_text(date_label(Locale.t("date_era_sample"), 0, 0, 12), size)
+
+
+## 題簽兩行時各行最寬的寬度：第一行紀元名與紀元年，第二行世界年與月。
+static func widest_label_lines(size: int) -> float:
+	var lines := label_lines(date_label(Locale.t("date_era_sample"), 0, 0, 12))
+	return maxf(_widest_text(lines[0], size), _widest_text(lines[1], size))
+
+
+## 樣本字串裡的「〇」「0」各是一位數字的佔位：換成該字體最寬的那個字，位數照預留的算。
+static func _widest_text(sample: String, size: int) -> float:
+	var cjk := sample.count("〇")
+	var arabic := sample.count("0")
+	var base := Ink.text_size(sample, size).x - cjk * Ink.text_size("〇", size).x - arabic * Ink.text_size("0", size).x
+	return base + (ERA_YEAR_DIGITS * _widest_glyph(CJK_DIGITS, size) if cjk > 0 else 0.0) + (WORLD_YEAR_DIGITS * _widest_glyph("0123456789", size) if arabic > 0 else 0.0)
 
 
 static func _widest_glyph(glyphs: String, size: int) -> float:

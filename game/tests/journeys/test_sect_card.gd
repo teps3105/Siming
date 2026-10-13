@@ -406,12 +406,17 @@ func test_leaders_row_lists_names_with_years_and_names_open_person_cards() -> vo
 			row = candidate
 			break
 	assert_false(row.is_empty(), "有歷任掌門列")
-	var text := "".join(row["paragraph"]["lines"])
-	assert_true(text.ends_with("年）起）"), "每位附在位年份，最後一位寫「起」：" + text)
-	assert_false(text.contains("紀元 ") or text.contains(" ("), "句子裡的寫法沒有空格與半形括號：" + text)
-	assert_eq(EventText.date_spans(text).size(), text.count("紀元"), "每個日期都是完整的「紀元＋年＋（世界年）」：" + text)
-	assert_eq(text.count("至"), text.count("年）至"), "起訖各自完整，「至」前後都是日期：" + text)
-	var hit: Dictionary = row["paragraph"]["hits"][0]
+	var text := SectCard.leaders_text(row)
+	assert_true(text.ends_with("年）起"), "每位附在位年份，最後一位寫「起」：" + text)
+	assert_false(text.contains("紀元 ") or text.contains(" (") or text.contains("、"), "句子裡的寫法沒有空格、半形括號與頓號：" + text)
+	assert_eq(EventText.date_spans(text.replace("
+", "")).size(), text.count("紀元"), "每個日期都是完整的「紀元＋年＋（世界年）」：" + text)
+	for block: Dictionary in row["blocks"]:
+		var lines: Array = block["paragraph"]["lines"]
+		for i in range(1, lines.size()):
+			if block["color"] == Ink.INK_LIGHT:
+				assert_true(String(lines[i]).begins_with("至"), "任期只在「至」之前換行：" + str(lines))
+	var hit: Dictionary = row["blocks"][0]["paragraph"]["hits"][0]
 	assert_true(String(hit["target"]).begins_with("person:"))
 	var list := card.list()
 	list.scroll = clampf(float(row["top"]) - 4.0, 0.0, list.max_scroll())

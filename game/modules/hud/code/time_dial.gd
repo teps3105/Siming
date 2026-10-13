@@ -38,12 +38,13 @@ const ALMANAC_SEAL := 20.0
 const ALMANAC_PAD := 6.0
 
 ## 題簽縮字的下限（字級）。
-const MIN_DATE_SIZE := 11
+const MIN_DATE_SCALE := 0.85
 
 ## 題簽右端最遠能到哪裡（畫面座標）：右邊的命簿攤開時，題簽不蓋到它；日期放不下就縮小字級。
 var max_right := 100000.0:
 	set(value):
 		max_right = value
+		_fit = {}
 		queue_redraw()
 
 ## 目前的輸入裝置是否為搖桿（決定畫哪一種實體鍵圖像）。
@@ -54,6 +55,7 @@ var gamepad := false:
 
 var _sim: SimHost
 var _unit := 1.0
+var _fit := {}
 var _hover_stroke := -1
 var _hover_seal := false
 var _hover_almanac := false
@@ -66,6 +68,7 @@ var _pressed := -1
 func setup(sim: SimHost, unit: float) -> void:
 	_sim = sim
 	_unit = unit
+	_fit = {}
 	custom_minimum_size = Vector2(560.0, (DISC_RADIUS + ARC_MARGIN) * 2.0 + 16.0) * unit
 	size = custom_minimum_size
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -193,7 +196,11 @@ func _speed_keys() -> Array[String]:
 
 ## 題簽的紙面（不含綾邊）。
 func _title_rect() -> Rect2:
-	return Rect2(Vector2(_slip_left(), Ink.SLIP_BAND + ARC_MARGIN * 0.5 * _unit), Vector2(_slip_width(), TITLE_HEIGHT * _unit))
+	var fit := _date_fit()
+	var height := TITLE_HEIGHT * _unit
+	if fit["lines"] == 2:
+		height += LedgerText.line_height(fit["size"])
+	return Rect2(Vector2(_slip_left(), Ink.SLIP_BAND + ARC_MARGIN * 0.5 * _unit), Vector2(_slip_width(), height))
 
 
 ## 兩張簽共用的左緣。
@@ -228,23 +235,49 @@ static func _digit_width(size: int) -> float:
 
 ## 最寬的日期佔多寬：紀元名兩個字、紀元年四位、世界年六位、十二月。題簽的寬度以它為準，不隨當下的日期變。
 func _date_max_width() -> float:
-	return EventText.widest_label(_date_font_size())
+	return _date_fit()["width"]
 
 
-## 日期的字級：預設內文字級；最寬的日期放不下題簽（右邊要留給命簿）就一級一級縮小。
 func _date_font_size() -> int:
-	var size := Ink.font_size(Ink.SIZE_BODY, _unit)
+	return _date_fit()["size"]
+
+
+## 題簽日期怎麼排：先是單行、內文字級；右邊要留給命簿，放不下就縮字級（最多縮到 85%），
+## 還放不下折成兩行（「竭黃紀元 一五年」「(11145年) 十二月」），兩行也先用內文字級、再逐級縮到 85%。
+## 回傳 lines（1 或 2）、size（字級）、width（最寬的日期佔多寬）。
+func _date_fit() -> Dictionary:
+	if not _fit.is_empty():
+		return _fit
+	var body := Ink.font_size(Ink.SIZE_BODY, _unit)
+	var floor_size := maxi(int(floor(body * MIN_DATE_SCALE)), 1)
 	var room := max_right - position.x - _slip_left() - DATE_PAD * 2.0 * _unit - _almanac_strip() * 2.0
-	while size > MIN_DATE_SIZE and EventText.widest_label(size) > room:
-		size -= 1
-	return size
+	for size in range(body, floor_size - 1, -1):
+		var width := EventText.widest_label(size)
+		if width <= room:
+			_fit = {"lines": 1, "size": size, "width": width}
+			return _fit
+	for size in range(body, floor_size - 1, -1):
+		var width := EventText.widest_label_lines(size)
+		if width <= room or size == floor_size:
+			_fit = {"lines": 2, "size": size, "width": width}
+			return _fit
+	return _fit
 
 
 ## 日期文字畫在哪裡：整串在題簽裡置中。
 func _date_rect() -> Rect2:
 	var title := _title_rect()
-	var extent := Ink.text_size(EventText.now_label(_sim.world), _date_font_size())
+	var fit := _date_fit()
+	var extent := Vector2.ZERO
+	for line in _date_lines():
+		extent = Vector2(maxf(extent.x, Ink.text_size(line, fit["size"]).x), extent.y + LedgerText.line_height(fit["size"]) if fit["lines"] == 2 else Ink.text_size(line, fit["size"]).y)
 	return Rect2(title.position + (title.size - extent) * 0.5, extent)
+
+
+## 現在的日期分行：單行一個、兩行兩個。
+func _date_lines() -> PackedStringArray:
+	var label := EventText.now_label(_sim.world)
+	return EventText.label_lines(label) if _date_fit()["lines"] == 2 else PackedStringArray([label])
 
 
 func _strokes_width() -> float:
@@ -322,7 +355,15 @@ func _draw() -> void:
 	var title := _title_rect()
 	Ink.paper_slip(self, title)
 	# 整串日期在題簽裡置中。
-	Ink.text(self, _date_rect().position, EventText.now_label(_sim.world), date_size)
+	var date_rect := _date_rect()
+	var step := LedgerText.line_height(date_size)
+	var lines := _date_lines()
+	for i in lines.size():
+		var line_width := Ink.text_size(lines[i], date_size).x
+		var line_y := date_rect.position.y + (step * i if lines.size() == 2 else 0.0)
+		var line_h := step if lines.size() == 2 else date_rect.size.y
+		var offset_y := (line_h - Ink.text_size(lines[i], date_size).y) * 0.5 if lines.size() == 2 else 0.0
+		Ink.text(self, Vector2(date_rect.get_center().x - line_width * 0.5, line_y + offset_y), lines[i], date_size)
 	_draw_almanac_seal()
 
 	# 時速簽：狀態與暫停鍵；四筆由短到長，已達速度者濃墨；倍速與調速鍵。
