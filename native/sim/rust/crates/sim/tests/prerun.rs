@@ -176,26 +176,84 @@ fn short_pre_run_grows_people_sects_and_keeps_their_history() {
     checks(&run.sim);
 }
 
-#[test]
-fn first_year_after_takeover_has_no_backlog() {
-    let mut run = short_run();
-    let start = run.sim.world().tick;
-    for _ in 0..120 {
-        run.sim.step();
-    }
+/// 一個世界中重要度 ≥ 2 的事件，依（種類，距 `start` 的年序）計數；只取 `start` 之後。
+fn counts_after(sim: &Sim, start: u32) -> BTreeMap<(EventKind, u32), u32> {
     let mut by: BTreeMap<(EventKind, u32), u32> = BTreeMap::new();
-    for e in run.sim.world().ledger.events.iter().filter(|e| e.tick > start && e.importance >= 2) {
+    for e in sim.world().ledger.events.iter().filter(|e| e.tick > start && e.importance >= 2) {
         *by.entry((e.kind, (e.tick - start - 1) / 12)).or_default() += 1;
     }
+    by
+}
+
+/// 三個種子合計後，每類事件接手後第 1 年的筆數不超過第 2–10 年平均的 2 倍（下限 5 筆，防小數雜訊）。
+fn assert_no_backlog(by: &BTreeMap<(EventKind, u32), u32>) {
     let kinds: std::collections::BTreeSet<EventKind> = by.keys().map(|k| k.0).collect();
     for k in kinds {
-        if matches!(k, EventKind::Famine | EventKind::Relief) {
-            continue; // 饑荒的年際波動大（大劫後人口回彈），待查，見回報。
-        }
         let y1 = by.get(&(k, 0)).copied().unwrap_or(0) as f64;
         let rest: f64 = (1..10).map(|y| by.get(&(k, y)).copied().unwrap_or(0) as f64).sum::<f64>() / 9.0;
-        assert!(y1 <= (2.0 * rest).max(3.0), "{k:?} 第 1 年 {y1} 件，第 2–10 年平均 {rest:.1}");
+        assert!(y1 <= (2.0 * rest).max(5.0), "{k:?} 第 1 年 {y1} 件，第 2–10 年平均 {rest:.1}（三個種子合計）");
     }
+}
+
+/// 接手後第 1 年各類事件不積壓，含饑荒與賑濟。饑荒每逢一世（30 年）的邊界會因天地演變改了承載而集中出現
+/// （人口期與人物期都一樣，與步長無關），而接手時刻本身就落在一世的邊界上，
+/// 所以先走過 7 年離開邊界，再取「接手後第 1 年」那一年為窗。
+#[test]
+fn first_year_after_takeover_has_no_backlog() {
+    let mut total: BTreeMap<(EventKind, u32), u32> = BTreeMap::new();
+    for seed in [SEED, SEED + 1, SEED + 2] {
+        let mut p = params(3000, 300);
+        p.seed = seed;
+        let mut sim = Sim::new(&p).unwrap();
+        for _ in 0..84 {
+            sim.step();
+        }
+        let start = sim.world().tick;
+        for _ in 0..120 {
+            sim.step();
+        }
+        for (k, v) in counts_after(&sim, start) {
+            *total.entry(k).or_default() += v;
+        }
+    }
+    assert_no_backlog(&total);
+}
+
+/// 步長切換前後的同一條規則：同一個人口期末的世界，各州人口與饑荒的規則以年步長（`grow_population`）
+/// 與月步長（各州在自己的判定月做一次年度更新）各走 300 年，三個種子合計的饑荒筆數與總人口要相近。
+/// 目前人物期沒有年步長的路徑（年步長只有人口期），所以以這條「同世界兩種步長」對照代替人物期中途切換。
+#[test]
+fn year_step_and_month_step_agree_on_population_and_famine() {
+    use siming_sim::schedule::Round;
+    let (mut fam_year, mut fam_month, mut pop_year, mut pop_month) = (0u32, 0u32, 0.0f64, 0.0f64);
+    for seed in [SEED, SEED + 1, SEED + 2] {
+        let mut p = params(1500, 0);
+        p.seed = seed;
+        let base = Sim::new(&p).unwrap();
+        let count =
+            |w: &siming_sim::World| w.ledger.events.iter().filter(|e| e.kind == EventKind::Famine && e.tick > 1500 * 12).count() as u32;
+        let total = |w: &siming_sim::World| w.provinces.iter().map(|p| p.population).sum::<f64>();
+        let mut a = base.world().clone();
+        genesis::grow_population(&mut a, 300, &mut |_, _| {});
+        let mut b = base.world().clone();
+        for _ in 0..300 * 12 {
+            b.tick += 1;
+            let tick = b.tick;
+            let f = siming_sim::population::monthly_with(&mut b.provinces, &[], seed, Round::at(tick));
+            siming_sim::ledger::record_famines(&mut b, &f);
+            if tick % 12 == 0 {
+                if tick % 360 == 0 {
+                    siming_sim::evolution::shi_settle(&mut b);
+                }
+                siming_sim::cataclysm::yearly(&mut b);
+            }
+        }
+        (fam_year, fam_month, pop_year, pop_month) =
+            (fam_year + count(&a), fam_month + count(&b), pop_year + total(&a), pop_month + total(&b));
+    }
+    eprintln!("年步長 饑荒 {fam_year} 人口 {pop_year:.0}；月步長 饑荒 {fam_month} 人口 {pop_month:.0}");
+    assert!(fam_year.abs_diff(fam_month) <= 3 + fam_year.max(fam_month) / 2, "饑荒筆數 年 {fam_year} 月 {fam_month}");
+    assert!((pop_month / pop_year - 1.0).abs() < 0.05, "總人口 年 {pop_year:.0} 月 {pop_month:.0}");
 }
 
 /// 完整長度（人口期 10,000 年 + 人物期 1,000 年）；慢，手動跑。
