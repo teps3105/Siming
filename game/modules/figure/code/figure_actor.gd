@@ -22,6 +22,8 @@ const NATURAL_CELLS := 6.0
 const DEFAULT_YAW := -0.7
 ## 鏡頭高度超過地圖寬的這個比例就不畫（與山門圖樣同一條線，5.5）。
 const MAX_CAMERA_FRACTION := 0.4
+## 沿視線把人物拉近鏡頭多少倍人高，後仰的人物才不被身後的地形蓋住（著色器只改深度，不改畫面位置）；量測用，可改。
+static var depth_pull_factor := 2.0
 ## 基準身形：骨架建模時的幾頭身與半肩寬、半腰寬。
 const BASE_HEADS := 7.0
 const BASE_SHOULDER := 0.105
@@ -102,6 +104,16 @@ static func parts_for(look: Dictionary) -> Array[String]:
 	var age := int(look.get("age", CF.Age.ADULT))
 	out.append("face." + ("young" if age == CF.Age.CHILD else ("old" if age == CF.Age.ELDER else "adult")))
 	return out
+
+
+## 鏡頭高度超過地圖寬的 MAX_CAMERA_FRACTION 就不畫。
+static func too_far(camera_z: float, map_width: float) -> bool:
+	return camera_z > MAX_CAMERA_FRACTION * map_width
+
+
+## 一個人的 look：已知的欄位（given）照用，其餘由種子決定。
+static func look_of(figure_seed: int, given := {}) -> Dictionary:
+	return CF.traits(figure_seed, given)
 
 
 ## 事件當事人（橋接 person(id) 的字典）換成 traits() 的 given：只給得出的欄位，其餘由種子決定。
@@ -276,26 +288,22 @@ func pose_signature() -> String:
 
 ## 人物朝上的軸與朝向的基底（單位長，不含大小）：
 ## to_camera 是腳底指向鏡頭的單位向量（正交鏡頭是鏡頭後向軸；透視鏡頭是腳底到鏡頭的連線），up 是地表向上（星球視角是球面法線），
-## screen_up 是畫面上方的方向（鏡頭正俯視、水平朝向不確定時當作朝向的依據）。
-## 先繞自身上軸轉朝向，再以腳底為軸往畫面上方後仰，使人物的上軸與 to_camera 夾 (90° − 30°)：從鏡頭看恆為 30° 俯角的立姿。
+## screen_up 是畫面上方的方向。以鏡頭右軸為轉軸，把 up 在「視線與畫面上方」的平面內轉到與視線夾 (90° − 30°)，
+## 從鏡頭看恆為 30° 俯角的立姿；up 離開這個平面的分量（星球曲率）原樣保留。朝向（繞自身上軸）轉完後再套上，鏡頭正俯視時仍有定義。
 static func stand_basis(to_camera: Vector3, up: Vector3, screen_up: Vector3, yaw := DEFAULT_YAW) -> Basis:
 	var v := to_camera.normalized()
-	var ground_up := up.normalized()
-	var toward := v - ground_up * v.dot(ground_up)
+	var su := (screen_up - v * screen_up.dot(v)).normalized()
+	var right := su.cross(v).normalized()
+	var ground := up.normalized()
+	var now := atan2(ground.dot(su), ground.dot(v))
+	var delta := deg_to_rad(90.0 - VIEW_PITCH_DEG) - now
+	var axis := (Quaternion(-right, delta) * ground).normalized()
+	var toward := v - axis * v.dot(axis)
 	if toward.length() < 1e-3:
-		toward = screen_up - ground_up * screen_up.dot(ground_up)
+		toward = su - axis * su.dot(axis)
 	toward = toward.normalized()
-	var upright := Basis(ground_up.cross(toward).normalized(), ground_up, toward)
-	var faced := Basis(ground_up, yaw) * upright
-	var across := deg_to_rad(90.0 - VIEW_PITCH_DEG)
-	var lean := ground_up - v * ground_up.dot(v)
-	if lean.length() < 1e-4:
-		return faced
-	var target := v * cos(across) + lean.normalized() * sin(across)
-	var axis := ground_up.cross(target)
-	if axis.length() < 1e-5:
-		return faced
-	return Basis(Quaternion(axis.normalized(), ground_up.angle_to(target))) * faced
+	var upright := Basis(axis.cross(toward).normalized(), axis, toward)
+	return Basis(axis, yaw) * upright
 
 
 ## 人物的高度（世界單位）：畫面上 80–160 px（乘介面單位），自然高度為 NATURAL_CELLS 格；30° 俯角下鉛直長度在畫面上乘 cos 30°。
@@ -327,7 +335,7 @@ func place(origin: Vector3, up: Vector3, camera: Camera3D, unit: float, hidden :
 	var basis := stand_basis(to_camera, up, camera.global_basis.y, yaw)
 	global_transform = Transform3D(basis.scaled(Vector3.ONE * _height), origin)
 	for material in _fills:
-		material.set_shader_parameter("depth_pull", _height * 2.0)
+		material.set_shader_parameter("depth_pull", _height * depth_pull_factor)
 	for material in _inks:
-		material.set_shader_parameter("depth_pull", _height * 2.0)
+		material.set_shader_parameter("depth_pull", _height * depth_pull_factor)
 		material.set_shader_parameter("outline_px", OUTLINE_PX * unit)
