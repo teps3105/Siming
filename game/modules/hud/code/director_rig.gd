@@ -6,9 +6,9 @@ extends Node
 ## 玩家用快捷鍵切換導演模式，帶新的開關狀態。
 signal toggled(on: bool)
 
-## 到位的高度上限（地圖寬的比例）：看得到棋子的高度（5.6）以內，玩家原本就在這個範圍內時維持他的高度。
-const SEEN_FRAC := 0.4
-const LANDING_FRAC := 0.3
+## 到位的高度（地圖寬的比例）：高過 SEEN_FRAC 就降到 LANDING_FRAC，讓棋子看得見（5.6）。
+const SEEN_FRAC := 0.3
+const LANDING_FRAC := 0.25
 
 var director := Director.new()
 var speed: DirectorSpeed
@@ -86,6 +86,9 @@ func _on_event(event: Dictionary) -> void:
 
 func _on_go(province: int, _big: bool) -> void:
 	var seat: Vector2 = _sim.world.province_info(province)["seat"]
+	var spot: Variant = director.target_event().get("pos")
+	if spot is Vector2:
+		seat = spot
 	var width := _camera.map_width()
 	var height := _camera.z if _camera.z <= width * SEEN_FRAC else width * LANDING_FRAC
 	_camera.direct_to(seat, height, GameSettings.flag("director_reduce"))
