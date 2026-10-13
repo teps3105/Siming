@@ -127,6 +127,25 @@ func test_gamepad_saves_into_a_slot_and_overwriting_asks_first() -> void:
 	assert_false(_hud.menu_open(), "B 一路退到關掉選單")
 
 
+func test_load_row_opens_right_after_saving_without_closing_the_menu() -> void:
+	await joy_button(JOY_BUTTON_START)
+	var deck := _hud.menu()
+	await joy_button(JOY_BUTTON_DPAD_DOWN)
+	await joy_button(JOY_BUTTON_DPAD_DOWN)
+	assert_eq(deck.panel().focused_id(), &"share", "還沒有存檔時跳過載入")
+	await joy_button(JOY_BUTTON_DPAD_UP)
+	await joy_button(JOY_BUTTON_A)
+	await joy_button(JOY_BUTTON_A)
+	assert_false(SaveStore.manual_slots()[0].is_empty(), "存進第一欄")
+	await joy_button(JOY_BUTTON_B)
+	assert_eq(deck.page(), &"root")
+	assert_eq(deck.panel().focused_id(), &"save", "回到原來停的那一列")
+	await joy_button(JOY_BUTTON_DPAD_DOWN)
+	assert_eq(deck.panel().focused_id(), &"load", "剛存完，不關選單就選得到載入")
+	await joy_button(JOY_BUTTON_A)
+	assert_eq(deck.page(), &"load")
+
+
 func test_loading_from_the_menu_replaces_the_world() -> void:
 	assert_eq(SaveStore.save_manual(2, _sim.world), "")
 	var saved_hash: String = _sim.world.hash_hex()
