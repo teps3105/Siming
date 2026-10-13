@@ -6,8 +6,8 @@
    所以邊上只有部件自己的顏色，不帶底版的紙色。
 2. 子層（spec["subs"]）：材質不同的區域拆成各自一張。判別法：all＝整件；chroma＝高彩度（石青的瞳）；red＝紅色（朱邊）；rest＝其餘。
    一個像素只屬於一個子層；深色線與暗像素留在 rest（主材質）。
-3. 明度鍵（染色子層）：子層內的亮度做 4 群 1D k-means，依順序對應 墨線、陰影、底色、高光 四階灰（KEY_LEVELS）；
-   底色是非墨群中像素最多的一群，比它暗的是陰影，比它亮的是高光；最後以 3×3 中值去掉單像素的雜點與過渡色。
+3. 明度鍵（染色子層）：子層內的亮度做 4 群 1D k-means 找出墨線、陰影、底色、高光的中心（底色是非墨群中像素最多的一群），
+   再以單調分段線性曲線對到 0x00/0x55/0xAA/0xFF：各階中心附近是平台、平台之間線性過渡，邊緣保留反鋸齒（不做硬量化、不做中值）。
    定色子層（spec["fixed"]）保持原色不轉鍵。
 """
 import argparse
@@ -20,8 +20,9 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import portrait as P  # noqa: E402
 
-INK_MAX, MERGE = 52, 18   # 墨線的亮度上限；相鄰色群中心相差小於此值併成一階
-KEY_LEVELS = {"ink": 0, "shadow": 90, "base": 170, "high": 255}
+INK_MAX, MERGE = 52, 12   # 墨線的亮度上限；相鄰色群中心相差小於此值併成一階
+KEY_LEVELS = {"ink": 0, "shadow": 85, "base": 170, "high": 255}   # 0x00、0x55、0xAA、0xFF，與遊戲內圖集一致
+PLATEAU = 0.3   # 色塊平台的半寬：到相鄰色群中心距離的這個比例；平台之間線性過渡，所以邊緣與外緣保留反鋸齒
 
 
 def shrink(rgba):
@@ -68,9 +69,14 @@ def split_subs(img, subs):
 
 
 def to_key(img, mask):
-    """把 mask 內的像素轉成四階灰，回傳 (RGBA 圖, 統計)。"""
+    """把 mask 內的像素轉成連續灰階的明度鍵，回傳 (RGBA 圖, 統計)。
+
+    以不透明像素的亮度做 4 群 1D k-means，找出墨線、陰影、底色、高光的中心；然後以單調分段線性曲線把亮度對到 0x00/0x55/0xAA/0xFF：
+    每階中心附近是平台（色塊內部乾淨平塗），平台之間線性過渡（交界與外緣保留反鋸齒）。這是色調對應，不是量化。
+    """
     L = luma(img[..., :3].astype(np.float32))
-    vals = L[mask].reshape(-1, 1).astype(np.float32)
+    solid = mask & (img[..., 3] > 200)
+    vals = L[solid].reshape(-1, 1).astype(np.float32)
     if len(vals) < 30:
         return None, {}
     _, labels, centers = cv2.kmeans(vals, 4, None, (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_MAX_ITER, 50, 0.5), 5, cv2.KMEANS_PP_CENTERS)
@@ -79,35 +85,71 @@ def to_key(img, mask):
     rank = np.empty(4, int)
     rank[order] = np.arange(4)
     idx = rank[labels.ravel()]
-    # 分群：中心亮度 ≤ INK_MAX 的歸墨線；其餘相鄰中心差小於 MERGE 的併成一群（均勻色塊被 k-means 硬切成四份時不當成四階）
+    # 相鄰中心差小於 MERGE 的併成一群；底色是像素最多的一群；比底色暗的群裡，最暗的一群若夠暗（≤ INK_MAX 或不到底色的 0.6）是墨線，其餘暗群是陰影；比底色亮的是高光
     group = np.zeros(4, int)
     g = 0
-    for i in range(4):
-        if centers[i] <= INK_MAX:
-            group[i] = 0
-        else:
-            if i > 0 and centers[i - 1] > INK_MAX and centers[i] - centers[i - 1] < MERGE:
-                group[i] = g
-            else:
-                g += 1
-                group[i] = g
+    for i in range(1, 4):
+        if centers[i] - centers[i - 1] >= MERGE:
+            g += 1
+        group[i] = g
     gid = group[idx]
     counts = np.bincount(gid, minlength=g + 1)
-    ids = [i for i in range(1, g + 1) if counts[i] > 0]
-    base = max(ids, key=lambda i: counts[i]) if ids else None
-    level_of = {0: "ink"}
-    for i in ids:
-        level_of[i] = "shadow" if i < base else ("base" if i == base else "high")
-    gray = np.full(L.shape, -1, np.int16)
-    gray[mask] = np.array([KEY_LEVELS[level_of.get(i, "base")] for i in gid])
-    centers_g = [round(float(vals[gid == i].mean()), 1) if (gid == i).any() else None for i in range(g + 1)]
-    counts_all = counts
-    lv = np.where(mask, gray, 0).astype(np.uint8)
-    lv_med = cv2.medianBlur(lv, 3)
-    gray = np.where(mask, lv_med, 0).astype(np.uint8)
+    gmean = {i: float(vals[gid == i].mean()) for i in range(g + 1) if (gid == i).any()}
+    base = max(gmean, key=lambda i: counts[i])
+    level_of = {}
+    darker = sorted(i for i in gmean if i < base)
+    for i in gmean:
+        if i == base:
+            level_of[i] = "base"
+        elif i > base:
+            level_of[i] = "high"
+        else:
+            level_of[i] = "shadow"
+    if darker and (gmean[darker[0]] <= INK_MAX or gmean[darker[0]] < 0.6 * gmean[base]):
+        level_of[darker[0]] = "ink"
+    gids = [i for i in range(g + 1) if (gid == i).any()]
+    mean = {i: float(vals[gid == i].mean()) for i in gids}
+    # 曲線的控制點：平台兩端 (亮度, 輸出灰階)
+    xs, ys = [], []
+    for k, i in enumerate(gids):
+        gaps = []
+        if k > 0:
+            gaps.append(mean[i] - mean[gids[k - 1]])
+        if k < len(gids) - 1:
+            gaps.append(mean[gids[k + 1]] - mean[i])
+        h = PLATEAU * min(gaps) if gaps else 0.0
+        v = KEY_LEVELS[level_of[i]]
+        xs += [mean[i] - h, mean[i] + h]
+        ys += [v, v]
+    xs = [0.0] + xs + [255.0]
+    ys = [ys[0]] + ys + [ys[-1]]
+    gray = np.interp(L, xs, ys)
+    gray = np.where(mask, gray, 0).clip(0, 255).round().astype(np.uint8)
     out = np.dstack([gray, gray, gray, np.where(mask, img[..., 3], 0).astype(np.uint8)])
-    stats = {"centers": centers_g, "share": [round(float(c) / counts_all.sum(), 3) for c in counts_all], "levels": [level_of.get(i) for i in range(g + 1)]}
+    stats = {"centers": [round(mean[i], 1) for i in gids], "share": [round(float(counts[i]) / counts.sum(), 3) for i in gids], "levels": [level_of[i] for i in gids]}
     return out, stats
+
+
+def clip_face(rgba):
+    """臉的肩畫到畫面邊緣，比衣領的肩線寬，疊上去會在領外露出一條膚色邊。把「頸柱以外、下巴以下、又不在衣領範圍內」的臉像素去掉：
+    切線落在衣領底下或頸與肩的交界上，看不到；頭、耳、頸與領口裡的皮膚不動。這是裁切，不補像素。"""
+    for sub in ("complete", "collect"):
+        path = P.TMP + f"{sub}/collar-dao_plain.png"
+        if os.path.exists(path):
+            break
+    else:
+        return rgba
+    collar = cv2.imread(path, cv2.IMREAD_UNCHANGED)[..., 3] > 40
+    collar = cv2.dilate(collar.astype(np.uint8), cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (13, 13))) > 0
+    lm = P.landmarks("m")
+    h, w = rgba.shape[:2]
+    yy, xx = np.mgrid[0:h, 0:w]
+    neck_l, neck_r = lm["head"][0] + 10, lm["head"][1] - 10   # 頸柱大約與頭同寬再收一點
+    outside = (yy > lm["chin"]) & ((xx < neck_l) | (xx > neck_r)) & ~collar
+    out = rgba.copy()
+    out[outside, 3] = 0
+    out[outside, :3] = 0
+    return out
 
 
 def key(name):
@@ -116,6 +158,8 @@ def key(name):
     if not os.path.exists(src):
         src = P.TMP + f"collect/{name}.png"
     rgba = cv2.cvtColor(cv2.imread(src, cv2.IMREAD_UNCHANGED), cv2.COLOR_BGRA2RGBA)
+    if spec["slot"] == "face":
+        rgba = clip_face(rgba)
     img = shrink(rgba)
     masks = split_subs(img, spec["subs"])
     os.makedirs(P.TMP + "key", exist_ok=True)

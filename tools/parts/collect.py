@@ -42,10 +42,49 @@ def register(painted, base, anchor):
     return w, float(cc)
 
 
+def bg_color(img):
+    """純色底的顏色：四個角的中位數。"""
+    pts = np.concatenate([img[:20, :20].reshape(-1, 3), img[:20, -20:].reshape(-1, 3)])
+    return np.median(pts, 0).astype(int)
+
+
+def collect_face(key="face-m0", n=1):
+    """臉：畫家把底版去掉內衫、補完頸肩、背景換純綠；以背景色解混去背，邊緣像素還原成前景色，不留亮邊。
+    也把畫家原圖存成之後所有部件的底版 sources/parts/portrait/base-face-m.png。"""
+    src = P.TMP + f"paint/{key}-t{n}.png"
+    img = load_rgb(src)
+    G = bg_color(img).astype(np.float32)
+    ink = np.array(P.INK, np.float32)
+    f = img.astype(np.float32)
+    d = np.linalg.norm(f - G, axis=2)
+    # 到底色的距離 → 不透明度：離底色夠遠（>90）算完全不透明；近底色處以「墨色與底色的混色」估算
+    axis = ink - G
+    a_mix = np.clip(((f - G) @ axis) / float(axis @ axis), 0, 1)
+    a = np.where(d > 90, 1.0, np.clip(a_mix, 0, 1))
+    a = np.where(d < 12, 0.0, a)
+    fg = np.where(a[..., None] > 0.02, (f - (1 - a[..., None]) * G) / np.maximum(a[..., None], 0.02), 0).clip(0, 255)
+    # 最大的一塊才是人；其餘（背景裡的雜訊）丟掉
+    solid = (a > 0.5).astype(np.uint8)
+    cnt, lab, st, _ = cv2.connectedComponentsWithStats(solid, connectivity=8)
+    big = 1 + int(np.argmax(st[1:, cv2.CC_STAT_AREA]))
+    a = np.where(cv2.dilate((lab == big).astype(np.uint8), np.ones((5, 5), np.uint8)) > 0, a, 0)
+    out = np.dstack([fg, a * 255]).round().astype(np.uint8)
+    out[out[..., 3] == 0, :3] = 0
+    os.makedirs(P.TMP + "collect", exist_ok=True)
+    path = P.TMP + f"collect/{key}.png"
+    cv2.imwrite(path, cv2.cvtColor(out, cv2.COLOR_RGBA2BGRA))
+    import shutil
+    shutil.copy(src, P.base_path(P.PARTS[key]["sex"]))
+    info = {"from": f"paint/{key}-t{n}.png", "bg": G.astype(int).tolist(), "pixels": int((a > 0.5).sum()), "output": path}
+    P.log(key, "collect", info)
+    print(key, info)
+    return path
+
+
 def collect(key, n=1, thr=38, min_area=250, thick=6.0, keep_skin=False):
     spec = P.PARTS[key]
     sex = spec["sex"]
-    base = load_rgb(P.base_path(sex))
+    base = load_rgb(P.input_path(key))
     painted = load_rgb(P.TMP + f"paint/{key}-t{n}.png")
     h, wd = base.shape[:2]
     zone = P.zone_mask(spec["zone"], sex, (h, wd))
@@ -64,7 +103,7 @@ def collect(key, n=1, thr=38, min_area=250, thick=6.0, keep_skin=False):
         hsv = cv2.cvtColor(warped, cv2.COLOR_RGB2HSV).astype(np.float32)
         hue, sat, val = hsv[..., 0] * 2, hsv[..., 1] / 255, hsv[..., 2] / 255
         skin = (hue > 16) & (hue < 45) & (sat > 0.18) & (sat < 0.62) & (val > 0.5)
-        paper = np.abs(warped.astype(int) - np.array(P.PAPER)[None, None]).max(2) < 24
+        paper = np.abs(warped.astype(int) - bg_color(base)[None, None]).max(2) < 60   # 純綠底
         cand = (zone & ~skin & ~paper)
         core = cv2.morphologyEx(cand.astype(np.uint8), cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9)))
         grown = cv2.dilate(core, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9)))
@@ -78,6 +117,13 @@ def collect(key, n=1, thr=38, min_area=250, thick=6.0, keep_skin=False):
             comp = (labels == i).astype(np.uint8)
             if cv2.distanceTransform(comp, cv2.DIST_L2, 3).max() >= thick:   # 對位殘留的細弧線最粗只有幾像素，真的部件有一塊實心
                 keep[comp > 0] = 1
+    if spec.get("rescue"):
+        # 下眼瞼之類的細線過不了開運算與厚度門檻：與實心塊相距 10 像素內的細元件一併收回（只用在眼）
+        near = cv2.dilate(keep, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (21, 21)))
+        rc, rl, rs, _ = cv2.connectedComponentsWithStats(raw.astype(np.uint8), connectivity=8)
+        for i in range(1, rc):
+            if rs[i, cv2.CC_STAT_AREA] >= 25 and (near[rl == i] > 0).all():
+                keep[rl == i] = 1
     # 填洞：外輪廓內全部算部件（髮內的高光、眼白之類），但本來露出底版的洞（領口 V）留著
     holes = np.zeros_like(keep)
     cnts, hier = cv2.findContours(keep, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
@@ -87,6 +133,14 @@ def collect(key, n=1, thr=38, min_area=250, thick=6.0, keep_skin=False):
     keep = np.maximum(keep, holes)
     inner = cv2.erode(keep, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)))
     alpha = cv2.GaussianBlur(inner.astype(np.float32), (0, 0), 0.8)
+    # 外緣一圈的顏色混著底版（綠或膚色），改取最近的內部像素的顏色（墨線部件的外緣就是墨色），不帶亮邊也不帶綠邊
+    core = cv2.erode(keep, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
+    if core.any():
+        _, lab = cv2.distanceTransformWithLabels((core == 0).astype(np.uint8), cv2.DIST_L2, 3, labelType=cv2.DIST_LABEL_PIXEL)
+        ys0, xs0 = np.nonzero(core)
+        pal = np.zeros((lab.max() + 1, 3), np.uint8)
+        pal[lab[ys0, xs0]] = warped[ys0, xs0]
+        warped = np.where((core > 0)[..., None], warped, pal[lab])
     out = np.dstack([warped, (alpha * 255).round().astype(np.uint8)])
     out[out[..., 3] == 0, :3] = 0
     os.makedirs(P.TMP + "collect", exist_ok=True)
@@ -109,4 +163,7 @@ if __name__ == "__main__":
     ap.add_argument("--thick", type=float, default=6.0)
     ap.add_argument("--keep-skin", action="store_true")
     a = ap.parse_args()
-    collect(a.part, a.n, a.thr, thick=a.thick, keep_skin=a.keep_skin)
+    if P.PARTS[a.part].get("zone") is None:
+        collect_face(a.part, a.n)
+    else:
+        collect(a.part, a.n, a.thr, thick=a.thick, keep_skin=a.keep_skin)

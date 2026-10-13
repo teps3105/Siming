@@ -99,4 +99,4 @@ if __name__ == "__main__":
     spec = P.PARTS[a.part]
     prompt_text = P.prompt(a.part)
     seed = a.seed if a.seed is not None else 20261013 + a.n
-    paint(f"{a.part}-t{a.n}", P.base_path(spec["sex"]), P.STYLE, prompt_text, seed, a.steps, record=a.part)
+    paint(f"{a.part}-t{a.n}", P.input_path(a.part), P.STYLE, prompt_text, seed, a.steps, record=a.part)

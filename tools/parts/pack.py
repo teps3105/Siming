@@ -1,26 +1,12 @@
-"""排圖集、寫目錄：把 key/ 裡所有部件子層裁邊後排進圖集，寫 game/modules/parts/resources/portrait/{atlas0.png,catalog.json}。
+"""排圖集、寫目錄：把 key/ 裡所有部件子層裁邊後排進圖集，寫 game/modules/parts/resources/portrait_trial/{atlas.png,catalog.json}。
 
     python tools/parts/pack.py
 
-目錄格式（catalog.json，與 parts-runtime 尚未對齊，主對話合併時以這份欄位為準）：
-{
-  "version": 1, "class": "portrait",
-  "size": [320, 400],                     # 入庫畫布尺寸；每個部件子層的 offset 是它在這張畫布上的左上角
-  "ink": "#2B2620",                       # 墨線色，著色器不染（明度鍵 0 階）
-  "key_levels": {"ink": 0, "shadow": 90, "base": 170, "high": 255},  # 鍵圖 R 通道的四階；著色器以 45/130/212 為界歸階
-  "slots": ["hair_back", "collar", ...],  # 疊圖順序，由後往前（下標即 z）
-  "anchors": {"m": {...}, "f": {...}},    # 底版定位點（入庫座標）
-  "atlases": [{"file": "atlas0.png", "size": [w, h]}],
-  "parts": {
-    "hair_front.bun": {                   # 部件代號是 portrait/<此鍵>
-      "slot": "hair_front", "sex": "m",
-      "layers": [ {"sub": "hair", "mode": "key", "dye": "髮色",   # mode: key＝明度鍵要染色；fixed＝定色，著色器照原色畫
-                   "atlas": 0, "rect": [x, y, w, h],            # 在圖集上的矩形（不含邊距）
-                   "offset": [ox, oy]} ]                          # 該矩形在 320×400 畫布上的左上角
-    }
-  }
-}
-鍵圖與定色圖都是 RGBA，alpha 為邊緣羽化；鍵圖 RGB 三通道相同（灰階）。
+格式與遊戲內現有的相同（8.12「圖集與目錄的格式」、PartCatalog._read）：
+- atlas.png：RGBA，RGB 預乘 alpha；明度鍵子層的 RGB 是連續灰階（墨 0x00、陰影 0x55、底色 0xAA、高光 0xFF 為平台，之間線性過渡）；子層之間留 4 px。
+- catalog.json：version／class／canvas／pivot／halo／atlas／channels／slots／parts；
+  部件 {anchor, layers:[{rect, offset, mode: keyed|fixed, tint}]}；代號 <類>/<格>.<款>。
+  class 寫 portrait_trial（真部件先放試驗類）；不寫 placeholder。
 """
 import json
 import os
@@ -31,10 +17,9 @@ from PIL import Image
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import portrait as P  # noqa: E402
-from key import KEY_LEVELS  # noqa: E402
 
-DEST = P.ROOT + "/game/modules/parts/resources/portrait/"
-PAD = 2
+DEST = P.ROOT + f"/game/modules/parts/resources/{P.CLASS}/"
+PAD = 4
 ATLAS_W = 1024
 
 
@@ -43,6 +28,12 @@ def trim(im):
     ys, xs = np.nonzero(a > 0)
     box = (int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1)
     return im.crop(box), box[:2]
+
+
+def premultiply(im):
+    a = np.asarray(im).astype(np.float32)
+    a[..., :3] = a[..., :3] * a[..., 3:] / 255
+    return Image.fromarray(a.round().astype(np.uint8))
 
 
 def main():
@@ -70,19 +61,36 @@ def main():
     atlas = Image.new("RGBA", (ATLAS_W, H), (0, 0, 0, 0))
     parts = {}
     for name, sub, im, off, ax, ay in place:
-        atlas.paste(im, (ax, ay))
+        atlas.paste(premultiply(im), (ax, ay))
         spec = P.PARTS[name]
-        slot, _, style = name.partition("-")
-        entry = parts.setdefault(f"{slot}.{style}", {"slot": slot, "sex": spec["sex"], "layers": []})
-        entry["layers"].append({"sub": sub, "mode": "fixed" if sub in spec.get("fixed", []) else "key", "dye": spec["dye"].get(sub, "定色"),
-                                "atlas": 0, "rect": [ax, ay, im.width, im.height], "offset": list(off)})
-    atlas.save(DEST + "atlas0.png", optimize=True)
-    base = json.load(open(P.SRC + "base.json", encoding="utf-8"))
-    anchors = {s: {k: ({side: w["out"] for side, w in v.items()} if k == "ears" else v["out"]) for k, v in e["points"].items()} for s, e in base["sex"].items()}
-    catalog = {"version": 1, "class": "portrait", "size": list(P.OUT), "ink": "#2B2620", "key_levels": KEY_LEVELS, "slots": P.SLOTS, "anchors": anchors,
-               "atlases": [{"file": "atlas0.png", "size": list(atlas.size)}], "parts": parts}
+        fixed = sub in spec.get("fixed", [])
+        entry = parts.setdefault(P.code_of(name), {"anchor": None, "layers": [], "_boxes": []})
+        entry["layers"].append({"rect": [ax, ay, im.width, im.height], "offset": list(off), "mode": "fixed" if fixed else "keyed",
+                                "tint": None if fixed else spec["dye"][sub]})
+        entry["_boxes"].append((off[0], off[1], off[0] + im.width, off[1] + im.height))
+    for e in parts.values():   # 對位參考點：各子層外框聯集的中心
+        b = e.pop("_boxes")
+        e["anchor"] = [round((min(t[0] for t in b) + max(t[2] for t in b)) / 2), round((min(t[1] for t in b) + max(t[3] for t in b)) / 2)]
+    # 順序在字典裡由後往前：子層依 SLOT 順序已由 PARTS 宣告順序決定（同一款的子層：主材質在前、緣邊在後）
+    for e in parts.values():
+        e["layers"].sort(key=lambda l: 1 if l["tint"] == "trim" else 0)
+    lm = json.load(open(P.SRC + "base.json", encoding="utf-8"))["sex"]["m"]["points"]
+    cx, top, chin = lm["cx"]["out"], lm["top_y"]["out"], lm["chin_y"]["out"]
+    counts = {}
+    for code in parts:
+        slot = code.split("/")[1].split(".")[0]
+        counts[slot] = counts.get(slot, 0) + 1
+    catalog = {
+        "version": 1, "class": P.CLASS, "canvas": list(P.OUT),
+        "pivot": [cx, chin - 8],   # 縮放的中心：下巴略上方的頸線（佔位目錄的 [160,250] 同一位置，依真底版的下巴 261 換算）
+        "halo": {"center": [cx, round((top + chin) / 2)], "radius": 92, "step": 8, "width": 3},   # 中心取頭的中心；半徑、圈距、線寬沿用佔位目錄
+        "atlas": "atlas.png", "channels": P.CHANNELS,
+        "slots": [{"id": sid, "order": order, "count": counts.get(sid, 0)} for sid, order, _ in P.SLOTS if counts.get(sid, 0) > 0],
+        "parts": parts,
+    }
+    atlas.save(DEST + "atlas.png", optimize=True)
     json.dump(catalog, open(DEST + "catalog.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
-    print("圖集", atlas.size, os.path.getsize(DEST + "atlas0.png"), "bytes；目錄", os.path.getsize(DEST + "catalog.json"), "bytes；部件", len(parts))
+    print("圖集", atlas.size, os.path.getsize(DEST + "atlas.png"), "bytes；目錄", os.path.getsize(DEST + "catalog.json"), "bytes；部件", len(parts))
 
 
 if __name__ == "__main__":

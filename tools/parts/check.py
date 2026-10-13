@@ -5,7 +5,7 @@
 輸出（.shiftblame/tmp/parts/portrait/check/）：
     metrics.json            每個子層的量測
     layers-paper.png / layers-ink.png   每個子層以預設染色，放在紙色（#EDE4CF）與墨色（#2B2620）底上
-    stack.png               底版加已有的部件，三組不同的膚色、髮色、衣色並排
+    stack.png               已有的部件（含臉），三組不同的膚色、髮色、衣色並排
 量測（入庫尺寸 320×400）：
     bare_edge   外緣上離最近的墨線（鍵 0 階，或定色層暗於 80）超過 2 像素的像素數——「邊上沒有輪廓線」；hidden 的邊要人工扣
     bare_ratio  bare_edge 占外緣長度
@@ -26,24 +26,25 @@ import portrait as P  # noqa: E402
 from key import KEY_LEVELS  # noqa: E402
 
 PAPER, INKC = (0xED, 0xE4, 0xCF), (0x2B, 0x26, 0x20)
-# 三組染色：膚色、髮色、衣色、緣邊色、瞳色
+INK_MAX_KEY = 42   # 鍵圖灰階在此以下算墨線（0 與 0x55 的中點）
+# 三組染色：膚色、髮色、衣色、緣邊色、瞳色（欄位名與目錄 channels 相同）
 PALETTES = [
-    {"skin": (222, 177, 130), "hair": (96, 84, 76), "cloth": (92, 112, 128), "trim": (178, 58, 46), "iris": (70, 110, 150)},
-    {"skin": (238, 208, 184), "hair": (205, 205, 200), "cloth": (150, 118, 82), "trim": (60, 52, 46), "iris": (110, 84, 58)},
-    {"skin": (176, 126, 88), "hair": (122, 76, 50), "cloth": (86, 128, 108), "trim": (201, 162, 70), "iris": (58, 120, 96)},
+    {"skin": (222, 177, 130), "hair": (96, 84, 76), "robe": (92, 112, 128), "trim": (178, 58, 46), "iris": (70, 110, 150)},
+    {"skin": (238, 208, 184), "hair": (225, 225, 220), "robe": (150, 118, 82), "trim": (60, 52, 46), "iris": (110, 84, 58)},
+    {"skin": (176, 126, 88), "hair": (122, 76, 50), "robe": (86, 128, 108), "trim": (201, 162, 70), "iris": (58, 120, 96)},
 ]
 
 
 def tint(layer_rgba, color):
-    """把鍵圖染色：墨線維持 ink，陰影、底色、高光換成 color 的三階。"""
+    """與著色器同一條公式：灰階 → 墨、陰影、底色、高光四個停點，線性分段；陰影與高光由底色導出（part_tint.gd 的 ramp）。"""
     c = np.array(color, np.float32)
-    ramp = {KEY_LEVELS["shadow"]: c * 0.62, KEY_LEVELS["base"]: c, KEY_LEVELS["high"]: c + (255 - c) * 0.4}
-    g = layer_rgba[..., 0]
-    out = np.zeros(layer_rgba.shape[:2] + (3,), np.float32)
-    out[:] = INKC
-    for lv, col in ramp.items():
-        out[g > lv - 40] = col   # 由低到高逐階覆蓋，等同以 45/130/212 為界
-    # 上面的寫法依字典順序（90、170、255）逐階覆蓋；ink 是 g<=50
+    ink = np.array(INKC, np.float32)
+    stops = [ink, c + (ink - c) * 0.28, c, c + (np.array([0xFB, 0xF8, 0xEE], np.float32) - c) * 0.38]
+    p = np.clip(layer_rgba[..., 0].astype(np.float32) / 255, 0, 1) * 3
+    i = np.minimum(p.astype(int), 2)
+    f = (p - i)[..., None]
+    st = np.stack(stops)
+    out = st[i] * (1 - f) + st[i + 1] * f
     return np.dstack([out.clip(0, 255), layer_rgba[..., 3]]).round().astype(np.uint8)
 
 
@@ -69,7 +70,7 @@ def measure_union(items):
     for _, _, f, fixed in items:
         im = np.asarray(Image.open(f).convert("RGBA"))
         sd = im[..., 3] > 128
-        ik = sd & ((cv2.cvtColor(im[..., :3], cv2.COLOR_RGB2GRAY) < 80) if fixed else (im[..., 0] <= 40))
+        ik = sd & ((cv2.cvtColor(im[..., :3], cv2.COLOR_RGB2GRAY) < 80) if fixed else (im[..., 0] <= INK_MAX_KEY))
         solid = sd if solid is None else solid | sd
         ink = ik if ink is None else ink | ik
     return _measure(solid, ink, None, False)
@@ -78,7 +79,7 @@ def measure_union(items):
 def measure(name, sub, path, fixed):
     im = np.asarray(Image.open(path).convert("RGBA"))
     solid = im[..., 3] > 128
-    ink = (im[..., 0] <= 40) if not fixed else (cv2.cvtColor(im[..., :3], cv2.COLOR_RGB2GRAY) < 80)
+    ink = (im[..., 0] <= INK_MAX_KEY) if not fixed else (cv2.cvtColor(im[..., :3], cv2.COLOR_RGB2GRAY) < 80)
     return _measure(solid, ink, im, fixed)
 
 
@@ -105,8 +106,7 @@ def layers_sheet(files, bg, path):
     for n, sub, f in files:
         fixed = sub in P.PARTS[n].get("fixed", [])
         im = np.asarray(Image.open(f).convert("RGBA"))
-        pal = PALETTES[0]
-        rgba = im if fixed else tint(im, pal.get(sub if sub in pal else {"hair": "hair", "brow": "hair", "beard": "hair", "cloth": "cloth", "trim": "trim", "iris": "iris"}.get(sub, "hair")))
+        rgba = im if fixed else tint(im, PALETTES[0][P.PARTS[n]["dye"][sub]])
         canvas = np.zeros(im.shape[:2] + (3,), np.float32)
         canvas[:] = bg
         tiles.append(paste(canvas, rgba).round().astype(np.uint8))
@@ -114,47 +114,23 @@ def layers_sheet(files, bg, path):
     Image.fromarray(sheet).save(path)
 
 
-def skin_retint(base, src_skin, dst_skin):
-    hsv = cv2.cvtColor(base, cv2.COLOR_RGB2HSV).astype(np.float32)
-    h, s, v = hsv[..., 0] * 2, hsv[..., 1] / 255, hsv[..., 2] / 255
-    skin = (h > 10) & (h < 45) & (s > 0.18) & (v > 0.35)
-    ratio = np.array(dst_skin, np.float32) / np.array(src_skin, np.float32)
-    out = base.astype(np.float32)
-    out[skin] *= ratio
-    return out.clip(0, 255).astype(np.uint8)
-
-
-def paper_alpha(base):
-    d = np.abs(base.astype(int) - np.array(PAPER)[None, None]).max(2)
-    return (d > 14).astype(np.uint8)
-
-
-def stack(names, path, sex="m"):
-    base = np.asarray(Image.open(P.base_path(sex)).convert("RGB").resize(P.OUT, Image.LANCZOS))
-    skin_alpha = cv2.GaussianBlur(paper_alpha(base).astype(np.float32), (0, 0), 0.6)
-    skin_alpha = np.where(skin_alpha > 0.5, 1.0, 0.0).astype(np.float32)
-    order = {s: i for i, s in enumerate(P.SLOTS)}
+def stack(names, path):
+    """已有的部件依疊圖順序疊起，三組染色並排（臉是部件，沒有底版）。"""
+    order = {sid: o for sid, o, _ in P.SLOTS}
     cols = []
     for pal in PALETTES:
-        canvas = np.zeros(base.shape[:2] + (3,), np.float32)
+        canvas = np.zeros((P.OUT[1], P.OUT[0], 3), np.float32)
         canvas[:] = PAPER
-        face = skin_retint(base, PALETTES[0]["skin"], pal["skin"])
-        face_rgba = np.dstack([face, (skin_alpha * 255).astype(np.uint8)])
         layers = []
         for n in names:
-            slot = P.PARTS[n]["slot"]
-            for sub in P.PARTS[n]["subs"]:
+            spec = P.PARTS[n]
+            for k, sub in enumerate(spec["subs"]):
                 f = P.TMP + f"key/{n}.{sub}.png"
                 if not os.path.exists(f):
                     continue
                 im = np.asarray(Image.open(f).convert("RGBA"))
-                if sub in P.PARTS[n].get("fixed", []):
-                    rgba = im
-                else:
-                    key = {"hair": "hair", "brow": "hair", "beard": "hair", "cloth": "cloth", "trim": "trim", "iris": "iris"}[sub]
-                    rgba = tint(im, pal[key])
-                layers.append((order[slot], rgba))
-        layers.append((order["hair_back"] + 0.5, face_rgba))   # 底版（臉加內衫）緊接在後髮之上，領壓在它上面
+                rgba = im if sub in spec.get("fixed", []) else tint(im, pal[spec["dye"][sub]])
+                layers.append((order[spec["slot"]] + k * 0.1 + (0.05 if sub == "trim" else 0), rgba))
         for _, rgba in sorted(layers, key=lambda t: t[0]):
             paste(canvas, rgba)
         cols.append(canvas.round().astype(np.uint8))
