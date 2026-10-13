@@ -467,6 +467,10 @@ pub const FAMINE_KARMA: f32 = 0.02;
 pub const POP_MIGRATE_THRESHOLD: f64 = 0.9;
 /// 7.1 `POP_MIGRATE` 遷徙比例 1%（GDD 2.3 遷徙）。
 pub const POP_MIGRATE_RATE: f64 = 0.01;
+/// 7.1 `POP_SEA_MIGRATE_THRESHOLD` 渡海遷徙門檻：沿岸州人口 > 0.8K 才開始流向海路鄰州（GDD 2.3 遷徙）。
+pub const POP_SEA_MIGRATE_THRESHOLD: f64 = 0.8;
+/// 7.1 `POP_SEA_MIGRATE_RATE` 渡海遷徙比例 0.05%（陸路的二十分之一，GDD 2.3 遷徙）。
+pub const POP_SEA_MIGRATE_RATE: f64 = 0.0005;
 
 /// 7.1 `DEVASTATION_RECOVER` 殘破度每年恢復量 0.1（GDD 2.3 殘破度）。
 pub const DEVASTATION_RECOVER: f32 = 0.1;
@@ -1163,34 +1167,22 @@ pub const GENESIS_AFFINITY_FAITH_WEIGHT: f32 = 0.5;
 pub const GENESIS_AFFINITY_STATUS_WEIGHT: f32 = 0.5;
 /// 7.1 `GENESIS_AFFINITY` 身分偏向對應教派的分量 1（修士 道、僧 釋、儒士 儒、魔修 魔；散人均等，GDD 4.6 開天）。
 pub const GENESIS_AFFINITY_STATUS_BIAS: f32 = 1.0;
-/// 7.1 `GENESIS_THREADS` 開局宿緣數係數 0.1，即 有名之人數 × 0.1（GDD 4.6 開天）。
-pub const GENESIS_THREADS_PER_NOTABLE: f32 = 0.1;
-/// 7.1 `GENESIS_THREADS` 開局宿緣雙方的距離上限 3 步（GDD 4.6 開天）。
-pub const GENESIS_THREAD_RANGE_STEPS: u32 = 3;
-/// 7.1 `GENESIS_PYRAMID` 修士每高一境的人數比例 0.35（GDD 4.6 開天）。
-pub const GENESIS_PYRAMID_RATIO: f32 = 0.35;
-/// 7.1 `GENESIS_AGE_MAX` 開局年齡下限 12 歲，年齡均勻分布於 12 至 壽元 × 0.6（GDD 4.6 開天）。
-pub const GENESIS_AGE_MIN: u32 = 12;
-/// 7.1 `GENESIS_AGE_MAX` 開局年齡上限為壽元 × 0.6（GDD 4.6 開天）。
-pub const GENESIS_AGE_MAX_LIFESPAN_RATIO: f32 = 0.6;
-/// 7.1 `GENESIS_PRERUN_YEARS` 開局預跑 10 年（GDD 4.6 開天）。
-pub const GENESIS_PRERUN_YEARS: u32 = 10;
-/// 7.1 `GENESIS_PRERUN_YEARS` 預跑的 tick 範圍為 1..=120（10 年 × 12 個月；GDD 4.6 開天）。
-pub const GENESIS_PRERUN_TICK_END: u32 = 120;
-/// 7.1 `GENESIS_HIGH_REALM` 中古、末法開局保證的渡劫以上修士人數 2（GDD 4.6 開天）。
-pub const GENESIS_HIGH_REALM_COUNT: u32 = 2;
-/// 7.1 `GENESIS_HIGH_REALM` 上述修士的最低境界 7（渡劫，境界索引；GDD 4.6 開天與 3.5 境界表）。
-pub const GENESIS_HIGH_REALM_MIN_REALM: u8 = 7;
-/// 7.1 `GENESIS_FORCED_BT` 開局保證的強制突破於 tick 123，即預跑結束後第 3 個月（GDD 4.6 開天）。
-pub const GENESIS_FORCED_BT_TICK: u32 = 123;
-/// 7.1 `GENESIS_SECTS` 開天宗門數（中尺寸），依 [上古, 中古, 末法] 排列（GDD 4.6 開局時代）。
-pub const GENESIS_SECTS: [u32; 3] = [12, 10, 5];
-/// 7.1 `GENESIS_NOTABLE` 初始有名之人數佔 `NOTABLE_CAP` 的比例，依 [上古, 中古, 末法] 排列（GDD 4.6 開局時代）。
-pub const GENESIS_NOTABLE_RATIO: [f32; 3] = [0.3, 0.75, 0.75];
-/// 7.1 `GENESIS_ROAMERS` 上古開局另有的遊方僧數（中尺寸；GDD 4.6 開局時代）。
-pub const GENESIS_ROAMING_MONKS_ANCIENT: u32 = 20;
-/// 7.1 `GENESIS_ROAMERS` 上古開局另有的散儒數（中尺寸；GDD 4.6 開局時代）。
-pub const GENESIS_ROAMING_SCHOLARS_ANCIENT: u32 = 20;
+/// 7.1 `GENESIS_POP_YEARS` 人口期預設長度 10,000 年（GDD 4.6 開天；世界參數 `pop_years`）。
+pub const GENESIS_POP_YEARS: u32 = 10_000;
+/// 7.1 `GENESIS_POP_YEARS` 人口期長度上限 20,000 年。
+pub const GENESIS_POP_YEARS_MAX: u32 = 20_000;
+/// 7.1 `GENESIS_PRERUN_YEARS` 人物期（逐月預跑）預設長度 600 年（GDD 4.6 開天；世界參數 `prerun_years`）。
+pub const GENESIS_PRERUN_YEARS: u32 = 1_000;
+/// 7.1 `GENESIS_PRERUN_YEARS` 人物期長度上限 5,000 年。
+pub const GENESIS_PRERUN_YEARS_MAX: u32 = 5_000;
+/// 7.1 `GENESIS_SETTLE_COUNT` 第一批聚落數，依規模 [S, M, L]（GDD 4.6 開天）。
+pub const GENESIS_SETTLE_COUNT: [u32; 3] = [6, 10, 16];
+/// 7.1 `GENESIS_SETTLE_SPACING` 聚落落點的最小間距係數：間距 = 係數 × sqrt(陸地面積 / 聚落數)（同州郡種子點的 `WG_PROV_SPACING`）。
+pub const GENESIS_SETTLE_SPACING: f32 = 0.8;
+/// 7.1 `GENESIS_SETTLE_POP` 每個聚落的初始人口。
+pub const GENESIS_SETTLE_POP: f64 = 300.0;
+/// 7.1 `NOTABLE_PER_POP` 有名之人名額隨人口：名額 = min(`NOTABLE_CAP`, 總人口 × 此值)。
+pub const NOTABLE_PER_POP: f64 = 2.0e-4;
 
 // ---- 魔修（GDD 3.10；M2 僅列魔修相關者）----
 
@@ -1224,10 +1216,14 @@ pub const MASTER_TEACH_MERIT: f32 = 2.0;
 
 /// 7.1 `DYN_FOUND` 立國：州人口下限 50,000（GDD 3.7 開國）。
 pub const DYN_FOUND_POP: f64 = 50_000.0;
-/// 7.1 `DYN_FOUND` 立國：散人或武將候補的才略下限 8。
-pub const DYN_FOUND_TALENT: f32 = 8.0;
+/// 7.1 `DYN_FOUND_TALENT_REF` 立國：才略等於此值時成功率為 `DYN_FOUND_CHANCE`（取當地才略最高的散人或武將候補，無絕對門檻）。
+pub const DYN_FOUND_TALENT_REF: f32 = 5.0;
+/// 7.1 `DYN_FOUND_TALENT_EXP` 立國：成功率 = `DYN_FOUND_CHANCE` × (才略 / 參照值)^此指數。
+pub const DYN_FOUND_TALENT_EXP: f32 = 3.0;
+/// 7.1 `DYN_FOUND_CHANCE_MAX` 立國：成功率上限。
+pub const DYN_FOUND_CHANCE_MAX: f32 = 0.2;
 /// 7.1 `DYN_FOUND` 立國：每年機率 2%。
-pub const DYN_FOUND_CHANCE: f32 = 0.02;
+pub const DYN_FOUND_CHANCE: f32 = 0.004;
 /// 7.1 `GENERAL_CANDIDATE` 武將候補的才略下限 6（GDD 3.4 入道判定）。
 pub const GENERAL_CANDIDATE_TALENT: f32 = 6.0;
 /// 7.1 `DYN_COVER` 中古開局王朝數下限 4（GDD 3.7 開國）。
@@ -1374,3 +1370,32 @@ pub const ROYAL_BIRTH: f32 = 0.15;
 pub const ROYAL_MAX: usize = 5;
 /// 7.1 `MANDATE_BROKE` 國庫不足時，才略最高的武將叛離自立的機率 50%（GDD 3.7 財政）。
 pub const BROKE_DEFECT_CHANCE: f32 = 0.5;
+
+// ── 天地負荷與大劫（GDD 3.11、2.8；分期預跑後新增）─────────────────────────
+
+/// 7.1 `CATA_LIMIT` 天地承受上限，依規模 [S, M, L]（負荷單位見 `CATA_W_*`）。
+pub const CATA_LIMIT: [f64; 3] = [30.0, 45.0, 60.0];
+/// 7.1 `CATA_W_POP` 負荷權重：每百萬人口。
+pub const CATA_W_POP: f64 = 1.0;
+/// 7.1 `CATA_W_NOTABLE` 負荷權重：每千名在世有名之人。
+pub const CATA_W_NOTABLE: f64 = 2.0;
+/// 7.1 `CATA_W_THREAD` 負荷權重：每萬條未了宿緣線。
+pub const CATA_W_THREAD: f64 = 3.0;
+/// 7.1 `CATA_MIN_GAP_YEARS` 兩次大劫降下之間至少相隔的年數。
+pub const CATA_MIN_GAP_YEARS: u32 = 120;
+/// 7.1 `CATA_DURATION_YEARS` 一次大劫的持續年數（劫終開承平紀元）。
+pub const CATA_DURATION_YEARS: u32 = 3;
+/// 7.1 `CATA_SLOW_YEARS` 劫終之後新宿緣線不易長出的年數。
+pub const CATA_SLOW_YEARS: u32 = 60;
+/// 7.1 `CATA_SLOW_THREAD_CUT` 劫終當下新宿緣線被擋下的比例，之後線性回復。
+pub const CATA_SLOW_THREAD_CUT: f64 = 0.7;
+/// 7.1 `CATA_POP_LOSS` 大劫各州人口基礎損失比例。
+pub const CATA_POP_LOSS: f64 = 0.15;
+/// 7.1 `CATA_POP_LOSS_KARMA` 業氣加成（損失 += 係數 × 業氣）。
+pub const CATA_POP_LOSS_KARMA: f64 = 0.4;
+/// 7.1 `CATA_POP_LOSS_DEVASTATION` 殘破度加成。
+pub const CATA_POP_LOSS_DEVASTATION: f64 = 0.3;
+/// 7.1 `CATA_THREAD_CUT` 大劫切斷未了宿緣線的比例（先切雙方不在世者，再切強度低者）。
+pub const CATA_THREAD_CUT: f64 = 0.6;
+/// 7.1 `CATA_DEATH` 大劫中在世有名之人身隕的機率（不分境界）。
+pub const CATA_DEATH: f64 = 0.2;

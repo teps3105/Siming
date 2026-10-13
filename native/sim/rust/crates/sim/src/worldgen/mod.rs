@@ -272,7 +272,7 @@ fn build_draft(params: &WorldParams, seed: u64) -> (Draft, ChaCha8Rng, u32) {
     // 8. 靈脈。
     let mut nodes = ley::nodes(&sp, &terrain, &height, &ridged, target);
     // 開局前的歷史裡，洞天福地已隨靈潮升降過（GDD 2.8）；靈氣以開局那一年的靈潮為倍率。
-    let tide = crate::evolution::history_nodes(seed, params.era, &mut nodes);
+    let tide = crate::evolution::history_nodes(seed, params.era, params.pop_years + params.prerun_years, &mut nodes);
     let edges = ley::edges(&sp, &terrain, &nodes);
     let aura = ley::aura_cell(&sp, &terrain, &nodes, &edges, tide);
 

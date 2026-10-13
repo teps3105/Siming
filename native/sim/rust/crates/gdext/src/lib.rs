@@ -10,6 +10,8 @@ use std::sync::mpsc::{self, Receiver, TryRecvError};
 use godot::prelude::*;
 use relief::Relief;
 use siming_sim::save::{Replay, SaveFile};
+use std::sync::atomic::{AtomicU32, Ordering};
+
 use siming_sim::{calendar, Command, Era, FineGeography, Geography, Sim, WorldParams, WorldSize, NO_PROVINCE};
 
 /// 山脈標籤的路徑：沿主軸每幾格取一段（GDD 5.3「文字標籤」）。
@@ -61,6 +63,8 @@ pub struct SimWorld {
     /// 背景執行緒上重算中的一批（GDD 2.8「畫面」）。
     rebake: Option<Rebake>,
     /// 高度場換過幾次；地圖顯示的資料（含州界、靈氣）換過幾次。
+    /// `create_with` 已明確指定預跑長度（不套用 `set_default_prerun`）。
+    explicit_prerun: bool,
     terrain_revision: i64,
     map_revision: i64,
     base: Base<RefCounted>,
@@ -217,7 +221,21 @@ impl SimWorld {
         if params.name.is_empty() {
             params.name = siming_sim::worldgen::world_name(params.seed);
         }
-        match Sim::new(&params) {
+        let (pop, pre) = (DEFAULT_POP_YEARS.load(Ordering::Relaxed), DEFAULT_PRERUN_YEARS.load(Ordering::Relaxed));
+        if pop != UNSET && !self.explicit_prerun {
+            params.pop_years = pop;
+        }
+        if pre != UNSET && !self.explicit_prerun {
+            params.prerun_years = pre;
+        }
+        self.explicit_prerun = false;
+        PROGRESS_STAGE.store(0, Ordering::Relaxed);
+        PROGRESS_MILLI.store(0, Ordering::Relaxed);
+        let mut progress = |stage: siming_sim::genesis::Stage, f: f32| {
+            PROGRESS_STAGE.store(stage as u32 + 1, Ordering::Relaxed);
+            PROGRESS_MILLI.store((f.clamp(0.0, 1.0) * 1000.0) as u32, Ordering::Relaxed);
+        };
+        match Sim::new_with_progress(&params, &mut |_, _| {}, &mut progress) {
             Ok(sim) => {
                 self.adopt(sim);
                 GString::new()
@@ -226,6 +244,12 @@ impl SimWorld {
         }
     }
 }
+
+const UNSET: u32 = u32::MAX;
+static DEFAULT_POP_YEARS: AtomicU32 = AtomicU32::new(UNSET);
+static DEFAULT_PRERUN_YEARS: AtomicU32 = AtomicU32::new(UNSET);
+static PROGRESS_STAGE: AtomicU32 = AtomicU32::new(0);
+static PROGRESS_MILLI: AtomicU32 = AtomicU32::new(0);
 
 #[godot_api]
 impl SimWorld {
@@ -259,6 +283,15 @@ impl SimWorld {
                 _ => Era::Middle,
             };
         }
+        let count = |key: &str| options.get(key).and_then(|v| v.try_to::<i64>().ok()).map(|n| n.clamp(0, 20_000) as u32);
+        if let Some(n) = count("pop_years") {
+            params.pop_years = n;
+            self.explicit_prerun = true;
+        }
+        if let Some(n) = count("prerun_years") {
+            params.prerun_years = n;
+            self.explicit_prerun = true;
+        }
         if let Some(v) = number("land_ratio") {
             params.land_ratio = v.clamp(0.25, 0.55);
         }
@@ -269,6 +302,24 @@ impl SimWorld {
             params.humidity = v.clamp(0.6, 1.4);
         }
         self.open(params)
+    }
+
+    /// 之後開天的預設預跑長度（人口期年數、人物期年數）；測試用，讓每個案例的世界快速建好。
+    /// 傳負數表示還原成世界參數的預設值。`create_with` 明確給的 `pop_years`、`prerun_years` 優先。
+    #[func]
+    fn set_default_prerun(pop_years: i64, prerun_years: i64) {
+        let f = |n: i64| if n < 0 { UNSET } else { n.min(20_000) as u32 };
+        DEFAULT_POP_YEARS.store(f(pop_years), Ordering::Relaxed);
+        DEFAULT_PRERUN_YEARS.store(f(prerun_years), Ordering::Relaxed);
+    }
+
+    /// 開天進度（可在另一條執行緒建世界時輪詢）：`stage` 0 未開始、1 聚落、2 人口期、3 人物期；`fraction` 0..1。
+    #[func]
+    fn genesis_progress() -> VarDictionary {
+        let mut d = VarDictionary::new();
+        d.set("stage", PROGRESS_STAGE.load(Ordering::Relaxed) as i64);
+        d.set("fraction", PROGRESS_MILLI.load(Ordering::Relaxed) as f64 / 1000.0);
+        d
     }
 
     /// 這個世界的開局選項（鍵與 `create_with` 相同；`seed` 是品質檢查重試後實際使用的種子）。

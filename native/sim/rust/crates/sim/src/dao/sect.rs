@@ -14,7 +14,6 @@ use crate::params::*;
 use crate::people::{self, sect_capacity};
 use crate::schedule::{Domain, Round};
 use crate::sim::World;
-use crate::soul;
 use crate::thread;
 use crate::types::{NodeId, ProvinceId};
 
@@ -406,8 +405,34 @@ pub(super) fn join_rogues(w: &mut World, round: Round, ranges: &mut RangeCache) 
     }
 }
 
-/// 補足（3.4 來源第 2 項）：成員少於規模的宗門，建立新魂以 12 歲出生於山門州郡並入門（受在世上限限制）。
-/// 沒有成員的宗門不補（道統已斷，見覆滅）。
+/// 補足的人選上限年齡：凡人要年輕到還能當弟子。
+const FILL_MAX_AGE_YEARS: u32 = 30;
+
+/// 補足的人選：山門州郡內、沒有勢力的在世者——已滿 12 歲仍是幼年的，或 30 歲以下的凡人（散人）；
+/// 取根骨最高者，同值取 ID 小者。不憑空造人：挑不到就是 `None`。
+fn local_recruit(w: &World, province: ProvinceId) -> Option<PersonId> {
+    let tick = w.tick;
+    let mut best: Option<(f32, PersonId)> = None;
+    for &i in &w.alive_ids {
+        let p = &w.persons[i as usize];
+        if p.province != province || p.power.is_some() || p.travel_until.is_some() {
+            continue;
+        }
+        let age = p.age(tick);
+        let fits = match p.role {
+            Role::Child => age >= FILL_AGE_YEARS,
+            Role::Commoner => matches!(p.path, PathState::Mortal) && (FILL_AGE_YEARS..=FILL_MAX_AGE_YEARS).contains(&age),
+            _ => false,
+        };
+        if fits && best.is_none_or(|(r, _)| p.attrs.root > r) {
+            best = Some((p.attrs.root, p.id));
+        }
+    }
+    best.map(|b| b.1)
+}
+
+/// 補足（3.4 來源第 2 項）：成員少於規模的宗門，從山門州郡既有的人裡挑弟子入門（[`local_recruit`]），
+/// 挑不到就不補；不再建立新魂。沒有成員的宗門不補（道統已斷，見覆滅）。
 fn fill_sects(w: &mut World, round: Round) {
     let seed = w.params.seed;
     for idx in 0..w.powers.len() {
@@ -418,11 +443,9 @@ fn fill_sects(w: &mut World, round: Round) {
         let cap = sect_capacity(effective_prestige(pw));
         let (id, seat_province, seat_cell) = (pw.id, pw.seat_province, pw.seat_cell);
         let mut have = pw.members.len();
-        while have < cap && soul::living_notables(w) < soul::notable_cap(w) {
-            let (_, pid) = soul::spawn_new_life(w, SoulOrigin::New, seat_province);
-            let tick = w.tick;
+        while have < cap {
+            let Some(pid) = local_recruit(w, seat_province) else { break };
             let p = &mut w.persons[pid as usize];
-            p.born = tick as i32 - (FILL_AGE_YEARS * 12) as i32;
             p.role = Role::Cultivator;
             p.path = PathState::Cultivator { realm: 0, exp: 0.0, last_attempt: None };
             p.lifespan = p.lifespan.max(REALM_LIFESPAN[0] as u16);

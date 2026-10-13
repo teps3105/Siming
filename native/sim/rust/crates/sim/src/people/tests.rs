@@ -62,7 +62,7 @@ fn line_world(seed: u64, n: usize) -> World {
             if i + 1 < n {
                 nb.push(i as u16 + 1);
             }
-            province(i as u16, 1000.0, nb, 0.5)
+            province(i as u16, 1_000_000.0, nb, 0.5)
         })
         .collect();
     let mut w = World::empty(WorldParams::new(seed), geo(), provs);

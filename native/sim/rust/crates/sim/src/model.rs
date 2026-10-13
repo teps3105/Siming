@@ -540,6 +540,9 @@ pub struct Ledger {
     pub effects: Vec<SmallVec<[EventId; 4]>>,
     /// 修剪游標（GDD 3.3，U7）：此 ID 之前的事件都已檢查過。
     pub prune_cursor: EventId,
+    /// 因在世者或未了線而暫不修剪的舊事件（每十年複查）。
+    #[serde(default)]
+    pub prune_deferred: Vec<EventId>,
     /// 輸出游標（GDD 6.3 事件輸出，U7）：此 ID 之前的事件都已由 `take_new` 取走。
     pub emit_cursor: EventId,
 }

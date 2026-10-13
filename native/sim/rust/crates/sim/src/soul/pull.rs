@@ -24,7 +24,7 @@ pub fn normalize4(v: [f32; 4]) -> [f32; 4] {
     }
 }
 
-fn normalized(mut v: Vec<f64>) -> Vec<f64> {
+pub(super) fn normalized(mut v: Vec<f64>) -> Vec<f64> {
     let sum: f64 = v.iter().sum();
     if sum > 0.0 {
         for x in &mut v {

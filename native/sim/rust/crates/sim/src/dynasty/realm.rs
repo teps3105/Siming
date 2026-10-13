@@ -6,7 +6,6 @@ use std::sync::OnceLock;
 use rand::Rng;
 
 use super::*;
-use crate::soul;
 use crate::types::Era;
 
 /// 不可達的距離。
@@ -155,19 +154,6 @@ pub fn found(w: &mut World, founder: PersonId, capital: ProvinceId, provinces: &
     id
 }
 
-/// 新建一名成年的散人（新魂，年齡 `age`），君主或起義首領不夠時使用。
-fn new_adult(w: &mut World, province: ProvinceId, age: u32) -> PersonId {
-    // 開天（tick 0）時建立的是先天魂（GDD 4.6）。
-    let origin = if w.tick == 0 { SoulOrigin::Primordial } else { SoulOrigin::New };
-    let (_, pid) = soul::spawn_new_life(w, origin, province);
-    let tick = w.tick as i32;
-    let p = &mut w.persons[pid as usize];
-    p.born = tick - (age * 12) as i32;
-    p.role = Role::Commoner;
-    p.path = PathState::Mortal;
-    pid
-}
-
 /// 州內才略最高的散人或武將候補（成年、無勢力、才略 ≥ `min_talent`）；同值取 ID 小者。
 fn best_commoner(w: &World, province: ProvinceId, min_talent: f32) -> Option<PersonId> {
     let tick = w.tick;
@@ -222,9 +208,12 @@ pub fn yearly_found(w: &mut World, round: Round) {
         if pr.lost || w.dynasty.owner_of(p).is_some() || pr.population < DYN_FOUND_POP {
             continue;
         }
-        let founder = table.get_or_insert_with(|| best_commoners(w, DYN_FOUND_TALENT)).get(p as usize).copied().flatten();
+        let founder = table.get_or_insert_with(|| best_commoners(w, 0.0)).get(p as usize).copied().flatten();
         let Some(founder) = founder else { continue };
-        if w.rng.dynasty.gen::<f32>() >= DYN_FOUND_CHANCE {
+        // 取當地最出眾者起事：才略越高成功率越高（曲線見 7.1 `DYN_FOUND_TALENT_REF`、`DYN_FOUND_TALENT_EXP`）。
+        let talent = w.persons[founder as usize].attrs.talent.max(0.0);
+        let chance = (DYN_FOUND_CHANCE * (talent / DYN_FOUND_TALENT_REF).powf(DYN_FOUND_TALENT_EXP)).min(DYN_FOUND_CHANCE_MAX);
+        if w.rng.dynasty.gen::<f32>() >= chance {
             continue;
         }
         let mut provs = free_neighbors(w, &[p]);
@@ -236,7 +225,7 @@ pub fn yearly_found(w: &mut World, round: Round) {
 
 /// GDD 3.7 開國：中古 4–6 個、末法 2–3 個王朝，合計覆蓋約 70% 的陸地（州郡數）；上古無。
 /// 都城取彼此（陸路）最遠的州（人口多者優先），疆域由各都城輪流向無主陸鄰擴張。
-/// 君主取都城的散人或武將候補中才略最高者，沒有則新建一名 25 歲的散人。
+/// 君主取都城的散人或武將候補中才略最高者，沒有則該都城不立國。
 pub fn found_initial(w: &mut World) {
     let count = match w.params.era {
         Era::Ancient => return,
@@ -299,7 +288,8 @@ pub fn found_initial(w: &mut World) {
         }
     }
     for (k, &cap) in seeds.iter().enumerate() {
-        let founder = best_commoner(w, cap, 0.0).unwrap_or_else(|| new_adult(w, cap, REBEL_AGE));
+        // 不憑空造人：都城沒有合格的散人就不立國。
+        let Some(founder) = best_commoner(w, cap, 0.0) else { continue };
         found(w, founder, cap, &terr[k]);
     }
 }
@@ -553,8 +543,8 @@ pub(super) fn unrest(w: &mut World, di: usize, broke: bool) {
             if w.rng.dynasty.gen::<f32>() >= p {
                 continue;
             }
-            // 首領：該州才略最高的散人或武將候補；沒有時建立新魂，25 歲出生在該州（叛軍與戰鬥屬 3.9）。
-            let leader = best_commoner(w, prov, 0.0).unwrap_or_else(|| new_adult(w, prov, REBEL_AGE));
+            // 首領：該州才略最高的散人或武將候補（叛軍與戰鬥屬 3.9）；不憑空造人，沒有就不起義。
+            let Some(leader) = best_commoner(w, prov, 0.0) else { continue };
             let cause: Vec<EventId> = w.persons[leader as usize].last_event.into_iter().collect();
             rec(w, EventKind::Rebellion, 3, Some(prov), &[leader], id, None, 0, &cause);
         }

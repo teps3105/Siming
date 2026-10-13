@@ -2,10 +2,18 @@
 
 use siming_sim::{landform, EventArgs, EventKind, PowerKind, Sim, Terrain, World, WorldParams, NO_PROVINCE};
 
+/// 測試用的短開天：人口期 0 年、人物期 0 年（預設長度太慢，且測試要看的是其中一段規則）。
+fn quick(seed: u64) -> WorldParams {
+    let mut p = WorldParams::new(seed);
+    p.pop_years = 0;
+    p.prerun_years = 0;
+    p
+}
+
 const SEED: u64 = 20261011;
 
 fn sim() -> Sim {
-    Sim::new(&WorldParams::new(SEED)).unwrap()
+    Sim::new(&quick(SEED)).unwrap()
 }
 
 /// 把寒暖與海平面定在相對於開局的偏移上（測試直接呼叫地形的結算，不經慢變量的週期）。

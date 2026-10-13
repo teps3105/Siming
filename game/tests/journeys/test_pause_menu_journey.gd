@@ -228,9 +228,12 @@ func test_share_code_copies_and_pastes_through_the_clipboard() -> void:
 
 func test_auto_save_once_per_shi_keeps_the_newest_five() -> void:
 	_game.auto_save = true
-	_sim.advance(200)
-	assert_eq(SaveStore.auto_saves().size(), 0, "還沒滿一世")
-	_sim.advance(200)
+	# 接手時的 tick 可能恰在一世的邊界上（人口期與人物期的年數都是三十的倍數時），所以先算出離下個邊界還有幾個月。
+	var to_boundary: int = SaveStore.AUTO_INTERVAL_MONTHS - (_sim.world.tick() - 1) % SaveStore.AUTO_INTERVAL_MONTHS
+	if to_boundary > 1:
+		_sim.advance(to_boundary - 1)
+	assert_eq(SaveStore.auto_saves().size(), 0, "接手與快進到邊界前都不存")
+	_sim.advance(1)
 	assert_eq(SaveStore.auto_saves().size(), 1, "跨過一世存一份")
 	for i in 6:
 		_sim.advance(SaveStore.AUTO_INTERVAL_MONTHS)

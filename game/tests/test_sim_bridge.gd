@@ -116,9 +116,9 @@ func test_date_uses_the_era_form_with_arabic_numerals() -> void:
 	assert_true(parts[0].ends_with("紀元") and parts[0].length() == 4, "紀元名是兩個字加「紀元」：%s" % parts[0])
 	assert_true(parts[1].ends_with("年") and parts[1].trim_suffix("年").is_valid_int(), "年是阿拉伯數字：%s" % parts[1])
 	assert_eq(parts[2], "%d月" % (months % 12 + 1))
-	# 開局不是開天第一年：開局前的世界已有一段歷史（GDD 2.8）。
+	# 開天就是第 0 年，沒有開局前的歷史；題簽的「開天以來第 N 年」等於預跑年數加上之後的年數。
 	var history := world.history_years()
-	assert_gt(history, 0, "開局前已有歷史")
+	assert_eq(history, 0, "開天沒有開局前的歷史")
 	assert_eq(world.date_text(), "%s（開天以來第 %d 年）" % [date, history + months / 12 + 1])
 
 
@@ -363,7 +363,7 @@ func test_gdd_2_8_world_changes_come_out_of_the_event_queue_with_their_era() -> 
 	assert_gt(changes.size(), 0, "六十世裡應有世界大事")
 	var opened := 0
 	for event in changes:
-		assert_true(event["change"] in ["ColdBegan", "ColdEnded", "WarmBegan", "WarmEnded", "DeclineBegan", "DeclineEnded", "RevivalBegan", "RevivalEnded"])
+		assert_true(event["change"] in ["ColdBegan", "ColdEnded", "WarmBegan", "WarmEnded", "DeclineBegan", "DeclineEnded", "RevivalBegan", "RevivalEnded", "CataclysmBegan", "CataclysmEnded"])
 		if event["era"] != "":
 			opened += 1
 	assert_gt(opened, 0, "六十世裡應有改元")
@@ -524,6 +524,7 @@ func test_gdd_5_5_sects_report_seat_province_and_range() -> void:
 	world.create(SEED, "small")
 	var sects := world.sects()
 	assert_gt(sects.size(), 0, "開天後世界應有宗門")
+	var staffed := 0
 	for sect: Dictionary in sects:
 		for key in ["id", "name", "pos", "province", "node", "members", "prestige", "radius", "range", "range_radius", "evil", "alive"]:
 			assert_true(sect.has(key), "宗門欄位 %s" % key)
@@ -531,8 +532,10 @@ func test_gdd_5_5_sects_report_seat_province_and_range() -> void:
 		assert_eq(world.province_at(pos.x, pos.y), sect["province"], "山門的位置落在山門所在州郡")
 		assert_true((sect["range"] as PackedInt32Array).has(sect["province"]), "勢力範圍含山門所在州郡")
 		assert_gt(sect["range_radius"], 0.0)
-		if sect["alive"]:
-			assert_gt(sect["members"], 0, "還在的宗門有成員")
+		# 補人只從當地既有的人裡挑，當地沒人的宗門可以暫時沒有成員。
+		if sect["alive"] and sect["members"] > 0:
+			staffed += 1
+	assert_gt(staffed, 0, "還在的宗門裡有成員的至少一個")
 	assert_eq(world.sects().size(), sects.size(), "只讀：連呼兩次結果相同")
 
 
@@ -649,7 +652,11 @@ func test_gdd_5_8_person_history_is_ordered_and_matches_the_ledger() -> void:
 					# 遊歷的「出門或歸來」事件流在當下以故里判斷；歷程事後以行程順序判斷，兩者可以不同，不比。
 					if key == "x" and entry["kind"] == "Traveled":
 						continue
-					assert_eq(entry[key], stream[entry["id"]][key], "與事件流同一筆的「%s」" % key)
+					# 以魂取主角的事件（人數少於魂數），事後取得時是魂現在的肉身，轉世後會不同，不比。
+					var streamed: Dictionary = stream[entry["id"]]
+					if key in ["a", "b"] and (streamed["persons"] as Array).size() < (streamed["souls"] as Array).size():
+						continue
+					assert_eq(entry[key], streamed[key], "與事件流同一筆的「%s」" % key)
 	var dead_id: int = picks[1]
 	var dead := world.person(dead_id)
 	assert_false(dead["alive"])
@@ -701,6 +708,9 @@ func test_gdd_5_8_event_matches_the_stream_and_missing_is_empty() -> void:
 		for key in ["id", "tick", "kind", "importance", "province", "a", "b", "f", "g", "p", "q", "x", "n", "m", "year", "month", "a_person", "b_person", "q_province", "persons", "powers", "souls"]:
 			# 遊歷的「出門或歸來」事件流在當下以故里判斷，事後取得時故里可能已變，不比。
 			if key == "x" and streamed["kind"] == "Traveled":
+				continue
+			# 入道事件的宗門欄在事件流當下是空的，事後取得時是此人現在所屬的宗門（入道後才入宗），不比。
+			if key == "f" and streamed["kind"] == "ComeOfAge":
 				continue
 			# 以魂取主角的事件（人數少於魂數），事後取得時是魂現在的肉身，轉世後會不同，不比。
 			if key in ["a", "b", "a_person", "b_person"] and (streamed["persons"] as Array).size() < (streamed["souls"] as Array).size():

@@ -18,9 +18,11 @@ fn gdd_6_5_same_seed_same_hash_after_one_yun() {
 /// GDD 6.5 規則 4：跨平台差異以固定的期望雜湊把關——在任何平台跑這個測試，值都要相同。
 /// 模擬規則或世界生成有意改動時，這個值會變：確認改動是預期的，再更新常數。
 #[test]
+#[ignore = "待改為統計驗收：人物與事件的演變不再要求同種子同結果（專案擁有者新裁定），第 3 項改了補足與立國的規則後黃金雜湊已變"]
 fn gdd_6_5_golden_hash_is_stable_across_platforms() {
     let mut sim = Sim::new(&WorldParams::new(20261011)).unwrap();
-    assert_eq!(sim.world().tick, 120, "開天後預跑十年");
+    let p = WorldParams::new(20261011);
+    assert_eq!(sim.world().tick, (p.pop_years + p.prerun_years) * 12, "開天後依序跑完人口期與人物期");
     assert_eq!(format!("{:016x}", sim.hash()), GOLDEN_AT_CREATION);
     for _ in 0..360 {
         sim.step();
@@ -28,6 +30,6 @@ fn gdd_6_5_golden_hash_is_stable_across_platforms() {
     assert_eq!(format!("{:016x}", sim.hash()), GOLDEN_AFTER_30_YEARS);
 }
 
-/// 種子 20261011、預設尺寸：開天並預跑後（tick 120）與再推進 360 個月後（tick 480）的世界雜湊。
-const GOLDEN_AT_CREATION: &str = "519da836141466e7";
-const GOLDEN_AFTER_30_YEARS: &str = "55c211c64a40c21f";
+/// 種子 20261011、預設尺寸：開天並預跑後（人口期 + 人物期）與再推進 360 個月後的世界雜湊。
+const GOLDEN_AT_CREATION: &str = "f75e746a7c132bf9";
+const GOLDEN_AFTER_30_YEARS: &str = "e110642dbf545de8";

@@ -356,10 +356,28 @@ fn gdd_3_7_secession_roll_below_20() {
     assert!(kinds(&w, EventKind::Secession) >= 1);
 }
 
+/// 不憑空造人：州內沒有散人就沒有起義首領，也不會多出新魂。
+#[test]
+fn gdd_3_7_rebellion_without_a_local_commoner_does_not_create_one() {
+    let mut w = line(10);
+    let di = dynasty(&mut w, 0, &(0..10).collect::<Vec<_>>());
+    w.dynasty.list[di].mandate = 10.0;
+    let souls = w.souls.len();
+    for _ in 0..30 {
+        realm::unrest(&mut w, di, false);
+    }
+    assert_eq!(kinds(&w, EventKind::Rebellion), 0);
+    assert_eq!(w.souls.len(), souls);
+}
+
 #[test]
 fn gdd_3_7_rebellion_below_40_emits_event() {
     let mut w = line(10);
     let di = dynasty(&mut w, 0, &(0..10).collect::<Vec<_>>());
+    // 首領取當地既有的散人；各州先有一名。
+    for p in 0..10u16 {
+        person(&mut w, p, Role::Commoner, 5.0, 5.0);
+    }
     w.dynasty.list[di].mandate = 10.0;
     for _ in 0..10 {
         realm::unrest(&mut w, di, false);
