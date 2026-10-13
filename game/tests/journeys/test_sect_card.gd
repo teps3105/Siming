@@ -297,6 +297,11 @@ func test_card_numbers_agree_with_the_list_and_realms() -> void:
 		if entry["kind"] == "Succession":
 			succession += 1
 	assert_eq(card.history_row_count(), history_rows, "門史列數對得上")
+	var title_found := false
+	for row: Dictionary in card._rows:
+		if row["kind"] == "section" and row["text"] == Locale.t("sect_history_title").format({"N": str(history_rows)}):
+			title_found = true
+	assert_true(title_found, "門史標題的數字等於看得到的列數")
 	assert_true(leader_rows >= 1 or succession == 0, "有繼位就有歷任掌門列")
 	assert_true(history_rows <= _sim.world.sect_history(id).size() - maxi(succession - leader_rows, 0), "連續繼位已合併")
 	var head := card.head_text()

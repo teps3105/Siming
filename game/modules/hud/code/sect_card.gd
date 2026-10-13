@@ -328,7 +328,8 @@ func _build_rows(list_width: float) -> void:
 				_rows.append({"kind": "para", "top": top, "height": extra_height, "paragraph": extra, "color": item["color"], "extra": true})
 				top += extra_height
 	var history: Array = _history
-	_rows.append({"kind": "section", "top": top, "height": SECTION_HEIGHT * u, "text": Locale.t("sect_history_title").format({"N": str(history.size())})})
+	var history_title := _rows.size()
+	_rows.append({"kind": "section", "top": top, "height": SECTION_HEIGHT * u, "text": ""})
 	top += SECTION_HEIGHT * u
 	if history.is_empty():
 		var empty := LedgerText.paragraph(Locale.t("sect_history_none"), [] as Array[Dictionary], list_width, note)
@@ -367,6 +368,8 @@ func _build_rows(list_width: float) -> void:
 		var height: float = date_height + float(para["height"]) + ROW_GAP * u
 		_rows.append({"kind": "event", "top": top, "height": height, "event": int(entry["id"]), "date": date, "seal": EventText.seal(entry["kind"]), "paragraph": para})
 		top += height
+	# 標題的數字是看得到的列數（連續繼位合成一列），與個人歷程「N 則」同義。
+	_rows[history_title]["text"] = Locale.t("sect_history_title").format({"N": str(_history_rows)})
 	var members: Array = _info["members"]
 	_member_rows = members.size()
 	top += 4.0 * u
@@ -402,7 +405,7 @@ func _leaders_row(run: Array[Dictionary], top: float, list_width: float, body: i
 		texts.append("%s（%s%s）" % [entry["a"], start, tail])
 		links.append(_link(entry["a"], "person:%d" % int(entry["a_person"])))
 	var text := Locale.t("sect_list_sep").join(texts)
-	var para := LedgerText.paragraph(text, links, list_width, body)
+	var para := LedgerText.paragraph(text, links, list_width, body, texts)
 	var height := date_height + float(para["height"]) + ROW_GAP * _unit
 	var span := Locale.t("sect_leaders_span").format({"N": str(run.size())})
 	return {"kind": "leaders", "top": top, "height": height, "seal": EventText.seal("Succession"), "date": span, "paragraph": para}
