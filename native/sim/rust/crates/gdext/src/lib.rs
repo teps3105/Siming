@@ -1,6 +1,7 @@
 //! GDD 6.4 Godot 橋接：`SimWorld` 持有一個 [`Sim`]，Godot 端只經由本類別讀取世界、推進時間。
 //! 本 crate 不含遊戲規則；規則一律在 siming-sim（GDD 6.1 依賴原則）。
 
+mod chronicle_api;
 mod karma;
 mod mapbake;
 mod relief;
@@ -997,7 +998,8 @@ impl SimWorld {
             return out;
         };
         // 只記了魂的事件（判入六道）只算本世存在期間內的。
-        let mut events: Vec<&siming_sim::Event> = w.ledger.events.iter().filter(|e| e.importance > 0 && belongs_to(w, e, p)).collect();
+        let mut events: Vec<&siming_sim::Event> =
+            w.ledger.events.iter().filter(|e| e.importance > 0 && !e.kind.is_chronicle_only() && belongs_to(w, e, p)).collect();
         events.sort_by_key(|e| (e.tick, e.id));
         let gw = w.geo.w as u32;
         // 故里日後可能變：遊歷是否為歸來，改看它是不是回到上一趟的出發地，或回到現在的故里。
@@ -1183,7 +1185,8 @@ impl SimWorld {
         };
         let w = sim.world();
         for id in ids {
-            let Some(e) = siming_sim::ledger::get(w, id) else {
+            // 只供人物生平的紀錄（`person_chronicle`）不上傳聞與事件流。
+            let Some(e) = siming_sim::ledger::get(w, id).filter(|e| !e.kind.is_chronicle_only()) else {
                 continue;
             };
             // 主角（{A}）的身分：事件發生當月月底的樣子；沒有記下（讀檔重播的事件）才取現況。
@@ -1275,7 +1278,7 @@ fn set_day_and_cause(d: &mut VarDictionary, e: &siming_sim::Event) {
 }
 
 fn event_by_id(w: &siming_sim::World, id: i64) -> Option<&siming_sim::Event> {
-    u32::try_from(id).ok().and_then(|i| siming_sim::ledger::get(w, i))
+    u32::try_from(id).ok().and_then(|i| siming_sim::ledger::get(w, i)).filter(|e| !e.kind.is_chronicle_only())
 }
 
 struct TreeWalk<'a> {
@@ -1320,7 +1323,7 @@ fn ripple_ids(w: &siming_sim::World, root: siming_sim::EventId, cap: usize) -> V
     while let Some(id) = queue.pop_front() {
         let Some(list) = w.ledger.effects.get(id as usize) else { continue };
         for &x in list {
-            if siming_sim::ledger::get(w, x).is_some() && seen.insert(x) {
+            if siming_sim::ledger::get(w, x).is_some_and(|e| !e.kind.is_chronicle_only()) && seen.insert(x) {
                 out.push(x);
                 queue.push_back(x);
             }
@@ -1795,7 +1798,10 @@ mod tests {
             assert!(ids.iter().all(|&x| x > e.id), "後果必在事件之後");
             assert!(ids.windows(2).all(|p| p[0] < p[1]));
             // 直接後果一定在漣漪裡。
-            for &x in w.ledger.effects[e.id as usize].iter().filter(|&&x| siming_sim::ledger::get(w, x).is_some()) {
+            for &x in w.ledger.effects[e.id as usize]
+                .iter()
+                .filter(|&&x| siming_sim::ledger::get(w, x).is_some_and(|c| !c.kind.is_chronicle_only()))
+            {
                 assert!(ids.contains(&x) || ids.len() == RIPPLE_CAP);
             }
             any |= !ids.is_empty();

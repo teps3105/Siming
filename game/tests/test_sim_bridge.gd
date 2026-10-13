@@ -856,3 +856,74 @@ func test_gdd_5_8_person_last_event_points_at_a_live_event() -> void:
 			found += 1
 		id += 1
 	assert_gt(found, 0, "有人有最近事件")
+
+
+## GDD 5.12 生平事實清單：固定亂數種子跑一段時間，取在世與近年已歿各十人（至少五人有前世），逐條驗收規則。
+func test_gdd_5_12_person_chronicle_keeps_the_writing_rules() -> void:
+	var world := SimWorld.new()
+	assert_eq(world.create_with({"seed": SEED, "size": "small", "rng_seed": 7}), "")
+	world.step(12 * 220)
+	var now := world.tick()
+	var alive: Array[int] = []
+	var dead: Array[int] = []
+	var past_ids := {}
+	var ranks := {}
+	var id := 0
+	while not world.person(id).is_empty():
+		var person := world.person(id)
+		var recent_dead: bool = not person["alive"] and int(person["died_tick"]) + 90 * 360 > now
+		if person["alive"] or recent_dead:
+			var chronicle := world.person_chronicle(id)
+			if chronicle.size() >= 4:
+				var has_past: bool = chronicle[0]["kind"] == "past_life"
+				# 名字隨機抽取，偶有撞名；撞名者不拿來驗「前世名字不等於今生」。
+				if not has_past or chronicle[0]["name"] != person["name"]:
+					(alive if person["alive"] else dead).append(id)
+					if has_past:
+						past_ids[id] = true
+					ranks[id] = (1000 if has_past else 0) + chronicle.size()
+		id += 1
+	alive.sort_custom(func(a: int, b: int) -> bool: return ranks[a] > ranks[b])
+	dead.sort_custom(func(a: int, b: int) -> bool: return ranks[a] > ranks[b])
+	var picked: Array[int] = alive.slice(0, 10) + dead.slice(0, 10)
+	assert_eq(picked.size(), 20, "在世與已歿各十人")
+	var with_past := picked.filter(func(p: int) -> bool: return past_ids.has(p))
+	assert_gt(with_past.size(), 4, "至少五人有前世")
+	var checked_because := 0
+	for pid: int in picked:
+		var list := world.person_chronicle(pid)
+		assert_eq(list, world.person_chronicle(pid), "連叫第二次逐項相同")
+		assert_eq(list, world.person_chronicle(pid), "連叫第三次逐項相同")
+		var seen := {}
+		var marriages: Array[int] = []
+		var masters: Array[int] = []
+		for i in list.size():
+			var e: Dictionary = list[i]
+			if e["kind"] == "past_life":
+				assert_eq(i, 0, "前世摘要在最前")
+				assert_ne(e["name"], world.person(pid)["name"], "前世的名字不等於今生")
+				assert_true(e["person"] != pid)
+				continue
+			assert_false(seen.has(e["id"]), "事件編號 %d 只出現一次" % e["id"])
+			seen[e["id"]] = true
+			match e["kind"]:
+				"married":
+					marriages.append(i)
+				"apprenticed":
+					if e["role"] == "disciple":
+						masters.append(i)
+				"widowed":
+					assert_eq(e["end_reason"], "spouse_died")
+				"mentor_ended":
+					assert_ne(e["end_reason"], "", "師徒解除帶原因")
+				"thread_omen", "thread_resolved", "feud_escalated":
+					var because: Dictionary = e["because"]
+					assert_true(because["me_name"] != "" and because["other_name"] != "", "前因帶雙方當時的名字")
+					assert_true(because["year"] > 0 and because["month"] >= 1, "前因帶年月")
+					assert_true(because["lives"] >= 0 and because["thread"] != "")
+					checked_because += 1
+		for k in range(1, marriages.size()):
+			assert_true(list.slice(marriages[k - 1] + 1, marriages[k]).any(func(x: Dictionary) -> bool: return x["kind"] == "widowed"), "再婚之前有上一段婚姻的結束")
+		for k in range(1, masters.size()):
+			assert_true(list.slice(masters[k - 1] + 1, masters[k]).any(func(x: Dictionary) -> bool: return x["kind"] == "mentor_ended" and x["role"] == "disciple"), "換師之前有結束原因")
+	assert_gt(checked_because, 0, "樣本裡有帶前因的宿緣後果")
