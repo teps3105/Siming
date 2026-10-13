@@ -360,6 +360,11 @@ func test_map_gate_is_clickable_without_blocking_the_map() -> void:
 	assert_eq(_hud._overlay.mouse_filter, Control.MOUSE_FILTER_IGNORE, "覆蓋層本身仍不攔事件")
 	assert_lt(hit.size.x, 200.0 * _hud._unit, "只有圖示與名字那一小塊")
 	assert_true(hit.is_hot(Vector2.ZERO), "游標移上去是可點的指標")
+	await wait(0.8)
+	await move_mouse(hit.get_global_rect().get_center())
+	assert_eq(_hud._cursor.kind(), &"point", "游標停在山門上是可點的指標")
+	await move_mouse(hit.get_global_rect().end + Vector2(70.0, 70.0))
+	assert_eq(_hud._cursor.kind(), &"arrow", "移開後回到一般游標")
 	var before_focus := _camera._target_focus
 	var outside := hit.get_global_rect().end + Vector2(70.0, 70.0)
 	await drag(outside, outside + Vector2(160.0, 0.0))

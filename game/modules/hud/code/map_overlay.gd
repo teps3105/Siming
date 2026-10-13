@@ -181,8 +181,20 @@ func range_ring_count() -> int:
 
 
 func _process(_delta: float) -> void:
+	# 掛在畫布層下沒有父控制項可依錨點撐開，自己跟著視窗大小；山門的點擊區才算在它裡面（游標指標才認得）。
+	var view := get_viewport_rect().size
+	if size != view:
+		size = view
 	_update_rings()
 	queue_redraw()
+
+
+## 螢幕座標 point 是否落在某個山門的點擊區（游標指標用）。
+func gate_at(point: Vector2) -> bool:
+	for hit: SectHit in _hits.values():
+		if hit.visible and hit.get_global_rect().has_point(point):
+			return true
+	return false
 
 
 ## 把範圍圈交給地形著色器：圈心、半徑、顏色，以及每圈的虛線段數（讓整圈剛好排滿整數段）。

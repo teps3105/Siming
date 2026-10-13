@@ -297,6 +297,7 @@ func _build() -> void:
 	_cursor = GameCursor.new()
 	add_child(_cursor)
 	_cursor.setup(_camera, _unit)
+	_cursor.extra_hot = _overlay.gate_at
 	if _menu != null:
 		# 選單蓋在器物之上、游標之下。
 		move_child(_menu, -1)
