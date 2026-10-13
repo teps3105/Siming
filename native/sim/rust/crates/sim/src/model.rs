@@ -518,6 +518,92 @@ pub enum EventArgs {
     },
 }
 
+/// 事件的成因分類（隨事件記錄；`None` 表示該種事件沒有分類或查不到）。
+/// 每種事件只用自己那組值，編碼對照見 `docs/7-附錄/7.2-事件總表.md`。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[repr(u8)]
+pub enum Why {
+    #[default]
+    None = 0,
+    // Killed
+    /// 尋仇：兩魂間有未了的殺業或怨線。
+    Vendetta = 1,
+    /// 除魔：修士斬殺魔修。
+    SlayDemon = 2,
+    /// 魔修襲殺。
+    DemonAssassin = 3,
+    /// 爭脈戰死。
+    SectWarDeath = 4,
+    /// 其他。
+    KillOther = 5,
+    // FellToDemon
+    /// 突破失敗後心魔。
+    BtFailDemon = 10,
+    /// 罪業積累的心魔。
+    SinDemon = 11,
+    /// 濁氣侵染。
+    TurbidTaint = 12,
+    /// 前世入魔（修羅）印記。
+    PastLifeMark = 13,
+    // PowerFounded
+    /// 自立：散修自行創宗。
+    SelfFounded = 20,
+    /// 出走：自原宗門分出。
+    Exodus = 21,
+    // Married
+    /// 前世宿緣牽引：兩魂有未了、已隔世的情緣線。
+    FateTug = 30,
+    /// 同門。
+    SameSect = 31,
+    /// 同鄉。
+    SameHometown = 32,
+    // ThreadResolved
+    /// 還清（贖罪）。
+    Repaid = 40,
+    /// 殺償（復仇了結）。
+    Avenged = 41,
+    /// 成婚了結（再續前緣）。
+    WedSettled = 42,
+    /// 其他了結（再結師徒等）。
+    ResolvedOther = 43,
+    // Rebellion、Secession、Usurpation 的主因
+    /// 天命低。
+    LowMandate = 50,
+    /// 饑荒。
+    Famine = 51,
+    /// 財政。
+    Finances = 52,
+}
+
+/// 事件兩方關係的位元旗標快照（事件有兩方時記錄；查不到的位元留空）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct Rel(pub u16);
+
+impl Rel {
+    pub const MASTER_DISCIPLE: u16 = 1 << 0;
+    pub const SAME_SECT: u16 = 1 << 1;
+    pub const SPOUSES: u16 = 1 << 2;
+    pub const PARENT_CHILD: u16 = 1 << 3;
+    pub const SAME_HOMETOWN: u16 = 1 << 4;
+    /// 兩魂之間有未了的宿緣線，依種類：殺業、恩義、情緣、師徒、怨。
+    pub const THREAD_FEUD: u16 = 1 << 5;
+    pub const THREAD_GRACE: u16 = 1 << 6;
+    pub const THREAD_LOVE: u16 = 1 << 7;
+    pub const THREAD_MENTOR: u16 = 1 << 8;
+    pub const THREAD_GRUDGE: u16 = 1 << 9;
+    /// 未了宿緣線已隔的世數（取最多者，上限 7）：第 10–12 位。
+    pub const LIVES_SHIFT: u16 = 10;
+
+    pub fn has(self, flag: u16) -> bool {
+        self.0 & flag != 0
+    }
+
+    /// 宿緣線已隔的世數。
+    pub fn lives(self) -> u16 {
+        (self.0 >> Self::LIVES_SHIFT) & 7
+    }
+}
+
 /// GDD 3.3 因果帳中的一筆事件。文字不存在模擬中（由介面依 7.2 模板產生）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Event {
@@ -532,6 +618,12 @@ pub struct Event {
     pub causes: SmallVec<[EventId; 3]>,
     pub importance: u8,
     pub args: EventArgs,
+    /// 成因分類（見 [`Why`]）。
+    #[serde(default)]
+    pub why: Why,
+    /// 兩方關係快照（見 [`Rel`]）。
+    #[serde(default)]
+    pub rel: Rel,
 }
 
 /// GDD 3.3 因果帳。`effects[i]` 為以事件 i 為直接原因的事件（漣漪用）。

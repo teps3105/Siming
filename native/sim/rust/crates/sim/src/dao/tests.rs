@@ -453,6 +453,8 @@ fn demon_slaying_evil_target_gives_merit_without_thread() {
     assert_eq!(w.souls[hs].sin, 0.0);
     assert!(w.threads.is_empty());
     assert_eq!(count(&w, EventKind::Killed), 1);
+    let ke = w.ledger.events.iter().find(|e| e.kind == EventKind::Killed).unwrap();
+    assert_eq!(ke.why, Why::SlayDemon, "斬妖除魔的殺人事件記成因「除魔」");
 }
 
 #[test]

@@ -18,10 +18,23 @@ fn eligible(p: &Person, tick: u32) -> bool {
 
 /// 結為夫妻：互設 `spouse`，寫入 `Married`（因：雙方最近事件），再由 `thread::on_marriage` 結算情緣線。回傳 `Married` 事件。
 pub fn marry(w: &mut World, a: PersonId, b: PersonId) -> EventId {
+    // 關係快照取在結親之前，才看得出成婚的緣由。
+    let rel = ledger::rel_of_persons(w, a, b);
+    let why = if rel.has(Rel::THREAD_LOVE) && rel.lives() >= 1 {
+        Why::FateTug
+    } else if rel.has(Rel::SAME_SECT) {
+        Why::SameSect
+    } else if rel.has(Rel::SAME_HOMETOWN) {
+        Why::SameHometown
+    } else {
+        Why::None
+    };
     w.persons[a as usize].spouse = Some(b);
     w.persons[b as usize].spouse = Some(a);
     let (pa, pb) = (&w.persons[a as usize], &w.persons[b as usize]);
     let mut e = NewEvent::new(EventKind::Married, MARRIED_IMPORTANCE, EventArgs::None);
+    e.why = why;
+    e.rel = Some(rel);
     e.province = Some(pa.province);
     e.cell = Some(pa.cell);
     e.souls = smallvec![pa.soul, pb.soul];

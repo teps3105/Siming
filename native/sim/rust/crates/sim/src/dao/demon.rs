@@ -53,6 +53,11 @@ pub(super) fn leave_sect(w: &mut World, pid: PersonId) {
 ///
 /// M2 沒有人對宗門的關係值，「原宗門對其關係 −100」不實作（見 3.5 註記）。
 pub fn fall_to_demon(w: &mut World, pid: PersonId) {
+    fall_to_demon_why(w, pid, Why::SinDemon);
+}
+
+/// 同 [`fall_to_demon`]，並記錄入魔的成因。
+pub fn fall_to_demon_why(w: &mut World, pid: PersonId, why: Why) {
     let Some(p) = w.persons.get(pid as usize) else { return };
     if !p.alive() || p.role == Role::Demonic {
         return;
@@ -65,6 +70,7 @@ pub fn fall_to_demon(w: &mut World, pid: PersonId) {
     }
     let p = &w.persons[pid as usize];
     let mut e = NewEvent::new(EventKind::FellToDemon, FELL_IMPORTANCE, EventArgs::Role { role: Role::Demonic });
+    e.why = why;
     e.province = Some(p.province);
     e.cell = Some(p.cell);
     e.souls = smallvec![soul];
@@ -75,6 +81,10 @@ pub fn fall_to_demon(w: &mut World, pid: PersonId) {
     ledger::record(w, e);
 }
 
+fn s_asura(w: &World, pid: PersonId) -> bool {
+    w.souls.get(w.persons[pid as usize].soul as usize).is_some_and(|s| s.marks.has(SoulMarks::ASURA))
+}
+
 /// 每年心魔判定（修士，非魔修）。機率為 0 時不消耗亂數。回傳是否入魔。
 pub(super) fn heart_demon_roll(w: &mut World, pid: PersonId) -> bool {
     let p = &w.persons[pid as usize];
@@ -83,7 +93,8 @@ pub(super) fn heart_demon_roll(w: &mut World, pid: PersonId) -> bool {
     if c <= 0.0 || w.rng.people.gen::<f32>() >= c {
         return false;
     }
-    fall_to_demon(w, pid);
+    let why = if s_asura(w, pid) { Why::PastLifeMark } else { Why::SinDemon };
+    fall_to_demon_why(w, pid, why);
     true
 }
 
@@ -102,14 +113,14 @@ fn near(w: &World, province: ProvinceId, me: PersonId, keep: impl Fn(&Person) ->
 
 /// 雙方決鬥：勝率 `r/(1+r)`，r = 攻方戰力 / 守方戰力；敗者死亡，業依 3.1。
 /// 回傳 `(勝者, 敗者)`。
-fn duel(w: &mut World, attacker: PersonId, target: PersonId) -> Option<(PersonId, PersonId)> {
+fn duel(w: &mut World, attacker: PersonId, target: PersonId, why: Why) -> Option<(PersonId, PersonId)> {
     let pa = combat_power(&w.persons[attacker as usize]);
     let pt = combat_power_as_target(&w.persons[target as usize]);
     let r = if pt > 0.0 { pa / pt } else { f32::MAX };
     let win = if r.is_finite() { r / (1.0 + r) } else { 1.0 };
     let (winner, loser) = if w.rng.people.gen::<f32>() < win { (attacker, target) } else { (target, attacker) };
     let loser_power = combat_power(&w.persons[loser as usize]);
-    if !kill(w, winner, loser, DeathCause::Killed, None) {
+    if !kill(w, winner, loser, DeathCause::Killed, None, why) {
         return None;
     }
     if w.persons[winner as usize].role == Role::Demonic {
@@ -144,7 +155,7 @@ pub(super) fn hunt(w: &mut World, pid: PersonId) {
         return;
     }
     let target = pick(w, &cands);
-    duel(w, pid, target);
+    duel(w, pid, target, Why::SlayDemon);
 }
 
 /// GDD 3.10 魔修襲殺：每年以 `戾氣 × 0.02` 機率襲殺本州或陸鄰一名有名之人（幼年者除外）。
@@ -162,5 +173,5 @@ pub(super) fn assassinate(w: &mut World, pid: PersonId) {
         return;
     }
     let target = pick(w, &cands);
-    duel(w, pid, target);
+    duel(w, pid, target, Why::DemonAssassin);
 }

@@ -390,6 +390,9 @@ fn marriage_prefers_same_sect() {
     }
     // 男方抽中時，同宗門的女方優先於另一位候選。
     assert!(super::marriage::marry_now(&mut w, ids[0]));
+    let me = w.ledger.events.iter().find(|e| e.kind == EventKind::Married).unwrap();
+    assert_eq!(me.why, Why::SameSect);
+    assert!(me.rel.has(Rel::SAME_SECT) && me.rel.has(Rel::SAME_HOMETOWN) && !me.rel.has(Rel::SPOUSES), "關係快照取在結親之前");
     assert_eq!(w.persons[ids[0] as usize].spouse, Some(ids[1]));
     assert_eq!(w.persons[ids[2] as usize].spouse, None);
 }

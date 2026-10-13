@@ -24,6 +24,9 @@ pub struct NewEvent {
     pub causes: SmallVec<[EventId; 3]>,
     pub importance: u8,
     pub args: EventArgs,
+    pub why: Why,
+    /// 兩方關係快照；留 `None` 時，事件有兩個人物（或兩個魂）就在寫入時自動查。
+    pub rel: Option<Rel>,
 }
 
 impl NewEvent {
@@ -38,8 +41,53 @@ impl NewEvent {
             causes: SmallVec::new(),
             importance,
             args,
+            why: Why::None,
+            rel: None,
         }
     }
+}
+
+/// 兩個人物之間的關係旗標。師徒、同宗門、配偶、親子、同鄉看人物資料，宿緣種類與世數看兩魂之間未了的線。
+pub fn rel_of_persons(w: &World, a: PersonId, b: PersonId) -> Rel {
+    let (Some(pa), Some(pb)) = (w.persons.get(a as usize), w.persons.get(b as usize)) else { return Rel(0) };
+    let mut r = 0u16;
+    if pa.master == Some(b) || pb.master == Some(a) {
+        r |= Rel::MASTER_DISCIPLE;
+    }
+    if pa.power.is_some() && pa.power == pb.power {
+        r |= Rel::SAME_SECT;
+    }
+    if pa.spouse == Some(b) || pb.spouse == Some(a) {
+        r |= Rel::SPOUSES;
+    }
+    if pa.children.contains(&b) || pb.children.contains(&a) {
+        r |= Rel::PARENT_CHILD;
+    }
+    if pa.home == pb.home {
+        r |= Rel::SAME_HOMETOWN;
+    }
+    Rel(r | rel_of_souls(w, pa.soul, pb.soul).0)
+}
+
+/// 兩個魂之間未了宿緣線的種類與世數。
+pub fn rel_of_souls(w: &World, a: SoulId, b: SoulId) -> Rel {
+    let Some(s) = w.souls.get(a as usize) else { return Rel(0) };
+    let (mut kinds, mut lives) = (0u16, 0u16);
+    for &tid in &s.threads {
+        let Some(t) = w.threads.get(tid as usize) else { continue };
+        if !((t.debtor == a && t.creditor == b) || (t.debtor == b && t.creditor == a)) || !crate::thread::is_open(t) {
+            continue;
+        }
+        kinds |= match t.kind {
+            ThreadKind::Feud => Rel::THREAD_FEUD,
+            ThreadKind::Grace => Rel::THREAD_GRACE,
+            ThreadKind::Love => Rel::THREAD_LOVE,
+            ThreadKind::Mentor => Rel::THREAD_MENTOR,
+            ThreadKind::Grudge => Rel::THREAD_GRUDGE,
+        };
+        lives = lives.max(crate::thread::lives(w, t).min(7));
+    }
+    Rel(kinds | lives << Rel::LIVES_SHIFT)
 }
 
 /// GDD 6.3「事件寫入」：指派 ID、寫入因果帳、維護反向索引、更新人物的最近事件，然後偵測天書條目
@@ -60,6 +108,11 @@ pub fn record(w: &mut World, e: NewEvent) -> EventId {
         }
     }
     let kind = e.kind;
+    let rel = e.rel.unwrap_or_else(|| match (e.persons.as_slice(), e.souls.as_slice()) {
+        ([a, b], _) => rel_of_persons(w, *a, *b),
+        (_, [a, b]) => rel_of_souls(w, *a, *b),
+        _ => Rel(0),
+    });
     w.ledger.events.push(Event {
         id,
         tick: w.tick,
@@ -72,6 +125,8 @@ pub fn record(w: &mut World, e: NewEvent) -> EventId {
         causes,
         importance: e.importance,
         args: e.args,
+        why: e.why,
+        rel,
     });
     w.ledger.effects.push(SmallVec::new());
     if kind != EventKind::BookEntry {
