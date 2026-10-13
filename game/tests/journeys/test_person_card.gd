@@ -52,7 +52,7 @@ func _find_people() -> Dictionary:
 	var id := 0
 	while not _sim.world.person(id).is_empty():
 		var key := "alive" if _sim.world.person(id)["alive"] else "dead"
-		var count := _sim.world.person_history(id).size()
+		var count := _sim.world.person_chronicle(id).size()
 		if count > most[key]:
 			most[key] = count
 			out[key] = id
@@ -127,15 +127,17 @@ func test_gamepad_edge_hover_scrolls_the_history() -> void:
 	await joy_button(JOY_BUTTON_LEFT_STICK)
 	_hud.open_person(found["alive"])
 	await wait(0.5)
+	_card().toggle_timeline()
+	await wait(0.2)
 	var list := _list(_card())
-	assert_gt(list.max_scroll(), 0.0, "Steam Deck 上歷程放不下，要捲動")
+	assert_gt(list.max_scroll(), 0.0, "Steam Deck 上展開年表放不下，要捲動")
 	var rect := list.get_global_rect()
 	_camera.set_cursor_position(Vector2(rect.get_center().x, rect.end.y - 6.0))
 	await wait(0.6)
 	assert_gt(list.scroll, 0.0, "游標停在清單下緣，清單自己往下捲")
 
 
-func test_history_is_oldest_first_and_matches_the_bridge() -> void:
+func test_card_shows_the_biography_and_a_collapsed_timeline() -> void:
 	await _boot(FLOW_VIEW)
 	var found := _find_people()
 	for key_name in ["alive", "dead"]:
@@ -143,17 +145,83 @@ func test_history_is_oldest_first_and_matches_the_bridge() -> void:
 		_hud.open_person(id)
 		await wait(0.5)
 		var card := _card()
-		var history: Array = EventText.fold_history(_sim.world.person_history(id))
-		assert_gt(history.size(), 4, "找到歷程 5 筆以上的人")
-		assert_eq(card._rows.size(), history.size(), "歷程筆數與事件帳相符")
+		var out := _compose(id)
+		var bios := _items(card, "bio")
+		assert_eq(bios.size(), out["bio"].size(), "小傳的段數與組合結果相同")
+		assert_eq("".join(bios[0]["paragraph"]["lines"]), out["bio"][0]["text"], "第一段是出身")
+		assert_true(out["bio"][0]["text"].begins_with(_sim.world.person(id)["name"]), "出身以姓名起句")
+		assert_eq(_items(card, "toggle").size(), 1, "有一列「年表」")
+		assert_eq(_items(card, "row").size(), 0, "年表預設收合")
+		assert_true(String(_items(card, "toggle")[0]["label"]).contains(str(out["rows"].size())), "年表列寫明條數")
 		var last_top := -1.0
 		for row: Dictionary in card._rows:
-			assert_gt(row["top"], last_top, "由舊到新排下來")
+			assert_gt(row["top"], last_top, "由上往下排")
 			last_top = row["top"]
-		assert_eq(card._rows[0]["paragraph"]["lines"].size() > 0, true)
 		assert_eq(card._title(), _sim.world.person(id)["name"], "題簽寫姓名")
 		var identity := PersonText.identity_line(_sim.world.person(id))
 		assert_eq("".join(card._subtitle["lines"]), identity, "首列是身分一行")
+
+
+func _compose(id: int) -> Dictionary:
+	return ChronicleText.compose(_sim.world.person(id), _sim.world.person_chronicle(id), func(p: int) -> Dictionary: return _sim.world.person(p))
+
+
+func _items(card: PersonCard, kind: String) -> Array:
+	return card._rows.filter(func(r: Dictionary) -> bool: return r["kind"] == kind)
+
+
+## 清單頂端往下 offset 處的螢幕座標。
+func _list_point(card: PersonCard, offset: Vector2) -> Vector2:
+	return _list(card).get_global_rect().position + offset
+
+
+func test_clicking_the_timeline_row_expands_and_collapses_it() -> void:
+	await _boot(FLOW_VIEW)
+	var id: int = _find_people()["alive"]
+	_hud.open_person(id)
+	await wait(0.5)
+	var card := _card()
+	var list := _list(card)
+	var out := _compose(id)
+	list.scroll = float(_items(card, "toggle")[0]["top"])
+	await click(_list_point(card, Vector2(30.0, float(_items(card, "toggle")[0]["top"]) - list.scroll + 8.0 * _hud._unit)))
+	assert_eq(_items(card, "row").size(), out["rows"].size(), "點「年表」展開，每條一列")
+	assert_true(String(_items(card, "toggle")[0]["label"]).contains(Locale.t("card_timeline_close").substr(0, 2)))
+	var tops: Array = _items(card, "row").map(func(r: Dictionary) -> float: return r["top"])
+	var sorted_tops := tops.duplicate()
+	sorted_tops.sort()
+	assert_eq(tops, sorted_tops, "年表由舊到新")
+	assert_eq(_items(card, "row")[0]["date"], out["rows"][0]["date"], "第一條是最舊的")
+	list.scroll = float(_items(card, "toggle")[0]["top"])
+	await click(_list_point(card, Vector2(30.0, float(_items(card, "toggle")[0]["top"]) - list.scroll + 8.0 * _hud._unit)))
+	assert_eq(_items(card, "row").size(), 0, "再點一次收合")
+	# 換人收合。
+	card.toggle_timeline()
+	_hud.open_person(_find_people()["dead"])
+	await wait(0.5)
+	assert_eq(_items(_card(), "row").size(), 0, "開另一個人時年表是收合的")
+
+
+func test_timeline_row_opens_the_event_card() -> void:
+	await _boot(FLOW_VIEW)
+	var id: int = _find_people()["alive"]
+	_hud.open_person(id)
+	await wait(0.5)
+	var card := _card()
+	card.toggle_timeline()
+	await wait(0.2)
+	var list := _list(card)
+	var chosen := {}
+	for row: Dictionary in _items(card, "row"):
+		if row["has_event"] and row["paragraph"]["hits"].is_empty():
+			chosen = row
+			break
+	assert_false(chosen.is_empty(), "有一條對得到事件、又沒有連結的年表列")
+	list.scroll = float(chosen["top"])
+	var date_h := LedgerText.line_height(Ink.font_size(Ink.SIZE_NOTE, _hud._unit))
+	await click(_list_point(card, Vector2(4.0, date_h * 0.5)))
+	assert_true(_hud.event_card().is_open(), "點整列開事件卡")
+	assert_eq(_hud.event_card().event, int(chosen["event"]))
 
 
 func test_dead_person_card_shows_cause_and_age_at_death() -> void:
@@ -167,48 +235,39 @@ func test_dead_person_card_shows_cause_and_age_at_death() -> void:
 	assert_true(_card().is_open(), "已身故者仍可開卡")
 	var line := ""
 	for para: Dictionary in _card()._paragraphs:
-		line += "".join(para["lines"]) + "
-"
+		line += "".join(para["lines"]) + "\n"
 	assert_true(line.contains(Locale.t("death_" + info["death_cause"])), "寫明死因")
 	assert_true(line.contains("享年 %d" % info["age"]), "寫明享年")
-	for row: Dictionary in _card()._rows:
-		assert_true(EventText.fold_history(_sim.world.person_history(dead)).size() == _card()._rows.size())
-	var last: Dictionary = _sim.world.person_history(dead)[-1]
-	assert_true(last["tick"] <= info["died_tick"] or last["kind"] == "Judged", "歷程到死為止，死後只有魂的歸處")
+	var bios := _items(_card(), "bio")
+	var last_bio := "".join(bios[-1]["paragraph"]["lines"])
+	assert_true(last_bio.contains("享年" + ChronicleText.han(int(info["age"]))), "小傳最後寫明享年")
+	assert_false(_items(_card(), "toggle").is_empty())
 
 
-func test_clicking_a_name_in_the_history_opens_that_person_and_back_returns() -> void:
+func test_clicking_a_name_in_the_biography_opens_that_person_and_back_returns() -> void:
 	await _boot(FLOW_VIEW)
-	var target_row := {}
 	var owner := -1
-	# 找一位歷程前幾筆裡就有可點人名的人。
 	var id := 0
+	# 找一位有前世的人：小傳第一段點得到前世的那個人。
 	while owner < 0 and not _sim.world.person(id).is_empty():
-		var history: Array = _sim.world.person_history(id)
-		for i in mini(history.size(), 6):
-			var entry: Dictionary = history[i]
-			if int(entry["a_person"]) >= 0 and int(entry["a_person"]) != id or int(entry["b_person"]) >= 0 and int(entry["b_person"]) != id:
-				owner = id
-				break
+		var facts: Array = _sim.world.person_chronicle(id)
+		if not facts.is_empty() and facts[0]["kind"] == "past_life":
+			owner = id
 		id += 1
-	assert_gt(owner, -1, "有歷程提到別人的人")
+	assert_gt(owner, -1, "有前世的人")
 	_hud.open_person(owner)
 	await wait(0.5)
 	var card := _card()
-	var list := _list(card)
+	var para: Dictionary = _items(card, "bio")[0]["paragraph"]
 	var hit_target := ""
 	var hit_point := Vector2.ZERO
-	for row: Dictionary in card._rows:
-		var base := Vector2(0.0, float(row["top"]) + LedgerText.line_height(Ink.font_size(Ink.SIZE_NOTE, _hud._unit)))
-		for hit: Dictionary in row["paragraph"]["hits"]:
-			if String(hit["target"]).begins_with("person:") and base.y + hit["rect"].end.y < list.size.y:
-				hit_target = hit["target"]
-				hit_point = base + hit["rect"].get_center()
-				break
-		if not hit_target.is_empty():
+	for hit: Dictionary in para["hits"]:
+		if String(hit["target"]).begins_with("person:"):
+			hit_target = hit["target"]
+			hit_point = hit["rect"].get_center()
 			break
-	assert_ne(hit_target, "", "最前面的幾筆有可點的人名")
-	await click(list.get_global_rect().position + hit_point)
+	assert_ne(hit_target, "", "出身與前世一段有可點的人名")
+	await click(_list_point(card, hit_point))
 	assert_eq(card.person, int(hit_target.substr(7)), "點人名換成那個人的卡")
 	assert_true(card.can_back, "可以返回")
 	await key(KEY_ESCAPE)
@@ -216,26 +275,21 @@ func test_clicking_a_name_in_the_history_opens_that_person_and_back_returns() ->
 	assert_false(card.can_back, "最前面一張沒有返回")
 
 
-func test_clicking_a_place_in_the_history_flies_and_opens_the_province_card() -> void:
+func test_clicking_a_place_in_the_biography_flies_and_opens_the_province_card() -> void:
 	await _boot(FLOW_VIEW)
 	var found := _find_people()
 	_hud.open_person(found["alive"])
 	await wait(0.5)
 	var card := _card()
-	var list := _list(card)
 	var hit_point := Vector2.ZERO
 	var hit_target := ""
-	for row: Dictionary in card._rows:
-		var base := Vector2(0.0, float(row["top"]) + LedgerText.line_height(Ink.font_size(Ink.SIZE_NOTE, _hud._unit)))
-		for hit: Dictionary in row["paragraph"]["hits"]:
-			if String(hit["target"]).begins_with("province:") and base.y + hit["rect"].end.y < list.size.y:
-				hit_target = hit["target"]
-				hit_point = base + hit["rect"].get_center()
-				break
-		if not hit_target.is_empty():
+	for hit: Dictionary in _items(card, "bio")[0]["paragraph"]["hits"]:
+		if String(hit["target"]).begins_with("province:"):
+			hit_target = hit["target"]
+			hit_point = hit["rect"].get_center()
 			break
-	assert_ne(hit_target, "", "歷程裡有可點的地名")
-	await click(list.get_global_rect().position + hit_point)
+	assert_ne(hit_target, "", "出身一段有可點的籍貫")
+	await click(_list_point(card, hit_point))
 	assert_true(_hud._card.is_open(), "點地名開州郡卡")
 	assert_eq(_hud._card.province, int(hit_target.substr(9)))
 	assert_false(card.is_open())
@@ -321,7 +375,7 @@ func _check_fit(view: Vector2i, ui_scale: float) -> void:
 		assert_true(Rect2(Vector2.ZERO, card.size).encloses(inner), "歷程清單在卡內：" + label)
 		assert_true(inner.end.y <= card._center_rect().position.y, "歷程清單不壓到頁尾動作印：" + label)
 		var last_para := card._paragraphs.size() - 1
-		assert_true(inner.position.y >= card._paragraph_origin(last_para).y + card._paragraphs[last_para]["height"] - 1.0, "歷程清單在基本資料之下：" + label)
+		assert_true(inner.position.y >= card._paragraph_origin(last_para).y + card._paragraphs[last_para]["height"] - 1.0, "小傳清單在基本資料之下：" + label)
 		# 首列的文字不碰右上的關閉鈕。
 		var close: Rect2 = card._close_rect()
 		var sub_end: float = card._paper_rect(card._content_height()).position.x + (LedgerCard.STRIP + 14.0) * card._unit + card._inner_width() - card._close_cluster_width(card._close_has_key()) - 10.0 * card._unit - close.size.x
@@ -331,34 +385,23 @@ func _check_fit(view: Vector2i, ui_scale: float) -> void:
 				assert_gt(Ink.font_size(base, _hud._unit), 15, "Deck 內文至少 16")
 
 
-func test_history_sentences_drop_the_protagonist_and_date_the_era_once() -> void:
+func test_timeline_dates_name_the_era_only_when_it_changes() -> void:
 	await _boot(FLOW_VIEW)
 	var found := _find_people()
 	for key_name in ["alive", "dead"]:
 		var id: int = found[key_name]
-		var own_name: String = _sim.world.person(id)["name"]
 		_hud.open_person(id)
 		await wait(0.5)
 		var card := _card()
-		var history: Array = EventText.fold_history(_sim.world.person_history(id))
-		var eras := 0
-		var previous_era := ""
-		var with_era := 0
-		for i in history.size():
-			var entry: Dictionary = history[i]
-			var sentence := EventText.history_line(entry, id)
-			assert_false(sentence.contains("{"), "沒有留下未填的模板：" + sentence)
-			assert_false(sentence.begins_with(own_name), "歷程不以主角自己的名字起句：" + sentence)
-			assert_false(sentence.contains("（") and entry["kind"] in ["Tribulation", "Breakthrough"], "歷程沒有境界括號：" + sentence)
-			if entry["era"] != previous_era:
-				eras += 1
-				previous_era = entry["era"]
-			if String(card._rows[i]["date"]).begins_with(String(entry["era"])):
-				with_era += 1
-			if entry["kind"] == "Tribulation" and entry["x"] == "Passed":
-				assert_true(sentence.contains(EventText.gain(int(entry["n"]))), "渡劫寫出成就的境界：" + sentence)
-		assert_eq(with_era, eras, "紀元名只在第一筆與換紀元時出現（%d 次）" % eras)
-		assert_true(String(card._rows[0]["date"]).begins_with(history[0]["era"]), "第一筆帶紀元名")
+		card.toggle_timeline()
+		await wait(0.2)
+		var rows := _items(card, "row")
+		assert_false(rows.is_empty())
+		for row: Dictionary in rows:
+			assert_false(String(row["text"]).contains("{"), "沒有留下未填的模板：" + row["text"])
+			assert_true(String(row["date"]).ends_with("月"), "年月到月：" + row["date"])
+			assert_false(String(row["date"]).contains("0"), "年月用漢字數字：" + row["date"])
+		card.toggle_timeline()
 
 
 func test_history_scrolls_with_the_wheel_to_the_end() -> void:
@@ -366,9 +409,11 @@ func test_history_scrolls_with_the_wheel_to_the_end() -> void:
 	var found := _find_people()
 	_hud.open_person(found["alive"])
 	await wait(0.5)
+	_card().toggle_timeline()
+	await wait(0.2)
 	var list := _list(_card())
+	list.scroll = 0.0
 	assert_gt(list.max_scroll(), 0.0)
-	assert_eq(list.scroll, 0.0, "開卡從最舊的一筆起")
 	var center := list.get_global_rect().get_center()
 	for i in 80:
 		await wheel(center, false)

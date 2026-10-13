@@ -207,7 +207,7 @@ func test_person_name_in_a_node_opens_the_person_card_and_back_returns() -> void
 	assert_eq(_card().event, int(event["id"]))
 
 
-func test_history_row_opens_the_event_card_and_links_keep_priority() -> void:
+func test_timeline_row_opens_the_event_card_and_links_keep_priority() -> void:
 	await _boot(FLOW_VIEW)
 	var event := _deep_event()
 	var person: int = event["a_person"] if int(event["a_person"]) >= 0 else int(event["persons"][0])
@@ -215,20 +215,31 @@ func test_history_row_opens_the_event_card_and_links_keep_priority() -> void:
 	await wait(0.5)
 	var card := _hud.person_card()
 	var list: LedgerList = card._list
-	# 歷程裡找一筆：在行尾空白處點，開那一則的事件卡。
-	var row: Dictionary = card._rows[0]
+	card.toggle_timeline()
+	await wait(0.2)
+	# 年表裡找一條對得到事件的：在行尾空白處點，開那一則的事件卡。
+	var row: Dictionary = {}
+	for r: Dictionary in card._rows:
+		if r["kind"] == "row" and r["has_event"]:
+			row = r
+			break
+	assert_false(row.is_empty(), "年表裡有對得到事件的一條")
 	var rows_event: int = row["event"]
 	var date_height := LedgerText.line_height(Ink.font_size(Ink.SIZE_NOTE, _hud._unit))
-	var point := list.get_global_rect().position + Vector2(list.size.x - 24.0 * _hud._unit, float(row["top"]) + 4.0 - list.scroll)
+	list.scroll = float(row["top"])
+	await frames(2)
+	var point := list.get_global_rect().position + Vector2(list.size.x - 24.0 * _hud._unit, float(row["top"]) - list.scroll + 4.0)
 	await click(point)
-	assert_true(_card().is_open(), "點歷程的一筆開事件卡")
+	assert_true(_card().is_open(), "點年表的一條開事件卡")
 	assert_eq(_card().event, rows_event)
 	assert_true(_card().can_back)
 	await key(KEY_ESCAPE)
 	assert_true(card.is_open(), "Esc 回到人物卡")
-	# 人名、地名的連結照舊優先：歷程某一筆的地名連結仍是飛往並開州郡卡。
+	# 人名、地名的連結照舊優先：年表某一條的地名連結仍是飛往並開州郡卡。
 	var linked := -1
 	for i in card._rows.size():
+		if card._rows[i]["kind"] != "row":
+			continue
 		for hit: Dictionary in card._rows[i]["paragraph"]["hits"]:
 			if String(hit["target"]).begins_with("province:"):
 				linked = i
