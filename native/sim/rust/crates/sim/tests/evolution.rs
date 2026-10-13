@@ -15,7 +15,7 @@ fn quick(seed: u64) -> WorldParams {
 fn gdd_2_8_slow_variables_settle_once_per_shi() {
     let mut sim = Sim::new(&quick(20261011)).unwrap();
     let at_creation = sim.world().evolution.clone();
-    while sim.world().tick < 359 {
+    while sim.world().tick < 359 * 30 {
         sim.step();
     }
     assert_eq!(sim.world().evolution, at_creation, "一世之內不變");
@@ -23,7 +23,7 @@ fn gdd_2_8_slow_variables_settle_once_per_shi() {
     let first = sim.world().evolution.clone();
     assert_ne!(first.tide, at_creation.tide, "第 360 個月結算一次");
     assert_eq!(first.warmth_periods, at_creation.warmth_periods, "週期不隨結算改變");
-    while sim.world().tick < 719 {
+    while sim.world().tick < 719 * 30 {
         sim.step();
     }
     assert_eq!(sim.world().evolution, first);
@@ -54,13 +54,13 @@ fn gdd_2_8_world_events_enter_the_ledger_and_open_eras() {
     let mut sim = Sim::new(&quick(20261011)).unwrap();
     let known = sim.world().eras.len();
     // 兩運：720 年。
-    while sim.world().tick < 2 * 4320 {
+    while sim.world().tick < 2 * 4320 * 30 {
         sim.step();
     }
     let w = sim.world();
     let events: Vec<_> = w.ledger.events.iter().filter(|e| e.kind == EventKind::WorldChanged).collect();
     assert!(!events.is_empty(), "兩運內至少有一件世界大事");
-    assert!(events.iter().all(|e| e.tick % 360 == 0), "世界大事只在每世結算時發生");
+    assert!(events.iter().all(|e| e.tick % 10_800 == 0), "世界大事只在每世結算時發生");
     let opened = events.iter().filter(|e| matches!(e.args, EventArgs::World { new_era: true, .. })).count();
     assert_eq!(opened, w.eras.len() - known, "開啟紀元的大事與年表新增的筆數相同");
     assert!(w.eras.len() > known, "兩運內至少改元一次");
@@ -101,7 +101,7 @@ fn gdd_2_8_aura_is_rescaled_by_the_tide_every_shi() {
     let terrain_before = sim.world().geo.terrain.clone();
     let tide_before = sim.world().evolution.tide;
     let provinces_before: Vec<f32> = sim.world().provinces.iter().map(|p| p.aura).collect();
-    while sim.world().tick < 360 {
+    while sim.world().tick < 360 * 30 {
         sim.step();
     }
     let w = sim.world();
@@ -124,7 +124,7 @@ fn gdd_2_8_node_shifts_enter_the_ledger_and_change_the_ley_lines() {
     let mut sim = sim_in(Era::Decline);
     let at_opening: Vec<u8> = sim.world().geo.nodes.iter().map(LeyNode::grade).collect();
     // 末法開局在谷底，靈潮回到 0.7 以上之前還有幾世。
-    while sim.world().tick < 6 * 360 {
+    while sim.world().tick < 6 * 360 * 30 {
         sim.step();
     }
     let w = sim.world();
@@ -133,7 +133,7 @@ fn gdd_2_8_node_shifts_enter_the_ledger_and_change_the_ley_lines() {
     let mut grades = at_opening;
     for e in &shifts {
         let EventArgs::Node { node, from, to } = e.args else { panic!("參數不是節點：{:?}", e.args) };
-        assert_eq!(e.tick % 360, 0, "只在每世結算時發生");
+        assert_eq!(e.tick % 10_800, 0, "只在每世結算時發生");
         assert_eq!(grades[node as usize], from, "事件的原等級與節點當時的等級相同");
         assert_eq!(e.cell, Some(w.geo.nodes[node as usize].cell));
         assert!(e.province.is_some(), "事件掛在節點所在的州");

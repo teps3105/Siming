@@ -124,8 +124,7 @@ fn settle(w: &mut World) {
 /// `years` 年後 `tick` = `years × 12`。不逐月、無有名之人。
 pub fn grow_population(w: &mut World, years: u32, progress: &mut dyn FnMut(Stage, f32)) {
     for y in 0..years {
-        w.tick += 12;
-        w.day = crate::calendar::day_of_tick(w.tick);
+        w.tick += crate::calendar::DAYS_PER_YEAR;
         let famines = crate::population::yearly_with(&mut w.provinces, &[]);
         ledger::record_famines(w, &famines);
         if is_shi(w.tick) {

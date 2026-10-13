@@ -65,7 +65,7 @@ fn line_world(seed: u64, n: usize, nodes: &[(u16, f32)]) -> World {
     };
     let mut w = World::empty(WorldParams::new(seed), geo, provs);
     soul::ensure_heaven(&mut w);
-    w.tick = 1200;
+    w.tick = 1200 * 30;
     w
 }
 
@@ -74,7 +74,7 @@ fn cult(w: &mut World, prov: u16, realm: u8, exp: f32) -> PersonId {
     let (_, pid) = soul::spawn_new_life(w, SoulOrigin::New, prov);
     let tick = w.tick;
     let p = &mut w.persons[pid as usize];
-    p.born = tick as i32 - 30 * 12;
+    p.born = tick as i32 - 30 * 360;
     p.role = Role::Cultivator;
     p.path = PathState::Cultivator { realm, exp, last_attempt: None };
     p.lifespan = 10_000;
@@ -151,8 +151,8 @@ fn formulas_match_params() {
     assert!((ascension_survival(300.0) - 0.80 * (-1.0f32).exp()).abs() < 1e-6);
     // 冷卻 36 個月
     assert!(cooldown_ready(None, 5));
-    assert!(!cooldown_ready(Some(100), 135));
-    assert!(cooldown_ready(Some(100), 136));
+    assert!(!cooldown_ready(Some(100), 100 + 36 * 30 - 1));
+    assert!(cooldown_ready(Some(100), 100 + 36 * 30));
     // 心魔
     assert_eq!(heart_demon_chance(50.0, 0.0, false), 0.0);
     assert!((heart_demon_chance(280.0, 0.0, false) - 0.2).abs() < 1e-6);
@@ -201,7 +201,7 @@ impl Block for Person {
     /// 讓冷卻未過，避免測試中途突破。
     fn last_attempt_block(&mut self) {
         if let PathState::Cultivator { realm, exp, .. } = self.path {
-            self.path = PathState::Cultivator { realm, exp, last_attempt: Some(1199) };
+            self.path = PathState::Cultivator { realm, exp, last_attempt: Some(1199 * 30) };
         }
     }
 }
@@ -240,7 +240,7 @@ fn failed_breakthrough_keeps_85_percent_and_may_kill_from_golden_core() {
     assert!(failed > 100);
     for &i in &ids {
         if w.persons[i as usize].alive() && realm(&w, i) == 1 {
-            assert!(matches!(w.persons[i as usize].path, PathState::Cultivator { last_attempt: Some(1200), .. }));
+            assert!(matches!(w.persons[i as usize].path, PathState::Cultivator { last_attempt: Some(36000), .. }));
             assert!(exp(&w, i) >= REALM_EXP[1] * BT_FAIL_KEEP - 1e-3);
         }
     }
@@ -374,11 +374,11 @@ fn forced_ascension_liberates_soul_and_counts_for_sect() {
 fn omen_for_yuanying_with_full_exp_and_cooldown_ending() {
     let mut w = line_world(15, 2, &[]);
     let a = cult(&mut w, 0, 3, REALM_EXP[3]);
-    w.persons[a as usize].path = PathState::Cultivator { realm: 3, exp: REALM_EXP[3], last_attempt: Some(w.tick - 30) };
+    w.persons[a as usize].path = PathState::Cultivator { realm: 3, exp: REALM_EXP[3], last_attempt: Some(w.tick - 30 * 30) };
     let b = cult(&mut w, 0, 2, REALM_EXP[2]);
-    w.persons[b as usize].path = PathState::Cultivator { realm: 2, exp: REALM_EXP[2], last_attempt: Some(w.tick - 30) };
+    w.persons[b as usize].path = PathState::Cultivator { realm: 2, exp: REALM_EXP[2], last_attempt: Some(w.tick - 30 * 30) };
     let c = cult(&mut w, 0, 3, REALM_EXP[3]);
-    w.persons[c as usize].path = PathState::Cultivator { realm: 3, exp: REALM_EXP[3], last_attempt: Some(w.tick - 5) };
+    w.persons[c as usize].path = PathState::Cultivator { realm: 3, exp: REALM_EXP[3], last_attempt: Some(w.tick - 5 * 30) };
     yearly(&mut w);
     let omens: Vec<_> = w.ledger.events.iter().filter(|e| e.kind == EventKind::TribulationOmen).collect();
     assert_eq!(omens.len(), 1);
@@ -572,7 +572,7 @@ fn recruit_masters_fill_and_join() {
     let tick = w.tick as i32;
     for _ in 0..6 {
         let (_, kid) = soul::spawn_new_life(&mut w, SoulOrigin::New, 0);
-        w.persons[kid as usize].born = tick - 12 * 12;
+        w.persons[kid as usize].born = tick - 12 * 360;
     }
     let souls = w.souls.len();
     let g0 = 0.0;
@@ -594,7 +594,7 @@ fn recruit_masters_fill_and_join() {
     }
     let newest = *w.powers[s as usize].members.last().unwrap();
     assert_eq!(w.persons[newest as usize].age(w.tick), 12);
-    assert_eq!(w.persons[newest as usize].born, tick - 12 * 12, "降生時刻不改");
+    assert_eq!(w.persons[newest as usize].born, tick - 12 * 360, "降生時刻不改");
     assert_eq!(w.souls.len(), souls, "不建立新魂");
     assert!(w.persons[rogue_near as usize].power.is_none() || w.persons[rogue_near as usize].power == Some(s));
 }
@@ -849,7 +849,7 @@ fn scenario(seed: u64) -> u64 {
         }
     }
     for y in 0..40 {
-        w.tick += 12;
+        w.tick += 360;
         yearly(&mut w);
         yearly_sects(&mut w);
         if y % 7 == 0 {
@@ -909,14 +909,14 @@ fn smoke_three_yun() {
 #[test]
 fn gdd_6_3_cultivation_once_per_year_across_monthly_rounds() {
     let mut w = line_world(31, 2, &[]);
-    w.tick = 1237; // 年中
+    w.tick = 1237 * 30; // 年中
     let ids: Vec<_> = (0..60).map(|_| cult(&mut w, 0, 0, 0.0)).collect();
     for &id in &ids {
         w.persons[id as usize].last_attempt_block();
     }
     let coef: Vec<f32> = ids.iter().map(|&id| cultivation_coefficient(&w, &w.persons[id as usize])).collect();
     for _ in 0..12 {
-        w.tick += 1;
+        w.tick += 30;
         monthly_personal(&mut w);
     }
     let mut checked = 0;
@@ -937,12 +937,12 @@ fn gdd_6_3_cultivation_once_per_year_across_monthly_rounds() {
 #[test]
 fn gdd_6_3_monthly_round_touches_only_due_persons() {
     let mut w = line_world(32, 2, &[]);
-    w.tick = 1200;
+    w.tick = 1200 * 30;
     let ids: Vec<_> = (0..60).map(|_| cult(&mut w, 0, 0, 0.0)).collect();
     for &id in &ids {
         w.persons[id as usize].last_attempt_block();
     }
-    w.tick += 1;
+    w.tick += 30;
     let month = crate::schedule::month_of(w.tick);
     monthly_personal(&mut w);
     for &id in &ids {

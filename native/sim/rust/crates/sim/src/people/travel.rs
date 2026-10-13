@@ -109,7 +109,7 @@ fn travel_round(w: &mut World, round: Round) {
             chosen
         };
         let cell = random_cell(w, to);
-        let stay = w.rng.people.gen_range(TRAVEL_STAY_YEARS_MIN * 12..=TRAVEL_STAY_YEARS_MAX * 12);
+        let stay = w.rng.people.gen_range(TRAVEL_STAY_YEARS_MIN * 12..=TRAVEL_STAY_YEARS_MAX * 12) * crate::calendar::DAYS_PER_MONTH;
         let p = &mut w.persons[i];
         p.province = to;
         p.cell = cell;

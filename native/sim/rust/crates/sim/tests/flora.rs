@@ -323,7 +323,7 @@ fn gdd_2_8_flora_changes_enter_the_ledger_and_replay() {
         assert!(!(cleared && w.geo.terrain[c] == Terrain::Forest), "已墾的格 {c} 還是森林");
     }
     for event in w.ledger.events.iter().filter(|e| matches!(e.kind, EventKind::ForestCleared | EventKind::Desertified)) {
-        assert_eq!(event.tick % 360, 0, "只在每世結算時發生");
+        assert_eq!(event.tick % 10_800, 0, "只在每世結算時發生");
         let p = &w.provinces[event.province.expect("掛在州上") as usize];
         if event.kind == EventKind::Desertified {
             assert!(p.lost || p.cells.iter().any(|&c| w.flora.sanded[c as usize]));

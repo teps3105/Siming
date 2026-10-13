@@ -57,7 +57,9 @@ pub fn thread_allowed(w: &World) -> bool {
     }
     let left = f64::from(w.calamity.slow_until - year) / f64::from(CATA_SLOW_YEARS + CATA_DURATION_YEARS);
     let rate = 1.0 - CATA_SLOW_THREAD_CUT * left.min(1.0);
-    let h = mix(w.params.seed ^ (w.threads.len() as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ (u64::from(w.tick) << 20));
+    let h = mix(w.params.seed
+        ^ (w.threads.len() as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15)
+        ^ (u64::from(w.tick / crate::calendar::DAYS_PER_MONTH) << 20));
     ((h >> 40) as f64 / (1u64 << 24) as f64) < rate
 }
 

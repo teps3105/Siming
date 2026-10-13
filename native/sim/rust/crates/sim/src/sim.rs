@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::calendar::Day;
+use crate::calendar::{Day, DAYS_PER_MONTH};
 use crate::model::*;
 use crate::rng::RngStreams;
 use crate::types::{FineGeography, Geography, Province, ProvinceId, Tick, WorldGenError, WorldParams};
@@ -61,9 +61,6 @@ pub struct World {
     /// 天地負荷與大劫的狀態（GDD 3.11）。
     pub calamity: crate::cataclysm::Calamity,
     pub rng: RngStreams,
-    /// 事件驅動引擎的時刻（日序，見 [`crate::calendar::Day`]）。月步進把它設在該月最後一日，
-    /// 隊列事件把它設在事件自己的日。移植完成前，`tick`（月序）仍是舊規則的時鐘。
-    pub day: Day,
     /// 待發生事件隊列（事件驅動引擎）。
     pub queue: crate::queue::EventQueue,
     /// 全部子流上次重設用的種子；`None` 表示仍是世界種子決定的初始狀態（人物落地之前）。
@@ -129,7 +126,6 @@ impl World {
             settlements: Vec::new(),
             calamity: Default::default(),
             rng,
-            day: 0,
             queue: Default::default(),
             rng_origin: None,
         }
@@ -220,13 +216,18 @@ impl World {
 
 /// 觸發條件（GDD 6.3）。
 pub fn is_yearly(tick: Tick) -> bool {
-    tick.is_multiple_of(12)
+    tick.is_multiple_of(crate::calendar::DAYS_PER_YEAR)
 }
 pub fn is_quarterly(tick: Tick) -> bool {
-    tick.is_multiple_of(3)
+    tick.is_multiple_of(3 * DAYS_PER_MONTH)
 }
 pub fn is_shi(tick: Tick) -> bool {
-    tick.is_multiple_of(360)
+    tick.is_multiple_of(30 * crate::calendar::DAYS_PER_YEAR)
+}
+
+/// `tick` 之後的第一個月底（月步進結算日）。
+pub fn next_month_end(tick: Tick) -> Tick {
+    (tick / DAYS_PER_MONTH + 1) * DAYS_PER_MONTH
 }
 
 pub struct Sim {
@@ -315,14 +316,14 @@ impl Sim {
 
     /// 推進一個月（30 日）：等於 `advance_to` 下個月的最後一日。
     pub fn step(&mut self) {
-        self.advance_to(crate::calendar::day_of_tick(self.world.tick + 1));
+        self.advance_to(next_month_end(self.world.tick));
     }
 
     /// 推進到第 `target` 日（含）：依時刻先後執行月步進與隊列裡到期的事件，同日先月步進再隊列。
     /// 月步進是尚未移植的舊規則（GDD 6.3），每月最後一日結算一次；規則移植到隊列後，它會逐步縮小。
     pub fn advance_to(&mut self, target: Day) {
         loop {
-            let month_day = crate::calendar::day_of_tick(self.world.tick + 1);
+            let month_day = next_month_end(self.world.tick);
             let queued = self.world.queue.peek_day();
             match queued {
                 Some(qd) if qd < month_day && qd <= target => self.run_queued(qd),
@@ -330,8 +331,8 @@ impl Sim {
                 _ => break,
             }
         }
-        if self.world.day < target {
-            self.world.day = target;
+        if self.world.tick < target {
+            self.world.tick = target;
         }
         self.pending.extend(crate::ledger::take_new(&mut self.world));
     }
@@ -339,7 +340,7 @@ impl Sim {
     /// 取出並執行一件到期的隊列事件。
     fn run_queued(&mut self, qd: Day) {
         let Some((day, action)) = self.world.queue.pop_due(qd) else { return };
-        self.world.day = self.world.day.max(day);
+        self.world.tick = self.world.tick.max(day);
         match action {
             crate::queue::Action::Marker(_) => self.world.queue.fired += 1,
         }
@@ -348,14 +349,14 @@ impl Sim {
     /// 推進到停止條件成立或超過 `max_days` 日；回傳使條件成立的事件（因果帳 ID），沒有則 `None`。
     /// 逐個時間單位（一次月步進或一件隊列事件）推進並檢查新寫入的事件。
     pub fn advance_until(&mut self, cond: Until, max_days: Day) -> Option<EventId> {
-        let start_day = self.world.day;
+        let start_day = self.world.tick;
         let deadline = match cond {
             Until::Years(n) => start_day + n * crate::calendar::DAYS_PER_YEAR,
             _ => start_day + max_days,
         };
         let mut seen = self.world.ledger.events.len();
-        while self.world.day < deadline {
-            let month_day = crate::calendar::day_of_tick(self.world.tick + 1);
+        while self.world.tick < deadline {
+            let month_day = next_month_end(self.world.tick);
             let next = self.world.queue.peek_day().map_or(month_day, |q| q.min(month_day)).min(deadline);
             self.advance_to(next);
             let w = &self.world;
@@ -379,8 +380,7 @@ impl Sim {
     fn month_step(&mut self) {
         let w = &mut self.world;
         // 1
-        w.tick += 1;
-        w.day = crate::calendar::day_of_tick(w.tick);
+        w.tick = next_month_end(w.tick);
         let tick = w.tick;
         // 2 指令
         for cmd in std::mem::take(&mut self.queued) {

@@ -518,7 +518,7 @@ impl SimWorld {
         };
         let w = sim.world();
         let e = &w.evolution;
-        let next_tick = (w.tick / 360 + 1) * 360;
+        let next_tick = (w.tick / 10_800 + 1) * 10_800;
         let (warmth_next, tide_next) = e.forecast(e.history_years + siming_sim::evolution::year_of(next_tick));
         d.set("warmth", e.warmth);
         d.set("tide", e.tide);

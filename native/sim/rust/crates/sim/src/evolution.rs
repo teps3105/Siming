@@ -398,7 +398,7 @@ fn record_land(w: &mut World, land: &crate::landform::LandShift) {
 
 /// 開局以來過了幾年（tick 360 是第 30 年的年底）。
 pub fn year_of(tick: Tick) -> u32 {
-    tick / 12
+    tick / crate::calendar::DAYS_PER_YEAR
 }
 
 /// 週期為 `period` 年、開天時相位為 `phase` 的正弦波在第 `year` 年的值。

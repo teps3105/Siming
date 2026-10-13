@@ -96,7 +96,7 @@ impl Sim {
     pub fn save(&self) -> SaveFile {
         let w = self.world();
         let mut commands = self.command_log().to_vec();
-        commands.extend(self.queued_commands().iter().map(|c| (w.tick + 1, c.clone())));
+        commands.extend(self.queued_commands().iter().map(|c| (crate::sim::next_month_end(w.tick), c.clone())));
         SaveFile {
             magic: MAGIC,
             sim_version: SIM_VERSION,
@@ -161,7 +161,7 @@ impl Replay {
                 return Err(SaveError::BadCommandLog(t));
             }
             // 存檔時尚未套用的排隊指令（tick 在存檔之後）：先推進到存檔 tick，只排隊，不再推進。
-            let due = if t > self.file.tick { tick >= self.file.tick } else { tick + 1 >= t };
+            let due = if t > self.file.tick { tick >= self.file.tick } else { crate::sim::next_month_end(tick) >= t };
             if due {
                 self.sim.apply(cmd);
                 self.next += 1;

@@ -63,7 +63,6 @@ pub fn record(w: &mut World, e: NewEvent) -> EventId {
     w.ledger.events.push(Event {
         id,
         tick: w.tick,
-        day: w.day,
         kind,
         province: e.province,
         cell: e.cell,
@@ -163,7 +162,7 @@ fn prunable(w: &World, e: &Event) -> bool {
 /// 在世者從降生起的歷程與未了線的建線事件不修剪，改記入 `prune_deferred`，每十年複查一次，條件解除才修剪。
 /// 修剪後，`Person::last_event` 若指向被修剪的事件，改指向最近保留的祖先。
 pub fn prune(w: &mut World) {
-    let keep = LEDGER_TRIVIAL_KEEP_YEARS * 12;
+    let keep = LEDGER_TRIVIAL_KEEP_YEARS * crate::calendar::DAYS_PER_YEAR;
     let now = w.tick;
     let end = w.ledger.events.len() as EventId;
     let mut i = w.ledger.prune_cursor;
@@ -184,7 +183,7 @@ pub fn prune(w: &mut World) {
         i += 1;
     }
     w.ledger.prune_cursor = i;
-    if now.is_multiple_of(120) && !w.ledger.prune_deferred.is_empty() {
+    if now.is_multiple_of(10 * crate::calendar::DAYS_PER_YEAR) && !w.ledger.prune_deferred.is_empty() {
         let list = std::mem::take(&mut w.ledger.prune_deferred);
         let mut kept = Vec::with_capacity(list.len());
         for id in list {

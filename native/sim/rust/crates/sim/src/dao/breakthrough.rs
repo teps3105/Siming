@@ -3,6 +3,7 @@
 use rand::Rng;
 use smallvec::smallvec;
 
+use crate::calendar::DAYS_PER_YEAR;
 use crate::ledger::{self, NewEvent};
 use crate::model::*;
 use crate::params::*;
@@ -63,7 +64,7 @@ pub fn ascension_survival(sin: f32) -> f32 {
 
 /// 冷卻已過：從未嘗試，或距上次嘗試 ≥ 36 個月。
 pub fn cooldown_ready(last_attempt: Option<Tick>, tick: Tick) -> bool {
-    last_attempt.is_none_or(|t| tick.saturating_sub(t) >= BT_COOLDOWN_YEARS * 12)
+    last_attempt.is_none_or(|t| tick.saturating_sub(t) >= BT_COOLDOWN_YEARS * DAYS_PER_YEAR)
 }
 
 fn realm_state(p: &Person) -> Option<(u8, f32, Option<Tick>)> {
@@ -192,7 +193,7 @@ pub(super) fn yearly_omens(w: &mut World, round: Round) {
             continue;
         }
         let Some((realm, exp, last)) = realm_state(p) else { continue };
-        if realm < OMEN_MIN_REALM || exp < REALM_EXP[realm as usize] || !cooldown_ready(last, tick + 12) {
+        if realm < OMEN_MIN_REALM || exp < REALM_EXP[realm as usize] || !cooldown_ready(last, tick + DAYS_PER_YEAR) {
             continue;
         }
         let mut e = NewEvent::new(EventKind::TribulationOmen, OMEN_IMPORTANCE, EventArgs::None);

@@ -3,8 +3,9 @@
 //! 規則尚在月步進裡；這裡驗的是推進機制本身：不論怎麼切時間，結果與一個月一個月走相同，
 //! 隊列事件在正確的日子執行，取消不會誤發。
 
-use siming_sim::calendar::{day_of_tick, DAYS_PER_MONTH, DAYS_PER_YEAR};
+use siming_sim::calendar::{DAYS_PER_MONTH, DAYS_PER_YEAR};
 use siming_sim::queue::Action;
+use siming_sim::sim::next_month_end;
 use siming_sim::sim::Until;
 use siming_sim::{Sim, WorldParams};
 
@@ -26,18 +27,18 @@ fn step_is_advance_to_next_month_end() {
     assert_eq!(a.hash(), b.hash());
     for _ in 0..24 {
         a.step();
-        let t = day_of_tick(b.world().tick + 1);
+        let t = next_month_end(b.world().tick);
         b.advance_to(t);
     }
     assert_eq!(a.hash(), b.hash());
-    assert_eq!(a.world().day, day_of_tick(a.world().tick));
+    assert_eq!(a.world().tick, a.world().tick);
 }
 
 #[test]
 fn advancing_in_odd_slices_matches_month_steps() {
     let mut a = world(12);
     let mut b = world(12);
-    let start = b.world().day;
+    let start = b.world().tick;
     for _ in 0..18 {
         a.step();
     }
@@ -50,14 +51,14 @@ fn advancing_in_odd_slices_matches_month_steps() {
     }
     b.advance_to(target);
     assert_eq!(b.world().tick, a.world().tick);
-    assert_eq!(b.world().day, target);
+    assert_eq!(b.world().tick, target);
     assert_eq!(a.hash(), b.hash());
 }
 
 #[test]
 fn queued_events_fire_on_their_day_in_order() {
     let mut s = world(13);
-    let d0 = s.world().day;
+    let d0 = s.world().tick;
     let q = &mut s.world_mut().queue;
     let a = q.schedule(d0 + 5, Action::Marker(1));
     let b = q.schedule(d0 + 40, Action::Marker(2));
@@ -68,7 +69,7 @@ fn queued_events_fire_on_their_day_in_order() {
     assert!(s.world().queue.is_live(a));
     s.advance_to(d0 + 5);
     assert_eq!(s.world().queue.fired, 1);
-    assert_eq!(s.world().day, d0 + 5);
+    assert_eq!(s.world().tick, d0 + 5);
     s.advance_to(d0 + 39);
     assert_eq!(s.world().queue.fired, 1);
     s.advance_to(d0 + 40);
@@ -80,31 +81,31 @@ fn queued_events_fire_on_their_day_in_order() {
 #[test]
 fn an_event_in_the_same_day_as_month_end_runs_after_the_month_step() {
     let mut s = world(14);
-    let end = day_of_tick(s.world().tick + 1);
+    let end = next_month_end(s.world().tick);
     s.world_mut().queue.schedule(end, Action::Marker(1));
     s.advance_to(end);
     assert_eq!(s.world().queue.fired, 1);
-    assert_eq!(s.world().tick * DAYS_PER_MONTH, end);
+    assert_eq!(s.world().tick, end);
 }
 
 #[test]
 fn advance_until_years_advances_exactly_that_long() {
     let mut s = world(15);
-    let d0 = s.world().day;
+    let d0 = s.world().tick;
     assert_eq!(s.advance_until(Until::Years(3), u32::MAX), None);
-    assert_eq!(s.world().day, d0 + 3 * DAYS_PER_YEAR);
+    assert_eq!(s.world().tick, d0 + 3 * DAYS_PER_YEAR);
 }
 
 #[test]
 fn advance_until_importance_stops_at_the_event() {
     let mut s = world(16);
-    let d0 = s.world().day;
+    let d0 = s.world().tick;
     let id = s.advance_until(Until::Importance(4), 50 * DAYS_PER_YEAR).expect("五十年內應有重要度 4 的事件");
     let w = s.world();
     let e = &w.ledger.events[id as usize];
     assert!(e.importance >= 4);
-    assert!(w.day > d0 && w.day == e.day, "停在事件發生的那一日");
-    assert!(e.day <= d0 + 50 * DAYS_PER_YEAR);
+    assert!(w.tick > d0 && w.tick == e.tick, "停在事件發生的那一日");
+    assert!(e.tick <= d0 + 50 * DAYS_PER_YEAR);
 }
 
 #[test]
@@ -123,5 +124,5 @@ fn events_carry_their_day() {
     let s = world(18);
     let w = s.world();
     let late = w.ledger.events.iter().rev().find(|e| e.tick > 0).expect("有事件");
-    assert_eq!(late.day, day_of_tick(late.tick), "舊規則的事件落在該月最後一日");
+    assert_eq!(late.tick % DAYS_PER_MONTH, 0, "舊規則的事件落在該月最後一日");
 }

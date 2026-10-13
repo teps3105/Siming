@@ -122,7 +122,7 @@ pub fn on_death(w: &mut World, pid: PersonId, liberation: Option<Liberation>) {
     soul.last_place = place;
     soul.state = match liberation {
         Some(way) => SoulState::Liberated { way, tick },
-        None => SoulState::Bardo { until: tick + BARDO_MONTHS },
+        None => SoulState::Bardo { until: tick + BARDO_MONTHS * crate::calendar::DAYS_PER_MONTH },
     };
 }
 
@@ -235,7 +235,7 @@ fn judge_and_place(w: &mut World, sid: SoulId, m: &mut Month) {
         let soul = &mut w.souls[sid as usize];
         soul.guide = None;
         soul.marks.clear(SoulMarks::ASURA);
-        soul.state = SoulState::Realm { path, until: tick + dur };
+        soul.state = SoulState::Realm { path, until: tick + dur * crate::calendar::DAYS_PER_MONTH };
         record_judged(w, sid, path);
         return;
     }
@@ -257,7 +257,7 @@ fn judge_and_place(w: &mut World, sid: SoulId, m: &mut Month) {
             if path == SixPath::Asura {
                 soul.marks.set(SoulMarks::ASURA);
             }
-            soul.state = SoulState::Waiting { until: tick + WAIT_MAX_YEARS * 12, for_souls: smallvec![other] };
+            soul.state = SoulState::Waiting { until: tick + WAIT_MAX_YEARS * crate::calendar::DAYS_PER_YEAR, for_souls: smallvec![other] };
             m.entered_waiting(sid);
             record_judged(w, sid, path);
             return;
@@ -267,7 +267,7 @@ fn judge_and_place(w: &mut World, sid: SoulId, m: &mut Month) {
     // 先配對，再檢查上限；達上限時整組一起延後（等待者維持原狀）。
     let group = 1 + waiters.len() as u32;
     if *m.living(w) + group > m.cap {
-        w.souls[sid as usize].state = SoulState::Bardo { until: tick + BIRTH_DEFER_YEARS * 12 };
+        w.souls[sid as usize].state = SoulState::Bardo { until: tick + BIRTH_DEFER_YEARS * crate::calendar::DAYS_PER_YEAR };
         return;
     }
 
@@ -297,7 +297,7 @@ fn judge_and_place(w: &mut World, sid: SoulId, m: &mut Month) {
 fn birth_after_wait(w: &mut World, sid: SoulId, m: &mut Month) {
     if *m.living(w) + 1 > m.cap {
         if let SoulState::Waiting { until, .. } = &mut w.souls[sid as usize].state {
-            *until += BIRTH_DEFER_YEARS * 12;
+            *until += BIRTH_DEFER_YEARS * crate::calendar::DAYS_PER_YEAR;
         }
         return;
     }
@@ -315,7 +315,7 @@ pub fn monthly(w: &mut World) {
     }
     let tick: Tick = w.tick;
 
-    if tick.is_multiple_of(12) {
+    if tick.is_multiple_of(crate::calendar::DAYS_PER_YEAR) {
         for soul in &mut w.souls {
             if let SoulState::Realm { path, .. } = soul.state {
                 match path {

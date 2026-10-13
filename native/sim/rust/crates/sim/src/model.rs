@@ -287,10 +287,10 @@ impl Person {
         self.died.is_none()
     }
 
-    /// GDD 3.4 年齡 = floor((tick − born) / 12)。
+    /// GDD 3.4 年齡 = floor((tick − born) / 360)。
     pub fn age(&self, tick: Tick) -> u32 {
         let end = self.died.map(|d| d.0).unwrap_or(tick);
-        ((end as i64 - self.born as i64).max(0) / 12) as u32
+        ((end as i64 - self.born as i64).max(0) / crate::calendar::DAYS_PER_YEAR as i64) as u32
     }
 }
 
@@ -521,9 +521,6 @@ pub enum EventArgs {
 pub struct Event {
     pub id: EventId,
     pub tick: Tick,
-    /// 事件發生的日序（見 [`crate::calendar::Day`]）；舊規則在月步進結算，落在該月最後一日。
-    #[serde(default)]
-    pub day: u32,
     pub kind: EventKind,
     pub province: Option<ProvinceId>,
     pub cell: Option<u32>,

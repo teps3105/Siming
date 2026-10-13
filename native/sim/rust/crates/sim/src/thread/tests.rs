@@ -64,7 +64,7 @@ fn line_world(seed: u64) -> World {
         })
         .collect();
     let mut w = World::empty(WorldParams::new(seed), geo(), provs);
-    w.tick = 12 * 40;
+    w.tick = 360 * 40;
     ensure_heaven(&mut w);
     w
 }
@@ -695,7 +695,7 @@ fn gdd_4_5_reincarnated_master_conditions() {
     // 前世最高金丹，今生 30 歲再達金丹。
     let mut w = line_world(1);
     let (sid, pid) = adult(&mut w, 0, 2);
-    w.persons[pid as usize].born = w.tick as i32 - 12 * 30;
+    w.persons[pid as usize].born = w.tick as i32 - 360 * 30;
     w.souls[sid as usize].best_prev.realm = Some(2);
     breakthrough(&mut w, sid, pid, 1);
     assert!(!book::achieved(&w, BookEntryKind::ReincarnatedMaster), "尚未達到舊境界");
@@ -707,9 +707,9 @@ fn gdd_4_5_reincarnated_master_conditions() {
 
     // 50 歲後才達到：不算。
     let mut w = line_world(1);
-    w.tick = 12 * 80;
+    w.tick = 360 * 80;
     let (sid, pid) = adult(&mut w, 0, 2);
-    w.persons[pid as usize].born = w.tick as i32 - 12 * 50;
+    w.persons[pid as usize].born = w.tick as i32 - 360 * 50;
     w.souls[sid as usize].best_prev.realm = Some(2);
     breakthrough(&mut w, sid, pid, 2);
     assert!(!book::achieved(&w, BookEntryKind::ReincarnatedMaster));
@@ -763,12 +763,12 @@ fn gdd_3_3_prune_old_trivial_events_rewires_causes() {
     let b = ev(&mut w, 1, &[a], 20); // 修剪
     let c = ev(&mut w, 1, &[b], 30); // 修剪
     let d = ev(&mut w, 3, &[c, b], 40); // 保留，改指向 a
-    let x = ev(&mut w, 1, &[d], 12 * 100 + 20); // 未滿 100 年（相對 now），保留
-    let y = ev(&mut w, 2, &[x], 12 * 100 + 30);
+    let x = ev(&mut w, 1, &[d], 360 * 100 + 20); // 未滿 100 年（相對 now），保留
+    let y = ev(&mut w, 2, &[x], 360 * 100 + 30);
     // 人物最近事件指向被修剪的 c。
     let (_, pid) = adult(&mut w, 0, 0);
     w.persons[pid as usize].last_event = Some(c);
-    w.tick = 12 * 100 + 50;
+    w.tick = 360 * 100 + 50;
     ledger::prune(&mut w);
     assert!(ledger::get(&w, b).is_none() && ledger::get(&w, c).is_none());
     assert_eq!(w.ledger.events[b as usize].importance, 0);
@@ -780,7 +780,7 @@ fn gdd_3_3_prune_old_trivial_events_rewires_causes() {
     // 近期的 importance 1 與 importance ≥ 2 都保留。
     assert!(ledger::get(&w, x).is_some() && ledger::get(&w, y).is_some());
     // 之後滿 100 年再修剪 x。
-    w.tick += 12 * 100;
+    w.tick += 360 * 100;
     ledger::prune(&mut w);
     assert!(ledger::get(&w, x).is_none());
     assert_eq!(w.ledger.events[y as usize].causes.as_slice(), &[d]);
@@ -813,7 +813,7 @@ fn yearly_is_deterministic() {
             create(&mut w, kind, ids[i], ids[(i + 3) % 8], 60.0, false, None);
         }
         for _ in 0..40 {
-            w.tick += 12;
+            w.tick += 360;
             yearly(&mut w);
             ledger::prune(&mut w);
         }
