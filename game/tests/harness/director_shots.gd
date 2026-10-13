@@ -16,6 +16,8 @@ var _every := 2.0
 var _suite: Suite
 var _log := PackedStringArray()
 var _t0 := 0
+## 引擎回報的處理秒數累計（遊戲裡的真實秒；幀太慢被夾住時比牆上時間短）。
+var _game_t := 0.0
 
 
 func _initialize() -> void:
@@ -66,10 +68,16 @@ func _main() -> void:
 		_save_log()
 		quit(0)
 		return
+	if _mode == "arrive":
+		await _arrive_run(sim, camera, director, card)
+		_save_log()
+		quit(0)
+		return
 	var next_shot := 0.0
 	var index := 0
 	while index < _shots:
 		await _suite.frames(1)
+		_game_t += root.get_process_delta_time()
 		if director.state != last_state:
 			_note("狀態 %s → %s" % [Director.State.keys()[last_state], Director.State.keys()[director.state]])
 			if director.state == Director.State.STAY:
@@ -90,7 +98,7 @@ func _secs() -> float:
 
 
 func _note(text: String) -> void:
-	var line := "%7.2f  %s" % [_secs(), text]
+	var line := "%7.2f（遊戲 %6.2f）  %s" % [_secs(), _game_t, text]
 	print(line)
 	_log.append(line)
 
@@ -102,3 +110,35 @@ func _shot(name: String) -> void:
 func _save_log() -> void:
 	var file := FileAccess.open(_out.path_join("log_%d.txt" % int(_ui * 100.0)), FileAccess.WRITE)
 	file.store_string("\n".join(_log))
+
+
+## 到位後 1.0 秒與 3.0 秒（遊戲秒）各拍一張，並記下字卡事件的格投影到螢幕的位置與鏡頭高度；跑 _shots 遊戲秒。
+func _arrive_run(sim: SimHost, camera: MapCamera, director: Director, card: DirectorCard) -> void:
+	var arrived := -1.0
+	var taken := 0
+	var last := director.state
+	while _game_t < float(_shots):
+		await _suite.frames(1)
+		_game_t += root.get_process_delta_time()
+		if director.state == Director.State.STAY and last != Director.State.STAY:
+			arrived = _game_t
+			taken = 0
+		last = director.state
+		if director.state != Director.State.STAY:
+			arrived = -1.0
+		if arrived < 0.0:
+			continue
+		var since := _game_t - arrived
+		var due := 1.0 if taken == 0 else 3.0
+		if taken < 2 and since >= due:
+			taken += 1
+			var event := director.target_event()
+			var spot: Variant = event.get("pos")
+			var screen := Vector2.INF
+			if spot is Vector2:
+				var world: Vector3 = camera._map.world_position(spot, camera.focus.x)
+				screen = camera.unproject_position(world)
+			var name := "p%d_%s_t%03d_a%.1f" % [director.current, sim.world.province_info(director.current)["name"], int(_game_t), since]
+			_note("%s 種類 %s 事件格 %s 治所 %s 螢幕 %s 焦點 (%.1f, %.1f) 高 %.1f/寬 %.0f 字卡 %s" % [name, event.get("kind", "?"), spot,
+				sim.world.province_info(director.current)["seat"], screen, camera.focus.x, camera.focus.y, camera.z, camera.map_width(), card.text()])
+			await _shot(name)

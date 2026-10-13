@@ -32,6 +32,7 @@ func suite_name() -> String:
 func setup() -> void:
 	_dir = Director.new()
 	_dir.enabled = true
+	_dir.performs = func(event: Dictionary) -> bool: return not event.get("plain", false)
 	_log = []
 	_dir.go.connect(func(province: int, big: bool) -> void: _log.append([_dir.clock, province, big]))
 
@@ -294,9 +295,9 @@ func test_paused_time_freezes_the_director() -> void:
 func test_scores_use_a_ten_second_real_window() -> void:
 	_dir.post(1, 3, _event(3))
 	_dir.post(1, 2, _event(2))
-	assert_eq(_dir.score(1), 5)
+	assert_eq(_dir.score(1), 5.0)
 	_run(10.5)
-	assert_eq(_dir.score(1), 0, "十秒前的事件不再計分")
+	assert_eq(_dir.score(1), 0.0, "十秒前的事件不再計分")
 
 
 func test_two_visits_are_never_closer_than_the_minimum_stay() -> void:
@@ -328,6 +329,39 @@ func test_caption_follows_the_best_local_event_and_holds_three_seconds() -> void
 	assert_eq(_dir.caption()["tag"], "新", "三秒後換成更重要的新事件")
 	_dir.player_acted()
 	assert_true(_dir.caption().is_empty(), "讓出時字卡收起")
+
+
+func test_events_without_a_performance_score_half() -> void:
+	_dir.post(1, 4, {"importance": 4, "plain": true})
+	_dir.post(2, 2, {"importance": 2})
+	assert_eq(_dir.score(1), 2.0, "沒有棋子演出的事件分數乘 0.5")
+	assert_eq(_dir.score(2), 2.0)
+
+
+func test_caption_prefers_an_event_with_a_performance_at_equal_importance() -> void:
+	_dir.post(1, 3, {"importance": 3, "tag": "演", "plain": false})
+	_dir.post(1, 3, {"importance": 3, "tag": "轉世", "plain": true})
+	assert_eq(_dir.best_event(1)["tag"], "演", "同級時有演出的優先，即使另一件較新")
+	_dir.post(1, 4, {"importance": 4, "tag": "高", "plain": true})
+	assert_eq(_dir.best_event(1)["tag"], "高", "重要度仍是第一順位")
+
+
+func test_refocus_is_announced_when_the_story_changes_during_travel_and_stay() -> void:
+	var seen: Array[String] = []
+	_dir.refocus.connect(func(event: Dictionary) -> void: seen.append(event["tag"]))
+	_dir.post(1, 2, {"importance": 2, "tag": "舊"})
+	_run(STEP)
+	assert_eq(_dir.state, Director.State.TRAVEL)
+	_dir.post(1, 4, {"importance": 4, "tag": "途中"})
+	assert_eq(seen, ["途中"] as Array[String], "過場途中出現更好的事，鏡頭要改去那裡")
+	_dir.arrive()
+	assert_eq(_dir.caption()["tag"], "途中", "到位的字卡就是鏡頭去的那件")
+	_run(4.0)
+	_dir.post(1, 5, {"importance": 5, "tag": "停留中"})
+	_run(1.0)
+	assert_eq(seen.size(), 2, "停留中字卡換句，通知鏡頭跟過去")
+	assert_eq(_dir.target_event()["tag"], "停留中")
+	assert_eq(_dir.state, Director.State.STAY, "不算換鏡頭")
 
 
 func test_slow_flag_follows_big_events_and_leaving() -> void:
