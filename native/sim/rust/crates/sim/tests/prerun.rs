@@ -247,8 +247,8 @@ fn year_step_and_month_step_agree_on_population_and_famine() {
             let tick = b.tick;
             let f = siming_sim::population::monthly_with(&mut b.provinces, &[], seed, Round::at(tick));
             siming_sim::ledger::record_famines(&mut b, &f);
-            if tick % 12 == 0 {
-                if tick % 360 == 0 {
+            if tick.is_multiple_of(12) {
+                if tick.is_multiple_of(360) {
                     siming_sim::evolution::shi_settle(&mut b);
                 }
                 siming_sim::cataclysm::yearly(&mut b);

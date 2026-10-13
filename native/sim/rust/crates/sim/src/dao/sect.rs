@@ -421,7 +421,7 @@ fn local_recruit(w: &World, province: ProvinceId) -> Option<PersonId> {
         let age = p.age(tick);
         let fits = match p.role {
             Role::Child => age >= FILL_AGE_YEARS,
-            Role::Commoner => matches!(p.path, PathState::Mortal) && age >= FILL_AGE_YEARS && age <= FILL_MAX_AGE_YEARS,
+            Role::Commoner => matches!(p.path, PathState::Mortal) && (FILL_AGE_YEARS..=FILL_MAX_AGE_YEARS).contains(&age),
             _ => false,
         };
         if fits && best.is_none_or(|(r, _)| p.attrs.root > r) {
