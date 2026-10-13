@@ -322,7 +322,7 @@ static func paint(canvas: CanvasItem, look: Dictionary, pose: Variant, time: flo
 		for piece in _unite(fills.slice(cut[3], cut[4])):
 			# 暈染：顏色略略滲出墨線之外。
 			if part != SKIN and part != HAIR:
-				for bleed in Geometry2D.offset_polygon(piece, stroke * 1.1):
+				for bleed in _bleed(piece, stroke * 1.1):
 					canvas.draw_colored_polygon(bleed, Color(base, base.a * 0.3))
 			canvas.draw_polygon(piece, _graded(piece, base, DEPTH.get(part, 0.1)))
 			if cut[2] < OPEN and part != HAIR:
@@ -334,6 +334,16 @@ static func paint(canvas: CanvasItem, look: Dictionary, pose: Variant, time: flo
 			canvas.draw_polyline(band[0], tint, band[2], true)
 		for i in range(cut[5], cut[6]):
 			_brush(canvas, lines[i], ink, stroke * 0.8)
+
+
+## 暈染用的外擴輪廓。外擴後圍出洞（兩縷細帶靠得太近、中間的縫被吃掉）時整塊不畫：洞也是個多邊形，照畫會把縫填成一整片灰葉。
+static func _bleed(piece: PackedVector2Array, grow: float) -> Array[PackedVector2Array]:
+	var grown: Array[PackedVector2Array] = []
+	for polygon in Geometry2D.offset_polygon(piece, grow):
+		if Geometry2D.is_polygon_clockwise(polygon):
+			return []
+		grown.append(polygon)
+	return grown
 
 
 ## 這個人某個部位的色塊（由後往前）：看剪影裡哪一塊是裙、哪一塊是披帛用。
@@ -433,10 +443,14 @@ static func _unite(polygons: Array) -> Array[PackedVector2Array]:
 		var apart: Array[PackedVector2Array] = []
 		for piece in pieces:
 			var outers: Array[PackedVector2Array] = []
+			var holes := 0
 			for merged in Geometry2D.merge_polygons(whole, piece):
-				if not Geometry2D.is_polygon_clockwise(merged):
+				if Geometry2D.is_polygon_clockwise(merged):
+					holes += 1
+				else:
 					outers.append(merged)
-			if outers.size() == 1:
+			# 合併後圍出洞（兩縷飄帶交叉成葉形）時不合併：只留外輪廓會把洞填成一整片。
+			if outers.size() == 1 and holes == 0:
 				whole = outers[0]
 			else:
 				apart.append(piece)

@@ -491,3 +491,54 @@ func test_gdd_5_6_spec_of_carries_the_principal_of_a_tribulation() -> void:
 	var none := spectacle.spec_of({"id": 5, "kind": "Tribulation", "pos": Vector2(4, 4), "x": "Passed"})
 	assert_eq(none["person"], -1, "都沒有就是 -1")
 	assert_eq(none["given"], {}, "沒有當事人：樣子全由種子決定")
+
+
+## 多邊形的面積（鞋帶公式取絕對值）。
+func _area(polygon: PackedVector2Array) -> float:
+	var total := 0.0
+	for i in polygon.size():
+		var a := polygon[i]
+		var b := polygon[(i + 1) % polygon.size()]
+		total += a.x * b.y - b.x * a.y
+	return absf(total) * 0.5
+
+
+func test_gdd_8_11_hair_ribbons_never_fill_the_gap_between_strands_in_any_action_frame() -> void:
+	# 腦後兩縷飄帶交叉圍出洞時，只留外輪廓會把洞填成一整片葉形：合併後的面積不得超過各縷面積的總和。
+	for seed_value in [25, 19, 7, 3]:
+		var look := FigureActor.look_of(seed_value, {"school": 1})
+		for action in ACTIONS:
+			var count := int(FigureMotion.length(action))
+			for i in range(0, count + 1):
+				var pose := FigureMotion.frame_pose(action, i)
+				for time in [0.0, float(i) / 24.0, 1.3 + float(i) * 0.07]:
+					for part in [CF.HAT, CF.TRIM, CF.HAIR]:
+						var raw := CF.pieces(look, pose, part, time)
+						var raw_area := 0.0
+						for polygon in raw:
+							raw_area += _area(polygon)
+						var united_area := 0.0
+						for polygon in CF._unite(raw):
+							united_area += _area(polygon)
+						assert_true(united_area <= raw_area + 1e-6, "%s 第 %d 格（時間 %s）部位 %d 合併後面積 %s 超過各塊總和 %s，兩縷之間的洞被填滿" % [action, i, time, part, united_area, raw_area])
+
+
+func test_gdd_8_11_bleed_halo_never_becomes_a_filled_leaf_between_strands() -> void:
+	# 暈染外擴後若把兩縷細帶之間的縫吃掉，會畫出整片灰葉：每一塊的暈染面積不得超過本身面積加上周長乘外擴寬度的 1.5 倍，且不含洞多邊形。
+	for seed_value in [25, 19, 7, 3]:
+		var look := FigureActor.look_of(seed_value, {"school": 1})
+		for action in ACTIONS:
+			for i in range(0, int(FigureMotion.length(action)) + 1):
+				var pose := FigureMotion.frame_pose(action, i)
+				var time := float(i) / 24.0
+				for part in [CF.HAT, CF.TRIM, CF.SHAWL, CF.ROBE]:
+					for piece in CF._unite(CF.pieces(look, pose, part, time)):
+						var halo := 0.0
+						for polygon in CF._bleed(piece, 0.011):
+							assert_true(not Geometry2D.is_polygon_clockwise(polygon), "%s 第 %d 格部位 %d 暈染含洞" % [action, i, part])
+							halo += _area(polygon)
+						var rim := 0.0
+						for k in piece.size():
+							rim += piece[k].distance_to(piece[(k + 1) % piece.size()])
+						var allowed := _area(piece) + rim * 0.011 * 1.5 + 0.0005
+						assert_true(halo <= allowed, "%s 第 %d 格部位 %d 暈染面積 %s 超過外擴應有的 %s" % [action, i, part, halo, allowed])
