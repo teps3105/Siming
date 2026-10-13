@@ -177,14 +177,18 @@
 		"nb+門下先後有{n}名弟子，{nb}為其中境界最高者"
 	],
 	"tail_resolved_mentor": [
-		"了卻{pw}的師徒之緣{,bt}",
-		"續上{pw}的師徒之緣{,bt}",
-		"應了{pw}的師徒之緣{,bt}"
+		"bt|了卻{pw}的師徒之緣——{bt}",
+		"bt|結清{pw}的師徒之緣——{bt}",
+		"了卻{pw}的師徒之緣",
+		"結清{pw}的師徒之緣",
+		"應了{pw}的師徒之緣"
 	],
 	"tail_resolved_love": [
-		"了卻{pw}的情緣{,bt}",
-		"續了{pw}的情緣{,bt}",
-		"應了{pw}的情緣{,bt}"
+		"bt|了卻{pw}的情緣——{bt}",
+		"bt|續了{pw}的情緣——{bt}",
+		"了卻{pw}的情緣",
+		"續了{pw}的情緣",
+		"應了{pw}的情緣"
 	],
 	"marry_f": [
 		"@嫁{spouse}",
@@ -252,11 +256,6 @@
 		"@劫雲聚頂",
 		"@天劫雲聚，劫期將至",
 		"@頭頂劫雲漸聚"
-	],
-	"omen_many": [
-		"先後{n}次劫雲聚頂",
-		"屢見劫雲聚頂，共{n}次",
-		"劫雲前後{n}次聚於頂上"
 	],
 	"cult_summary": [
 		"歷{n}次突破，{y1}{g1}，{y2}{g2}",
@@ -372,19 +371,29 @@
 		"@宗門爭戰，於{prov}殺{victim}{,feud}"
 	],
 	"kill_revenge": [
-		"@於{prov}殺{victim}，報{pw}之仇{,bt}",
-		"@在{prov}尋到{victim}，殺之以報{pw}之仇{,bt}",
-		"@遇{victim}於{prov}，殺之，報{pw}之仇{,bt}"
+		"bt|@於{prov}殺{victim}，報{pw}之仇——{bt}",
+		"bt|@遇{victim}於{prov}，殺之以報{pw}之仇——{bt}",
+		"bm|@在{prov}尋到{victim}，殺之，報{pw}{bm}之仇",
+		"again|@於{prov}再遇{victim}，殺之，{pw}之仇至此了結",
+		"again|@在{prov}尋得{victim}，殺之，此仇至此了結",
+		"@於{prov}殺{victim}，報{pw}之仇",
+		"@在{prov}尋到{victim}，殺之以報{pw}之仇"
 	],
 	"kill_feud": [
-		"@於{prov}殺{victim}，世仇又添一筆{,bt}",
-		"@在{prov}殺{victim}，兩世的冤仇再結{,bt}",
-		"@與{victim}相遇於{prov}，殺之，冤冤相報{,bt}"
+		"bt|@於{prov}殺{victim}，世仇又添一筆——{bt}",
+		"bt|@與{victim}相遇於{prov}，殺之，冤冤相報——{bt}",
+		"bm|@在{prov}殺{victim}，{pw}{bm}的冤仇再結",
+		"again|@於{prov}再遇{victim}，殺之，冤冤相報",
+		"@於{prov}殺{victim}，世仇又添一筆",
+		"@在{prov}殺{victim}，兩世的冤仇再結",
+		"@與{victim}相遇於{prov}，殺之，冤冤相報"
 	],
 	"tail_settled": [
-		"了結{pw}的恩怨{,bt}",
-		"了卻{pw}的舊緣{,bt}",
-		"{pw}之緣至此了結{,bt}"
+		"bt|了結{pw}的恩怨——{bt}",
+		"bm|了卻{pw}{bm}的舊緣",
+		"了結{pw}的恩怨",
+		"了卻{pw}的舊緣",
+		"{pw}之緣至此了結"
 	],
 	"feud_tail_killer": [
 		"與其結下死仇",
@@ -439,14 +448,22 @@
 		"@宗門爭戰，在{prov}死於{killer}之手{,feud}，享年{age}"
 	],
 	"death_killed_revenge": [
-		"@於{prov}為尋仇的{killer}所殺，償了{pw}的舊債{,bt}，享年{age}",
-		"@在{prov}死於{killer}之手，{pw}所結的仇怨得報{,bt}，享年{age}",
-		"@被{killer}尋到{prov}，殺之以償{pw}的舊債{,bt}，享年{age}"
+		"bt|@於{prov}為尋仇的{killer}所殺，享年{age}，償的是{pw}的舊債——{bt}",
+		"bt|@在{prov}死於{killer}之手，享年{age}，{pw}所結的仇怨至此得報——{bt}",
+		"bm|@被{killer}尋到{prov}，死以償{pw}{bm}的舊債，享年{age}",
+		"again|@於{prov}再為{killer}所殺，享年{age}，{pw}的舊債至此償清",
+		"@於{prov}為尋仇的{killer}所殺，償了{pw}的舊債，享年{age}",
+		"@在{prov}死於{killer}之手，{pw}所結的仇怨得報，享年{age}",
+		"@被{killer}尋到{prov}，死以償{pw}的舊債，享年{age}"
 	],
 	"death_killed_feud": [
-		"@於{prov}為{killer}所殺，這已是兩人的世仇{,bt}，享年{age}",
-		"@在{prov}死於{killer}之手，冤冤相報{,bt}，享年{age}",
-		"@被{killer}殺於{prov}，兩世冤仇再添一筆{,bt}，享年{age}"
+		"bt|@於{prov}為{killer}所殺，享年{age}，這已是兩人的世仇——{bt}",
+		"bt|@在{prov}死於{killer}之手，享年{age}，冤冤相報——{bt}",
+		"bm|@被{killer}殺於{prov}，享年{age}，{pw}{bm}的冤仇再添一筆",
+		"again|@於{prov}再為{killer}所殺，享年{age}，冤冤相報",
+		"@於{prov}為{killer}所殺，這已是兩人的世仇，享年{age}",
+		"@在{prov}死於{killer}之手，冤冤相報，享年{age}",
+		"@被{killer}殺於{prov}，兩世冤仇再添一筆，享年{age}"
 	],
 	"ascend": [
 		"@於{prov}白日飛升，離世而去",
@@ -454,49 +471,67 @@
 		"@在{prov}得道飛升"
 	],
 	"omen": [
-		"@將與{pw}的{rel}{other}相遇{,bt}",
-		"@{pw}舊緣將現，與{rel}{other}終要相見{,bt}",
-		"@與{pw}的{rel}{other}重逢之日將近{,bt}"
+		"bt|@將與{pw}的{rel}{other}相遇——{bt}",
+		"bt|@{pw}舊緣將現，與{rel}{other}終要相見——{bt}",
+		"@將與{pw}的{rel}{other}相遇",
+		"@{pw}舊緣將現，與{rel}{other}終要相見",
+		"@與{pw}的{rel}{other}重逢之日將近"
 	],
 	"resolve_feud": [
-		"@與{pw}的{rel}{other}了結恩仇{,bt}",
-		"@和{pw}的{rel}{other}之間的冤仇至此了結{,bt}",
-		"@與{other}了卻{pw}的血仇{,bt}"
+		"bt|@與{pw}的{rel}{other}了結恩仇——{bt}",
+		"bt|@和{other}之間{pw}的冤仇至此了結——{bt}",
+		"@與{pw}的{rel}{other}了結恩仇",
+		"@和{pw}的{rel}{other}之間的冤仇至此了結",
+		"@與{other}了卻{pw}的血仇"
 	],
 	"resolve_grace_beneficiary": [
-		"@報答{other}{pw}施予的恩情{,bt}",
-		"@還了{other}{pw}的恩情{,bt}",
-		"@向{other}報了{pw}的恩{,bt}"
+		"bt|@報答{other}{pw}施予的恩情——{bt}",
+		"bt|@還了{other}{pw}的恩情——{bt}",
+		"@報答{other}{pw}施予的恩情",
+		"@還了{other}{pw}的恩情",
+		"@向{other}報了{pw}的恩"
 	],
 	"resolve_grace_benefactor": [
-		"@{other}前來報答{pw}所受之恩{,bt}",
-		"@{other}還了{pw}的恩情{,bt}",
-		"@受{other}報答{pw}施下的恩{,bt}"
+		"bt|@{other}前來報答{pw}所受之恩——{bt}",
+		"bt|@受{other}報答{pw}施下的恩——{bt}",
+		"@{other}前來報答{pw}所受之恩",
+		"@{other}還了{pw}的恩情",
+		"@受{other}報答{pw}施下的恩"
 	],
 	"resolve_love": [
-		"@與{other}了結{pw}情緣{,bt}",
-		"@與{other}了卻{pw}的情緣{,bt}",
-		"@{pw}與{other}未了的情緣至此了結{,bt}"
+		"bt|@與{other}了結{pw}情緣——{bt}",
+		"bt|@{pw}與{other}未了的情緣至此了結——{bt}",
+		"@與{other}了結{pw}情緣",
+		"@與{other}了卻{pw}的情緣",
+		"@{pw}與{other}未了的情緣至此了結"
 	],
 	"resolve_mentor": [
-		"@與{other}了結{pw}的師徒之緣{,bt}",
-		"@與{other}結清{pw}的師徒之緣{,bt}",
-		"@{pw}與{other}未了的師徒之緣至此了結{,bt}"
+		"bt|@與{other}了結{pw}的師徒之緣——{bt}",
+		"bt|@與{other}結清{pw}的師徒之緣——{bt}",
+		"@與{other}了結{pw}的師徒之緣",
+		"@與{other}結清{pw}的師徒之緣",
+		"@{pw}與{other}未了的師徒之緣至此了結"
 	],
 	"resolve_grudge": [
-		"@與{other}化解{pw}的怨仇{,bt}",
-		"@與{other}了結{pw}結下的怨{,bt}",
-		"@{pw}與{other}的怨仇至此化解{,bt}"
+		"bt|@與{other}化解{pw}的怨仇——{bt}",
+		"bt|@{pw}與{other}的怨仇至此化解——{bt}",
+		"@與{other}化解{pw}的怨仇",
+		"@與{other}了結{pw}結下的怨",
+		"@{pw}與{other}的怨仇至此化解"
 	],
 	"fade": [
-		"@與{other}的{pw}之緣漸淡{,bt}",
-		"@{pw}之緣至此已淡，與{other}不復相牽{,bt}",
-		"@與{other}那份{pw}舊緣，終於淡去{,bt}"
+		"bt|@與{other}的{pw}之緣漸淡——{bt}",
+		"bt|@{pw}之緣至此已淡，與{other}不復相牽——{bt}",
+		"@與{other}的{pw}之緣漸淡",
+		"@{pw}之緣至此已淡，與{other}不復相牽",
+		"@與{other}那份{pw}舊緣，終於淡去"
 	],
 	"escalate": [
-		"@與{pw}的{rel}{other}冤冤相報{,bt}",
-		"@和{pw}的{rel}{other}之間，世仇又添一筆{,bt}",
-		"@與{other}的冤仇再起波瀾{,bt}"
+		"bt|@與{pw}的{rel}{other}冤冤相報——{bt}",
+		"bt|@和{other}之間，世仇又添一筆——{bt}",
+		"@與{pw}的{rel}{other}冤冤相報",
+		"@和{pw}的{rel}{other}之間，世仇又添一筆",
+		"@與{other}的冤仇再起波瀾"
 	],
 	"fade_many": [
 		"前世留下的緣分先後淡去{n}段",
@@ -539,48 +574,76 @@
 		"@被{other}得罪，結下怨仇"
 	],
 	"bt_feud_victim": [
-		"{y0}，{me0}為{b0}所殺",
-		"{y0}，{me0}死於{b0}之手",
-		"{y0}，{me0}被{b0}殺害"
+		"{sub}於{y0}為{b0d}所殺",
+		"{sub}，{y0}死於{b0d}之手",
+		"{sub}，{y0}被{b0d}殺害"
 	],
 	"bt_feud_killer": [
-		"{y0}，{me0}殺了{b0}",
-		"{y0}，{me0}害了{b0}的性命",
-		"{y0}，{me0}手刃{b0}"
+		"{sub}於{y0}殺了{b0d}",
+		"{sub}，{y0}害了{b0d}的性命",
+		"{sub}，{y0}手刃{b0d}"
 	],
 	"bt_grace_beneficiary": [
-		"{y0}，{me0}受{b0}之恩",
-		"{y0}，{me0}蒙{b0}施恩",
-		"{y0}，{me0}得{b0}相助"
+		"{sub}於{y0}受{b0d}之恩",
+		"{sub}，{y0}蒙{b0d}施恩",
+		"{sub}，{y0}得{b0d}相助"
 	],
 	"bt_grace_benefactor": [
-		"{y0}，{me0}施恩於{b0}",
-		"{y0}，{me0}對{b0}有恩",
-		"{y0}，{me0}出手相助{b0}"
+		"{sub}於{y0}施恩於{b0d}",
+		"{sub}，{y0}對{b0d}有恩",
+		"{sub}，{y0}出手相助{b0d}"
 	],
 	"bt_love_lover": [
-		"{y0}，{me0}與{b0}結為情緣",
-		"{y0}，{me0}與{b0}定下情緣",
-		"{y0}，{me0}與{b0}兩情相契"
+		"{sub}於{y0}與{b0d}結為情緣",
+		"{sub}，{y0}與{b0d}定下情緣",
+		"{sub}，{y0}與{b0d}兩情相契"
 	],
 	"bt_mentor_disciple": [
-		"{y0}，{me0}拜{b0}為師",
-		"{y0}，{me0}投入{b0}門下",
-		"{y0}，{me0}從{b0}受業"
+		"{sub}於{y0}拜{b0d}為師",
+		"{sub}，{y0}投入{b0d}門下",
+		"{sub}，{y0}從{b0d}受業"
 	],
 	"bt_mentor_master": [
-		"{y0}，{me0}收{b0}為徒",
-		"{y0}，{me0}納{b0}入門下",
-		"{y0}，{me0}傳業於{b0}"
+		"{sub}於{y0}收{b0d}為徒",
+		"{sub}，{y0}納{b0d}入門下",
+		"{sub}，{y0}傳業於{b0d}"
 	],
 	"bt_grudge_offender": [
-		"{y0}，{me0}與{b0}結怨，過在己身",
-		"{y0}，{me0}得罪{b0}，結下怨仇",
-		"{y0}，{me0}負了{b0}，結下怨仇"
+		"{sub}於{y0}與{b0d}結怨，過在己身",
+		"{sub}，{y0}得罪{b0d}，結下怨仇",
+		"{sub}，{y0}負了{b0d}，結下怨仇"
 	],
 	"bt_grudge_offended": [
-		"{y0}，{me0}與{b0}結怨，過在對方",
-		"{y0}，{me0}為{b0}所負，結下怨仇",
-		"{y0}，{me0}被{b0}得罪，結下怨仇"
+		"{sub}於{y0}與{b0d}結怨，過在對方",
+		"{sub}，{y0}為{b0d}所負，結下怨仇",
+		"{sub}，{y0}被{b0d}得罪，結下怨仇"
+	],
+	"kill_many_slay": [
+		"先後斬魔修{n}人{,where}{,feud}",
+		"除魔前後{n}人{,where}{,feud}",
+		"斬殺魔修共{n}人{,where}{,feud}"
+	],
+	"kill_many": [
+		"先後殺{n}人{,where}{,feud}",
+		"手上前後有{n}條人命{,where}{,feud}",
+		"共殺{n}人{,where}{,feud}"
+	],
+	"omen_pending": [
+		"宿世舊緣未了，{names}尚待相逢",
+		"尚有宿世之人{names}未曾相遇",
+		"宿世之{names}，至今未遇"
+	],
+	"omen_pending_many": [
+		"尚有{n}段宿世之緣未了",
+		"宿世舊緣尚有{n}段未了",
+		"還有{n}段宿世之緣未曾相遇"
+	],
+	"bm_feud_victim": [
+		"{me0}於{y0}為{b0d}所殺",
+		"{me0}於{y0}死於{b0d}之手"
+	],
+	"bm_feud_killer": [
+		"{me0}於{y0}殺了{b0d}",
+		"{me0}於{y0}手刃{b0d}"
 	]
 }

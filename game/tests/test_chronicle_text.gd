@@ -24,7 +24,7 @@ func _lookup(pid: int) -> Dictionary:
 
 func _compose(id: int) -> Dictionary:
 	_ensure()
-	return ChronicleText.compose(_world.person(id), _world.person_chronicle(id), _lookup)
+	return ChronicleText.compose(_world.person(id), _world.person_chronicle(id), _lookup, _world.history_years())
 
 
 func _ensure() -> void:
@@ -78,9 +78,9 @@ func test_han_writes_chinese_numerals() -> void:
 
 
 func test_keep_pieces_finds_year_and_month_runs() -> void:
-	var pieces := ChronicleText.keep_pieces("一百零二年二月，他於十三年入門。")
-	assert_true(pieces.has("一百零二年二月"))
-	assert_true(pieces.has("十三年"))
+	var pieces := ChronicleText.keep_pieces("咸寧紀元一〇二年（12335年）二月，他於十三年入門。")
+	assert_true(pieces.has("咸寧紀元一〇二年（12335年）二月"))
+	assert_false(pieces.has("十三年"), "只護整個日期，不護孤立的數字年")
 	assert_eq(ChronicleText.keep_pieces("無年月").size(), 0)
 
 
@@ -110,10 +110,16 @@ func test_no_unfilled_placeholder_for_everyone() -> void:
 	while not _world.person(id).is_empty():
 		var out := _compose(id)
 		for para: Dictionary in out["bio"]:
-			if para["text"].contains("{") or para["text"].contains("@"):
+			if para["text"].contains("{") or para["text"].contains("@") or para["text"].contains("之其人") or para["text"].contains("其其"):
 				bad += 1
 		for row: Dictionary in out["rows"]:
-			if row["text"].contains("{") or row["text"].contains("@") or row["date"].contains("0"):
+			if row["text"].contains("{") or row["text"].contains("@") or not row["date"].contains("紀元"):
+				bad += 1
+			# 殘句：代稱只換了一半。年表句不含本人姓名（規則：每條不含主詞）。
+			for broken in ["之其人", "其其", "轉世之此人"]:
+				if row["text"].contains(broken):
+					bad += 1
+			if row["text"].contains(_world.person(id)["name"]):
 				bad += 1
 		id += 1
 	assert_gt(id, 100, "有足夠的人")
@@ -180,7 +186,7 @@ func test_acceptance_2_same_text_every_time_and_after_reload() -> void:
 		var c := _compose(id)
 		assert_eq(a["bio"], b["bio"], "%d 號連續兩次相同" % id)
 		assert_eq(b["rows"], c["rows"], "%d 號連續三次相同" % id)
-		var d := ChronicleText.compose(other.person(id), other.person_chronicle(id), func(p: int) -> Dictionary: return other.person(p))
+		var d := ChronicleText.compose(other.person(id), other.person_chronicle(id), (func(p: int) -> Dictionary: return other.person(p)), other.history_years())
 		assert_eq(a["bio"], d["bio"], "%d 號重建世界後小傳相同" % id)
 		assert_eq(a["rows"], d["rows"], "%d 號重建世界後年表相同" % id)
 

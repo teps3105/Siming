@@ -452,7 +452,8 @@ func _target_at(pos: Vector2) -> String:
 
 ## 小傳與年表的組合：人物現況加生平事實清單（GDD 5.12）。
 func _chronicle() -> Dictionary:
-	return ChronicleText.compose(_info, _world.person_chronicle(person), func(id: int) -> Dictionary: return _world.person(id))
+	var lookup := func(id: int) -> Dictionary: return _world.person(id)
+	return ChronicleText.compose(_info, _world.person_chronicle(person), lookup, _world.history_years())
 
 
 func _compose_chronicle(list_width: float, body: int, note: int) -> void:
