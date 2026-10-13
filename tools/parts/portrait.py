@@ -345,7 +345,7 @@ for _k in ("brows-1", "brows-2", "brows-3"):
     PARTS[_k]["force_level"] = {"brow": "shadow"}
 
 # 退件：重畫三次仍不合格，從目錄拿掉（稿與指示留著）。目前沒有退件；beard-five 的五綹版本退件後改畫長髯（第五次送畫）
-RETIRED = []
+RETIRED = ["eyes-m4"]   # eyes-m4：第一次送畫成瞪眼且左右不對稱，退件留稿，下批重畫
 
 # 冠帽可搭配的髮式（寫進目錄的 hairs；款名同前後髮）。依 8.12：以帽上方露出的髮像素實測，只留不冒出帽緣的款
 HAIRS = {"hat-scholar0": ["topknot"], "hat-crown0": ["crown"], "hat-straw0": ["loose"]}

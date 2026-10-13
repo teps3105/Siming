@@ -1,0 +1,141 @@
+{
+ "part": "eyes-m4",
+ "paint": [
+  {
+   "tag": "eyes-m4-t1",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261014,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/sources/parts/portrait/base-face-m.png",
+     "6eb81df3857716d33152534009eecf9090d5c7a2a6b3c29c3f5a48bfdca3b318"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版（背景是純綠色），圖2是畫風基準圖。請在圖1的臉上畫一雙眼睛，位置在鼻樑兩側、略高於耳朵中段的眼線上，兩眼左右對稱、與鼻樑等距。圓眼：睜得較開的圓潤眼睛，寬約為高的 2 倍，眼角不上挑也不下垂，上眼瞼是一道粗墨線、弧度圓；虹膜（石青色）是實心的圓，上緣被上眼瞼蓋住約五分之一，下緣離下眼瞼一小段，虹膜左右兩側各露出一小塊淺米白色眼白；下眼瞼只在外側畫一小段細線；瞳孔是虹膜中間的實心深色小圓，旁邊一小點白色高光，虹膜裡不畫同心圓。畫法大幅概括簡化，每隻眼只用少數幾條乾淨的線，上眼瞼粗、其餘細，不畫睫毛叢、不畫眼影、不畫眉毛、不畫眼袋。兩眼左右對稱，內眼角乾淨收尖，不畫另外的淺色塊。臉的其他部分不許動。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫的這一件，人物的頭、臉、頸、肩與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純綠色（#00FF00），純色無漸層。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/paint/eyes-m4-t1.png",
+   "output_sha256": "733e1fc2872939c1eae5b4942b0f2dbead824e3ef82f6e9ba8be013579948bb0",
+   "seconds": 59.8,
+   "time": "2026-10-14 00:33:50"
+  }
+ ],
+ "collect": [
+  {
+   "from": "paint/eyes-m4-t1.png",
+   "affine": [
+    [
+     1.0009000301361084,
+     0.00022000000171829015,
+     -0.5777599811553955
+    ],
+    [
+     7.999999797903001e-05,
+     0.9999099969863892,
+     -0.03446999937295914
+    ]
+   ],
+   "ecc": 0.99651,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 6080,
+   "bbox": [
+    389,
+    550,
+    660,
+    607
+   ],
+   "components": 2,
+   "output": "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/collect/eyes-m4.png",
+   "time": "2026-10-14 00:35:13"
+  }
+ ],
+ "key": [
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/eyes-m4.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "iris": {
+     "file": ".shiftblame/tmp/parts/portrait/key/eyes-m4.iris.png",
+     "pixels": 271,
+     "dye": "iris",
+     "centers": [
+      67.0,
+      83.4,
+      95.9,
+      108.5
+     ],
+     "share": [
+      0.095,
+      0.122,
+      0.401,
+      0.382
+     ],
+     "levels": [
+      "shadow",
+      "shadow",
+      "base",
+      "high"
+     ]
+    },
+    "rest": {
+     "file": ".shiftblame/tmp/parts/portrait/key/eyes-m4.rest.png",
+     "pixels": 401,
+     "dye": "定色",
+     "fixed": true
+    }
+   },
+   "time": "2026-10-14 00:35:13"
+  }
+ ],
+ "check": [
+  {
+   "metrics": {
+    "eyes-m4.iris": {
+     "edge_len": 155,
+     "bare_edge": 155,
+     "bare_ratio": 1.0,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.226,
+     "pixels": 265
+    },
+    "eyes-m4.rest": {
+     "edge_len": 241,
+     "bare_edge": 1,
+     "bare_ratio": 0.004,
+     "blobs": 8,
+     "specks": 6,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 266
+    },
+    "eyes-m4.union": {
+     "edge_len": 199,
+     "bare_edge": 9,
+     "bare_ratio": 0.045,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 531
+    }
+   },
+   "time": "2026-10-14 00:35:13"
+  }
+ ]
+}
