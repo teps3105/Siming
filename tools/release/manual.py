@@ -5,7 +5,7 @@
     python tools/release/manual.py [--output <pdf>] [--browser <exe>] [--html <網頁路徑>]
                                    [--source <原稿>] [--images <截圖資料夾>]
 
-原稿 docs/9-發行/9.7-遊戲手冊.md 只取第一個二級標題之後的內容；截圖與標示表在 docs/9-發行/manual/。
+原稿 docs/9-發行/9.7-遊戲手冊.md 只取第一個二級標題之後的內容；截圖與標示表在 sources/manual/。
 以 Chrome 或 Edge 無頭模式列印；需要 markdown-it-py（pip install markdown-it-py）。
 """
 import argparse
@@ -22,7 +22,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 MANUAL_SOURCE = "docs/9-發行/9.7-遊戲手冊.md"
-MANUAL_IMAGES = "docs/9-發行/manual"
+MANUAL_IMAGES = "sources/manual"
 MANUAL_MARKS = "marks.json"
 MANUAL_MARK_BASE = (1920, 1080)
 MANUAL_MARK_HEADROOM = 60  # 紅框離畫面上緣不到這麼多時，編號改放在框的下方
@@ -32,7 +32,7 @@ MANUAL_RENDER_TIMEOUT = 120  # 秒
 PROJECT_FILE = "game/project.godot"
 DEFAULT_OUTPUT_DIR = "builds/manual"  # build/ 沒被 .gitignore 忽略，builds/ 有
 MANUAL_IMAGE_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
-MANUAL_IMAGE_RE = re.compile(r'<p><img src="manual/([^"/]+)" alt="([^"]*)" /></p>')
+MANUAL_IMAGE_RE = re.compile(r'<p><img src="(?:\.\./)*(?:sources/)?manual/([^"/]+)" alt="([^"]*)" /></p>')
 BROWSER_CANDIDATES = tuple(
     str(Path(base) / tail)
     for base in (os.environ.get("PROGRAMFILES", r"C:\Program Files"),
@@ -140,7 +140,7 @@ def manual_html(source: str, version_label: str, images: Path | None = None) -> 
     body = MANUAL_IMAGE_RE.sub(figure, body)
     stray = re.search(r'<img src="(?!data:)([^"]*)"', body)
     if stray:
-        raise ManualError(f"遊戲手冊原稿的圖 {stray[1]} 要寫成獨立成段的 ![說明](manual/<檔名>)")
+        raise ManualError(f"遊戲手冊原稿的圖 {stray[1]} 要寫成獨立成段的 ![說明](../../sources/manual/<檔名>)")
     unused = sorted(set(marks) - used)
     if unused:
         raise ManualError(f"遊戲手冊的標示表提到原稿沒用到的圖：{'、'.join(unused)}")
