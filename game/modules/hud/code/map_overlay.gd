@@ -3,6 +3,33 @@ extends Control
 ## GDD 5.3「文字標籤」、5.7 停留提示、5.9 準星與按鍵提示：畫在地圖之上、器物之下的螢幕空間層。
 ## 標籤把世界座標投影到螢幕後寫字，依鏡頭高度分級出現，並依重要度貪婪避讓。
 
+## 點了山門圖示或它下面的宗門名。
+signal sect_requested(sect: int)
+
+
+## 山門圖示與宗門名那一小塊的點擊區（GDD 5.5、5.8）：只有這一塊接收點擊，其餘地圖操作不受影響。
+class SectHit:
+	extends Control
+
+	signal pressed(sect: int)
+	var sect := -1
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_STOP
+		focus_mode = Control.FOCUS_NONE
+		visible = false
+
+	func _gui_input(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+			if event.pressed:
+				pressed.emit(sect)
+			accept_event()
+
+	## 游標停在這裡時是否可以按（GDD 5.9 游標圖示）。
+	func is_hot(_point: Vector2) -> bool:
+		return true
+
+
 ## 各類標籤出現的鏡頭高度上限（地圖寬的比例）與字級。
 const LABEL_RULES := {
 	"continent": {"z_max": 2.0, "z_min": 0.25, "size": 26},
@@ -77,6 +104,8 @@ var _nodes: Array[Dictionary] = []
 var _seats: Array[Dictionary] = []
 ## 還在的宗門：山門位置、名字與勢力範圍圈（由 refresh_sects 更新）。
 var _sects: Array[Dictionary] = []
+## 各還在宗門的點擊區（宗門編號 → SectHit）；位置在每次畫山門時更新。
+var _hits := {}
 var _hover_province := -1
 var _hover_text := ""
 ## 介面器物佔住的畫面範圍：地圖標籤避開這些地方，不鑽到器物底下露出半截。
@@ -125,6 +154,15 @@ func refresh_sects() -> void:
 	for sect: Dictionary in _world.sects():
 		if sect["alive"]:
 			_sects.append(sect)
+	for hit: SectHit in _hits.values():
+		hit.queue_free()
+	_hits.clear()
+	for sect: Dictionary in _sects:
+		var hit := SectHit.new()
+		hit.sect = sect["id"]
+		hit.pressed.connect(func(id: int) -> void: sect_requested.emit(id))
+		add_child(hit)
+		_hits[hit.sect] = hit
 
 
 ## 目前畫面上的山門標記（還在的宗門）。
@@ -143,8 +181,20 @@ func range_ring_count() -> int:
 
 
 func _process(_delta: float) -> void:
+	# 掛在畫布層下沒有父控制項可依錨點撐開，自己跟著視窗大小；山門的點擊區才算在它裡面（游標指標才認得）。
+	var view := get_viewport_rect().size
+	if size != view:
+		size = view
 	_update_rings()
 	queue_redraw()
+
+
+## 螢幕座標 point 是否落在某個山門的點擊區（游標指標用）。
+func gate_at(point: Vector2) -> bool:
+	for hit: SectHit in _hits.values():
+		if hit.visible and hit.get_global_rect().has_point(point):
+			return true
+	return false
 
 
 ## 把範圍圈交給地形著色器：圈心、半徑、顏色，以及每圈的虛線段數（讓整圈剛好排滿整數段）。
@@ -405,6 +455,8 @@ func _draw_seats(taken: Array[Rect2]) -> void:
 ## 山門（GDD 5.5）：牌坊、三重殿與山徑；正道白牆黛瓦，邪道黑瓦。中景才畫，名字寫在圖樣下方，
 ## 與已放的山門名重疊就只畫圖樣；圖樣與名字的範圍進 taken，其餘標籤與治所名讓開。
 func _draw_sects(taken: Array[Rect2]) -> void:
+	for hit: SectHit in _hits.values():
+		hit.visible = false
 	if not sect_gates_visible():
 		return
 	var screen := get_viewport_rect()
@@ -420,13 +472,21 @@ func _draw_sects(taken: Array[Rect2]) -> void:
 		var evil: bool = sect["evil"]
 		_draw_gate(point, scale, evil, _map.mode == TerrainMap.Mode.KARMA)
 		var mark := Rect2(point + Vector2(-8.0, -24.0) * scale, Vector2(16.0, 27.0) * scale)
+		var click := mark
 		if show_name:
 			var extent := Ink.text_size(sect["name"], size)
 			var rect := Rect2(point + Vector2(-extent.x * 0.5, 6.0 * scale), extent)
 			if screen.encloses(rect) and not _blocked(rect, taken):
 				Ink.outlined_text(self, rect.position, sect["name"], size, KIND_COLORS["sect"], LABEL_OUTLINE)
 				taken.append(rect)
+				click = click.merge(rect)
 		taken.append(mark)
+		if _hits.has(sect["id"]):
+			var hit: SectHit = _hits[sect["id"]]
+			click = click.grow(2.0)
+			hit.position = click.position
+			hit.size = click.size
+			hit.visible = true
 
 
 ## 山門圖樣：base 是山徑的落腳點（山門位置），scale 是每個圖樣單位的像素。

@@ -10,6 +10,8 @@ signal center_requested(map_pos: Vector2)
 signal person_requested(person: int)
 ## 點了歷程或基本資料裡的地名。
 signal province_requested(province: int)
+## 點了首列或歷程裡的宗門名。
+signal sect_requested(sect: int)
 ## 點了歷程的一筆（人名、地名以外的部分）：開那則事件的事件卡。
 signal event_requested(event: int)
 signal back_requested
@@ -177,7 +179,10 @@ func _compose() -> void:
 	_layout["portrait_bottom"] = 14.0 * u + _portrait_size().y
 	# 首列：身分（避開右上的關閉鈕與它的文字、鍵）。
 	var sub_width := side_width - _close_cluster_width(_close_has_key()) - 10.0 * u - CLOSE_RADIUS * 2.0 * u
-	_subtitle = LedgerText.paragraph(PersonText.identity_line(_info), no_links, sub_width, body)
+	var sub_links: Array[Dictionary] = []
+	if int(_info["power"]) >= 0 and not String(_info["power_name"]).is_empty():
+		sub_links.append({"text": _info["power_name"], "target": "sect:%d" % _info["power"]})
+	_subtitle = LedgerText.paragraph(PersonText.identity_line(_info), sub_links, sub_width, body)
 
 	# 基本資料。
 	var gender := PersonText.gender_word(_info["gender"])
@@ -246,6 +251,7 @@ func _compose() -> void:
 			links.append(_province_link(entry["p"], entry["province"]))
 		if int(entry["q_province"]) >= 0 and not String(entry["q"]).is_empty():
 			links.append(_province_link(entry["q"], entry["q_province"]))
+		links.append_array(EventCard.sect_links(entry))
 		var para := LedgerText.paragraph(sentence, links, list_width, body)
 		# 同一紀元內只有第一筆與換紀元的那筆帶紀元名。
 		var date := EventText.history_date(entry, entry["era"] != era_shown)
@@ -347,7 +353,7 @@ func _draw_body(paper: Rect2) -> void:
 		draw_rect(frame, Ink.PAPER_LIGHT, true)
 		draw_rect(frame.grow(1.0), Color(Ink.INK, 0.8), false, 1.5)
 	var side := _side()
-	LedgerText.draw(self, Vector2(x + side, top + float(_layout["subtitle_y"])), _subtitle, Ink.INK)
+	LedgerText.draw(self, Vector2(x + side, top + float(_layout["subtitle_y"])), _subtitle, Ink.INK, _hover, _pressed)
 	var stroke_y := top + float(_layout["stroke_y"])
 	Ink.stroke(self, Vector2(x + side, stroke_y), Vector2(right, stroke_y), 2.0 * u, Color(Ink.INK, 0.7))
 	for i in _paragraphs.size():
@@ -406,6 +412,8 @@ func _on_target(target: String) -> void:
 		province_requested.emit(int(target.substr(9)))
 	elif target.begins_with("event:"):
 		event_requested.emit(int(target.substr(6)))
+	elif target.begins_with("sect:"):
+		sect_requested.emit(int(target.substr(5)))
 
 
 func _activate(target: String) -> void:
@@ -431,6 +439,11 @@ func _target_at(pos: Vector2) -> String:
 		return "center"
 	if can_back and _in_round(_back_rect(), pos):
 		return "back"
+	if not _subtitle.is_empty():
+		var paper := _paper_rect(_content_height())
+		var sub_target := LedgerText.target_at(Vector2(paper.position.x + (STRIP + 14.0) * _unit + _side(), paper.position.y + float(_layout["subtitle_y"])), _subtitle, pos)
+		if not sub_target.is_empty():
+			return sub_target
 	for i in _paragraphs.size():
 		var target := LedgerText.target_at(_paragraph_origin(i), _paragraphs[i], pos)
 		if not target.is_empty():

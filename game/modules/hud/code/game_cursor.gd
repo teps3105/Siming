@@ -13,6 +13,8 @@ const OUTLINE := 2.5
 
 ## 鏡頭；沒有鏡頭的畫面（標題）只跟著滑鼠。
 var _camera: MapCamera
+## 螢幕座標上有沒有可點的地圖物件（山門）；沒有控制項蓋住時才問它。
+var extra_hot := Callable()
 var _unit := 1.0
 ## 滑鼠在視窗內（搖桿模式不看這個）。
 var _inside := true
@@ -54,6 +56,9 @@ func kind() -> StringName:
 		var local := hovered.get_global_transform().affine_inverse() * _pointer()
 		if hovered.call(&"is_hot", local):
 			return &"point"
+	# 沒有任何控制項蓋在上面時，地圖上的山門圖示也是可點的。
+	if hovered == null and extra_hot.is_valid() and extra_hot.call(_pointer()):
+		return &"point"
 	return &"arrow"
 
 

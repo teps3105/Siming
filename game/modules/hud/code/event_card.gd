@@ -8,6 +8,7 @@ extends LedgerCard
 signal center_requested(map_pos: Vector2)
 signal person_requested(person: int)
 signal province_requested(province: int)
+signal sect_requested(sect: int)
 ## 點了因樹或漣漪裡的一則事件。
 signal event_requested(event: int)
 signal back_requested
@@ -154,6 +155,16 @@ static func links_of(entry: Dictionary) -> Array[Dictionary]:
 		links.append({"text": entry["p"], "target": "province:%d" % entry["province"]})
 	if int(entry.get("q_province", -1)) >= 0 and not String(entry["q"]).is_empty():
 		links.append({"text": entry["q"], "target": "province:%d" % entry["q_province"]})
+	links.append_array(sect_links(entry))
+	return links
+
+
+## 一則事件那句話裡可點的宗門名：事件的第一、第二個勢力（`f`／`g`）與主角當時所屬的宗門（`a_power`）。
+static func sect_links(entry: Dictionary) -> Array[Dictionary]:
+	var links: Array[Dictionary] = []
+	for pair: Array in [["f", "f_power"], ["g", "g_power"], ["a_power", "a_power_id"]]:
+		if int(entry.get(pair[1], -1)) >= 0 and not String(entry.get(pair[0], "")).is_empty():
+			links.append({"text": entry[pair[0]], "target": "sect:%d" % entry[pair[1]]})
 	return links
 
 
@@ -434,6 +445,8 @@ func _on_target(target: String) -> void:
 		province_requested.emit(int(target.substr(9)))
 	elif target.begins_with("event:"):
 		event_requested.emit(int(target.substr(6)))
+	elif target.begins_with("sect:"):
+		sect_requested.emit(int(target.substr(5)))
 	elif target == "ripples":
 		toggle_ripples()
 
