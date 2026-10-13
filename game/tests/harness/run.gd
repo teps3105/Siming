@@ -8,6 +8,9 @@ extends SceneTree
 const Suite := preload("res://tests/harness/suite.gd")
 const ErrorLog := preload("res://tests/harness/error_log.gd")
 const ROOT := "res://tests"
+## 測試的世界用短預跑（人口期 1,500 年、人物期 100 年），不然每個案例開局都要等十秒以上。
+const TEST_POP_YEARS := 1500
+const TEST_PRERUN_YEARS := 100
 
 var _log := ErrorLog.new()
 
@@ -22,6 +25,9 @@ func _main() -> void:
 		var pair := arg.trim_prefix("--").split("=", true, 1)
 		args[pair[0]] = pair[1] if pair.size() > 1 else ""
 	OS.add_logger(_log)
+	SimWorld.set_default_prerun(TEST_POP_YEARS, TEST_PRERUN_YEARS)
+	# 既有的流程測試都假設鏡頭不會自己動；導演預設關閉，只有導演自己的測試打開。
+	GameSettings.default_overrides["director"] = false
 	var results: Array[Dictionary] = []
 	var load_errors: Array[String] = []
 	var paths := _discover(ROOT)
@@ -53,6 +59,7 @@ func _main() -> void:
 	if args.has("report"):
 		var file := FileAccess.open(args.report, FileAccess.WRITE)
 		file.store_string(JSON.stringify({"results": results, "load_errors": load_errors}, "  "))
+	Suite.wipe_storage()
 	var empty := results.is_empty()
 	if empty:
 		print("✗ 沒有執行任何案例")

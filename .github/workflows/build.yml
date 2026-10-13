@@ -1,0 +1,38 @@
+# 6.6「build」：Windows、Linux 的橋接程式庫 release 建置。
+# 尚缺：Godot 匯出（game/export_presets.cfg 未建立）與 steam feature（Cargo 尚無此 feature），
+# 這兩步等對應檔案存在後再加。
+name: build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  bridge-release:
+    name: 橋接程式庫 release（${{ matrix.os }}）
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native/sim/rust
+      - name: 建置橋接程式庫（release）
+        run: python tools/native_build/build.py --release
+      - name: 上傳橋接程式庫
+        uses: actions/upload-artifact@v4
+        with:
+          name: siming-gdext-${{ matrix.os }}
+          path: game/modules/sim/generated/*siming_gdext.release.*
+          if-no-files-found: error

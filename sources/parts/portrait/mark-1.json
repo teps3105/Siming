@@ -1,0 +1,429 @@
+{
+ "part": "mark-1",
+ "paint": [
+  {
+   "tag": "mark-1-t1",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261014,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/sources/parts/portrait/base-face-m.png",
+     "6eb81df3857716d33152534009eecf9090d5c7a2a6b3c29c3f5a48bfdca3b318"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版（背景是純綠色），圖2是畫風基準圖。請在圖1的臉上畫一組「入魔面紋」：畫在皮膚表面的紋路，像墨色刺青與裂紋，只畫紋路本身。款式是兩頰斜紋：左右臉頰各三道由內上往外下斜落的粗紋（從顴骨下方起、斜向耳朵方向的下頜，三道平行、長短依次略短），左右對稱，額頭與鼻、口周圍不畫任何紋路。紋路是一條條粗而乾淨、連續封閉的色塊形狀（線寬在 1024 寬的圖上至少 12 像素），外緣用墨線包住，不畫細碎小點與細絲。臉的輪廓、眼睛、眉、鼻、口、耳與頸都不許被蓋住、不許改變；紋路避開眼球、嘴唇與鼻孔。【只有這一件畫成灰色】這一件是灰階稿，之後才會上色，所以只用中性灰、完全沒有色相：底色是明亮的中淺灰（約 #B0B0B0），陰影塊是明顯較深的灰（約 #606060），少量近白的高光塊（約 #F2F2F2），輪廓線與摺線用近黑（約 #151515）；外緣一圈用連續封閉的墨線包住，約 3 到 4 像素寬；底色、陰影、高光三階要一眼分得開。人物其餘的地方——臉、耳、頸、肩的皮膚——必須保持圖1原本的暖膚色，一點都不要變灰，整張圖其他部分與圖1完全一樣。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫的這一件，人物的頭、臉、頸、肩與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純綠色（#00FF00），純色無漸層。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/.shiftblame/tmp/parts/portrait/paint/mark-1-t1.png",
+   "output_sha256": "447103030daef3abddc6d33c8fd05be22eaa1c25b3ad207fb85854f584d253e5",
+   "seconds": 64.2,
+   "time": "2026-10-13 21:00:49"
+  },
+  {
+   "tag": "mark-1-t2",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261015,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/sources/parts/portrait/base-face-m.png",
+     "6eb81df3857716d33152534009eecf9090d5c7a2a6b3c29c3f5a48bfdca3b318"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版（背景是純綠色），圖2是畫風基準圖。請在圖1的臉上畫一組「入魔面紋」：畫在皮膚表面的紋路，像墨色刺青與裂紋，只畫紋路本身。款式是兩頰斜紋：左右臉頰各三道由內上往外下斜落的粗紋（從顴骨下方起、斜向耳朵方向的下頜，三道平行、長短依次略短），左右對稱，額頭與鼻、口周圍不畫任何紋路。紋路的顏色是純中性灰（紅綠藍三色相等，不帶棕、不帶膚色），不是膚色的深淺變化。紋路是一條條粗而乾淨、連續封閉的色塊形狀（線寬在 1024 寬的圖上至少 12 像素），外緣用墨線包住，不畫細碎小點與細絲。臉的輪廓、眼睛、眉、鼻、口、耳與頸都不許被蓋住、不許改變；紋路避開眼球、嘴唇與鼻孔。鼻子與嘴必須保持圖1的樣子，一個都不許少。【只有這一件畫成灰色】這一件是灰階稿，之後才會上色，所以只用中性灰、完全沒有色相：底色是明亮的中淺灰（約 #B0B0B0），陰影塊是明顯較深的灰（約 #606060），少量近白的高光塊（約 #F2F2F2），輪廓線與摺線用近黑（約 #151515）；外緣一圈用連續封閉的墨線包住，約 3 到 4 像素寬；底色、陰影、高光三階要一眼分得開。人物其餘的地方——臉、耳、頸、肩的皮膚——必須保持圖1原本的暖膚色，一點都不要變灰，整張圖其他部分與圖1完全一樣。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫的這一件，人物的頭、臉、頸、肩與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純綠色（#00FF00），純色無漸層。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/.shiftblame/tmp/parts/portrait/paint/mark-1-t2.png",
+   "output_sha256": "eb93197d929f37a770d14ee18fade2d42f4b9a3b44d2aae6ed6f141d665c1769",
+   "seconds": 60.1,
+   "time": "2026-10-13 21:04:32"
+  },
+  {
+   "tag": "mark-1-t3",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261016,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/sources/parts/portrait/base-face-m.png",
+     "6eb81df3857716d33152534009eecf9090d5c7a2a6b3c29c3f5a48bfdca3b318"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版（背景是純綠色），圖2是畫風基準圖。請在圖1的臉上畫一組「入魔面紋」：畫在皮膚表面的紋路，像墨色刺青與裂紋，只畫紋路本身。款式是兩頰斜紋：左右臉頰各三道由內上往外下斜落的粗紋，三道平行、長短依次略短，左右對稱，額頭與鼻、口周圍不畫任何紋路。整組紋都要畫在臉頰中央、完整落在臉的外輪廓線以內：每一道紋從頭到尾都在臉的皮膚上，紋的最外端離臉的外輪廓線至少留一個眼寬那麼寬的光滑皮膚，不靠近耳朵、不碰下頜線、不超出臉外；紋的最內端離鼻翼與嘴角也至少一個眼寬；每道紋的長度只有約一個眼寬。紋路的顏色是純中性灰（紅綠藍三色相等，不帶棕、不帶膚色），不是膚色的深淺變化。紋路是一條條粗而乾淨、連續封閉的色塊形狀（線寬在 1024 寬的圖上至少 12 像素），外緣用墨線包住，不畫細碎小點與細絲。臉的輪廓、眼睛、眉、鼻、口、耳與頸都不許被蓋住、不許改變；紋路避開眼球、嘴唇與鼻孔。鼻子與嘴必須保持圖1的樣子，一個都不許少。【只有這一件畫成灰色】這一件是灰階稿，之後才會上色，所以只用中性灰、完全沒有色相：底色是明亮的中淺灰（約 #B0B0B0），陰影塊是明顯較深的灰（約 #606060），少量近白的高光塊（約 #F2F2F2），輪廓線與摺線用近黑（約 #151515）；外緣一圈用連續封閉的墨線包住，約 3 到 4 像素寬；底色、陰影、高光三階要一眼分得開。人物其餘的地方——臉、耳、頸、肩的皮膚——必須保持圖1原本的暖膚色，一點都不要變灰，整張圖其他部分與圖1完全一樣。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫的這一件，人物的頭、臉、頸、肩與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純綠色（#00FF00），純色無漸層。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/paint/mark-1-t3.png",
+   "output_sha256": "aaf7ff49fb52fa5c356d03202cec3b623ab8d0a98be0a82ef29aa3fd8e5f08bf",
+   "seconds": 88.2,
+   "time": "2026-10-13 21:39:06"
+  },
+  {
+   "tag": "mark-1-t4",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261017,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/sources/parts/portrait/base-face-m.png",
+     "6eb81df3857716d33152534009eecf9090d5c7a2a6b3c29c3f5a48bfdca3b318"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版（背景是純綠色），圖2是畫風基準圖。請在圖1的臉上畫一組「入魔面紋」：畫在皮膚表面的紋路，像墨色刺青與裂紋，只畫紋路本身。款式是兩頰斜紋：左右臉頰各三道由內上往外下斜落的短粗紋，三道平行疊成一小疊，左右對稱，額頭、眼睛周圍、鼻、口周圍不畫任何紋路。每側這一小疊只畫在臉頰正中央：最上面一道的上端在眼睛下緣再往下約兩個眼高處，最下面一道的下端在嘴角的高度以上；每道紋只有約一個眼寬長、斜度約三十度；整疊紋離臉的外輪廓線、離耳朵、離鼻翼與嘴角都至少一個眼寬，整疊紋從頭到尾完整落在臉的皮膚上，絕對不碰臉的外輪廓、不超出臉外、不靠近眼睛。紋路的顏色是純中性灰（紅綠藍三色相等，不帶棕、不帶膚色），不是膚色的深淺變化。紋路是一條條粗而乾淨、連續封閉的色塊形狀（線寬在 1024 寬的圖上至少 12 像素），外緣用墨線包住，不畫細碎小點與細絲。臉的輪廓、眼睛、眉、鼻、口、耳與頸都不許被蓋住、不許改變；紋路避開眼球、嘴唇與鼻孔。鼻子與嘴必須保持圖1的樣子，一個都不許少。【只有這一件畫成灰色】這一件是灰階稿，之後才會上色，所以只用中性灰、完全沒有色相：底色是明亮的中淺灰（約 #B0B0B0），陰影塊是明顯較深的灰（約 #606060），少量近白的高光塊（約 #F2F2F2），輪廓線與摺線用近黑（約 #151515）；外緣一圈用連續封閉的墨線包住，約 3 到 4 像素寬；底色、陰影、高光三階要一眼分得開。人物其餘的地方——臉、耳、頸、肩的皮膚——必須保持圖1原本的暖膚色，一點都不要變灰，整張圖其他部分與圖1完全一樣。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫的這一件，人物的頭、臉、頸、肩與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純綠色（#00FF00），純色無漸層。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/paint/mark-1-t4.png",
+   "output_sha256": "4c3bedd5a862124cb41f509188619bbb6e747c6039b451635d99723015b1b225",
+   "seconds": 60.5,
+   "time": "2026-10-13 21:47:12"
+  }
+ ],
+ "collect": [
+  {
+   "from": "paint/mark-1-t1.png",
+   "affine": [
+    [
+     1.0008699893951416,
+     0.0001900000061141327,
+     -0.5412099957466125
+    ],
+    [
+     0.00011999999696854502,
+     0.9992799758911133,
+     0.393559992313385
+    ]
+   ],
+   "ecc": 0.99182,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 0,
+   "bbox": null,
+   "components": 0,
+   "output": "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/.shiftblame/tmp/parts/portrait/collect/mark-1.png",
+   "time": "2026-10-13 21:02:09"
+  },
+  {
+   "from": "paint/mark-1-t2.png",
+   "affine": [
+    [
+     1.0003600120544434,
+     0.00039999998989515007,
+     -0.9072800278663635
+    ],
+    [
+     -0.00018000000272877514,
+     1.002940058708191,
+     -0.8751199841499329
+    ]
+   ],
+   "ecc": 0.99754,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 0,
+   "bbox": null,
+   "components": 0,
+   "output": "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/.shiftblame/tmp/parts/portrait/collect/mark-1.png",
+   "time": "2026-10-13 21:04:39"
+  },
+  {
+   "from": "paint/mark-1-t2.png",
+   "affine": [
+    [
+     1.0003600120544434,
+     0.00039999998989515007,
+     -0.9072800278663635
+    ],
+    [
+     -0.00018000000272877514,
+     1.002940058708191,
+     -0.8751199841499329
+    ]
+   ],
+   "ecc": 0.99754,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 14852,
+   "bbox": [
+    352,
+    505,
+    676,
+    789
+   ],
+   "components": 8,
+   "output": "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/.shiftblame/tmp/parts/portrait/collect/mark-1.png",
+   "time": "2026-10-13 21:05:24"
+  },
+  {
+   "from": "paint/mark-1-t3.png",
+   "affine": [
+    [
+     0.998989999294281,
+     0.0005499999970197678,
+     -0.9755200147628784
+    ],
+    [
+     -0.00023999999393709004,
+     1.0003700256347656,
+     -0.24437999725341797
+    ]
+   ],
+   "ecc": 0.99721,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 17926,
+   "bbox": [
+    356,
+    536,
+    682,
+    747
+   ],
+   "components": 8,
+   "output": "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/collect/mark-1.png",
+   "time": "2026-10-13 21:43:11"
+  },
+  {
+   "from": "paint/mark-1-t4.png",
+   "affine": [
+    [
+     0.9992200136184692,
+     0.00011000000085914508,
+     -0.32930999994277954
+    ],
+    [
+     0.0003800000122282654,
+     1.0006400346755981,
+     -2.600290060043335
+    ]
+   ],
+   "ecc": 0.99854,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 9805,
+   "bbox": [
+    367,
+    576,
+    667,
+    721
+   ],
+   "components": 6,
+   "output": "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/collect/mark-1.png",
+   "time": "2026-10-13 21:47:44"
+  }
+ ],
+ "key": [
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/mark-1.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {},
+   "time": "2026-10-13 21:02:10"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/mark-1.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {},
+   "time": "2026-10-13 21:04:40"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/mark-1.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "mark": {
+     "file": ".shiftblame/tmp/parts/portrait/key/mark-1.mark.png",
+     "pixels": 1774,
+     "dye": "violet",
+     "centers": [
+      111.7
+     ],
+     "share": [
+      1.0
+     ],
+     "levels": [
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 21:05:24"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/mark-1.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "mark": {
+     "file": ".shiftblame/tmp/parts/portrait/key/mark-1.mark.png",
+     "pixels": 2063,
+     "dye": "violet",
+     "centers": [
+      108.3
+     ],
+     "share": [
+      1.0
+     ],
+     "levels": [
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 21:43:11"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/mark-1.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "mark": {
+     "file": ".shiftblame/tmp/parts/portrait/key/mark-1.mark.png",
+     "pixels": 1161,
+     "dye": "violet",
+     "centers": [
+      99.8
+     ],
+     "share": [
+      1.0
+     ],
+     "levels": [
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 21:47:44"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/mark-1.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "mark": {
+     "file": ".shiftblame/tmp/parts/portrait/key/mark-1.mark.png",
+     "pixels": 966,
+     "dye": "violet",
+     "centers": [
+      99.8
+     ],
+     "share": [
+      1.0
+     ],
+     "levels": [
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 21:48:44"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/mark-1.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "mark": {
+     "file": ".shiftblame/tmp/parts/portrait/key/mark-1.mark.png",
+     "pixels": 867,
+     "dye": "violet",
+     "centers": [
+      99.7
+     ],
+     "share": [
+      1.0
+     ],
+     "levels": [
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 21:49:11"
+  }
+ ],
+ "check": [
+  {
+   "metrics": {
+    "mark-1.mark": {
+     "edge_len": 904,
+     "bare_edge": 904,
+     "bare_ratio": 1.0,
+     "blobs": 8,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 1250
+    }
+   },
+   "time": "2026-10-13 21:13:02"
+  },
+  {
+   "metrics": {
+    "mark-1.mark": {
+     "edge_len": 478,
+     "bare_edge": 478,
+     "bare_ratio": 1.0,
+     "blobs": 6,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 672
+    }
+   },
+   "time": "2026-10-13 21:48:46"
+  }
+ ]
+}

@@ -20,6 +20,20 @@ static func draw(item: CanvasItem, icon: StringName, center: Vector2, r: float, 
 			item.draw_arc(center, r * 0.6, 0.0, TAU, 24, color, WIDTH, true)
 			for dir: Vector2 in [Vector2.UP, Vector2.DOWN, Vector2.LEFT, Vector2.RIGHT]:
 				item.draw_line(center + dir * r * 0.35, center + dir * r, color, WIDTH, true)
+		&"globe":
+			# 星球：圓、赤道與一條經線。
+			item.draw_arc(center, r, 0.0, TAU, 32, color, WIDTH, true)
+			item.draw_line(center + Vector2(-r, 0.0), center + Vector2(r, 0.0), color, WIDTH, true)
+			var meridian := PackedVector2Array()
+			for i in 25:
+				var angle := TAU * i / 24.0
+				meridian.append(center + Vector2(cos(angle) * r * 0.45, sin(angle) * r))
+			item.draw_polyline(meridian, color, WIDTH, true)
+		&"plane":
+			# 平面地圖：一張攤開的圖，中間兩道摺線。
+			_line(item, center, r, [Vector2(-1.0, -0.7), Vector2(1.0, -0.7), Vector2(1.0, 0.7), Vector2(-1.0, 0.7), Vector2(-1.0, -0.7)], color)
+			_line(item, center, r, [Vector2(-0.33, -0.7), Vector2(-0.33, 0.7)], color)
+			_line(item, center, r, [Vector2(0.33, -0.7), Vector2(0.33, 0.7)], color)
 		&"shanhe":
 			# 山與水：兩座山峰，下面一道水紋。
 			_line(item, center, r, [Vector2(-1.0, 0.35), Vector2(-0.35, -0.75), Vector2(0.1, 0.0), Vector2(0.45, -0.4), Vector2(1.0, 0.35)], color)
@@ -46,6 +60,58 @@ static func draw(item: CanvasItem, icon: StringName, center: Vector2, r: float, 
 			item.draw_arc(center + Vector2(-0.55, 0.45) * r, r * 0.35, 0.0, TAU, 16, color, WIDTH, true)
 			item.draw_arc(center + Vector2(0.55, -0.45) * r, r * 0.35, 0.0, TAU, 16, color, WIDTH, true)
 			_line(item, center, r, [Vector2(-0.3, 0.2), Vector2(0.0, -0.25), Vector2(0.05, 0.2), Vector2(0.3, -0.2)], color)
+		&"sun":
+			# 開天：一輪日，八道光。
+			item.draw_arc(center, r * 0.45, 0.0, TAU, 24, color, WIDTH, true)
+			for i in 8:
+				var dir := Vector2.from_angle(TAU * i / 8.0)
+				item.draw_line(center + dir * r * 0.7, center + dir * r, color, WIDTH, true)
+		&"scroll":
+			# 卷軸：一張紙，上下兩根軸，紙上兩行字。
+			_line(item, center, r, [Vector2(-0.7, -0.75), Vector2(-0.7, 0.75)], color)
+			_line(item, center, r, [Vector2(0.7, -0.75), Vector2(0.7, 0.75)], color)
+			_line(item, center, r, [Vector2(-1.0, -0.75), Vector2(1.0, -0.75)], color)
+			_line(item, center, r, [Vector2(-1.0, 0.75), Vector2(1.0, 0.75)], color)
+			_line(item, center, r, [Vector2(-0.3, -0.25), Vector2(0.3, -0.25)], color)
+			_line(item, center, r, [Vector2(-0.3, 0.2), Vector2(0.3, 0.2)], color)
+		&"brush":
+			# 筆：斜斜一管，筆尖朝左下。
+			_line(item, center, r, [Vector2(0.9, -0.9), Vector2(-0.2, 0.2)], color)
+			item.draw_colored_polygon(_at(center, r, [Vector2(-0.42, -0.02), Vector2(0.02, 0.42), Vector2(-0.95, 0.95)]), color)
+		&"knot":
+			# 分享：一個結，兩端各一條線頭。
+			item.draw_arc(center, r * 0.42, 0.0, TAU, 20, color, WIDTH, true)
+			_line(item, center, r, [Vector2(-1.0, -0.7), Vector2(-0.3, -0.3)], color)
+			_line(item, center, r, [Vector2(0.3, 0.3), Vector2(1.0, 0.7)], color)
+		&"dial":
+			# 設定：一個盤，上面一根指針。
+			item.draw_arc(center, r * 0.9, 0.0, TAU, 28, color, WIDTH, true)
+			_line(item, center, r, [Vector2(0.0, 0.0), Vector2(0.45, -0.55)], color)
+			item.draw_circle(center, r * 0.16, color)
+		&"book":
+			# 書：攤開的兩頁。
+			_line(item, center, r, [
+				Vector2(0.0, -0.6), Vector2(-0.95, -0.8), Vector2(-0.95, 0.6), Vector2(0.0, 0.8),
+				Vector2(0.95, 0.6), Vector2(0.95, -0.8), Vector2(0.0, -0.6), Vector2(0.0, 0.8),
+			], color)
+		&"seal":
+			# 印：方框裡一個小方塊。
+			_line(item, center, r, [Vector2(-0.8, -0.8), Vector2(0.8, -0.8), Vector2(0.8, 0.8), Vector2(-0.8, 0.8), Vector2(-0.8, -0.8)], color)
+			item.draw_rect(Rect2(center - Vector2(0.35, 0.35) * r, Vector2(0.7, 0.7) * r), color, true)
+		&"door":
+			# 離開：一扇門，一個往外的箭頭。
+			_line(item, center, r, [Vector2(0.1, -0.9), Vector2(-0.9, -0.9), Vector2(-0.9, 0.9), Vector2(0.1, 0.9)], color)
+			_line(item, center, r, [Vector2(-0.3, 0.0), Vector2(0.95, 0.0)], color)
+			_line(item, center, r, [Vector2(0.5, -0.4), Vector2(0.95, 0.0), Vector2(0.5, 0.4)], color)
+		&"back":
+			# 返回：一個往左折回的箭頭。
+			_line(item, center, r, [Vector2(0.9, 0.6), Vector2(0.9, -0.2), Vector2(-0.8, -0.2)], color)
+			_line(item, center, r, [Vector2(-0.35, -0.65), Vector2(-0.8, -0.2), Vector2(-0.35, 0.25)], color)
+		&"dice":
+			# 隨機：一顆骰子。
+			_line(item, center, r, [Vector2(-0.8, -0.8), Vector2(0.8, -0.8), Vector2(0.8, 0.8), Vector2(-0.8, 0.8), Vector2(-0.8, -0.8)], color)
+			for p: Vector2 in [Vector2(-0.4, -0.4), Vector2(0.0, 0.0), Vector2(0.4, 0.4)]:
+				item.draw_circle(center + p * r, r * 0.14, color)
 		&"yeqi":
 			# 業氣：一簇火。
 			_line(item, center, r, [

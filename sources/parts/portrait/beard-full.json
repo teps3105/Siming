@@ -1,0 +1,112 @@
+{
+ "part": "beard-full",
+ "paint": [
+  {
+   "tag": "beard-full-t1",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20262020,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/sources/parts/portrait/base-face-m.png",
+     "6eb81df3857716d33152534009eecf9090d5c7a2a6b3c29c3f5a48bfdca3b318"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版（背景是純綠色），圖2是畫風基準圖。請在圖1的臉上只畫「一件」絡腮鬍：從兩邊鬢角（耳朵前方）起，沿著兩頰與下頜線向下，繞過下巴連成一整圈的濃密短鬚，下巴與兩頰下半部被鬍鬚蓋住。嘴唇與嘴線完全不許被蓋住，嘴周圍留一圈很窄的皮膚；鼻子、顴骨、眼睛下方的臉頰上半部不畫任何鬍鬚；鬍鬚下緣貼著下巴輪廓，最低處不超過下巴下方一個嘴寬。是一個封閉、連續的色塊形狀（形狀像一個 U 形的馬蹄），外緣用墨線完整包住，內部只用幾條線表示毛流，不畫細碎鬍鬚，不分成好幾塊。【只有這一件畫成灰色】這一件是灰階稿，之後才會上色，所以這一件只用中性灰、完全沒有色相（不要棕、不要黑藍、不要泛藍的白髮）：底色是明亮的中淺灰（約 #B0B0B0，不是黑色、不是深灰），陰影塊是明顯較深的灰（約 #606060），少量近白的高光塊（約 #F2F2F2），輪廓線與髮束線條才用近黑（約 #151515），外緣一圈墨線必須完整封閉、沒有任何缺口（髮際線、眉與鬚的外緣、髮束的邊都要有墨線），墨線比色塊暗得多、在 1024 寬的圖上約 3 到 4 像素寬；底色、陰影、高光三階要一眼分得開：髮束與髮束之間、髮的下緣與髻的下側用陰影灰塊明確表示（陰影約占髮面積的三分之一），頭頂與髮束的上緣留幾條高光灰塊，不要把整件塗成同一個灰。人物其餘的地方——臉、耳、頸、肩、胸的皮膚——必須保持圖1原本的暖膚色，一點都不要變灰、不要加紋理或顆粒，整張圖其他部分與圖1完全一樣。鼻子、嘴、眼睛與頸不許動。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫的這一件，人物的頭、臉、頸、肩與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純綠色（#00FF00），純色無漸層。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/.shiftblame/tmp/parts/portrait/paint/beard-full-t1.png",
+   "output_sha256": "cbf095a59f288cb2ce5222e44da472742b6d81ecdf6ecb08be766630c0d5b2f0",
+   "seconds": 52.5,
+   "time": "2026-10-13 19:39:30"
+  }
+ ],
+ "collect": [
+  {
+   "from": "paint/beard-full-t1.png",
+   "affine": [
+    [
+     0.999019980430603,
+     -0.00015999999595806003,
+     0.0735199972987175
+    ],
+    [
+     -0.0005099999834783375,
+     1.0024800300598145,
+     -1.72406005859375
+    ]
+   ],
+   "ecc": 0.99513,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 28947,
+   "bbox": [
+    356,
+    623,
+    680,
+    837
+   ],
+   "components": 1,
+   "output": "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/.shiftblame/tmp/parts/portrait/collect/beard-full.png",
+   "time": "2026-10-13 19:39:31"
+  }
+ ],
+ "key": [
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/beard-full.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "beard": {
+     "file": ".shiftblame/tmp/parts/portrait/key/beard-full.beard.png",
+     "pixels": 2984,
+     "dye": "hair",
+     "centers": [
+      41.6,
+      61.6,
+      73.7
+     ],
+     "share": [
+      0.291,
+      0.137,
+      0.572
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 19:39:31"
+  }
+ ],
+ "check": [
+  {
+   "metrics": {
+    "beard-full.beard": {
+     "edge_len": 408,
+     "bare_edge": 170,
+     "bare_ratio": 0.417,
+     "blobs": 1,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 2731
+    }
+   },
+   "time": "2026-10-13 19:39:31"
+  }
+ ]
+}

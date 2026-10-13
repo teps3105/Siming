@@ -1,0 +1,83 @@
+# 6.6「check」「determinism」：Rust 靜態檢查、測試、規範檢查腳本，Windows 與 Linux 各跑一次。
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  PYTHONIOENCODING: utf-8
+
+jobs:
+  check:
+    name: check（${{ matrix.os }}）
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native/sim/rust
+
+      - name: 規範檢查：繁體字
+        run: python tools/checks/check_hant.py
+      - name: 規範檢查：追溯
+        run: python tools/checks/check_trace.py
+      - name: 規範檢查：色票
+        run: python tools/checks/check_palette.py
+
+      - name: cargo fmt
+        working-directory: native/sim/rust
+        run: cargo fmt --all --check
+      - name: cargo clippy
+        working-directory: native/sim/rust
+        run: cargo clippy --release --workspace --all-targets -- -D warnings
+
+      # 世界生成效能預算（gdd_6_8_medium_generation_within_budget）在測試並行時會因爭用 CPU 超時，
+      # 單獨跑才準，所以主測試跳過它，再以單執行緒單獨跑。
+      - name: cargo test（除效能預算）
+        working-directory: native/sim/rust
+        run: cargo test --release --workspace -- --skip gdd_6_8_medium_generation_within_budget
+      - name: cargo test（世界生成效能預算，單獨）
+        working-directory: native/sim/rust
+        run: cargo test --release -p siming-sim --test worldgen gdd_6_8_medium_generation_within_budget -- --test-threads=1
+
+  # 6.5 跨平台確定性：兩個平台都以同一組固定期望雜湊驗證，任一邊不符即失敗。
+  determinism:
+    name: determinism（${{ matrix.os }}）
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native/sim/rust
+      - name: 確定性、存檔與跨平台黃金雜湊
+        working-directory: native/sim/rust
+        run: cargo test --release -p siming-sim --test determinism --test save -- --nocapture

@@ -5,16 +5,7 @@ use rand::RngCore;
 use rand_chacha::ChaCha8Rng;
 
 /// 八方向，固定順序：北、東、南、西，再東北、東南、西南、西北。前四個為正向。
-pub const DIRS8: [(i32, i32); 8] = [
-    (0, -1),
-    (1, 0),
-    (0, 1),
-    (-1, 0),
-    (1, -1),
-    (1, 1),
-    (-1, 1),
-    (-1, -1),
-];
+pub const DIRS8: [(i32, i32); 8] = [(0, -1), (1, 0), (0, 1), (-1, 0), (1, -1), (1, 1), (-1, 1), (-1, -1)];
 
 /// 無效索引。
 pub const NONE: u32 = u32::MAX;
@@ -98,9 +89,7 @@ pub fn stretch(v: &mut [f32]) {
 /// `|x| ≤ π/2` 的正弦：泰勒展開到 x⁹（只用基本運算，GDD 6.5 規則 4）。
 fn sin_half(x: f32) -> f32 {
     let x2 = x * x;
-    x * (1.0
-        + x2 * (-1.0 / 6.0
-            + x2 * (1.0 / 120.0 + x2 * (-1.0 / 5040.0 + x2 * (1.0 / 362_880.0)))))
+    x * (1.0 + x2 * (-1.0 / 6.0 + x2 * (1.0 / 120.0 + x2 * (-1.0 / 5040.0 + x2 * (1.0 / 362_880.0)))))
 }
 
 /// `asin(z)` 的度數（|z| ≤ 1；只用基本運算：以 `atan2` 的多項式近似，誤差 < 0.1°）。
@@ -185,11 +174,7 @@ impl Sphere {
     #[inline]
     pub fn unit(&self, c: usize) -> [f32; 3] {
         let (x, y) = (c % self.w, c / self.w);
-        [
-            self.cos_lat[y] * self.cos_lon[x],
-            self.cos_lat[y] * self.sin_lon[x],
-            self.sin_lat[y],
-        ]
+        [self.cos_lat[y] * self.cos_lon[x], self.cos_lat[y] * self.sin_lon[x], self.sin_lat[y]]
     }
 
     /// 格的面積權重 cos(lat)。
@@ -211,6 +196,12 @@ impl Sphere {
         d * self.r_cells * self.r_cells
     }
 
+    /// 第 `y` 列上，半徑 `r`（赤道格寬）的外接方框往左右各取幾格。
+    pub fn box_half_width(&self, y: usize, r: f32) -> i32 {
+        let cl = self.cos_lat[y].max(1e-3);
+        ((r / cl).ceil() as i32).min(self.w as i32 / 2)
+    }
+
     /// 以格 `c` 為中心、半徑 `r`（赤道格寬）的外接方框內所有格（x 環繞、y 截斷），固定順序。
     pub fn box_cells(&self, c: usize, r: f32) -> Vec<usize> {
         let (cx, cy) = ((c % self.w) as i32, (c / self.w) as i32);
@@ -221,8 +212,7 @@ impl Sphere {
             if y < 0 || y >= self.h as i32 {
                 continue;
             }
-            let cl = self.cos_lat[y as usize].max(1e-3);
-            let rx = ((r / cl).ceil() as i32).min(self.w as i32 / 2);
+            let rx = self.box_half_width(y as usize, r);
             for dx in -rx..=rx {
                 out.push(y as usize * self.w + wrap_x(self.w, cx + dx));
             }

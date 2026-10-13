@@ -14,7 +14,7 @@
 //!
 //! | 函式 | 誰呼叫 | 用途 |
 //! |---|---|---|
-//! | [`yearly`] | `Sim::step` 步驟 14 | 師徒超越檢查、相遇與了結、預兆 |
+//! | [`monthly`]、[`yearly`] | `Sim::step` 步驟 14 | 師徒超越檢查、相遇與了結、預兆；`monthly` 逐魂在自己的判定月處理，`yearly` 一次處理全部（測試與工具用） |
 //! | [`on_kill`] | 任何人殺死有名之人後（people 死亡處理、dao 魔修襲殺與斬妖、war） | 殺業線：建立、復仇了結、冤冤相報；斬殺惡人不建線。**不**改 G／S，見 [`kill_karma`] |
 //! | [`kill_karma`] | 同上（呼叫端統一計業時） | 依 3.1 計殺人的業力（惡人 G+5，否則 S+10×無辜係數） |
 //! | [`on_peril`] | 會戰、天劫、妖襲、被襲殺時的債主 | 殺業化解：同州的欠債方依德行機率出手相救 |
@@ -36,7 +36,7 @@
 mod tests;
 mod yearly;
 
-pub use yearly::yearly;
+pub use yearly::{monthly, yearly};
 
 use rand::Rng;
 use smallvec::{smallvec, SmallVec};
@@ -177,18 +177,14 @@ fn soul_peak(w: &World, sid: SoulId) -> Achievements {
 /// （師父沒有境界／果位／三不朽，就沒有可超越的基準；`Some(0) > None` 不算超越）。
 fn exceeds(now: Achievements, best: Achievements) -> bool {
     let beats = |n: Option<u8>, b: Option<u8>| matches!((n, b), (Some(n), Some(b)) if n > b);
-    beats(now.realm, best.realm)
-        || beats(now.fruit, best.fruit)
-        || (best.immortality > 0.0 && now.immortality > best.immortality)
+    beats(now.realm, best.realm) || beats(now.fruit, best.fruit) || (best.immortality > 0.0 && now.immortality > best.immortality)
 }
 
 fn open_between(w: &World, kind: ThreadKind, a: SoulId, b: SoulId, directed: bool) -> Option<ThreadId> {
     let s = w.souls.get(a as usize)?;
     s.threads.iter().copied().find(|&tid| {
         w.threads.get(tid as usize).is_some_and(|t| {
-            t.kind == kind
-                && is_open(t)
-                && ((t.debtor == a && t.creditor == b) || (!directed && t.debtor == b && t.creditor == a))
+            t.kind == kind && is_open(t) && ((t.debtor == a && t.creditor == b) || (!directed && t.debtor == b && t.creditor == a))
         })
     })
 }
@@ -234,13 +230,7 @@ fn push_thread(
 /// 開局宿緣（GDD 4.6 步驟 5）：以既有的 `Genesis` 事件為 `created`，不另寫 `ThreadCreated`；
 /// 強度取 [`default_strength`]、`lives` = 0。呼叫端負責挑選雙方並避免重複。
 /// 魂不存在或欠債方＝債主時回傳 `ThreadId::MAX`。
-pub fn create_genesis(
-    w: &mut World,
-    kind: ThreadKind,
-    debtor: SoulId,
-    creditor: SoulId,
-    genesis_event: EventId,
-) -> ThreadId {
+pub fn create_genesis(w: &mut World, kind: ThreadKind, debtor: SoulId, creditor: SoulId, genesis_event: EventId) -> ThreadId {
     if debtor == creditor || debtor as usize >= w.souls.len() || creditor as usize >= w.souls.len() {
         return ThreadId::MAX;
     }
@@ -303,6 +293,10 @@ pub fn create(
         t.woven |= woven;
         return tid;
     }
+    // 大劫之後一段時間，新的宿緣線不易長出（司命牽線不受影響）。
+    if !woven && !crate::cataclysm::thread_allowed(w) {
+        return ThreadId::MAX;
+    }
     insert_thread(w, kind, debtor, creditor, strength, woven, cause)
 }
 
@@ -311,6 +305,16 @@ pub fn create(
 /// 了結（3.3 了結）：清算業力 → 寫入 `ThreadResolved`（因：建立事件、雙方最近事件、`cause`）→ 天書偵測。
 /// 司命天機（M5）與地圖奇觀（呈現層）不在此處。線已了結或已消散時回傳 `None`。
 pub fn resolve(w: &mut World, tid: ThreadId, how: Resolution, cause: Option<EventId>) -> Option<EventId> {
+    let why = match how {
+        Resolution::Revenge => Why::Avenged,
+        Resolution::Atone => Why::Repaid,
+        Resolution::Other => Why::ResolvedOther,
+    };
+    resolve_why(w, tid, how, cause, why)
+}
+
+/// 同 [`resolve`]，並指定了結的成因（寫入 `ThreadResolved` 的 `why`）。
+pub fn resolve_why(w: &mut World, tid: ThreadId, how: Resolution, cause: Option<EventId>, why: Why) -> Option<EventId> {
     let t = w.threads.get(tid as usize)?.clone();
     if !is_open(&t) {
         return None;
@@ -332,11 +336,9 @@ pub fn resolve(w: &mut World, tid: ThreadId, how: Resolution, cause: Option<Even
     }
     let n = lives(w, &t);
     let (province, cell) = place(w, t.creditor);
-    let mut e = NewEvent::new(
-        EventKind::ThreadResolved,
-        if n >= 2 { 5 } else { 4 },
-        EventArgs::Thread { thread: tid, kind: t.kind, lives: n },
-    );
+    let mut e =
+        NewEvent::new(EventKind::ThreadResolved, if n >= 2 { 5 } else { 4 }, EventArgs::Thread { thread: tid, kind: t.kind, lives: n });
+    e.why = why;
     e.province = province;
     e.cell = cell;
     e.souls = smallvec![t.debtor, t.creditor];
@@ -349,11 +351,12 @@ pub fn resolve(w: &mut World, tid: ThreadId, how: Resolution, cause: Option<Even
     e.causes = causes;
     let eid = ledger::record(w, e);
     w.threads[tid as usize].resolved = Some((w.tick, eid));
+    settle(w, tid, eid);
     Some(eid)
 }
 
 /// 強度降到 0：線消散（不算了結），寫入 `ThreadFaded`。
-fn fade(w: &mut World, tid: ThreadId) {
+pub(crate) fn fade(w: &mut World, tid: ThreadId) {
     let t = w.threads[tid as usize].clone();
     w.threads[tid as usize].strength = 0.0;
     let n = lives(w, &t);
@@ -363,7 +366,23 @@ fn fade(w: &mut World, tid: ThreadId) {
     e.cell = cell;
     e.souls = smallvec![t.debtor, t.creditor];
     e.causes = smallvec![t.created.1];
-    ledger::record(w, e);
+    let eid = ledger::record(w, e);
+    settle(w, tid, eid);
+}
+
+/// 線已了結或消散：從雙方魂的現行名單移除，改記一筆精簡紀錄（上限 [`SETTLED_CAP`]）。
+fn settle(w: &mut World, tid: ThreadId, event: EventId) {
+    let t = &w.threads[tid as usize];
+    let (kind, d, c) = (t.kind, t.debtor, t.creditor);
+    for (me, other, debtor) in [(d, c, true), (c, d, false)] {
+        let s = &mut w.souls[me as usize];
+        s.threads.retain(|&x| x != tid);
+        if s.settled.len() >= SETTLED_CAP {
+            let k = s.settled.iter().position(|r| r.kind != ThreadKind::Mentor).unwrap_or(0);
+            s.settled.remove(k);
+        }
+        s.settled.push(Settled { other, kind, debtor, event });
+    }
 }
 
 // ── 殺業 ─────────────────────────────────────────────────
@@ -495,7 +514,7 @@ pub fn on_marriage(w: &mut World, a: PersonId, b: PersonId, cause: Option<EventI
     if let Some(tid) = open_between(w, ThreadKind::Love, sa, sb, false) {
         let t = w.threads[tid as usize].clone();
         if lives(w, &t) >= 1 {
-            resolve(w, tid, Resolution::Other, cause);
+            resolve_why(w, tid, Resolution::Other, cause, Why::WedSettled);
             return None;
         }
     }
@@ -527,6 +546,9 @@ fn kill_person(w: &mut World, killer: PersonId, victim: PersonId, cause: Option<
     };
     // 殺人事件為死亡事件的因；死亡處理（Died、魂入中陰、人際、勢力）由 people::die 負責。
     let mut ke = NewEvent::new(EventKind::Killed, 3, EventArgs::None);
+    let rel = ledger::rel_of_persons(w, killer, victim);
+    ke.why = if rel.has(Rel::THREAD_FEUD | Rel::THREAD_GRUDGE) { Why::Vendetta } else { Why::KillOther };
+    ke.rel = Some(rel);
     ke.province = Some(province);
     ke.cell = Some(cell);
     ke.souls = smallvec![ks, vs];

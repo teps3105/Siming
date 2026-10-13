@@ -48,13 +48,21 @@ use crate::params::*;
 use crate::sim::World;
 use crate::types::{ProvinceId, Tick, WorldSize};
 
+/// 一州的有名之人名額：每 `1 / NOTABLE_PER_POP` 人口一名（有人就至少一名），無人的州為 0。
+pub fn province_quota(p: &crate::types::Province) -> f64 {
+    (p.population.max(0.0) * NOTABLE_PER_POP).ceil()
+}
+
 /// 在世有名之人上限 `NOTABLE_CAP`（依世界尺寸，GDD 7.1）。
 pub fn notable_cap(w: &World) -> u32 {
-    NOTABLE_CAP[match w.params.size {
+    let cap = NOTABLE_CAP[match w.params.size {
         WorldSize::Small => 0,
         WorldSize::Medium => 1,
         WorldSize::Large => 2,
-    }]
+    }];
+    // 名額按各州人口比例（GDD 3.4、4.6）：每州 floor(人口 × 比例)，無人的州沒有名額；全世界再頂到效能上限。
+    let quota: f64 = w.provinces.iter().map(province_quota).sum();
+    cap.min(quota as u32)
 }
 
 /// 在世有名之人數（含幼年者）。
@@ -114,8 +122,9 @@ pub fn on_death(w: &mut World, pid: PersonId, liberation: Option<Liberation>) {
     soul.last_place = place;
     soul.state = match liberation {
         Some(way) => SoulState::Liberated { way, tick },
-        None => SoulState::Bardo { until: tick + BARDO_MONTHS },
+        None => SoulState::Bardo { until: tick + BARDO_MONTHS * crate::calendar::DAYS_PER_MONTH },
     };
+    arm(w, sid);
 }
 
 /// GDD 3.4 王族子女：取一個「已判入人道、在等待中、宿緣對象在世且在 `province`」的魂（依魂 ID 升冪取第一個）。
@@ -173,8 +182,52 @@ fn record_judged(w: &mut World, sid: SoulId, path: SixPath) {
     ledger::record(w, e);
 }
 
+/// 一個月的魂處理內共用的暫存：都是由世界狀態導出的，只在這個月內有效，不進存檔與雜湊。
+struct Month {
+    cap: u32,
+    /// 在世有名之人數；第一次用到時才算（見 [`monthly`]）。
+    living: Option<u32>,
+    /// 狀態為 `Waiting` 的魂（升冪）。第一次要找等待者時才掃描建立，之後隨狀態轉換維護。
+    waiting: Option<Vec<SoulId>>,
+    /// 人口分布與各州郡的 faith4；第一次抽出生州郡時才算（月內州郡人口與信仰不變）。
+    pop: Option<(Vec<f64>, Vec<[f32; 4]>)>,
+}
+
+impl Month {
+    fn living(&mut self, w: &World) -> &mut u32 {
+        self.living.get_or_insert_with(|| living_notables(w))
+    }
+
+    fn waiting(&mut self, w: &World) -> &mut Vec<SoulId> {
+        self.waiting.get_or_insert_with(|| w.souls.iter().filter(|s| matches!(s.state, SoulState::Waiting { .. })).map(|s| s.id).collect())
+    }
+
+    fn birth_province(&mut self, w: &mut World, sid: SoulId) -> ProvinceId {
+        let (pop, faith) = self.pop.get_or_insert_with(|| (pull::population_dist(w), pull::faith_table(w)));
+        pull::sample_birth_province_with(w, sid, pop, faith)
+    }
+
+    /// 魂 `sid` 剛離開等待（出生）。
+    fn left_waiting(&mut self, sid: SoulId) {
+        if let Some(v) = &mut self.waiting {
+            if let Ok(k) = v.binary_search(&sid) {
+                v.remove(k);
+            }
+        }
+    }
+
+    /// 魂 `sid` 剛進入等待。
+    fn entered_waiting(&mut self, sid: SoulId) {
+        if let Some(v) = &mut self.waiting {
+            if let Err(k) = v.binary_search(&sid) {
+                v.insert(k, sid);
+            }
+        }
+    }
+}
+
 /// 對一個該判定的魂（中陰到期、他道期滿）做六道判定並安置。
-fn judge_and_place(w: &mut World, sid: SoulId, living: &mut u32, cap: u32) {
+fn judge_and_place(w: &mut World, sid: SoulId, m: &mut Month) {
     let tick = w.tick;
     let (path, province_override) = choose_path(w, sid);
 
@@ -183,17 +236,17 @@ fn judge_and_place(w: &mut World, sid: SoulId, living: &mut u32, cap: u32) {
         let soul = &mut w.souls[sid as usize];
         soul.guide = None;
         soul.marks.clear(SoulMarks::ASURA);
-        soul.state = SoulState::Realm { path, until: tick + dur };
+        soul.state = SoulState::Realm { path, until: tick + dur * crate::calendar::DAYS_PER_MONTH };
         record_judged(w, sid, path);
         return;
     }
 
     // 人道、阿修羅道。
-    let waiters: Vec<SoulId> = w
-        .souls
+    let waiters: Vec<SoulId> = m
+        .waiting(w)
         .iter()
-        .filter(|s| matches!(&s.state, SoulState::Waiting { for_souls, .. } if for_souls.contains(&sid)))
-        .map(|s| s.id)
+        .copied()
+        .filter(|&o| matches!(&w.souls[o as usize].state, SoulState::Waiting { for_souls, .. } if for_souls.contains(&sid)))
         .collect();
 
     // 有人在等本魂時一律配對出生；否則看本魂是否要等別人。
@@ -205,7 +258,8 @@ fn judge_and_place(w: &mut World, sid: SoulId, living: &mut u32, cap: u32) {
             if path == SixPath::Asura {
                 soul.marks.set(SoulMarks::ASURA);
             }
-            soul.state = SoulState::Waiting { until: tick + WAIT_MAX_YEARS * 12, for_souls: smallvec![other] };
+            soul.state = SoulState::Waiting { until: tick + WAIT_MAX_YEARS * crate::calendar::DAYS_PER_YEAR, for_souls: smallvec![other] };
+            m.entered_waiting(sid);
             record_judged(w, sid, path);
             return;
         }
@@ -213,12 +267,15 @@ fn judge_and_place(w: &mut World, sid: SoulId, living: &mut u32, cap: u32) {
 
     // 先配對，再檢查上限；達上限時整組一起延後（等待者維持原狀）。
     let group = 1 + waiters.len() as u32;
-    if *living + group > cap {
-        w.souls[sid as usize].state = SoulState::Bardo { until: tick + BIRTH_DEFER_YEARS * 12 };
+    if *m.living(w) + group > m.cap {
+        w.souls[sid as usize].state = SoulState::Bardo { until: tick + BIRTH_DEFER_YEARS * crate::calendar::DAYS_PER_YEAR };
         return;
     }
 
-    let province = province_override.unwrap_or_else(|| pull::sample_birth_province(w, sid));
+    let province = match province_override {
+        Some(p) => p,
+        None => m.birth_province(w, sid),
+    };
     {
         let soul = &mut w.souls[sid as usize];
         soul.guide = None;
@@ -232,21 +289,23 @@ fn judge_and_place(w: &mut World, sid: SoulId, living: &mut u32, cap: u32) {
     for wid in waiters {
         let p = pull::sample_near(w, province);
         rebirth(w, wid, p);
+        m.left_waiting(wid);
     }
-    *living += group;
+    *m.living(w) += group;
 }
 
 /// 等待逾時：照常以因果牽引出生；達上限則再等 1 年。
-fn birth_after_wait(w: &mut World, sid: SoulId, living: &mut u32, cap: u32) {
-    if *living + 1 > cap {
+fn birth_after_wait(w: &mut World, sid: SoulId, m: &mut Month) {
+    if *m.living(w) + 1 > m.cap {
         if let SoulState::Waiting { until, .. } = &mut w.souls[sid as usize].state {
-            *until += BIRTH_DEFER_YEARS * 12;
+            *until += BIRTH_DEFER_YEARS * crate::calendar::DAYS_PER_YEAR;
         }
         return;
     }
-    let province = pull::sample_birth_province(w, sid);
+    let province = m.birth_province(w, sid);
     rebirth(w, sid, province);
-    *living += 1;
+    m.left_waiting(sid);
+    *m.living(w) += 1;
 }
 
 /// GDD 6.3 步驟 5：中陰到期的魂六道判定；他道期滿的魂重判（天道 G × 0.5、為獸 S × 0.9）；
@@ -257,38 +316,75 @@ pub fn monthly(w: &mut World) {
     }
     let tick: Tick = w.tick;
 
-    if tick.is_multiple_of(12) {
-        for soul in &mut w.souls {
-            if let SoulState::Realm { path, .. } = soul.state {
-                match path {
-                    SixPath::Hungry => soul.sin *= PATH_HUNGRY_S_DECAY_PER_YEAR,
-                    SixPath::Hell => soul.sin *= PATH_HELL_S_DECAY_PER_YEAR,
-                    _ => {}
-                }
-            }
-        }
+    if tick.is_multiple_of(crate::calendar::DAYS_PER_YEAR) {
+        yearly_decay(w);
     }
 
-    let cap = notable_cap(w);
-    let mut living = living_notables(w);
+    let mut month = Month { cap: notable_cap(w), living: None, waiting: None, pop: None };
+    // 在世有名之人數要掃全部在世者，多數月份沒有任何魂到期，所以第一次用到時才算
+    // （第一個到期之前世界沒有改變，數值與一開始就算相同）。
     // 狀態會在迴圈中被配對改變，因此每次重讀。
     for i in 0..w.souls.len() {
-        let sid = i as SoulId;
-        match w.souls[i].state.clone() {
-            SoulState::Bardo { until } if until <= tick => judge_and_place(w, sid, &mut living, cap),
-            SoulState::Realm { path, until } if until <= tick => {
-                let soul = &mut w.souls[i];
-                match path {
-                    SixPath::Heaven => soul.merit *= PATH_HEAVEN_RETURN_G_MULT,
-                    SixPath::Beast => soul.sin *= PATH_BEAST_RETURN_S_MULT,
-                    _ => {}
-                }
-                judge_and_place(w, sid, &mut living, cap);
+        due_one(w, i as SoulId, &mut month, tick);
+    }
+}
+
+/// 餓鬼、地獄的魂每年衰減罪業（每年一次；事件驅動的 `Sim` 在年底月呼叫）。
+pub fn yearly_decay(w: &mut World) {
+    for soul in &mut w.souls {
+        if let SoulState::Realm { path, .. } = soul.state {
+            match path {
+                SixPath::Hungry => soul.sin *= PATH_HUNGRY_S_DECAY_PER_YEAR,
+                SixPath::Hell => soul.sin *= PATH_HELL_S_DECAY_PER_YEAR,
+                _ => {}
             }
-            SoulState::Waiting { until, .. } if until <= tick => birth_after_wait(w, sid, &mut living, cap),
-            _ => {}
         }
     }
+}
+
+/// 單一魂若狀態已到期就處理（中陰判定、他道期滿重判、等待逾時出生）。
+fn due_one(w: &mut World, sid: SoulId, month: &mut Month, tick: Tick) {
+    let i = sid as usize;
+    // 先以參照判斷是否到期（多數魂沒有到期，不複製狀態）。
+    let due = match &w.souls[i].state {
+        SoulState::Bardo { until } if *until <= tick => 1,
+        SoulState::Realm { until, .. } if *until <= tick => 2,
+        SoulState::Waiting { until, .. } if *until <= tick => 3,
+        _ => 0,
+    };
+    match due {
+        0 => {}
+        1 => judge_and_place(w, sid, month),
+        2 => {
+            let SoulState::Realm { path, .. } = w.souls[i].state else { return };
+            let soul = &mut w.souls[i];
+            match path {
+                SixPath::Heaven => soul.merit *= PATH_HEAVEN_RETURN_G_MULT,
+                SixPath::Beast => soul.sin *= PATH_BEAST_RETURN_S_MULT,
+                _ => {}
+            }
+            judge_and_place(w, sid, month);
+        }
+        _ => birth_after_wait(w, sid, month),
+    }
+}
+
+/// 依魂目前的狀態排定到期事件（中陰、他道、等待三種有期限的狀態）。狀態每次改變後呼叫；
+/// 舊狀態遺留的事件到期時發現狀態已變、或尚未到期，什麼都不做。
+pub fn arm(w: &mut World, sid: SoulId) {
+    let until = match &w.souls[sid as usize].state {
+        SoulState::Bardo { until } | SoulState::Realm { until, .. } | SoulState::Waiting { until, .. } => *until,
+        _ => return,
+    };
+    w.queue.schedule(until.max(w.tick), crate::queue::Action::Soul(sid));
+}
+
+/// 事件隊列的魂到期：處理該魂，再依新狀態重排。
+pub fn fire(w: &mut World, sid: SoulId) {
+    let tick = w.tick;
+    let mut month = Month { cap: notable_cap(w), living: None, waiting: None, pop: None };
+    due_one(w, sid, &mut month, tick);
+    arm(w, sid);
 }
 
 /// GDD 3.4 人間補魂：每年，在世有名之人 < `NOTABLE_FLOOR` 時，
@@ -305,9 +401,23 @@ pub fn yearly_refill(w: &mut World) {
     }
     let want = ((floor - living as f32) * REFILL_RATE).ceil() as u32;
     let n = want.min(cap.saturating_sub(living));
-    let dist = pull::population_dist(w);
+    // 各州名額（隨該州人口）扣掉該州在世有名之人，剩餘名額作為出生地的權重；無人口的州不出人。
+    let mut room: Vec<f64> = w.provinces.iter().map(province_quota).collect();
+    for &i in &w.alive_ids {
+        if let Some(p) = w.persons.get(i as usize).filter(|p| p.alive()) {
+            if let Some(r) = room.get_mut(p.province as usize) {
+                *r -= 1.0;
+            }
+        }
+    }
+    let mut weights: Vec<f64> = room.iter().map(|r| r.max(0.0)).collect();
     for _ in 0..n {
+        if weights.iter().sum::<f64>() <= 0.0 {
+            break;
+        }
+        let dist = pull::normalized(weights.clone());
         let province = pull::sample_dist(w, &dist);
         spawn_new_life(w, SoulOrigin::New, province);
+        weights[province as usize] = (weights[province as usize] - 1.0).max(0.0);
     }
 }

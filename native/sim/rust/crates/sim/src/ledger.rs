@@ -24,6 +24,9 @@ pub struct NewEvent {
     pub causes: SmallVec<[EventId; 3]>,
     pub importance: u8,
     pub args: EventArgs,
+    pub why: Why,
+    /// 兩方關係快照；留 `None` 時，事件有兩個人物（或兩個魂）就在寫入時自動查。
+    pub rel: Option<Rel>,
 }
 
 impl NewEvent {
@@ -38,8 +41,53 @@ impl NewEvent {
             causes: SmallVec::new(),
             importance,
             args,
+            why: Why::None,
+            rel: None,
         }
     }
+}
+
+/// 兩個人物之間的關係旗標。師徒、同宗門、配偶、親子、同鄉看人物資料，宿緣種類與世數看兩魂之間未了的線。
+pub fn rel_of_persons(w: &World, a: PersonId, b: PersonId) -> Rel {
+    let (Some(pa), Some(pb)) = (w.persons.get(a as usize), w.persons.get(b as usize)) else { return Rel(0) };
+    let mut r = 0u16;
+    if pa.master == Some(b) || pb.master == Some(a) {
+        r |= Rel::MASTER_DISCIPLE;
+    }
+    if pa.power.is_some() && pa.power == pb.power {
+        r |= Rel::SAME_SECT;
+    }
+    if pa.spouse == Some(b) || pb.spouse == Some(a) {
+        r |= Rel::SPOUSES;
+    }
+    if pa.children.contains(&b) || pb.children.contains(&a) {
+        r |= Rel::PARENT_CHILD;
+    }
+    if pa.home == pb.home {
+        r |= Rel::SAME_HOMETOWN;
+    }
+    Rel(r | rel_of_souls(w, pa.soul, pb.soul).0)
+}
+
+/// 兩個魂之間未了宿緣線的種類與世數。
+pub fn rel_of_souls(w: &World, a: SoulId, b: SoulId) -> Rel {
+    let Some(s) = w.souls.get(a as usize) else { return Rel(0) };
+    let (mut kinds, mut lives) = (0u16, 0u16);
+    for &tid in &s.threads {
+        let Some(t) = w.threads.get(tid as usize) else { continue };
+        if !((t.debtor == a && t.creditor == b) || (t.debtor == b && t.creditor == a)) || !crate::thread::is_open(t) {
+            continue;
+        }
+        kinds |= match t.kind {
+            ThreadKind::Feud => Rel::THREAD_FEUD,
+            ThreadKind::Grace => Rel::THREAD_GRACE,
+            ThreadKind::Love => Rel::THREAD_LOVE,
+            ThreadKind::Mentor => Rel::THREAD_MENTOR,
+            ThreadKind::Grudge => Rel::THREAD_GRUDGE,
+        };
+        lives = lives.max(crate::thread::lives(w, t).min(7));
+    }
+    Rel(kinds | lives << Rel::LIVES_SHIFT)
 }
 
 /// GDD 6.3「事件寫入」：指派 ID、寫入因果帳、維護反向索引、更新人物的最近事件，然後偵測天書條目
@@ -47,6 +95,14 @@ impl NewEvent {
 pub fn record(w: &mut World, e: NewEvent) -> EventId {
     let id = w.ledger.events.len() as EventId;
     let mut causes = e.causes;
+    // 因若已被修剪成墓碑，改指向最近保留的祖先（墓碑不再接收新的後果）。
+    for c in causes.iter_mut() {
+        if w.ledger.events.get(*c as usize).is_some_and(|x| x.importance == 0) {
+            if let Some(a) = live_ancestor(w, *c) {
+                *c = a;
+            }
+        }
+    }
     causes.sort_unstable();
     causes.dedup();
     for &c in &causes {
@@ -60,6 +116,11 @@ pub fn record(w: &mut World, e: NewEvent) -> EventId {
         }
     }
     let kind = e.kind;
+    let rel = e.rel.unwrap_or_else(|| match (e.persons.as_slice(), e.souls.as_slice()) {
+        ([a, b], _) => rel_of_persons(w, *a, *b),
+        (_, [a, b]) => rel_of_souls(w, *a, *b),
+        _ => Rel(0),
+    });
     w.ledger.events.push(Event {
         id,
         tick: w.tick,
@@ -72,12 +133,62 @@ pub fn record(w: &mut World, e: NewEvent) -> EventId {
         causes,
         importance: e.importance,
         args: e.args,
+        why: e.why,
+        rel,
     });
     w.ledger.effects.push(SmallVec::new());
     if kind != EventKind::BookEntry {
         crate::book::detect(w, id);
     }
     id
+}
+
+/// 寫入只供人物卡生平的紀錄（`EventKind::is_chronicle_only`）：寫入後把涉及人物的 `last_event` 還原，
+/// 讓既有事件的因果鏈與寫入前完全相同。
+pub fn record_note(w: &mut World, e: NewEvent) -> EventId {
+    let saved: SmallVec<[(PersonId, Option<EventId>); 2]> =
+        e.persons.iter().filter_map(|&p| w.persons.get(p as usize).map(|x| (p, x.last_event))).collect();
+    let id = record(w, e);
+    for (p, last) in saved {
+        w.persons[p as usize].last_event = last;
+    }
+    id
+}
+
+/// 人物加入宗門的紀錄（`SectJoined`）。呼叫端已完成 `join_sect`。
+pub fn note_sect_joined(w: &mut World, pid: PersonId, sect: PowerId, why: Why, cause: Option<EventId>) -> EventId {
+    note_sect(w, EventKind::SectJoined, pid, sect, why, cause)
+}
+
+/// 人物離開宗門的紀錄（`SectLeft`）。`sect` 為離開的那一宗。
+pub fn note_sect_left(w: &mut World, pid: PersonId, sect: PowerId, why: Why, cause: Option<EventId>) -> EventId {
+    note_sect(w, EventKind::SectLeft, pid, sect, why, cause)
+}
+
+fn note_sect(w: &mut World, kind: EventKind, pid: PersonId, sect: PowerId, why: Why, cause: Option<EventId>) -> EventId {
+    let p = &w.persons[pid as usize];
+    let mut e = NewEvent::new(kind, 1, EventArgs::None);
+    e.why = why;
+    e.province = Some(p.province);
+    e.cell = Some(p.cell);
+    e.souls.push(p.soul);
+    e.persons.push(pid);
+    e.powers.push(sect);
+    e.causes.extend(cause);
+    record_note(w, e)
+}
+
+/// 師徒解除的紀錄（`MasterEnded`），人物順序同師徒線的建立事件：徒、師。
+pub fn note_master_ended(w: &mut World, disciple: PersonId, master: PersonId, why: Why, cause: Option<EventId>) -> EventId {
+    let (d, m) = (&w.persons[disciple as usize], &w.persons[master as usize]);
+    let mut e = NewEvent::new(EventKind::MasterEnded, 1, EventArgs::None);
+    e.why = why;
+    e.province = Some(d.province);
+    e.cell = Some(d.cell);
+    e.souls.extend([d.soul, m.soul]);
+    e.persons.extend([disciple, master]);
+    e.causes.extend(cause);
+    record_note(w, e)
 }
 
 /// 讀取事件；已被修剪（墓碑）或不存在時回傳 `None`。
@@ -144,11 +255,25 @@ fn prune_one(w: &mut World, p: EventId) {
     ev.args = EventArgs::None;
 }
 
+/// 這筆重要度 1 的舊事件現在可不可以修剪：在世者的歷程（降生、入道等）與未了線的建線事件要留著。
+fn prunable(w: &World, e: &Event) -> bool {
+    if e.persons.iter().any(|&p| w.persons.get(p as usize).is_some_and(|p| p.alive())) {
+        return false;
+    }
+    if let EventArgs::Thread { thread, .. } = e.args {
+        if w.threads.get(thread as usize).is_some_and(crate::thread::is_open) {
+            return false;
+        }
+    }
+    true
+}
+
 /// GDD 3.3 修剪 importance 1 且超過 100 年的事件（6.3 步驟 25）。
 /// 事件依 ID 升冪即依 tick 升冪，因此只需從修剪游標掃到「剛好滿 100 年」的位置。
+/// 在世者從降生起的歷程與未了線的建線事件不修剪，改記入 `prune_deferred`，每十年複查一次，條件解除才修剪。
 /// 修剪後，`Person::last_event` 若指向被修剪的事件，改指向最近保留的祖先。
 pub fn prune(w: &mut World) {
-    let keep = LEDGER_TRIVIAL_KEEP_YEARS * 12;
+    let keep = LEDGER_TRIVIAL_KEEP_YEARS * crate::calendar::DAYS_PER_YEAR;
     let now = w.tick;
     let end = w.ledger.events.len() as EventId;
     let mut i = w.ledger.prune_cursor;
@@ -159,17 +284,36 @@ pub fn prune(w: &mut World) {
             break;
         }
         if e.importance == 1 {
-            prune_one(w, i);
-            any = true;
+            if prunable(w, e) {
+                prune_one(w, i);
+                any = true;
+            } else {
+                w.ledger.prune_deferred.push(i);
+            }
         }
         i += 1;
     }
     w.ledger.prune_cursor = i;
+    if now.is_multiple_of(10 * crate::calendar::DAYS_PER_YEAR) && !w.ledger.prune_deferred.is_empty() {
+        let list = std::mem::take(&mut w.ledger.prune_deferred);
+        let mut kept = Vec::with_capacity(list.len());
+        for id in list {
+            if w.ledger.events[id as usize].importance == 1 && !prunable(w, &w.ledger.events[id as usize]) {
+                kept.push(id);
+            } else if w.ledger.events[id as usize].importance == 1 {
+                prune_one(w, id);
+                any = true;
+            }
+        }
+        w.ledger.prune_deferred = kept;
+    }
     if any {
-        for k in 0..w.persons.len() {
-            if let Some(le) = w.persons[k].last_event {
+        // 只修在世者；已死者的 `last_event` 若指向墓碑，由 `record` 在被當成因時改指最近保留的祖先。
+        for k in 0..w.alive_ids.len() {
+            let pid = w.alive_ids[k] as usize;
+            if let Some(le) = w.persons[pid].last_event {
                 if w.ledger.events.get(le as usize).is_some_and(|e| e.importance == 0) {
-                    w.persons[k].last_event = live_ancestor(w, le);
+                    w.persons[pid].last_event = live_ancestor(w, le);
                 }
             }
         }

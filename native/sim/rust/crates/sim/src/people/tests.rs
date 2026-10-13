@@ -2,7 +2,6 @@
 
 use std::collections::BTreeMap;
 
-
 use super::*;
 use crate::model::*;
 use crate::params::*;
@@ -28,6 +27,7 @@ fn province(id: u16, pop: f64, neighbors: Vec<u16>, aura: f32) -> Province {
         devastation: 0.0,
         faith: [0.3, 0.1, 0.1],
         city_level: 0,
+        lost: false,
     }
 }
 
@@ -62,7 +62,7 @@ fn line_world(seed: u64, n: usize) -> World {
             if i + 1 < n {
                 nb.push(i as u16 + 1);
             }
-            province(i as u16, 1000.0, nb, 0.5)
+            province(i as u16, 1_000_000.0, nb, 0.5)
         })
         .collect();
     let mut w = World::empty(WorldParams::new(seed), geo(), provs);
@@ -77,7 +77,7 @@ fn new_life(w: &mut World, prov: u16) -> (SoulId, PersonId) {
 /// 讓人物直接成為指定年齡的成年人（改出生時間），並定為指定身分。
 fn make_adult(w: &mut World, pid: PersonId, age: u32, role: Role, path: PathState) {
     let p = &mut w.persons[pid as usize];
-    p.born = w.tick as i32 - (age * 12) as i32;
+    p.born = w.tick as i32 - (age * 360) as i32;
     p.role = role;
     p.path = path;
 }
@@ -298,10 +298,10 @@ fn coming_of_age_at_twelve() {
     let (s, p) = new_life(&mut w, 0);
     force_attrs(&mut w, p, 5.0, 0.0, 0.0);
     set_aff(&mut w, s, [1.0, 0.0, 0.0, 0.0]);
-    w.tick = 12 * 12 - 1;
+    w.tick = 12 * 360 - 1;
     yearly_coming_of_age(&mut w);
     assert_eq!(w.persons[p as usize].role, Role::Child);
-    w.tick = 12 * 12;
+    w.tick = 12 * 360;
     yearly_coming_of_age(&mut w);
     assert_eq!(w.persons[p as usize].role, Role::Cultivator);
     assert_eq!(kinds(&w, EventKind::ComeOfAge), 1);
@@ -329,7 +329,7 @@ fn adults(w: &mut World, specs: &[(u16, u32, Role)]) -> Vec<PersonId> {
 
 fn run_marriage_years(w: &mut World, years: u32) {
     for _ in 0..years {
-        w.tick += 12;
+        w.tick += 360;
         yearly_marriage(w);
     }
 }
@@ -337,7 +337,7 @@ fn run_marriage_years(w: &mut World, years: u32) {
 #[test]
 fn marriage_pairs_opposite_gender_adults() {
     let mut w = line_world(16, 3);
-    w.tick = 1200;
+    w.tick = 1200 * 30;
     let ids = adults(
         &mut w,
         &[
@@ -379,7 +379,7 @@ fn marriage_pairs_opposite_gender_adults() {
 #[test]
 fn marriage_prefers_same_sect() {
     let mut w = line_world(17, 1);
-    w.tick = 1200;
+    w.tick = 1200 * 30;
     w.powers.push(sect(0, 0, 0.0));
     let ids = adults(&mut w, &[(0, 20, Role::Cultivator), (0, 20, Role::Cultivator), (0, 20, Role::Cultivator)]);
     w.persons[ids[0] as usize].gender = Gender::Male;
@@ -388,7 +388,11 @@ fn marriage_prefers_same_sect() {
     for &i in &ids[0..2] {
         w.persons[i as usize].power = Some(0);
     }
-    run_marriage_years(&mut w, 300);
+    // 男方抽中時，同宗門的女方優先於另一位候選。
+    assert!(super::marriage::marry_now(&mut w, ids[0]));
+    let me = w.ledger.events.iter().find(|e| e.kind == EventKind::Married).unwrap();
+    assert_eq!(me.why, Why::SameSect);
+    assert!(me.rel.has(Rel::SAME_SECT) && me.rel.has(Rel::SAME_HOMETOWN) && !me.rel.has(Rel::SPOUSES), "關係快照取在結親之前");
     assert_eq!(w.persons[ids[0] as usize].spouse, Some(ids[1]));
     assert_eq!(w.persons[ids[2] as usize].spouse, None);
 }
@@ -396,7 +400,7 @@ fn marriage_prefers_same_sect() {
 #[test]
 fn remarriage_resolves_existing_love_thread() {
     let mut w = line_world(18, 1);
-    w.tick = 1200;
+    w.tick = 1200 * 30;
     let ids = adults(&mut w, &[(0, 20, Role::Commoner), (0, 20, Role::Commoner)]);
     let (sa, sb) = (w.persons[ids[0] as usize].soul, w.persons[ids[1] as usize].soul);
     // 前世建立的情緣線：兩魂各自已轉世一次
@@ -426,7 +430,7 @@ fn remarriage_resolves_existing_love_thread() {
 
     // 同一世建立的線（lives = 0）→ 累加強度
     let mut w = line_world(19, 1);
-    w.tick = 1200;
+    w.tick = 1200 * 30;
     let ids = adults(&mut w, &[(0, 20, Role::Commoner), (0, 20, Role::Commoner)]);
     marry(&mut w, ids[0], ids[1]);
     w.persons[ids[0] as usize].spouse = None;
@@ -442,7 +446,7 @@ fn remarriage_resolves_existing_love_thread() {
 #[test]
 fn death_writes_event_then_soul_bardo() {
     let mut w = line_world(20, 2);
-    w.tick = 1000;
+    w.tick = 1000 * 30;
     w.powers.push(sect(0, 0, 0.0));
     let ids = adults(&mut w, &[(0, 30, Role::Cultivator), (0, 30, Role::Commoner), (0, 50, Role::Cultivator), (0, 15, Role::Cultivator)]);
     let (a, b, master, disciple) = (ids[0], ids[1], ids[2], ids[3]);
@@ -465,9 +469,9 @@ fn death_writes_event_then_soul_bardo() {
     assert_eq!(e.causes.as_slice(), prev.as_slice());
     assert_eq!(e.args, EventArgs::Death { cause: DeathCause::Age, age: 30 });
     assert_eq!(w.persons[a as usize].last_event, Some(eid));
-    assert_eq!(w.persons[a as usize].died, Some((1000, DeathCause::Age)));
+    assert_eq!(w.persons[a as usize].died, Some((1000 * 30, DeathCause::Age)));
     // 魂
-    assert_eq!(w.souls[sid as usize].state, SoulState::Bardo { until: 1000 + BARDO_MONTHS });
+    assert_eq!(w.souls[sid as usize].state, SoulState::Bardo { until: 1000 * 30 + BARDO_MONTHS * 30 });
     assert_eq!(w.souls[sid as usize].best_now.realm, Some(3));
     // 勢力、人際
     assert!(!w.powers[0].members.contains(&a));
@@ -482,13 +486,13 @@ fn death_writes_event_then_soul_bardo() {
 #[test]
 fn ascension_liberates_soul() {
     let mut w = line_world(21, 1);
-    w.tick = 5000;
+    w.tick = 5000 * 30;
     let ids = adults(&mut w, &[(0, 300, Role::Cultivator)]);
     let sid = w.persons[ids[0] as usize].soul;
     let eid = die(&mut w, ids[0], DeathCause::Ascended, Some(Liberation::Ascension), &[]).unwrap();
     assert_eq!(w.ledger.events[eid as usize].kind, EventKind::Ascended);
     assert_eq!(w.ledger.events[eid as usize].importance, 5);
-    assert_eq!(w.souls[sid as usize].state, SoulState::Liberated { way: Liberation::Ascension, tick: 5000 });
+    assert_eq!(w.souls[sid as usize].state, SoulState::Liberated { way: Liberation::Ascension, tick: 5000 * 30 });
 }
 
 #[test]
@@ -505,16 +509,16 @@ fn aging_kills_at_lifespan_and_soul_reincarnates() {
     let mut w = line_world(23, 2);
     let (sid, pid) = new_life(&mut w, 0);
     w.persons[pid as usize].lifespan = 40;
-    w.tick = 40 * 12 - 12;
-    yearly_aging(&mut w);
+    w.tick = 40 * 360 - 30;
+    monthly_aging(&mut w);
     assert!(w.persons[pid as usize].alive());
-    w.tick = 40 * 12;
-    yearly_aging(&mut w);
-    assert_eq!(w.persons[pid as usize].died, Some((480, DeathCause::Age)));
+    w.tick = 40 * 360;
+    monthly_aging(&mut w);
+    assert_eq!(w.persons[pid as usize].died, Some((40 * 360, DeathCause::Age)));
     assert!(matches!(w.souls[sid as usize].state, SoulState::Bardo { .. }));
     // 兩個月後中陰到期，魂判定；人道則轉世並建立新肉身（人道以外則入他道）
     for _ in 0..BARDO_MONTHS {
-        w.tick += 1;
+        w.tick += 30;
         soul::monthly(&mut w);
     }
     match &w.souls[sid as usize].state {
@@ -589,11 +593,11 @@ fn travel_departs_and_returns() {
     w.persons[ids[2] as usize].path = cultivator(3);
     w.persons[ids[2] as usize].power = Some(0);
     w.powers[0].leader = Some(ids[2]);
-    w.tick = 1200;
+    w.tick = 1200 * 30;
     let start_cell = w.persons[ids[0] as usize].cell;
     let mut departed = None;
     for _ in 0..200 {
-        w.tick += 12;
+        w.tick += 360;
         yearly_travel(&mut w);
         if w.persons[ids[0] as usize].travel_until.is_some() {
             departed = Some(w.tick);
@@ -606,7 +610,7 @@ fn travel_departs_and_returns() {
     assert!(p.province.abs_diff(2) <= TRAVEL_RANGE_STEPS as u16);
     assert_eq!(p.home, 2);
     let stay = p.travel_until.unwrap() - t0;
-    assert!((12..=60).contains(&stay), "{stay}");
+    assert!((12 * 30..=60 * 30).contains(&stay), "{stay}");
     assert!(w.provinces[p.province as usize].cells.contains(&p.cell));
     let ev = w.ledger.events.iter().rev().find(|e| e.kind == EventKind::Traveled).unwrap();
     assert_eq!(ev.args, EventArgs::Travel { from: 2, to: p.province });
@@ -638,7 +642,7 @@ fn travel_weighted_by_aura() {
     let ids = adults(&mut w, &[(1, 40, Role::Cultivator)]);
     w.persons[ids[0] as usize].path = cultivator(1);
     for _ in 0..300 {
-        w.tick += 12;
+        w.tick += 360;
         yearly_travel(&mut w);
         let p = &mut w.persons[ids[0] as usize];
         if p.travel_until.is_some() {
@@ -653,11 +657,11 @@ fn travel_weighted_by_aura() {
 fn blessing_expires() {
     let mut w = line_world(28, 1);
     let (_, p) = new_life(&mut w, 0);
-    w.persons[p as usize].blessed_until = Some(10);
-    w.tick = 9;
+    w.persons[p as usize].blessed_until = Some(10 * 30);
+    w.tick = 9 * 30;
     monthly_due(&mut w);
-    assert_eq!(w.persons[p as usize].blessed_until, Some(10));
-    w.tick = 10;
+    assert_eq!(w.persons[p as usize].blessed_until, Some(10 * 30));
+    w.tick = 10 * 30;
     monthly_due(&mut w);
     assert_eq!(w.persons[p as usize].blessed_until, None);
 }
@@ -673,11 +677,11 @@ fn drive(seed: u64, years: u32) -> World {
         }
     }
     for _ in 0..years * 12 {
-        w.tick += 1;
+        w.tick += 30;
         monthly_due(&mut w);
         soul::monthly(&mut w);
         if w.tick.is_multiple_of(12) {
-            yearly_aging(&mut w);
+            monthly_aging(&mut w);
             yearly_travel(&mut w);
             yearly_coming_of_age(&mut w);
             yearly_marriage(&mut w);
@@ -717,4 +721,56 @@ fn deterministic_and_lives_a_full_cycle() {
     for p in a.persons.iter().filter(|p| p.alive()) {
         assert!(p.age(a.tick) < p.lifespan as u32);
     }
+}
+
+// ── 分月判定（GDD 6.3 判定月）────────────────────────────
+
+/// 入道在自己的判定月：滿 12 歲前不入道；滿 12 歲後最近一次自己的判定月入道（至多晚 12 個月），且只入一次。
+/// 年中才滿 12 歲者等到下一個自己的判定月。
+#[test]
+fn gdd_3_4_coming_of_age_waits_for_own_judge_month() {
+    for seed in [15u64, 16, 17] {
+        let mut w = line_world(seed, 1);
+        w.tick = 30;
+        let (s, p) = new_life(&mut w, 0);
+        force_attrs(&mut w, p, 5.0, 0.0, 0.0);
+        set_aff(&mut w, s, [1.0, 0.0, 0.0, 0.0]);
+        let born = w.persons[p as usize].born.max(0) as u32;
+        let month = crate::schedule::judge_month(seed, crate::schedule::Domain::Person, p);
+        let mut entered_at = None;
+        for mth in 2..=(born / 30 + 12 * 14) {
+            let t = mth * 30;
+            w.tick = t;
+            monthly_coming_of_age(&mut w);
+            if entered_at.is_none() && w.persons[p as usize].role != Role::Child {
+                entered_at = Some(t);
+            }
+        }
+        let t = entered_at.expect("應已入道");
+        assert!(w.persons[p as usize].age(t) >= COMING_OF_AGE_YEARS, "未滿 12 歲不入道");
+        assert_eq!(crate::schedule::month_of(t), month, "入道月須是自己的判定月");
+        assert!(t <= born + 12 * 360 + 12 * 30, "至多晚 12 個月");
+        assert_eq!(kinds(&w, EventKind::ComeOfAge), 1);
+    }
+}
+
+/// 婚配的機率抽樣一年恰好一次：連續 12 個月的單月輪次，消耗的亂數量與一次整年輪次相同
+/// （人物同性別，候選為空，亂數只來自各人各一次的抽樣）。
+#[test]
+fn gdd_6_3_marriage_roll_once_per_year() {
+    let mut w = line_world(33, 2);
+    w.tick = 1200 * 30;
+    for i in 0..20 {
+        let (_, p) = new_life(&mut w, (i % 2) as u16);
+        make_adult(&mut w, p, 30, Role::Commoner, PathState::Mortal);
+        w.persons[p as usize].gender = Gender::Male;
+    }
+    let mut yearly_world = w.clone();
+    yearly_marriage(&mut yearly_world);
+    for _ in 0..12 {
+        w.tick += 30;
+        monthly_marriage(&mut w);
+    }
+    assert_eq!(yearly_world.rng.people.get_word_pos(), w.rng.people.get_word_pos());
+    assert!(yearly_world.rng.people.get_word_pos() > 0);
 }

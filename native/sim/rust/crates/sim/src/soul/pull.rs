@@ -24,7 +24,7 @@ pub fn normalize4(v: [f32; 4]) -> [f32; 4] {
     }
 }
 
-fn normalized(mut v: Vec<f64>) -> Vec<f64> {
+pub(super) fn normalized(mut v: Vec<f64>) -> Vec<f64> {
     let sum: f64 = v.iter().sum();
     if sum > 0.0 {
         for x in &mut v {
@@ -44,11 +44,25 @@ pub fn population_dist(w: &World) -> Vec<f64> {
 
 /// 道緣分布：`faith4(p) · 道緣`，再正規化。
 pub fn affinity_dist(w: &World, affinity: [f32; 4]) -> Vec<f64> {
+    affinity_dist_with(w, affinity, &faith_table(w))
+}
+
+/// 各州郡的 [`faith4`]（與 `w.provinces` 同序）。同一個月內州郡的信仰與氣不變，出生抽樣共用同一份。
+pub fn faith_table(w: &World) -> Vec<[f32; 4]> {
+    w.provinces.iter().map(faith4).collect()
+}
+
+/// 同 [`affinity_dist`]，各州郡的 faith4 由呼叫端提供（[`faith_table`]）。
+pub fn affinity_dist_with(w: &World, affinity: [f32; 4], faith: &[[f32; 4]]) -> Vec<f64> {
     normalized(
         w.provinces
             .iter()
-            .map(|p| {
-                let f = faith4(p);
+            .zip(faith)
+            .map(|(p, f)| {
+                // 已沒入海中的州郡不投生（GDD 2.8）。
+                if p.lost {
+                    return 0.0;
+                }
                 (0..4).map(|k| f[k] as f64 * affinity[k] as f64).sum::<f64>()
             })
             .collect(),
@@ -95,15 +109,17 @@ pub fn thread_dist(w: &World, soul: &Soul) -> Option<Vec<f64>> {
 /// GDD 3.2 `P(p) = 0.5 × 人口 + 0.2 × 道緣 + 0.3 × 宿緣`；無在世宿緣對象時 `0.7 × 人口 + 0.3 × 道緣`。
 /// 回傳與 `w.provinces` 同長、和為 1 的分布。
 pub fn pull_distribution(w: &World, soul: &Soul) -> Vec<f64> {
-    let pop = population_dist(w);
-    let aff = affinity_dist(w, soul.affinity);
+    pull_distribution_with(w, soul, &population_dist(w), &faith_table(w))
+}
+
+/// 同 [`pull_distribution`]，人口分布由呼叫端提供（同一個月內多次出生共用同一份）。
+pub fn pull_distribution_with(w: &World, soul: &Soul, pop: &[f64], faith: &[[f32; 4]]) -> Vec<f64> {
+    let aff = affinity_dist_with(w, soul.affinity, faith);
     match thread_dist(w, soul) {
         Some(th) => (0..pop.len())
             .map(|i| PULL_MIX_POP as f64 * pop[i] + PULL_MIX_AFFINITY as f64 * aff[i] + PULL_MIX_THREAD as f64 * th[i])
             .collect(),
-        None => (0..pop.len())
-            .map(|i| PULL_MIX_NO_THREAD_POP as f64 * pop[i] + PULL_MIX_NO_THREAD_AFFINITY as f64 * aff[i])
-            .collect(),
+        None => (0..pop.len()).map(|i| PULL_MIX_NO_THREAD_POP as f64 * pop[i] + PULL_MIX_NO_THREAD_AFFINITY as f64 * aff[i]).collect(),
     }
 }
 
@@ -132,18 +148,28 @@ pub fn sample_birth_province(w: &mut World, soul: SoulId) -> ProvinceId {
     sample_dist(w, &dist)
 }
 
+/// 同 [`sample_birth_province`]，人口分布由呼叫端提供。
+pub fn sample_birth_province_with(w: &mut World, soul: SoulId, pop: &[f64], faith: &[[f32; 4]]) -> ProvinceId {
+    let dist = pull_distribution_with(w, &w.souls[soul as usize], pop, faith);
+    sample_dist(w, &dist)
+}
+
 /// 配對出生：在 `anchor` 州或其陸鄰中均勻抽一個（GDD 3.2 配對）。
 pub fn sample_near(w: &mut World, anchor: ProvinceId) -> ProvinceId {
     let Some(p) = w.provinces.get(anchor as usize) else { return anchor };
     let n = p.neighbors.len() + 1;
     let k = w.rng.soul.gen_range(0..n);
-    if k == 0 { anchor } else { w.provinces[anchor as usize].neighbors[k - 1] }
+    if k == 0 {
+        anchor
+    } else {
+        w.provinces[anchor as usize].neighbors[k - 1]
+    }
 }
 
 /// 菩薩願（GDD 3.2）：業氣最重的州郡；同值取 ID 小者。
 pub fn heaviest_karma_province(w: &World) -> ProvinceId {
     let mut best: Option<(ProvinceId, f32)> = None;
-    for p in &w.provinces {
+    for p in w.provinces.iter().filter(|p| !p.lost) {
         if best.is_none_or(|(_, k)| p.karma_qi > k) {
             best = Some((p.id, p.karma_qi));
         }

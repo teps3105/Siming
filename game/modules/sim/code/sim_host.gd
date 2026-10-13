@@ -7,9 +7,13 @@ signal world_created
 signal advanced(months: int)
 signal time_state_changed
 signal slowed_down
+## GDD 2.8 世界大事：change 是大事代號（ColdBegan…），era 是它開啟的紀元名（沒改元為空字串）。
+signal world_changed(change: String, era: String)
+## GDD 6.4 每一筆新事件（SimWorld.drain_events 的字典）；傳聞簽等器物由此取得，事件佇列只在這裡取走。
+signal event_posted(event: Dictionary)
 
-## GDD 2.6 速度：1×、5×、20×、100×；1× 每秒 2 個月。
-const SPEED_MULTIPLIERS: Array[int] = [1, 5, 20, 100]
+## GDD 2.6 速度：1×、5×、10×、20×；1× 每秒 2 個月。
+const SPEED_MULTIPLIERS: Array[int] = [1, 5, 10, 20]
 const MONTHS_PER_SECOND := 2.0
 ## 每幀推進的時間預算（毫秒）與累積上限（月）。
 const FRAME_BUDGET_MSEC := 8
@@ -26,8 +30,18 @@ var _backlog := 0.0
 func create_world(world_seed: int, size: String = "medium") -> String:
 	var error := world.create(world_seed, size)
 	if error.is_empty():
+		world.drain_events()
 		world_created.emit()
 	return error
+
+
+## 接手一個已經開好或讀出來的世界（選單端建立，GDD 9.1）。
+func adopt_world(ready_world: SimWorld) -> void:
+	world = ready_world
+	_backlog = 0.0
+	# 開局前的歷史與讀檔重播留下的事件不是新消息。
+	world.drain_events()
+	world_created.emit()
 
 
 ## 立即推進 months 個月（測試與工具用；平時由 _process 依速度推進）。
@@ -35,6 +49,7 @@ func advance(months: int) -> void:
 	if not world.is_ready() or months <= 0:
 		return
 	world.step(months)
+	_announce()
 	advanced.emit(months)
 
 
@@ -73,8 +88,17 @@ func _process(delta: float) -> void:
 		_backlog -= 1.0
 		done += 1
 	if done > 0:
+		_announce()
 		advanced.emit(done)
 	if _backlog > BACKLOG_LIMIT and speed_index > 0:
 		# 推演趕不上：自動降一級並提示（GDD 6.4）。
 		set_speed(speed_index - 1)
 		slowed_down.emit()
+
+
+## 取走這次推進新增的事件，逐筆發出去，世界大事另發 world_changed。
+func _announce() -> void:
+	for event: Dictionary in world.drain_events():
+		if event["kind"] == "WorldChanged":
+			world_changed.emit(event["change"], event["era"])
+		event_posted.emit(event)

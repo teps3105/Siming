@@ -50,12 +50,21 @@ func test_time_runs_when_unpaused_and_stops_on_space() -> void:
 	assert_eq(_sim.world.tick(), stopped, "暫停後時間不動")
 
 
-func test_number_keys_set_speed() -> void:
+func test_tab_cycles_speed_and_number_keys_do_nothing() -> void:
+	await key(KEY_TAB)
+	assert_eq(_sim.speed_index, 1, "Tab 切到下一檔")
+	assert_false(_sim.paused, "切速度即放行")
+	await key(KEY_TAB)
+	await key(KEY_TAB)
+	assert_eq(_sim.speed_index, 3)
+	await key(KEY_TAB)
+	assert_eq(_sim.speed_index, 0, "最快之後回到最慢")
 	await key(KEY_3)
-	assert_eq(_sim.speed_index, 2)
-	assert_false(_sim.paused, "按速度鍵即放行")
-	await key(KEY_1)
-	assert_eq(_sim.speed_index, 0)
+	assert_eq(_sim.speed_index, 0, "數字鍵不再調速")
+	_sim.set_paused(true)
+	await click(_hud._dial.position + _hud._dial._stroke_rect(2).get_center())
+	assert_eq(_sim.speed_index, 2, "滑鼠點時速簽的第三筆設為第三檔")
+	assert_false(_sim.paused)
 
 
 func test_function_keys_switch_map_mode() -> void:
@@ -108,7 +117,7 @@ func test_clicking_instruments_does_not_leak_to_the_map() -> void:
 	assert_eq(_hud._card.province, 0, "點器物不應改變地圖的選取")
 	await click(_hud._seals.position + _hud._seals._seal_rect(1).get_center())
 	assert_eq(_map.mode, TerrainMap.Mode.TIANXIA, "點「國」印切到天下")
-	await click(_hud._seals.position + _hud._seals._seal_rect(2).get_center())
+	await click(_hud._seals.position + _hud._seals._seal_rect(5).get_center())
 	assert_eq(_map.mode, TerrainMap.Mode.TIANXIA, "尚未開放的印不切換模式")
 	await click(_hud._card.position + _hud._card._close_rect().get_center())
 	assert_eq(_hud._card.province, -1, "點「閉」印收卷")
@@ -193,16 +202,64 @@ func test_province_card_reports_terrain_mix() -> void:
 	assert_eq(total, int(_sim.world.province_info(0)["cells"]), "各地形格數合計等於州郡格數")
 
 
-func test_zooming_all_the_way_out_turns_the_map_into_a_globe() -> void:
+func test_view_button_switches_between_globe_and_plane_at_any_zoom() -> void:
 	_camera.look_at_map(_map.map_size * 0.5, _map.map_size.x * 1.05, true)
 	await wait(0.9)
-	assert_true(is_equal_approx(_map.globe_morph, 1.0), "拉到最遠後變成星球：%s" % _map.globe_morph)
+	assert_eq(_map.globe_morph, 0.0, "拉到最遠仍是平面地圖，不自動變成星球")
+	await click(_hud._view.position + _hud._view.size * 0.5)
+	await wait(0.9)
+	assert_true(_camera.globe, "按視角鈕換到星球")
+	assert_true(is_equal_approx(_map.globe_morph, 1.0), "過渡完成：%s" % _map.globe_morph)
 	var centre := tree.root.get_visible_rect().size * 0.5
 	var hit := _map.pick(_camera.project_ray_origin(centre), _camera.project_ray_normal(centre))
 	assert_lt(hit.distance_to(_camera.focus), 1.0, "星球正中央就是鏡頭焦點")
-	_camera.look_at_map(_map.map_size * 0.5, _map.map_size.x * 0.3, true)
+	# 星球視角可以像地球儀一樣拉近：鏡頭停在球面外，正中央仍是焦點。
+	_camera.look_at_map(_map.map_size * 0.5, _map.map_size.x * 0.1, true)
 	await wait(0.9)
-	assert_eq(_map.globe_morph, 0.0, "推回去變回平面")
+	assert_true(is_equal_approx(_map.globe_morph, 1.0), "拉近後仍是星球")
+	var radius := MapView.globe_radius(_map.map_size.x)
+	assert_gt(_camera.global_position.distance_to(_map.globe_xform.origin), radius, "鏡頭在球面外")
+	hit = _map.pick(_camera.project_ray_origin(centre), _camera.project_ray_normal(centre))
+	assert_lt(hit.distance_to(_camera.focus), 1.0, "拉近後正中央仍是鏡頭焦點")
+	await key(KEY_G)
+	await wait(0.9)
+	assert_eq(_map.globe_morph, 0.0, "按 G 變回平面")
+	assert_true(is_equal_approx(_camera.z, _map.map_size.x * 0.1), "切換視角不改鏡頭高度")
+
+
+func test_game_cursor_changes_with_the_situation() -> void:
+	# 無視窗的顯示驅動不能改滑鼠模式，只在有視窗時檢查。
+	if DisplayServer.get_name() != "headless":
+		assert_eq(Input.mouse_mode, Input.MOUSE_MODE_HIDDEN, "系統游標隱藏，由遊戲自己畫")
+	var screen := await _aim_at_province(0)
+	await _move_mouse(screen)
+	assert_eq(_hud._cursor.kind(), &"arrow", "在地圖上是一般游標")
+	await _move_mouse(_hud._view.position + _hud._view.size * 0.5)
+	assert_eq(_hud._cursor.kind(), &"point", "在按鈕上是可按的游標")
+	var centre := Vector2(tree.root.get_visible_rect().size) * 0.5
+	await _move_mouse(centre)
+	Input.parse_input_event(_mouse_button(MOUSE_BUTTON_LEFT, true, centre))
+	await frames(2)
+	await _move_mouse(centre + Vector2(60.0, 0.0), MOUSE_BUTTON_MASK_LEFT, Vector2(60.0, 0.0))
+	assert_eq(_hud._cursor.kind(), &"drag", "拖動地圖時是拖動的游標")
+	Input.parse_input_event(_mouse_button(MOUSE_BUTTON_LEFT, false, centre + Vector2(60.0, 0.0)))
+	await frames(2)
+	assert_eq(_hud._cursor.kind(), &"arrow", "放開後回到一般游標")
+	Input.parse_input_event(_mouse_button(MOUSE_BUTTON_RIGHT, true, centre))
+	await frames(2)
+	assert_eq(_hud._cursor.kind(), &"rotate", "按住右鍵旋轉時是旋轉的游標")
+	Input.parse_input_event(_mouse_button(MOUSE_BUTTON_RIGHT, false, centre))
+	await frames(2)
+
+
+func _move_mouse(pos: Vector2, mask := 0, relative := Vector2.ZERO) -> void:
+	var motion := InputEventMouseMotion.new()
+	motion.position = pos
+	motion.global_position = pos
+	motion.relative = relative
+	motion.button_mask = mask
+	Input.parse_input_event(motion)
+	await frames(2)
 
 
 func test_touch_tap_selects_and_one_finger_drag_pans() -> void:
@@ -268,7 +325,8 @@ func test_right_stick_moves_the_cursor_and_triggers_are_mouse_buttons() -> void:
 	await joy_button(JOY_BUTTON_LEFT_SHOULDER)
 	await joy_button(JOY_BUTTON_RIGHT_SHOULDER)
 	var centre := Vector2(tree.root.get_visible_rect().size) * 0.5
-	assert_lt(_camera.cursor_position().distance_to(centre), 1.0, "游標一開始在畫面中央")
+	assert_lt(_camera.cursor_position().distance_to(_camera._mouse), 1.0, "換到搖桿時，游標從滑鼠所在的位置接手")
+	_camera.set_cursor_position(centre)
 	await joy_axis(JOY_AXIS_RIGHT_X, 1.0, 0.3)
 	assert_gt(_camera.cursor_position().x, centre.x + 100.0, "右搖桿往右推，游標往右移")
 	var z_before := _camera.z
@@ -347,3 +405,130 @@ func test_a_locks_on_to_the_nearest_target_and_cycles() -> void:
 	await joy_button(JOY_BUTTON_A)
 	assert_eq(_hud._card.province, 0, "動過右搖桿後重新從最近的算起")
 
+
+
+## GDD 2.8「畫面」：一世結算改了水陸後，高度場在背景重算，算好後地圖換上新的貼圖與河流，地形網格不重建。
+func test_map_swaps_textures_after_the_land_changes() -> void:
+	var terrain: MeshInstance3D = _map.get_node("Terrain0")
+	var river: MeshInstance3D = _map.get_node("River0")
+	var material: ShaderMaterial = terrain.material_override
+	var mesh := terrain.mesh
+	var elevation: Texture2D = material.get_shader_parameter("elevation_tex")
+	var borders: Texture2D = material.get_shader_parameter("pid_tex")
+	var river_mesh := river.mesh
+	var heard: Array[bool] = []
+	var listen := func(changed: bool) -> void: heard.append(changed)
+	_map.refreshed.connect(listen)
+	var shi := 0
+	while not _sim.world.terrain_pending() and shi < 40:
+		_sim.advance(360)
+		shi += 1
+	assert_true(_sim.world.terrain_pending(), "40 世內水陸應有變動")
+	var waited := 0
+	while not heard.has(true) and waited < 600:
+		await frames(1)
+		waited += 1
+	_map.refreshed.disconnect(listen)
+	assert_true(heard.has(true), "高度場算好後地圖應通知換了地形")
+	assert_false(_sim.world.terrain_pending())
+	assert_eq(terrain.mesh, mesh, "地形網格不重建")
+	assert_eq(terrain.material_override, material, "材質沿用")
+	assert_ne(material.get_shader_parameter("elevation_tex"), elevation, "高度貼圖換新")
+	assert_ne(material.get_shader_parameter("pid_tex"), borders, "州界貼圖換新")
+	assert_ne(river.mesh, river_mesh, "河流網格換新")
+	# 換上後約 3 秒內在前後兩張貼圖之間漸變（GDD 2.8「畫面」）：舊的高度貼圖留作起點，舊河流淡出。
+	var old_river: MeshInstance3D = _map.get_node("RiverOld0")
+	assert_eq(material.get_shader_parameter("elevation_prev_tex"), elevation, "舊的高度貼圖留作漸變的起點")
+	assert_lt(material.get_shader_parameter("terrain_blend") as float, 0.5, "剛換上時還在起點附近")
+	assert_eq(old_river.mesh, river_mesh, "舊河流留著淡出")
+	assert_true(old_river.visible)
+	_map._process(TerrainMap.TERRAIN_FADE_SECONDS)
+	assert_eq(material.get_shader_parameter("terrain_blend") as float, 1.0, "約 3 秒後完全換成新的")
+	assert_eq(material.get_shader_parameter("elevation_prev_tex"), material.get_shader_parameter("elevation_tex"), "漸變結束後不再留舊貼圖")
+	assert_false(old_river.visible, "舊河流淡完就收起來")
+	assert_eq(_map.mode, TerrainMap.Mode.SHANHE)
+
+
+func _alive_sects() -> Array:
+	return _sim.world.sects().filter(func(sect: Dictionary) -> bool: return sect["alive"])
+
+
+func test_sect_gates_match_the_sects_and_sit_in_their_province() -> void:
+	var alive := _alive_sects()
+	assert_gt(alive.size(), 0, "開局應有宗門")
+	var marks: Array = _hud._overlay.sect_marks()
+	assert_eq(marks.size(), alive.size(), "山門數與還在的宗門數一致")
+	for mark: Dictionary in marks:
+		var pos: Vector2 = mark["pos"]
+		assert_eq(_sim.world.province_at(pos.x, pos.y), mark["province"], "山門落在所在州郡")
+
+
+func test_sect_gate_marks_follow_the_sects_as_time_passes() -> void:
+	_sim.advance(12 * 40)
+	await frames(2)
+	assert_eq(_hud._overlay.sect_marks().size(), _alive_sects().size(), "推進數十年後，山門仍與宗門一致")
+
+
+func test_sect_gates_show_at_mid_range_only() -> void:
+	var seat: Vector2 = _alive_sects()[0]["pos"]
+	_camera.look_at_map(seat, _map.map_size.x * 0.2, true)
+	await frames(2)
+	assert_true(_hud._overlay.sect_gates_visible(), "中景畫山門")
+	_camera.look_at_map(seat, _map.map_size.x * 0.6, true)
+	await frames(2)
+	assert_false(_hud._overlay.sect_gates_visible(), "拉遠到全圖時不畫山門")
+
+
+func test_sanjiao_mode_draws_range_rings_and_legend_then_clears() -> void:
+	assert_eq(_hud._overlay.range_ring_count(), 0, "山河模式沒有範圍圈")
+	await key(KEY_F3)
+	assert_eq(_map.mode, TerrainMap.Mode.SANJIAO, "F3 切到三教")
+	assert_eq(_hud._overlay.range_ring_count(), _alive_sects().size(), "每個還在的宗門一圈")
+	assert_gt(_map.tint_opacity(), 0.0, "州郡依主教化著色")
+	assert_gt(_hud._seals._flash, 0.0, "切換後圖例出現")
+	var legend: Array = _hud._seals.legend_keys(TerrainMap.Mode.SANJIAO)
+	assert_true("legend_sanjiao_tao" in legend and "legend_sanjiao_range" in legend, "圖例列出道的色與範圍圈")
+	await key(KEY_F1)
+	assert_eq(_hud._overlay.range_ring_count(), 0, "切回山河後圈消失")
+	assert_eq(_map.tint_opacity(), 0.0, "切回山河後不再著色")
+
+
+func test_sanjiao_seal_is_clickable_and_cycled_by_the_shoulder_buttons() -> void:
+	await click(_hud._seals.position + _hud._seals._seal_rect(2).get_center())
+	assert_eq(_map.mode, TerrainMap.Mode.SANJIAO, "點「三教」印切到三教")
+	await joy_button(JOY_BUTTON_LEFT_SHOULDER)
+	assert_eq(_map.mode, TerrainMap.Mode.TIANXIA, "LB 回到上一個已開放的模式")
+
+
+func test_sanjiao_rings_are_handed_to_the_terrain_shader_and_cleared() -> void:
+	assert_eq(_map.range_ring_count(), 0, "山河模式不畫圈")
+	await key(KEY_F3)
+	await frames(3)
+	assert_eq(_map.range_ring_count(), _alive_sects().size(), "每個還在的宗門一圈交給著色器")
+	await key(KEY_F1)
+	await frames(3)
+	assert_eq(_map.range_ring_count(), 0, "切回山河後清掉")
+
+
+func test_ring_dashes_keep_the_same_screen_length_at_every_distance() -> void:
+	await key(KEY_F3)
+	var sects := _alive_sects()
+	sects.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["range_radius"] > b["range_radius"])
+	var sect: Dictionary = sects[0]
+	var expected := (MapOverlay.RING_DASH_PX + MapOverlay.RING_GAP_PX) * _hud._unit
+	for z_frac in [0.05, 0.1, 0.25, 0.5]:
+		_camera.look_at_map(sect["pos"], _map.map_size.x * z_frac, true)
+		await frames(3)
+		var overlay: MapOverlay = _hud._overlay
+		var radius: float = sect["range_radius"]
+		var period := overlay.ring_period(sect)
+		var centre: Vector2 = sect["pos"]
+		# 圈上離焦點最近的一點起，沿圈走一個虛線週期，量兩點在畫面上的距離。
+		var away := _camera.focus - centre
+		var start := atan2(away.y, away.x)
+		var a := centre + Vector2.from_angle(start) * radius
+		var b := centre + Vector2.from_angle(start + period / radius) * radius
+		var shown := _camera.unproject_position(_map.world_position(a, _camera.focus.x)).distance_to(
+			_camera.unproject_position(_map.world_position(b, _camera.focus.x)))
+		assert_gt(shown, expected * 0.7, "鏡頭高 %s：一個週期的螢幕長度 %.1f 不低於 %.1f" % [z_frac, shown, expected * 0.7])
+		assert_lt(shown, expected * 1.3, "鏡頭高 %s：一個週期的螢幕長度 %.1f 不高於 %.1f" % [z_frac, shown, expected * 1.3])

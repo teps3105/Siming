@@ -5,6 +5,7 @@ use rand::Rng;
 use super::{breakthrough, demon};
 use crate::model::*;
 use crate::params::*;
+use crate::schedule::Round;
 use crate::sim::World;
 
 /// GDD 3.5 修煉的確定部分（不含 U(0.8, 1.2) 隨機係數）：
@@ -23,10 +24,7 @@ pub fn cultivation_coefficient(w: &World, p: &Person) -> f32 {
     };
     let sect = match p.power.and_then(|id| w.powers.get(id as usize)) {
         Some(Power { kind: PowerKind::Sect(s), .. }) if p.role == Role::Cultivator => {
-            let node = s
-                .seat_node
-                .and_then(|n| w.geo.nodes.get(n as usize))
-                .map_or(1.0, |n| 1.0 + n.strength * CULT_NODE_COEF);
+            let node = s.seat_node.and_then(|n| w.geo.nodes.get(n as usize)).map_or(1.0, |n| 1.0 + n.strength * CULT_NODE_COEF);
             CULT_SECT * node
         }
         _ => CULT_ROGUE,
@@ -55,32 +53,35 @@ pub(super) fn add_exp(w: &mut World, pid: PersonId, amount: f32) {
     }
 }
 
-/// GDD 6.3 步驟 11（修士與魔修部分），依人物 ID 升冪：
-/// 突破（含天劫）→ 修煉 → 心魔 → 斬妖除魔（修士）／襲殺（魔修）。
-pub(super) fn yearly_actions(w: &mut World) {
-    let tick = w.tick;
-    let index = demon::PersonIndex::build(w);
-    for i in w.alive_snapshot().into_iter().map(|x| x as usize) {
-        let p = &w.persons[i];
-        if !p.alive() || !matches!(p.role, Role::Cultivator | Role::Demonic) {
-            continue;
-        }
-        if !matches!(p.path, PathState::Cultivator { .. }) {
-            continue;
-        }
-        let pid = p.id;
-        if breakthrough::eligible(p, tick) && !breakthrough::attempt(w, pid, false) {
-            continue;
-        }
-        cultivate(w, pid);
-        match w.persons[i].role {
-            Role::Cultivator => {
-                if demon::heart_demon_roll(w, pid) {
-                    continue;
-                }
-                demon::hunt(w, &index, pid);
+/// 修士或魔修的年度行動，依序：突破（含天劫）→ 修煉 → 心魔 → 斬妖除魔（修士）／襲殺（魔修）。
+fn actions_one(w: &mut World, pid: PersonId) {
+    let p = &w.persons[pid as usize];
+    if !p.alive() || !matches!(p.role, Role::Cultivator | Role::Demonic) || !matches!(p.path, PathState::Cultivator { .. }) {
+        return;
+    }
+    if breakthrough::eligible(p, w.tick) && !breakthrough::attempt(w, pid, false) {
+        return;
+    }
+    cultivate(w, pid);
+    match w.persons[pid as usize].role {
+        Role::Cultivator => {
+            if !demon::heart_demon_roll(w, pid) {
+                demon::hunt(w, pid);
             }
-            _ => demon::assassinate(w, &index, pid),
         }
+        _ => demon::assassinate(w, pid),
+    }
+}
+
+/// 一個修士或魔修的年度結算：年度行動，再接劫雲預兆。事件隊列在每人固定的日子觸發。
+pub fn person_year(w: &mut World, pid: PersonId) {
+    actions_one(w, pid);
+    breakthrough::omen_one(w, pid);
+}
+
+/// GDD 6.3 步驟 11（修士與魔修部分），一次判定本輪輪到的全部人（測試與工具用；`Sim` 走事件隊列）。
+pub(super) fn yearly_actions(w: &mut World, round: Round) {
+    for i in w.round_alive(round) {
+        actions_one(w, i);
     }
 }

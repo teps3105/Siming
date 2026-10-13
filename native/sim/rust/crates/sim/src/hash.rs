@@ -53,6 +53,9 @@ fn params(h: &mut FxHasher, p: &WorldParams) {
         Era::Middle => 1,
         Era::Decline => 2,
     });
+    // 預跑長度（分期預跑後新增）：附加在最後。
+    h.write_u32(p.pop_years);
+    h.write_u32(p.prerun_years);
 }
 
 fn geo(h: &mut FxHasher, g: &Geography) {
@@ -73,6 +76,7 @@ fn geo(h: &mut FxHasher, g: &Geography) {
     for n in &g.nodes {
         h.write_u32(n.cell);
         h.write_u32(n.strength.to_bits());
+        h.write_u32(n.origin.to_bits());
         str(h, &n.name);
     }
     h.write_usize(g.ley.len());
@@ -128,6 +132,7 @@ fn province(h: &mut FxHasher, p: &Province) {
     h.write_u32(p.seat);
     u16s(h, &p.neighbors);
     u16s(h, &p.sea_neighbors);
+    h.write_u8(p.lost as u8);
     for c in p.terrain_mix {
         h.write_u32(c);
     }
@@ -160,7 +165,10 @@ pub fn world_hash(world: &World) -> u64 {
     for era in &world.eras {
         str(&mut h, &era.name);
         h.write_u32(era.start_year);
+        h.write_u8(era.kind as u8);
     }
+    feed(&mut h, &world.evolution);
+    feed(&mut h, &world.flora);
     // M2 新欄位：魂、有名之人、勢力、宿緣、因果帳（含修剪／輸出游標）、天書、殺業對、關注、預跑旗標。
     feed(&mut h, &world.souls);
     feed(&mut h, &world.persons);
@@ -172,11 +180,44 @@ pub fn world_hash(world: &World) -> u64 {
     feed(&mut h, &world.follows);
     h.write_u8(world.prerun as u8);
     let g = &world.rng;
-    for r in [&g.genesis, &g.soul, &g.people, &g.powers, &g.field, &g.command] {
+    for r in [&g.genesis, &g.soul, &g.people, &g.powers, &g.field, &g.command, &g.evolution] {
         h.write_u64(r.get_stream());
         h.write(&r.get_seed());
         h.write_u128(r.get_word_pos());
     }
+    // GDD 3.7 王朝：新狀態一律附加在最後（不得調動既有餵入順序）。
+    feed(&mut h, &world.dynasty);
+    let r = &world.rng.dynasty;
+    h.write_u64(r.get_stream());
+    h.write(&r.get_seed());
+    h.write_u128(r.get_word_pos());
+    // 宿緣相遇的年度戳記（分月判定後新增）：只餵有值的項目，附加在最後。
+    for (name, v) in [(1u8, &world.meet_stamp), (2u8, &world.thread_stamp)] {
+        h.write_u8(name);
+        for (i, &st) in v.iter().enumerate().filter(|(_, &st)| st != 0) {
+            h.write_usize(i);
+            h.write_u32(st);
+        }
+    }
+    // 第一批聚落的落點（分期預跑後新增）：附加在最後。
+    h.write_usize(world.settlements.len());
+    for &(p, c) in &world.settlements {
+        h.write_u16(p);
+        h.write_u32(c);
+    }
+    // 天地負荷與大劫（分期預跑後新增）：附加在最後。
+    h.write_usize(world.calamity.history.len());
+    for &(y, r) in &world.calamity.history {
+        h.write_u32(y);
+        h.write_u32(r);
+    }
+    h.write_u32(world.calamity.ends.unwrap_or(u32::MAX));
+    h.write_u32(world.calamity.slow_until);
+    // 事件驅動引擎（隊列、日序、亂數重設種子）：附加在最後。
+    h.write_u64(world.rng_origin.unwrap_or(0));
+    feed(&mut h, &world.queue);
+    // GDD 3.4 門人（門人層新增）：附加在最後。
+    feed(&mut h, &world.adepts);
     h.finish()
 }
 
@@ -205,6 +246,7 @@ mod tests {
             devastation: 0.0,
             faith: [0.1, 0.0, 0.0],
             city_level: 0,
+            lost: false,
         }
     }
 
@@ -228,7 +270,10 @@ mod tests {
             continent_of: vec![crate::NO_CONTINENT; 2],
         };
         let rng = crate::rng::RngStreams::new(7);
-        { let _ = rng; World::empty(params, geo, vec![prov(0, 100.0)]) }
+        {
+            let _ = rng;
+            World::empty(params, geo, vec![prov(0, 100.0)])
+        }
     }
 
     #[test]
@@ -259,6 +304,21 @@ mod tests {
         assert_ne!(base, world_hash(&w));
         let mut w = world();
         w.rng.field.next_u32();
+        assert_ne!(base, world_hash(&w));
+        let mut w = world();
+        w.rng.evolution.next_u32();
+        assert_ne!(base, world_hash(&w));
+        let mut w = world();
+        w.evolution.tide += 0.01;
+        assert_ne!(base, world_hash(&w));
+        let mut w = world();
+        w.evolution.sea_shift = 0.01;
+        assert_ne!(base, world_hash(&w));
+        let mut w = world();
+        w.flora.cultivation.push(0.5);
+        assert_ne!(base, world_hash(&w));
+        let mut w = world();
+        w.flora.cleared.push(true);
         assert_ne!(base, world_hash(&w));
     }
 }

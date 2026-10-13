@@ -1,21 +1,13 @@
 class_name ProvinceCard
-extends Control
-## GDD 5.8 州郡卡（命簿）：卷軸式卡片——上下兩根軸頭，軸間是綾邊裱著的紙面；左側一條直書的題簽寫州郡名。顯示治所、
-## 地形組成、民生、氣場墨條與三教教化；頁尾的置中鈕把鏡頭移到治所，右上的關閉鈕收卷——兩個鈕都是圖示加文字加實體鍵圖像。
-## 值為零的墨條與沒有教化時的教化環不畫，卡片高度跟著內容走。
+extends LedgerCard
+## GDD 5.8 州郡卡（命簿）：題簽寫州郡名；顯示治所、地形組成、民生、氣場墨條、三教教化與在此的有名之人。
+## 頁尾的置中鈕把鏡頭移到治所，右上的關閉鈕收卷——兩個鈕都是圖示加文字加實體鍵圖像。
+## 值為零的墨條與沒有教化時的教化環不畫，卡片高度跟著內容走；有名之人一節超過畫面時可捲動。
 
 signal center_requested(map_pos: Vector2)
-signal closed
+## 點了「在此的有名之人」的一位。
+signal person_requested(person: int)
 
-const WIDTH := 380.0
-## 軸頭的高度。
-const ROD := 12.0
-const UNROLL_SECONDS := 0.25
-const ROLL_UP_SECONDS := 0.18
-## 左側直書題簽的寬度。
-const STRIP := 40.0
-const CLOSE_RADIUS := 13.0
-const ACTION_RADIUS := 17.0
 ## 低於這個值的氣場視為零，不畫墨條。
 const BAR_EPSILON := 0.005
 const BARS := [
@@ -25,35 +17,29 @@ const BARS := [
 	["card_righteous", "righteous", Ink.INK],
 ]
 const FAITHS := [["faith_dao", Ink.CYAN], ["faith_shi", Ink.GOLD], ["faith_ru", Ink.INK]]
+## 有名之人一節最多列幾位，與每列的高度。
+const PEOPLE_LIMIT := 10
+const PERSON_ROW := 26.0
+## 清單至少留幾列（畫面再矮也不低於這個）。
+const MIN_PEOPLE_ROWS := 2
 
 var province := -1
-## 目前的輸入裝置是否為搖桿（決定畫哪一種實體鍵圖像）。
-var gamepad := false:
-	set(value):
-		gamepad = value
-		queue_redraw()
 
-var _world: SimWorld
-var _unit := 1.0
-var _width := WIDTH
 var _info: Dictionary = {}
-var _open := 0.0
-var _target_open := 0.0
-var _hover := ""
-## 正按住的鈕（按下的回饋）。
-var _pressed := ""
+var _people: Array[Dictionary] = []
+var _more := 0
+var _list: LedgerList
 
 
-## width 為卡片寬度（像素）；不指定時為 380 乘版面倍率。
 func setup(world: SimWorld, unit: float, width := -1.0) -> void:
-	_world = world
-	_unit = unit
-	_width = width if width > 0.0 else WIDTH * unit
-	custom_minimum_size = Vector2(_width, ROD * 2.0 * unit)
-	size = custom_minimum_size
-	mouse_filter = Control.MOUSE_FILTER_STOP
-	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
-	visible = false
+	super.setup(world, unit, width)
+	_list = LedgerList.new()
+	add_child(_list)
+	_list.setup(unit)
+	_list.painter = _paint_people
+	_list.finder = _person_at
+	_list.activated.connect(_on_list_activated)
+	_list.visible = false
 
 
 func show_province(id: int) -> void:
@@ -62,29 +48,25 @@ func show_province(id: int) -> void:
 		return
 	province = id
 	refresh()
-	visible = true
-	_target_open = 1.0
+	_begin_open()
 
 
-func close() -> void:
-	if province < 0:
-		return
+func _forget() -> void:
 	province = -1
-	_target_open = 0.0
-	closed.emit()
 
 
-## 重新讀取州郡數值（每月推進後呼叫）。
+## 重新讀取州郡數值與有名之人（每月推進後呼叫）。
 func refresh() -> void:
 	if province >= 0:
 		_info = _world.province_info(province)
+		var rows: Array = _world.people_in(province)
+		_more = maxi(rows.size() - PEOPLE_LIMIT, 0)
+		_people.clear()
+		for i in mini(rows.size(), PEOPLE_LIMIT):
+			_people.append(rows[i])
 		custom_minimum_size.y = _content_height() + ROD * 2.0 * _unit
 		size = custom_minimum_size
 		queue_redraw()
-
-
-func is_open() -> bool:
-	return province >= 0
 
 
 ## 頁尾動作「置中」：把鏡頭移到治所（滑鼠點鈕、鍵盤 C、搖桿 X 共用）。
@@ -93,13 +75,12 @@ func request_center() -> void:
 		center_requested.emit(_info["seat"])
 
 
-func _process(delta: float) -> void:
-	if _open == _target_open:
-		return
-	_open = move_toward(_open, _target_open, delta / (UNROLL_SECONDS if _target_open > _open else ROLL_UP_SECONDS))
-	if _open <= 0.0:
-		visible = false
-	queue_redraw()
+func _has_content() -> bool:
+	return not _info.is_empty()
+
+
+func _title() -> String:
+	return _info["name"]
 
 
 ## 要畫的墨條（字串鍵）：靈氣一律顯示，其餘只在值不為零時顯示。
@@ -116,88 +97,91 @@ func _shows_faith_ring() -> bool:
 	return faith.x + faith.y + faith.z >= BAR_EPSILON
 
 
+## 有名之人清單的內容高度（含「另有 n 人」一列）。
+func _people_content_height() -> float:
+	var rows := _people.size() + (1 if _more > 0 else 0)
+	return maxf(rows, 1) * PERSON_ROW * _unit
+
+
+## 清單區實際的高度：畫面放得下就全列，放不下縮到剩下的高度（至少 MIN_PEOPLE_ROWS 列）。
+func _list_height() -> float:
+	var all := _people_content_height()
+	var spare := max_height - (_fixed_height() + ROD * 2.0 * _unit)
+	var floor_rows := minf(all, MIN_PEOPLE_ROWS * PERSON_ROW * _unit)
+	return clampf(spare, floor_rows, all)
+
+
+## 教化環畫不畫：有教化，而且畫面高度放得下（放不下時省下環，讓有名之人清單至少留兩列）。
+func _ring_shown() -> bool:
+	if not _shows_faith_ring():
+		return false
+	var with_ring := _fixed_height(true) + ROD * 2.0 * _unit + MIN_PEOPLE_ROWS * PERSON_ROW * _unit
+	return with_ring <= max_height or _people.is_empty()
+
+
+## 清單以外的內容高度（含綾邊）。
+func _fixed_height(with_ring := false) -> float:
+	var rows := 14.0 + 34.0 + 12.0 + 28.0 + 26.0 + 32.0 + 26.0 * _bar_keys().size() + 8.0 + 26.0
+	if with_ring or (_shows_faith_ring() and _ring_shown()):
+		rows += 34.0
+	# 有名之人一節：節名一列，清單之後留一點空白。
+	rows += 6.0 + 26.0
+	return (rows + 8.0 + 12.0 + ACTION_RADIUS * 2.0 + 14.0) * _unit + Ink.CARD_BAND * 2.0
+
+
+## 卡片（含軸頭）至少要多高：固定部分（教化環放不下時省去）加上有名之人清單的最低高度。
+func min_height() -> float:
+	var floor_rows := minf(_people_content_height(), MIN_PEOPLE_ROWS * PERSON_ROW * _unit)
+	return _fixed_height() + ROD * 2.0 * _unit + floor_rows
+
+
 ## 兩根軸頭之間的高度。
 func _content_height() -> float:
-	var rows := 14.0 + 34.0 + 12.0 + 28.0 + 26.0 + 32.0 + 26.0 * _bar_keys().size() + 8.0 + 26.0
-	if _shows_faith_ring():
-		rows += 34.0
-	return (rows + 12.0 + ACTION_RADIUS * 2.0 + 14.0) * _unit + Ink.CARD_BAND * 2.0
+	return _fixed_height() + _list_height()
 
 
-func _paper_rect(height: float) -> Rect2:
-	var inset := Ink.CARD_BAND + 4.0 * _unit
-	return Rect2(Vector2(inset, ROD * _unit + Ink.CARD_BAND), Vector2(size.x - inset * 2.0, height - Ink.CARD_BAND * 2.0))
-
-
-func _close_key() -> String:
-	return InputHints.label(InputActions.CANCEL, gamepad)
+## 置中鈕的外接方框。
+func _center_rect() -> Rect2:
+	return _action_rect((STRIP + 14.0) * _unit)
 
 
 func _center_key() -> String:
 	return InputHints.label(InputActions.CARD_CENTER, gamepad)
 
 
-## 直書題簽：紙面左側的一條，州郡名由上往下寫（GDD 5.8）。
-func _title_strip_rect() -> Rect2:
+## 有名之人清單在卡片座標上的範圍。
+func _list_rect() -> Rect2:
 	var paper := _paper_rect(_content_height())
-	return Rect2(paper.position, Vector2(STRIP * _unit, paper.size.y))
+	var x := paper.position.x + (STRIP + 14.0) * _unit
+	var bottom := paper.end.y - (8.0 + 12.0 + ACTION_RADIUS * 2.0 + 14.0) * _unit
+	var height := _list_height()
+	return Rect2(Vector2(x, bottom - height), Vector2(_inner_width(), height))
 
 
-## 關閉鈕的外接方框。
-func _close_rect() -> Rect2:
-	var paper := _paper_rect(_content_height())
-	var diameter := CLOSE_RADIUS * 2.0 * _unit
-	return Rect2(Vector2(paper.end.x - 12.0 * _unit - diameter, paper.position.y + 12.0 * _unit), Vector2(diameter, diameter))
-
-
-## 置中鈕的外接方框。
-func _center_rect() -> Rect2:
-	var paper := _paper_rect(_content_height())
-	var diameter := ACTION_RADIUS * 2.0 * _unit
-	return Rect2(Vector2(paper.position.x + (STRIP + 14.0) * _unit, paper.end.y - 14.0 * _unit - diameter), Vector2(diameter, diameter))
-
-
-func _draw() -> void:
-	if _info.is_empty():
+func _arrange(unrolled: bool) -> void:
+	if _list == null:
 		return
-	var eased := smoothstep(0.0, 1.0, _open)
-	var full := _content_height()
-	var body_height := full * eased
-	var rod := ROD * _unit
-	# 紙面由上軸頭往下拉開；下軸頭跟著紙的下緣走。
-	if body_height > Ink.CARD_BAND * 2.0 + 4.0:
-		Ink.paper_slip(self, _paper_rect(body_height), Ink.CARD_BAND)
-	_draw_rod(0.0)
-	_draw_rod(rod + body_height)
-	if eased < 0.98:
-		return
+	var show := unrolled and not _people.is_empty()
+	_list.visible = show
+	_list.edge_scroll = gamepad
+	if show:
+		var rect := _list_rect()
+		_list.position = rect.position
+		_list.size = rect.size
+		_list.content_height = _people_content_height()
 
-	var paper := _paper_rect(full)
+
+func _draw_body(paper: Rect2) -> void:
 	var x := paper.position.x + (STRIP + 14.0) * _unit
 	var right := paper.end.x - 16.0 * _unit
 	var y := paper.position.y + 14.0 * _unit
 	var note := Ink.font_size(Ink.SIZE_NOTE, _unit)
 	var body := Ink.font_size(Ink.SIZE_BODY, _unit)
 	var section := Ink.font_size(Ink.SIZE_SECTION, _unit)
-	var title := Ink.font_size(Ink.SIZE_TITLE, _unit)
-
-	# 直書題簽：紙面左側較深的一條，州郡名由上往下寫。
-	var strip := _title_strip_rect()
-	draw_rect(strip, Color(Ink.PAPER_DARK, 0.55), true)
-	draw_line(Vector2(strip.end.x, strip.position.y), strip.end, Color(Ink.INK_LIGHT, 0.6), 1.0)
-	Ink.vertical_text(self, Vector2(strip.get_center().x, strip.position.y + 14.0 * _unit), _info["name"], title)
 	# 首列：治所與治所名；下方一道墨劃。
 	var seat_label := Locale.t("card_seat")
 	Ink.text(self, Vector2(x, y + (body - note) * 0.6), seat_label, note, Ink.INK_LIGHT)
 	Ink.text(self, Vector2(x + Ink.text_size(seat_label, note).x + 8.0 * _unit, y), _info["seat_name"], body)
-	var close := _close_rect()
-	Ink.round_button(self, close.get_center(), close.size.x * 0.5, &"close", true, _hover == "close", _pressed == "close")
-	# 關閉鈕左邊：文字與實體鍵圖像。
-	var close_label := Locale.t("card_close")
-	var close_x := close.position.x - 6.0 * _unit - Ink.text_size(close_label, note).x
-	Ink.text(self, Vector2(close_x, close.position.y + (close.size.y - Ink.text_size(close_label, note).y) * 0.5), close_label, note, Ink.INK_LIGHT)
-	var close_key := _close_key()
-	Ink.key_glyph(self, Vector2(close_x - 6.0 * _unit - Ink.key_glyph_width(close_key, _unit), close.position.y + (close.size.y - Ink.KEY_HEIGHT * _unit) * 0.5), close_key, _unit)
 	y += 34.0 * _unit
 	Ink.stroke(self, Vector2(x, y), Vector2(right, y), 2.0 * _unit, Color(Ink.INK, 0.7))
 	y += 12.0 * _unit
@@ -244,19 +228,22 @@ func _draw() -> void:
 	y += 8.0 * _unit
 
 	# 教化：道、釋、儒三段弧；字用墨色，顏色只在色塊與弧上。
+	var faith_top := y
 	Ink.section(self, Vector2(x, y), Locale.t("card_faith"), section)
 	if _shows_faith_ring():
+		var ring_on := _ring_shown()
 		var faith: Vector3 = _info["faith"]
 		var total := faith.x + faith.y + faith.z
 		var ring_radius := 18.0 * _unit
 		var ring_center := Vector2(right - ring_radius - 4.0 * _unit, y + 30.0 * _unit)
 		var start := -PI * 0.5
-		draw_arc(ring_center, ring_radius, 0.0, TAU, 48, Color(Ink.INK_LIGHT, 0.2), 6.0 * _unit, true)
+		if ring_on:
+			draw_arc(ring_center, ring_radius, 0.0, TAU, 48, Color(Ink.INK_LIGHT, 0.2), 6.0 * _unit, true)
 		cursor = x
 		y += 28.0 * _unit
 		for i in 3:
 			var sweep: float = TAU * faith[i] / total
-			if sweep > 0.01:
+			if sweep > 0.01 and ring_on:
 				draw_arc(ring_center, ring_radius, start, start + sweep, 32, FAITHS[i][1], 6.0 * _unit, true)
 			start += sweep
 			draw_rect(Rect2(Vector2(cursor, y + (note - 10.0 * _unit) * 0.5 + 2.0), Vector2(10.0, 10.0) * _unit), FAITHS[i][1], true)
@@ -266,52 +253,77 @@ func _draw() -> void:
 	else:
 		var heading := Ink.text_size(Locale.t("card_faith"), section).x + section * 1.1
 		Ink.text(self, Vector2(x + heading + 10.0 * _unit, y + (section - note) * 0.6), Locale.t("card_faith_none"), note, Ink.INK_LIGHT)
+	y = faith_top + (26.0 + (34.0 if _ring_shown() else 0.0) + 6.0) * _unit
+
+	# 在此的有名之人：節名；清單是下面的子控制項，沒有人時寫「無」。
+	Ink.section(self, Vector2(x, y), Locale.t("card_notables"), section)
+	if _people.is_empty():
+		var heading := Ink.text_size(Locale.t("card_notables"), section).x + section * 1.1
+		Ink.text(self, Vector2(x + heading + 10.0 * _unit, y + (section - note) * 0.6), Locale.t("card_none"), note, Ink.INK_LIGHT)
 
 	# 頁尾動作印。
-	var action := _center_rect()
-	Ink.round_button(self, action.get_center(), action.size.x * 0.5, &"center", false, _hover == "center", _pressed == "center")
-	var action_label := Locale.t("act_center")
-	var action_x := action.end.x + 8.0 * _unit
-	Ink.text(self, Vector2(action_x, action.position.y + (action.size.y - Ink.text_size(action_label, body).y) * 0.5), action_label, body)
-	Ink.key_glyph(self, Vector2(action_x + Ink.text_size(action_label, body).x + 8.0 * _unit, action.position.y + (action.size.y - Ink.KEY_HEIGHT * _unit) * 0.5), _center_key(), _unit)
+	_draw_action(_center_rect(), &"center", Locale.t("act_center"), _center_key(), "center")
 
 
-## 軸頭：墨色圓柱，兩端略粗。
-func _draw_rod(y: float) -> void:
-	var rod := ROD * _unit
-	var cap := 10.0 * _unit
-	draw_rect(Rect2(Vector2(cap * 0.5, y + rod * 0.2), Vector2(size.x - cap, rod * 0.6)), Ink.INK, true)
-	draw_rect(Rect2(Vector2(cap * 0.5, y + rod * 0.3), Vector2(size.x - cap, 1.0)), Color(Ink.INK_LIGHT, 0.9), true)
-	for cap_x: float in [0.0, size.x - cap]:
-		draw_rect(Rect2(Vector2(cap_x, y), Vector2(cap, rod)), Ink.INK, true)
-		draw_rect(Rect2(Vector2(cap_x, y + rod * 0.5 - 1.0), Vector2(cap, 2.0)), Color(Ink.GOLD, 0.8), true)
+## 清單的畫法（內容座標）：姓名在左，身分與境界在右。
+func _paint_people(list: LedgerList) -> void:
+	var body := Ink.font_size(Ink.SIZE_BODY, _unit)
+	var note := Ink.font_size(Ink.SIZE_NOTE, _unit)
+	var row := PERSON_ROW * _unit
+	var width := list.size.x - 6.0 * _unit
+	for i in _people.size():
+		var person := _people[i]
+		var target := "person:%d" % person["id"]
+		var top := i * row
+		var lit: bool = target == list.hover or target == list.pressed
+		if lit:
+			list.draw_rect(Rect2(Vector2(0.0, top + 1.0), Vector2(width, row - 2.0)), Color(Ink.INK, 0.2 if target == list.pressed else 0.1), true)
+		var name_size := Ink.text_size(person["name"], body)
+		Ink.text(list, Vector2(2.0 * _unit, top + (row - name_size.y) * 0.5), person["name"], body)
+		list.draw_line(Vector2(2.0 * _unit, top + row - 4.0 * _unit), Vector2(2.0 * _unit + name_size.x, top + row - 4.0 * _unit), Color(Ink.SEAL_RED, 0.75 if lit else 0.45), 1.0)
+		var identity := PersonText.identity_line(person)
+		var room := width - name_size.x - 18.0 * _unit
+		identity = _fit(identity, note, room)
+		var extent := Ink.text_size(identity, note)
+		Ink.text(list, Vector2(width - extent.x, top + (row - extent.y) * 0.5), identity, note, Ink.INK_LIGHT)
+	if _more > 0:
+		var line := Locale.t("card_people_more").format({"N": str(_more)})
+		Ink.text(list, Vector2(2.0 * _unit, _people.size() * row + (row - Ink.text_size(line, note).y) * 0.5), line, note, Ink.INK_LIGHT)
 
 
-func _gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseMotion:
-		var hover: String = _target_at((event as InputEventMouseMotion).position)
-		if hover != _hover:
-			_hover = hover
-			queue_redraw()
-	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		_pressed = _target_at((event as InputEventMouseButton).position)
-		queue_redraw()
-		match _pressed:
-			"close":
-				close()
-			"center":
-				request_center()
-		accept_event()
-	elif event is InputEventMouseButton and not event.pressed and not _pressed.is_empty():
-		_pressed = ""
-		queue_redraw()
+## 一行放不下時，把右側的身分一行改成只留最後的境界一段（仍放不下就從左邊切到放得下為止，不加省略號以外的字）。
+func _fit(text: String, size: int, room: float) -> String:
+	if Ink.text_size(text, size).x <= room:
+		return text
+	var parts := text.split(" · ")
+	while parts.size() > 1:
+		parts.remove_at(0)
+		var shorter := " · ".join(parts)
+		if Ink.text_size(shorter, size).x <= room:
+			return shorter
+	return text
+
+
+func _person_at(point: Vector2) -> String:
+	var row := int(point.y / (PERSON_ROW * _unit))
+	if point.y >= 0.0 and row < _people.size():
+		return "person:%d" % _people[row]["id"]
+	return ""
+
+
+func _on_list_activated(target: String) -> void:
+	if target.begins_with("person:"):
+		person_requested.emit(int(target.substr(7)))
+
+
+func _activate(target: String) -> void:
+	if target == "center":
+		request_center()
 
 
 func _target_at(pos: Vector2) -> String:
-	var close := _close_rect()
-	if pos.distance_to(close.get_center()) <= close.size.x * 0.5:
+	if _in_round(_close_rect(), pos):
 		return "close"
-	var action := _center_rect()
-	if pos.distance_to(action.get_center()) <= action.size.x * 0.5:
+	if _in_round(_center_rect(), pos):
 		return "center"
 	return ""

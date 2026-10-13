@@ -467,6 +467,10 @@ pub const FAMINE_KARMA: f32 = 0.02;
 pub const POP_MIGRATE_THRESHOLD: f64 = 0.9;
 /// 7.1 `POP_MIGRATE` 遷徙比例 1%（GDD 2.3 遷徙）。
 pub const POP_MIGRATE_RATE: f64 = 0.01;
+/// 7.1 `POP_SEA_MIGRATE_THRESHOLD` 渡海遷徙門檻：沿岸州人口 > 0.8K 才開始流向海路鄰州（GDD 2.3 遷徙）。
+pub const POP_SEA_MIGRATE_THRESHOLD: f64 = 0.8;
+/// 7.1 `POP_SEA_MIGRATE_RATE` 渡海遷徙比例 0.05%（陸路的二十分之一，GDD 2.3 遷徙）。
+pub const POP_SEA_MIGRATE_RATE: f64 = 0.0005;
 
 /// 7.1 `DEVASTATION_RECOVER` 殘破度每年恢復量 0.1（GDD 2.3 殘破度）。
 pub const DEVASTATION_RECOVER: f32 = 0.1;
@@ -533,12 +537,102 @@ pub const AURA_LEY_COEF: f32 = 0.3;
 /// 7.1 `AURA_LEY` 靈脈靈氣的衰減距離 3 格，即 exp(−d/3)（GDD 2.4 格點靈氣）。
 pub const AURA_LEY_DECAY: f32 = 3.0;
 
-/// 7.1 `AURA_ERA` 上古時代倍率 1.3（GDD 2.4 格點靈氣；4.6 開局時代）。
-pub const AURA_ERA_ANCIENT: f32 = 1.3;
-/// 7.1 `AURA_ERA` 中古時代倍率 1.0（GDD 2.4 格點靈氣；4.6 開局時代）。
-pub const AURA_ERA_MIDDLE: f32 = 1.0;
-/// 7.1 `AURA_ERA` 末法時代倍率 0.6（GDD 2.4 格點靈氣；4.6 開局時代）。
-pub const AURA_ERA_DECLINE: f32 = 0.6;
+/// 7.1 `EVO_WARMTH_P1` 寒暖第一週期的長度下限 600 年（GDD 2.8 慢變量）。
+pub const EVO_WARMTH_P1_MIN: u32 = 600;
+/// 7.1 `EVO_WARMTH_P1` 寒暖第一週期的長度上限 900 年（GDD 2.8 慢變量）。
+pub const EVO_WARMTH_P1_MAX: u32 = 900;
+/// 7.1 `EVO_WARMTH_P2` 寒暖第二週期的長度下限 1,500 年（GDD 2.8 慢變量）。
+pub const EVO_WARMTH_P2_MIN: u32 = 1500;
+/// 7.1 `EVO_WARMTH_P2` 寒暖第二週期的長度上限 2,250 年（GDD 2.8 慢變量）。
+pub const EVO_WARMTH_P2_MAX: u32 = 2250;
+/// 7.1 `EVO_WARMTH_WEIGHT` 寒暖第一週期的權重 0.6（GDD 2.8 慢變量）。
+pub const EVO_WARMTH_W1: f32 = 0.6;
+/// 7.1 `EVO_WARMTH_WEIGHT` 寒暖第二週期的權重 0.4（GDD 2.8 慢變量）。
+pub const EVO_WARMTH_W2: f32 = 0.4;
+/// 7.1 `EVO_SEA_RANGE` 海平面偏移的上下限 0.03（高度單位；GDD 2.8 慢變量）。
+pub const EVO_SEA_RANGE: f32 = 0.03;
+/// 7.1 `EVO_SEA_APPROACH` 海平面每世向目標靠近的比例 0.5（GDD 2.8 慢變量）。
+pub const EVO_SEA_APPROACH: f32 = 0.5;
+/// 7.1 `EVO_TIDE_PERIOD` 靈潮週期的長度下限 900 年（GDD 2.8 慢變量）。
+pub const EVO_TIDE_PERIOD_MIN: u32 = 900;
+/// 7.1 `EVO_TIDE_PERIOD` 靈潮週期的長度上限 1,400 年（GDD 2.8 慢變量）。
+pub const EVO_TIDE_PERIOD_MAX: u32 = 1400;
+/// 7.1 `EVO_TIDE_AMPLITUDE` 靈潮在 1 上下的振幅 0.4（GDD 2.8 慢變量）。
+pub const EVO_TIDE_AMPLITUDE: f32 = 0.4;
+/// 7.1 `EVO_TIDE_RANGE` 靈潮的下限 0.5（GDD 2.8 慢變量）。
+pub const EVO_TIDE_MIN: f32 = 0.5;
+/// 7.1 `EVO_TIDE_RANGE` 靈潮的上限 1.4（GDD 2.8 慢變量）。
+pub const EVO_TIDE_MAX: f32 = 1.4;
+/// 7.1 `EVO_TIDE_TURN` 上古開局時靈潮在週期裡的位置 0.365 圈：過了高點、退到 1.3（GDD 2.8、4.6）。
+pub const EVO_TIDE_TURN_ANCIENT: f32 = 0.365;
+/// 7.1 `EVO_TIDE_TURN` 中古開局時靈潮在週期裡的位置 0.5 圈：退到 1.0（GDD 2.8、4.6）。
+pub const EVO_TIDE_TURN_MIDDLE: f32 = 0.5;
+/// 7.1 `EVO_TIDE_TURN` 末法開局時靈潮在週期裡的位置 0.75 圈：谷底 0.6（GDD 2.8、4.6）。
+pub const EVO_TIDE_TURN_DECLINE: f32 = 0.75;
+/// 7.1 `EVO_HISTORY` 上古開局前的歷史 600–1,200 年（GDD 2.8 開局前的歷史）。
+pub const EVO_HISTORY_ANCIENT: (u32, u32) = (600, 1200);
+/// 7.1 `EVO_HISTORY` 中古開局前的歷史 1,800–3,000 年（GDD 2.8 開局前的歷史）。
+pub const EVO_HISTORY_MIDDLE: (u32, u32) = (1800, 3000);
+/// 7.1 `EVO_HISTORY` 末法開局前的歷史 3,600–5,400 年（GDD 2.8 開局前的歷史）。
+pub const EVO_HISTORY_DECLINE: (u32, u32) = (3600, 5400);
+/// 7.1 `EVO_WARMTH_GATE` 大寒、大暖的進入門檻：寒暖的絕對值達 0.6（GDD 2.8 世界大事）。
+pub const EVO_WARMTH_ENTER: f32 = 0.6;
+/// 7.1 `EVO_WARMTH_GATE` 大寒、大暖的結束門檻：寒暖的絕對值回到 0.3（GDD 2.8 世界大事）。
+pub const EVO_WARMTH_LEAVE: f32 = 0.3;
+/// 7.1 `EVO_DECLINE_GATE` 末法的進入門檻：靈潮降到 0.7（GDD 2.8 世界大事）。
+pub const EVO_DECLINE_ENTER: f32 = 0.7;
+/// 7.1 `EVO_DECLINE_GATE` 末法的結束門檻：靈潮回到 0.9（GDD 2.8 世界大事）。
+pub const EVO_DECLINE_LEAVE: f32 = 0.9;
+/// 7.1 `EVO_REVIVAL_GATE` 靈氣復甦的進入門檻：靈潮漲到 1.3（GDD 2.8 世界大事）。
+pub const EVO_REVIVAL_ENTER: f32 = 1.3;
+/// 7.1 `EVO_REVIVAL_GATE` 靈氣復甦的結束門檻：靈潮退到 1.2（GDD 2.8 世界大事）。
+pub const EVO_REVIVAL_LEAVE: f32 = 1.2;
+/// 7.1 `EVO_WARMTH_TEMPERATURE` 寒暖每 1 使溫度偏移 0.18（GDD 2.8 每世結算）。
+pub const EVO_WARMTH_TEMPERATURE: f32 = 0.18;
+/// 7.1 `EVO_WARMTH_MOISTURE` 寒暖每 1 使濕度增減 15%（GDD 2.8 每世結算）。
+pub const EVO_WARMTH_MOISTURE: f32 = 0.15;
+/// 7.1 `EVO_ERA_MIN_YEARS` 兩次改元至少相隔 60 年（GDD 2.8 世界大事）。
+pub const EVO_ERA_MIN_YEARS: u32 = 60;
+/// 7.1 `EVO_NODE_FADE` 靈潮低於 0.7 時，洞天福地每世可能降一級（GDD 2.8 每世結算）。
+pub const EVO_NODE_FADE_BELOW: f32 = 0.7;
+/// 7.1 `EVO_NODE_RISE` 靈潮高於 1.1 時，降過級的洞天福地每世可能回復一級（GDD 2.8 每世結算）。
+pub const EVO_NODE_RISE_ABOVE: f32 = 1.1;
+/// 7.1 `EVO_NODE_CHANCE` 洞天福地每世降級或回復的機率 0.1（GDD 2.8 每世結算）。
+pub const EVO_NODE_CHANCE: f32 = 0.1;
+/// 7.1 `EVO_NODE_IMPORTANCE` 洞天福地升降級的事件重要度 3（GDD 2.8、7.2）。
+pub const EVO_NODE_IMPORTANCE: u8 = 3;
+/// 7.1 `EVO_LOST_IMPORTANCE` 州郡沒入海中而消失的事件重要度 4（GDD 2.8、7.2）。
+pub const EVO_LOST_IMPORTANCE: u8 = 4;
+/// 7.1 `EVO_SEAT_IMPORTANCE` 治所遷移的事件重要度 2（GDD 2.8、7.2）。
+pub const EVO_SEAT_IMPORTANCE: u8 = 2;
+/// 7.1 `EVO_LINK_IMPORTANCE` 陸橋浮現或沉沒的事件重要度 3（GDD 2.8、7.2）。
+pub const EVO_LINK_IMPORTANCE: u8 = 3;
+/// 7.1 `EVO_CULTIVATION_APPROACH` 墾殖度每世向「人口 ÷ 開局時的承載」靠近 25%（GDD 2.8 慢變量）。
+pub const EVO_CULTIVATION_APPROACH: f32 = 0.25;
+/// 7.1 `EVO_CLEAR_ABOVE` 墾殖度高於 0.7 的州墾森林（GDD 2.8 草木）。
+pub const EVO_CLEAR_ABOVE: f32 = 0.7;
+/// 7.1 `EVO_CLEAR_SHARE` 每世墾掉州內 5% 的森林格（GDD 2.8 草木）。
+pub const EVO_CLEAR_SHARE: f32 = 0.05;
+/// 7.1 `EVO_REGROW_BELOW` 墾殖度低於 0.3 的州復林、沙化的格回復（GDD 2.8 草木）。
+pub const EVO_REGROW_BELOW: f32 = 0.3;
+/// 7.1 `EVO_REGROW_SHARE` 每世 5% 的已墾格長回森林、5% 的沙化格回復（GDD 2.8 草木）。
+pub const EVO_REGROW_SHARE: f32 = 0.05;
+/// 7.1 `EVO_GROVE_AURA` 格點靈氣達 0.6 的森林墾不動，已墾的格達 0.6 就長回森林（GDD 2.8 草木）。
+pub const EVO_GROVE_AURA: f32 = 0.6;
+/// 7.1 `EVO_GROVE_SHARE` 每世 10% 靈氣達門檻的已墾格長回森林（GDD 2.8 草木）。
+pub const EVO_GROVE_SHARE: f32 = 0.1;
+/// 7.1 `EVO_SAND_ABOVE` 墾殖度高於 0.8 的乾燥州沙化（GDD 2.8 草木）。
+pub const EVO_SAND_ABOVE: f32 = 0.8;
+/// 7.1 `EVO_SAND_MOISTURE` 州的有效濕度低於 0.25 才沙化（GDD 2.8 草木）。
+pub const EVO_SAND_MOISTURE: f32 = 0.25;
+/// 7.1 `EVO_SAND_SHARE` 每世 3% 的平原格沙化（GDD 2.8 草木）。
+pub const EVO_SAND_SHARE: f32 = 0.03;
+/// 7.1 `EVO_SAND_LIMIT` 州內平原（含已沙化的）沙化到一半為止（GDD 2.8 草木）。
+pub const EVO_SAND_LIMIT: f32 = 0.5;
+/// 7.1 `EVO_FLORA_IMPORTANCE` 森林墾盡、開始沙化的事件重要度 2（GDD 2.8、7.2）。
+pub const EVO_FLORA_IMPORTANCE: u8 = 2;
+/// 7.1 `EVO_EVENT_IMPORTANCE` 世界大事的事件重要度 5（GDD 2.8、7.2）。
+pub const EVO_EVENT_IMPORTANCE: u8 = 5;
 
 /// 7.1 `AURA_CELL_MAX` 格點靈氣上限 2（GDD 2.4 格點靈氣，截斷 0..2）。
 pub const AURA_CELL_MAX: f32 = 2.0;
@@ -565,6 +659,8 @@ pub const KARMA_DIFFUSE: f32 = 0.08;
 pub const MERIT_DIFFUSE: f32 = 0.04;
 /// 7.1 `RIGHT_DIFFUSE` 正氣每季擴散比例 4%（GDD 2.4 州郡氣場）。
 pub const RIGHT_DIFFUSE: f32 = 0.04;
+/// 7.1 `KARMA_DRIFT` 業氣每季順流比例 4%，移往 `downstream` 州；下游為海時不移動（GDD 2.7 清濁雙極與順流）。
+pub const KARMA_DRIFT: f32 = 0.04;
 
 /// 7.1 `TURBID_MIX` 濁氣公式中功德的係數 0.5：turbid = 業氣 − 0.5·功德 − 0.5·正氣（GDD 2.4 濁氣）。
 pub const TURBID_MIX_MERIT: f32 = 0.5;
@@ -1071,34 +1167,22 @@ pub const GENESIS_AFFINITY_FAITH_WEIGHT: f32 = 0.5;
 pub const GENESIS_AFFINITY_STATUS_WEIGHT: f32 = 0.5;
 /// 7.1 `GENESIS_AFFINITY` 身分偏向對應教派的分量 1（修士 道、僧 釋、儒士 儒、魔修 魔；散人均等，GDD 4.6 開天）。
 pub const GENESIS_AFFINITY_STATUS_BIAS: f32 = 1.0;
-/// 7.1 `GENESIS_THREADS` 開局宿緣數係數 0.1，即 有名之人數 × 0.1（GDD 4.6 開天）。
-pub const GENESIS_THREADS_PER_NOTABLE: f32 = 0.1;
-/// 7.1 `GENESIS_THREADS` 開局宿緣雙方的距離上限 3 步（GDD 4.6 開天）。
-pub const GENESIS_THREAD_RANGE_STEPS: u32 = 3;
-/// 7.1 `GENESIS_PYRAMID` 修士每高一境的人數比例 0.35（GDD 4.6 開天）。
-pub const GENESIS_PYRAMID_RATIO: f32 = 0.35;
-/// 7.1 `GENESIS_AGE_MAX` 開局年齡下限 12 歲，年齡均勻分布於 12 至 壽元 × 0.6（GDD 4.6 開天）。
-pub const GENESIS_AGE_MIN: u32 = 12;
-/// 7.1 `GENESIS_AGE_MAX` 開局年齡上限為壽元 × 0.6（GDD 4.6 開天）。
-pub const GENESIS_AGE_MAX_LIFESPAN_RATIO: f32 = 0.6;
-/// 7.1 `GENESIS_PRERUN_YEARS` 開局預跑 10 年（GDD 4.6 開天）。
-pub const GENESIS_PRERUN_YEARS: u32 = 10;
-/// 7.1 `GENESIS_PRERUN_YEARS` 預跑的 tick 範圍為 1..=120（10 年 × 12 個月；GDD 4.6 開天）。
-pub const GENESIS_PRERUN_TICK_END: u32 = 120;
-/// 7.1 `GENESIS_HIGH_REALM` 中古、末法開局保證的渡劫以上修士人數 2（GDD 4.6 開天）。
-pub const GENESIS_HIGH_REALM_COUNT: u32 = 2;
-/// 7.1 `GENESIS_HIGH_REALM` 上述修士的最低境界 7（渡劫，境界索引；GDD 4.6 開天與 3.5 境界表）。
-pub const GENESIS_HIGH_REALM_MIN_REALM: u8 = 7;
-/// 7.1 `GENESIS_FORCED_BT` 開局保證的強制突破於 tick 123，即預跑結束後第 3 個月（GDD 4.6 開天）。
-pub const GENESIS_FORCED_BT_TICK: u32 = 123;
-/// 7.1 `GENESIS_SECTS` 開天宗門數（中尺寸），依 [上古, 中古, 末法] 排列（GDD 4.6 開局時代）。
-pub const GENESIS_SECTS: [u32; 3] = [12, 10, 5];
-/// 7.1 `GENESIS_NOTABLE` 初始有名之人數佔 `NOTABLE_CAP` 的比例，依 [上古, 中古, 末法] 排列（GDD 4.6 開局時代）。
-pub const GENESIS_NOTABLE_RATIO: [f32; 3] = [0.3, 0.75, 0.75];
-/// 7.1 `GENESIS_ROAMERS` 上古開局另有的遊方僧數（中尺寸；GDD 4.6 開局時代）。
-pub const GENESIS_ROAMING_MONKS_ANCIENT: u32 = 20;
-/// 7.1 `GENESIS_ROAMERS` 上古開局另有的散儒數（中尺寸；GDD 4.6 開局時代）。
-pub const GENESIS_ROAMING_SCHOLARS_ANCIENT: u32 = 20;
+/// 7.1 `GENESIS_POP_YEARS` 人口期預設長度 10,000 年（GDD 4.6 開天；世界參數 `pop_years`）。
+pub const GENESIS_POP_YEARS: u32 = 10_000;
+/// 7.1 `GENESIS_POP_YEARS` 人口期長度上限 20,000 年。
+pub const GENESIS_POP_YEARS_MAX: u32 = 20_000;
+/// 7.1 `GENESIS_PRERUN_YEARS` 人物期（逐月預跑）預設長度 600 年（GDD 4.6 開天；世界參數 `prerun_years`）。
+pub const GENESIS_PRERUN_YEARS: u32 = 1_000;
+/// 7.1 `GENESIS_PRERUN_YEARS` 人物期長度上限 5,000 年。
+pub const GENESIS_PRERUN_YEARS_MAX: u32 = 5_000;
+/// 7.1 `GENESIS_SETTLE_COUNT` 第一批聚落數，依規模 [S, M, L]（GDD 4.6 開天）。
+pub const GENESIS_SETTLE_COUNT: [u32; 3] = [6, 10, 16];
+/// 7.1 `GENESIS_SETTLE_SPACING` 聚落落點的最小間距係數：間距 = 係數 × sqrt(陸地面積 / 聚落數)（同州郡種子點的 `WG_PROV_SPACING`）。
+pub const GENESIS_SETTLE_SPACING: f32 = 0.8;
+/// 7.1 `GENESIS_SETTLE_POP` 每個聚落的初始人口。
+pub const GENESIS_SETTLE_POP: f64 = 300.0;
+/// 7.1 `NOTABLE_PER_POP` 有名之人名額隨人口：名額 = min(`NOTABLE_CAP`, 總人口 × 此值)。
+pub const NOTABLE_PER_POP: f64 = 2.0e-4;
 
 // ---- 魔修（GDD 3.10；M2 僅列魔修相關者）----
 
@@ -1127,3 +1211,238 @@ pub const BOOK_THREE_LIVES_MIN: u16 = 2;
 pub const BOOK_REUNITED_MIN_LIVES: u16 = 2;
 /// 7.1 `TEACH_MERIT` 師父每收一徒的功德 +2（GDD 3.1 傳道授業）。
 pub const MASTER_TEACH_MERIT: f32 = 2.0;
+
+// ---- 王朝與天命（GDD 3.7）----
+
+/// 7.1 `DYN_FOUND` 立國：州人口下限 50,000（GDD 3.7 開國）。
+pub const DYN_FOUND_POP: f64 = 50_000.0;
+/// 7.1 `DYN_FOUND_TALENT_REF` 立國：才略等於此值時成功率為 `DYN_FOUND_CHANCE`（取當地才略最高的散人或武將候補，無絕對門檻）。
+pub const DYN_FOUND_TALENT_REF: f32 = 5.0;
+/// 7.1 `DYN_FOUND_TALENT_EXP` 立國：成功率 = `DYN_FOUND_CHANCE` × (才略 / 參照值)^此指數。
+pub const DYN_FOUND_TALENT_EXP: f32 = 3.0;
+/// 7.1 `DYN_FOUND_CHANCE_MAX` 立國：成功率上限。
+pub const DYN_FOUND_CHANCE_MAX: f32 = 0.2;
+/// 7.1 `DYN_FOUND` 立國：每年機率 2%。
+pub const DYN_FOUND_CHANCE: f32 = 0.004;
+/// 7.1 `GENERAL_CANDIDATE` 武將候補的才略下限 6（GDD 3.4 入道判定）。
+pub const GENERAL_CANDIDATE_TALENT: f32 = 6.0;
+/// 7.1 `DYN_COVER` 中古開局王朝數下限 4（GDD 3.7 開國）。
+pub const DYN_INIT_MIDDLE_MIN: u32 = 4;
+/// 7.1 `DYN_COVER` 中古開局王朝數上限 6。
+pub const DYN_INIT_MIDDLE_MAX: u32 = 6;
+/// 7.1 `DYN_COVER` 末法開局王朝數下限 2。
+pub const DYN_INIT_DECLINE_MIN: u32 = 2;
+/// 7.1 `DYN_COVER` 末法開局王朝數上限 3。
+pub const DYN_INIT_DECLINE_MAX: u32 = 3;
+/// 7.1 `DYN_COVER` 開局王朝覆蓋的陸地比例 0.7（以州郡數計）。
+pub const DYN_INIT_COVER: f32 = 0.7;
+/// 7.1 `MANDATE_INIT` 新王朝天命初值 60。
+pub const MANDATE_INIT: f32 = 60.0;
+/// 7.1 `MANDATE_RANGE` 天命上限 100（下限 0）。
+pub const MANDATE_MAX: f32 = 100.0;
+/// 7.1 `MANDATE_TERMS` 君主德行係數 0.5（德行 − 5）。
+pub const MANDATE_VIRTUE_COEF: f32 = 0.5;
+/// 7.1 `MANDATE_TERMS` 文臣平均德行係數 0.4（德行 − 5）。
+pub const MANDATE_OFFICIAL_COEF: f32 = 0.4;
+/// 7.1 `MANDATE_TERMS` 德行的中點 5。
+pub const MANDATE_VIRTUE_MID: f32 = 5.0;
+/// 7.1 `MANDATE_TERMS` 疆域平均正氣係數 10。
+pub const MANDATE_RIGHT_COEF: f32 = 10.0;
+/// 7.1 `MANDATE_TERMS` 疆域平均業氣係數 −15。
+pub const MANDATE_KARMA_COEF: f32 = -15.0;
+/// 7.1 `MANDATE_TERMS` 都城靈氣（風水）係數 4。
+pub const MANDATE_AURA_COEF: f32 = 4.0;
+/// 7.1 `MANDATE_TERMS` 都城靈氣的中點 0.5。
+pub const MANDATE_AURA_MID: f32 = 0.5;
+/// 7.1 `MANDATE_TERMS` 每個饑荒州 −0.5。
+pub const MANDATE_FAMINE_COEF: f32 = -0.5;
+/// 7.1 `MANDATE_TERMS` 每新得一州 +1。
+pub const MANDATE_GAIN_COEF: f32 = 1.0;
+/// 7.1 `MANDATE_TERMS` 每失去一州 −3。
+pub const MANDATE_LOSS_COEF: f32 = -3.0;
+/// 7.1 `MANDATE_TERMS` 王朝週期 −min(3, 立國年數 / 100) 的上限 3。
+pub const MANDATE_CYCLE_MAX: f32 = 3.0;
+/// 7.1 `MANDATE_TERMS` 王朝週期的年數單位 100。
+pub const MANDATE_CYCLE_YEARS: f32 = 100.0;
+/// 7.1 `MANDATE_USURP` 篡位天命 −20。
+pub const MANDATE_USURP: f32 = -20.0;
+/// 7.1 `MANDATE_BROKE` 國庫不足每年天命 −5。
+pub const MANDATE_BROKE: f32 = -5.0;
+/// 7.1 `GOLDEN_AGE` 盛世：天命 ≥ 80，疆域人口成長率乘 `POP_GROWTH_PROSPEROUS_MULT`。
+pub const GOLDEN_AGE_MANDATE: f32 = 80.0;
+/// 7.1 `REBEL` 起義：天命 < 40，每州每年機率 (40 − M) / 400。
+pub const REBEL_MANDATE: f32 = 40.0;
+/// 7.1 `REBEL` 起義機率的分母 400。
+pub const REBEL_DIV: f32 = 400.0;
+/// 7.1 `REBEL_AGE` 起義首領新魂的年齡 25 歲（GDD 3.7）。
+pub const REBEL_AGE: u32 = 25;
+/// 7.1 `SECEDE` 割據：天命 < 20，每位駐守非都城州的武將每年機率 (20 − M) / 200。
+pub const SECEDE_MANDATE: f32 = 20.0;
+/// 7.1 `SECEDE` 割據機率的分母 200。
+pub const SECEDE_DIV: f32 = 200.0;
+/// 7.1 `CIVIL_WAR` 內戰：前兩名候選人才略差 ≤ 1。
+pub const CIVIL_WAR_GAP: f32 = 1.0;
+/// 7.1 `CIVIL_WAR` 內戰機率 35%。
+pub const CIVIL_WAR_CHANCE: f32 = 0.35;
+/// 7.1 `CIVIL_WAR` 內戰後雙方互相的關係值（規格只說互相宣戰，取最低 −100）。
+pub const CIVIL_WAR_RELATION: i8 = -100;
+/// 7.1 `OFFICIALS` 文臣員額 2 + 州數 / 5。
+pub const OFFICIALS_BASE: u32 = 2;
+/// 7.1 `OFFICIALS` 文臣員額的州數除數 5。
+pub const OFFICIALS_DIV: u32 = 5;
+/// 7.1 `OFFICIALS` 文臣員額上限 10。
+pub const OFFICIALS_MAX: u32 = 10;
+/// 7.1 `GENERALS` 武將員額 1 + 州數 / 4。
+pub const GENERALS_BASE: u32 = 1;
+/// 7.1 `GENERALS` 武將員額的州數除數 4。
+pub const GENERALS_DIV: u32 = 4;
+/// 7.1 `GENERALS` 武將員額上限 12。
+pub const GENERALS_MAX: u32 = 12;
+/// 7.1 `OFFICIALS` 文臣、武將、立國者的最低年齡 18（取用現有人物時不取幼年者；規格未寫，沿用婚配的成年線）。
+pub const OFFICIAL_MIN_AGE: u32 = 18;
+/// 7.1 `BAN_TAO` 禁道：君主道緣中道 < 0.15。
+pub const BAN_TAO_AFFINITY: f32 = 0.15;
+/// 7.1 `BAN_TAO` 禁道：疆域內宗門聲望 ≥ 100。
+pub const BAN_TAO_PRESTIGE: f32 = 100.0;
+/// 7.1 `BAN_TAO` 禁道每年機率 5%。
+pub const BAN_TAO_CHANCE: f32 = 0.05;
+/// 7.1 `BAN_TAO` 禁道期間宗門聲望修正每年 −5。
+pub const BAN_TAO_SECT_MOD: f32 = -5.0;
+/// 7.1 `BAN_TAO` 禁道頒布時宗門與王朝的關係 −100。
+pub const BAN_TAO_RELATION: i8 = -100;
+/// 7.1 `REVERE_TAO` 尊道：疆域內宗門聲望修正每年 +2。
+pub const REVERE_TAO_SECT_MOD: f32 = 2.0;
+/// 7.1 `REVERE_RU` 尊儒：疆域正氣每年 +0.01。
+pub const REVERE_RU_RIGHT: f32 = 0.01;
+/// 7.1 `DYN_ARMY` 常備軍 = 疆域人口 × 0.005（GDD 2.3、3.7）。
+pub const STANDING_ARMY_RATE: f64 = 0.005;
+/// 7.1 `UPKEEP_TROOP` 軍費：每千兵每年 20。
+pub const UPKEEP_TROOP_PER_1000: f64 = 20.0;
+/// 7.1 `OFFICER` 官俸：每位文臣、武將每年 5。
+pub const UPKEEP_OFFICER: f64 = 5.0;
+/// 7.1 `COURT` 宮廷：收入的 10%。
+pub const UPKEEP_COURT: f64 = 0.1;
+/// 7.1 `TREASURY_CAP` 國庫上限 = 5 年收入。
+pub const TREASURY_CAP_YEARS: f64 = 5.0;
+/// 7.1 `RELIEF` 賑災：天命 ≥ 40。
+pub const RELIEF_MANDATE: f32 = 40.0;
+/// 7.1 `RELIEF` 賑災支出 = 饑荒死者 × 0.001。
+pub const RELIEF_SPEND_PER_DEATH: f64 = 0.001;
+/// 7.1 `RELIEF` 賑災救回饑荒死者的一半。
+pub const RELIEF_SAVED_RATIO: f64 = 0.5;
+/// 7.1 `EXPAND` 擴張：天命 ≥ 50。
+pub const EXPAND_MANDATE: f32 = 50.0;
+/// 7.1 `EXPAND` 擴張：國庫 ≥ 2 年支出。
+pub const EXPAND_TREASURY_YEARS: f64 = 2.0;
+/// 7.1 `EXPAND` 開疆每年機率 20%。
+pub const EXPAND_ANNEX_CHANCE: f32 = 0.2;
+/// 7.1 `EXPAND` 宣戰每年機率 10%。
+pub const EXPAND_WAR_CHANCE: f32 = 0.1;
+/// 7.1 `EXPAND` 宣戰：我方軍力 ≥ 對方 1.3 倍。
+pub const EXPAND_WAR_RATIO: f64 = 1.3;
+/// 7.1 `MOBILIZE` 可動員兵力 P × 0.02 × min(1, M / 100 + 0.5)（GDD 3.9）。
+pub const MOBILIZE_RATE: f64 = 0.02;
+/// 7.1 `MOBILIZE` 動員係數中天命的偏移 0.5。
+pub const MOBILIZE_MANDATE_OFFSET: f64 = 0.5;
+/// 7.1 `RELATION_DRIFT` 關係每年向 0 回歸 10%。
+pub const RELATION_DRIFT_RATE: i32 = 10;
+/// 7.1 `RELATION_DRIFT` 接壤每年 −5。
+pub const RELATION_BORDER: i32 = -5;
+/// 7.1 `RELATION_DRIFT` 同國策每年 +5。
+pub const RELATION_SAME_POLICY: i32 = 5;
+/// 7.1 `FENGSHAN` 封禪：天命 ≥ 90。
+pub const FENGSHAN_MANDATE: f32 = 90.0;
+/// 7.1 `FENGSHAN` 封禪：天命 ≥ 90 須持續 30 年。
+pub const FENGSHAN_YEARS: u16 = 30;
+/// 7.1 `FENGSHAN` 封禪：君主德行 ≥ 8。
+pub const FENGSHAN_VIRTUE: f32 = 8.0;
+/// 7.1 `FENGSHAN` 封禪：君主的魂 G + 300。
+pub const FENGSHAN_MERIT: f32 = 300.0;
+/// 7.1 `FENGSHAN` 封禪：天命 + 10。
+pub const FENGSHAN_MANDATE_BONUS: f32 = 10.0;
+/// 7.1 `FENGSHAN` 封禪：都城正氣 + 0.2。
+pub const FENGSHAN_RIGHT: f32 = 0.2;
+/// 7.1 `DYN_PRESTIGE` 王朝聲望 = 州數 × 10 + M。
+pub const DYN_PRESTIGE_PER_PROVINCE: f32 = 10.0;
+/// 7.1 `ROYAL_BIRTH` 王族生育每年 15%（GDD 3.4）。
+pub const ROYAL_BIRTH: f32 = 0.15;
+/// 7.1 `ROYAL_MAX` 王族子女至多 5 名（GDD 3.4）。
+pub const ROYAL_MAX: usize = 5;
+/// 7.1 `MANDATE_BROKE` 國庫不足時，才略最高的武將叛離自立的機率 50%（GDD 3.7 財政）。
+pub const BROKE_DEFECT_CHANCE: f32 = 0.5;
+
+// ── 天地負荷與大劫（GDD 3.11、2.8；分期預跑後新增）─────────────────────────
+
+/// 7.1 `CATA_LIMIT` 天地承受上限，依規模 [S, M, L]（負荷單位見 `CATA_W_*`）。
+pub const CATA_LIMIT: [f64; 3] = [30.0, 45.0, 60.0];
+/// 7.1 `CATA_W_POP` 負荷權重：每百萬人口。
+pub const CATA_W_POP: f64 = 1.0;
+/// 7.1 `CATA_W_NOTABLE` 負荷權重：每千名在世有名之人。
+pub const CATA_W_NOTABLE: f64 = 2.0;
+/// 7.1 `CATA_W_THREAD` 負荷權重：每萬條未了宿緣線。
+pub const CATA_W_THREAD: f64 = 3.0;
+/// 7.1 `CATA_MIN_GAP_YEARS` 兩次大劫降下之間至少相隔的年數。
+pub const CATA_MIN_GAP_YEARS: u32 = 120;
+/// 7.1 `CATA_DURATION_YEARS` 一次大劫的持續年數（劫終開承平紀元）。
+pub const CATA_DURATION_YEARS: u32 = 3;
+/// 7.1 `CATA_SLOW_YEARS` 劫終之後新宿緣線不易長出的年數。
+pub const CATA_SLOW_YEARS: u32 = 60;
+/// 7.1 `CATA_SLOW_THREAD_CUT` 劫終當下新宿緣線被擋下的比例，之後線性回復。
+pub const CATA_SLOW_THREAD_CUT: f64 = 0.7;
+/// 7.1 `CATA_POP_LOSS` 大劫各州人口基礎損失比例。
+pub const CATA_POP_LOSS: f64 = 0.15;
+/// 7.1 `CATA_POP_LOSS_KARMA` 業氣加成（損失 += 係數 × 業氣）。
+pub const CATA_POP_LOSS_KARMA: f64 = 0.4;
+/// 7.1 `CATA_POP_LOSS_DEVASTATION` 殘破度加成。
+pub const CATA_POP_LOSS_DEVASTATION: f64 = 0.3;
+/// 7.1 `CATA_THREAD_CUT` 大劫切斷未了宿緣線的比例（先切雙方不在世者，再切強度低者）。
+pub const CATA_THREAD_CUT: f64 = 0.6;
+/// 7.1 `CATA_DEATH` 大劫中在世有名之人身隕的機率（不分境界）。
+pub const CATA_DEATH: f64 = 0.2;
+
+// ── 門人（GDD 3.4「凡人、門人與出頭」、6.10 #93）──────────────────────────
+
+/// 7.1 `ADEPT_RATE_BASE` 入道率基準 0.3%（靈潮 1.0）。
+pub const ADEPT_RATE_BASE: f64 = 0.003;
+/// 7.1 `ADEPT_RATE_MAX` 入道率上限 1%（靈潮最高值 `EVO_TIDE_MAX`）。
+pub const ADEPT_RATE_MAX: f64 = 0.01;
+/// 7.1 `ADEPT_RATE_MIN` 入道率下限 0.03%（靈潮最低值 `EVO_TIDE_MIN`）。
+pub const ADEPT_RATE_MIN: f64 = 0.0003;
+/// 7.1 `ADEPT_YEARS` 門人的修行年限 20 年：每年向目標靠近 1/20。
+pub const ADEPT_YEARS: f64 = 20.0;
+/// 7.1 `ADEPT_NOURISH_BASE` 養分基準：1,500 個凡人養一個門人。
+pub const ADEPT_NOURISH_BASE: f64 = 1500.0;
+/// 7.1 `ADEPT_DEMON_EAT` 魔道門人每年消耗本州凡人的人數（每個門人）。
+pub const ADEPT_DEMON_EAT: f64 = 0.5;
+/// 7.1 `ADEPT_COEF_MIN` 世局係數單項下限。
+pub const ADEPT_COEF_MIN: f64 = 0.5;
+/// 7.1 `ADEPT_COEF_MAX` 世局係數單項上限。
+pub const ADEPT_COEF_MAX: f64 = 2.0;
+/// 7.1 `ADEPT_TOP_BOOST` 出了超脫者或在世最高境界者的一門，全世界該門係數乘上此值。
+pub const ADEPT_TOP_BOOST: f64 = 1.5;
+/// 7.1 `ADEPT_TOP_YEARS` 上項加成持續一運（年）。
+pub const ADEPT_TOP_YEARS: u32 = 360;
+/// 7.1 `ADEPT_PRESTIGE_REF` 道門係數：本州與陸鄰道門宗門的聲望合計達此值，聲望項為 2。
+pub const ADEPT_PRESTIGE_REF: f64 = 100.0;
+/// 7.1 `ADEPT_FULL_PULL` 道門係數：宗門名額全滿時名額項為 `1 − 此值`。
+pub const ADEPT_FULL_PULL: f64 = 0.5;
+/// 7.1 `ADEPT_DECLINE_BUDDHA` 佛門係數：末法時 1.5。
+pub const ADEPT_DECLINE_BUDDHA: f64 = 1.5;
+/// 7.1 `ADEPT_POST_CATA_YEARS` 「量劫剛過」：大劫降下後這麼多年內。
+pub const ADEPT_POST_CATA_YEARS: u32 = 30;
+/// 7.1 `ADEPT_POST_CATA_BUDDHA` 佛門係數：量劫剛過時 1.5。
+pub const ADEPT_POST_CATA_BUDDHA: f64 = 1.5;
+/// 7.1 `ADEPT_TURMOIL_WAR` 戰亂度：所屬王朝在交戰時至少為此值（另取殘破度，兩者較大者）。
+pub const ADEPT_TURMOIL_WAR: f64 = 0.5;
+/// 7.1 `ADEPT_UNOWNED_RU` 儒門係數：無主之地 0.8。
+pub const ADEPT_UNOWNED_RU: f64 = 0.8;
+/// 7.1 `ADEPT_PEACE_RU` 儒門係數：有主且不在交戰時 `1 + 此值 × 天命 / 100`。
+pub const ADEPT_PEACE_RU: f64 = 0.5;
+/// 7.1 `ADEPT_TURBID_NEUTRAL` 魔門係數：濁氣項在此濁氣為 1。
+pub const ADEPT_TURBID_NEUTRAL: f64 = 0.1;
+/// 7.1 `ADEPT_TURBID_SLOPE` 魔門係數：濁氣每高 1，濁氣項加此值。
+pub const ADEPT_TURBID_SLOPE: f64 = 3.0;
+/// 7.1 `ADEPT_FEROCITY_NEUTRAL` 魔門係數：本州在世有名之人平均戾氣在此值時戾氣項為 1。
+pub const ADEPT_FEROCITY_NEUTRAL: f64 = 3.0;
+/// 7.1 `ADEPT_FEROCITY_SPAN` 魔門係數：平均戾氣每高此值，戾氣項加 1。
+pub const ADEPT_FEROCITY_SPAN: f64 = 6.0;

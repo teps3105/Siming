@@ -7,13 +7,13 @@ use rand::Rng;
 use rand_chacha::ChaCha8Rng;
 use smallvec::smallvec;
 
-use super::demon::leave_sect;
+use super::demon::{leave_sect, note_departure};
 use crate::ledger::{self, NewEvent};
 use crate::model::*;
 use crate::params::*;
 use crate::people::{self, sect_capacity};
+use crate::schedule::{Domain, Round};
 use crate::sim::World;
-use crate::soul;
 use crate::thread;
 use crate::types::{NodeId, ProvinceId};
 
@@ -84,6 +84,43 @@ pub fn sect_range(w: &World, id: PowerId) -> Vec<ProvinceId> {
     provinces_within(w, p.seat_province, r)
 }
 
+/// 宗門勢力範圍的快取（以宗門編號為索引，用到才算；效能快取，不納入雜湊與存檔）。
+/// 範圍只由山門州郡、半徑與州郡鄰接決定，所以每項記下算出它時的（山門州郡，半徑，州郡數），
+/// 對不上就重算；州郡鄰接在開天後不變。`World` 保存一份，月與月之間沿用。
+#[derive(Debug, Clone, Default)]
+pub struct RangeCache(Vec<Option<RangeEntry>>);
+
+#[derive(Debug, Clone)]
+struct RangeEntry {
+    seat: ProvinceId,
+    radius: u8,
+    provinces: usize,
+    range: Vec<ProvinceId>,
+}
+
+impl RangeCache {
+    pub(super) fn ensure(&mut self, w: &World, id: PowerId) {
+        let i = id as usize;
+        if self.0.len() <= i {
+            self.0.resize(i + 1, None);
+        }
+        let Some(p) = w.powers.get(i) else {
+            self.0[i] = Some(RangeEntry { seat: 0, radius: 0, provinces: usize::MAX, range: Vec::new() });
+            return;
+        };
+        let radius = sect_of(p).map_or(0, |s| s.radius);
+        let valid = self.0[i].as_ref().is_some_and(|e| e.seat == p.seat_province && e.radius == radius && e.provinces == w.provinces.len());
+        if !valid {
+            self.0[i] = Some(RangeEntry { seat: p.seat_province, radius, provinces: w.provinces.len(), range: sect_range(w, id) });
+        }
+    }
+
+    /// 須先 [`RangeCache::ensure`]。
+    pub(super) fn at(&self, id: PowerId) -> &[ProvinceId] {
+        self.0.get(id as usize).and_then(|x| x.as_ref()).map_or(&[], |e| e.range.as_slice())
+    }
+}
+
 // ── 命名 ─────────────────────────────────────────────────
 
 struct OrgNames {
@@ -103,11 +140,7 @@ fn org_names() -> &'static OrgNames {
         let pre = &v["prefix_chars_by_type_and_faction"]["修煉"];
         let suffixes = v["type_suffixes"]["修煉"]["suffixes"]
             .as_array()
-            .map(|a| {
-                a.iter()
-                    .filter_map(|x| Some((x["text"].as_str()?.to_owned(), x["weight"].as_u64()? as u32)))
-                    .collect()
-            })
+            .map(|a| a.iter().filter_map(|x| Some((x["text"].as_str()?.to_owned(), x["weight"].as_u64()? as u32))).collect())
             .unwrap_or_default();
         OrgNames {
             good: (strs(&pre["正道"]["first"]), strs(&pre["正道"]["second"])),
@@ -169,10 +202,8 @@ pub fn choose_seat(w: &World, origin: ProvinceId, ignore: Option<PowerId>) -> Op
             blocked.extend(provinces_within(w, p.seat_province, SECT_FOUND_MIN_SPACING_STEPS - 1));
         }
     }
-    let cands: Vec<ProvinceId> = provinces_within(w, origin, SECT_FOUND_MIN_SPACING_STEPS)
-        .into_iter()
-        .filter(|c| !blocked.contains(c))
-        .collect();
+    let cands: Vec<ProvinceId> =
+        provinces_within(w, origin, SECT_FOUND_MIN_SPACING_STEPS).into_iter().filter(|c| !blocked.contains(c)).collect();
     if cands.is_empty() {
         return None;
     }
@@ -236,12 +267,8 @@ pub fn join_sect(w: &mut World, pid: PersonId, sect: PowerId) {
 }
 
 fn init_relations(w: &mut World, id: PowerId, evil: bool) {
-    let others: Vec<(PowerId, bool)> = w
-        .powers
-        .iter()
-        .filter(|p| p.id != id && is_live_sect(p))
-        .map(|p| (p.id, sect_of(p).is_some_and(|s| s.evil)))
-        .collect();
+    let others: Vec<(PowerId, bool)> =
+        w.powers.iter().filter(|p| p.id != id && is_live_sect(p)).map(|p| (p.id, sect_of(p).is_some_and(|s| s.evil))).collect();
     for (oid, oevil) in others {
         if oevil != evil {
             w.powers[id as usize].relations.insert(oid, EVIL_SECT_RELATION as i8);
@@ -261,6 +288,7 @@ pub fn found_sect(w: &mut World, founder: PersonId, seat: Seat) -> PowerId {
     let id = create_sect(w, founder, seat);
     let p = &w.persons[founder as usize];
     let mut e = NewEvent::new(EventKind::PowerFounded, FOUNDED_IMPORTANCE, EventArgs::Sect { node: seat.node });
+    e.why = Why::SelfFounded;
     e.province = Some(seat.province);
     e.cell = Some(seat.cell);
     e.souls = smallvec![p.soul];
@@ -304,8 +332,8 @@ fn create_sect(w: &mut World, founder: PersonId, seat: Seat) -> PowerId {
 }
 
 /// GDD 6.3 步驟 15：散修（金丹以上）每年 3% 創立宗門。
-pub(super) fn yearly_found(w: &mut World) {
-    for i in w.alive_snapshot().into_iter().map(|x| x as usize) {
+pub(super) fn yearly_found(w: &mut World, round: Round) {
+    for i in w.round_alive(round).into_iter().map(|x| x as usize) {
         let p = &w.persons[i];
         if !p.alive() || p.role != Role::Cultivator || p.power.is_some() {
             continue;
@@ -334,20 +362,17 @@ fn realm_of(w: &World, pid: PersonId) -> u8 {
 }
 
 /// GDD 6.3 步驟 16：散修投靠 → 補足 → 拜師。
-pub(super) fn yearly_recruit(w: &mut World) {
-    join_rogues(w);
-    fill_sects(w);
-    assign_masters(w);
+pub(super) fn yearly_recruit(w: &mut World, round: Round, ranges: &mut RangeCache) {
+    join_rogues(w, round, ranges);
+    fill_sects(w, round);
+    assign_masters(w, round);
 }
 
 /// 散修每年 2% 投靠：勢力範圍涵蓋其所在州、未滿員的宗門中，有效聲望最高者（同值取 ID 小者）。魔修不投靠。
-pub(super) fn join_rogues(w: &mut World) {
-    let ranges: Vec<(PowerId, Vec<ProvinceId>)> =
-        w.powers.iter().filter(|p| is_live_sect(p)).map(|p| (p.id, sect_range(w, p.id))).collect();
-    for i in w.alive_snapshot().into_iter().map(|x| x as usize) {
+pub(super) fn join_rogues(w: &mut World, round: Round, ranges: &mut RangeCache) {
+    for i in w.round_alive(round).into_iter().map(|x| x as usize) {
         let p = &w.persons[i];
-        if !p.alive() || p.role != Role::Cultivator || p.power.is_some() || !matches!(p.path, PathState::Cultivator { .. })
-        {
+        if !p.alive() || p.role != Role::Cultivator || p.power.is_some() || !matches!(p.path, PathState::Cultivator { .. }) {
             continue;
         }
         if w.rng.powers.gen::<f32>() >= SECT_JOIN_ROGUE_CHANCE {
@@ -355,46 +380,81 @@ pub(super) fn join_rogues(w: &mut World) {
         }
         let (pid, prov) = (p.id, p.province);
         let mut best: Option<(f32, PowerId)> = None;
-        for (id, range) in &ranges {
-            let pw = &w.powers[*id as usize];
+        // 勢力範圍只在第一次有人通過機率抽樣時才算（單月輪次多半沒有人要投靠）；加入宗門不改變範圍。
+        for idx in 0..w.powers.len() {
+            let pw = &w.powers[idx];
+            if !is_live_sect(pw) {
+                continue;
+            }
+            let id = pw.id;
+            ranges.ensure(w, id);
+            let pw = &w.powers[idx];
             if pw.fallen.is_some()
-                || range.binary_search(&prov).is_err()
+                || ranges.at(id).binary_search(&prov).is_err()
                 || pw.members.len() >= sect_capacity(effective_prestige(pw))
             {
                 continue;
             }
             let pr = effective_prestige(pw);
             if best.is_none_or(|(bp, _)| pr > bp) {
-                best = Some((pr, *id));
+                best = Some((pr, id));
             }
         }
         if let Some((_, id)) = best {
+            let cause = w.persons[pid as usize].last_event;
             join_sect(w, pid, id);
+            ledger::note_sect_joined(w, pid, id, Why::RogueJoined, cause);
         }
     }
 }
 
-/// 補足（3.4 來源第 2 項）：成員少於規模的宗門，建立新魂以 12 歲出生於山門州郡並入門（受在世上限限制）。
-/// 沒有成員的宗門不補（道統已斷，見覆滅）。
-fn fill_sects(w: &mut World) {
+/// 補足的人選上限年齡：凡人要年輕到還能當弟子。
+const FILL_MAX_AGE_YEARS: u32 = 30;
+
+/// 補足的人選：山門州郡內、沒有勢力的在世者——已滿 12 歲仍是幼年的，或 30 歲以下的凡人（散人）；
+/// 取根骨最高者，同值取 ID 小者。不憑空造人：挑不到就是 `None`。
+fn local_recruit(w: &World, province: ProvinceId) -> Option<PersonId> {
+    let tick = w.tick;
+    let mut best: Option<(f32, PersonId)> = None;
+    for &i in &w.alive_ids {
+        let p = &w.persons[i as usize];
+        if p.province != province || p.power.is_some() || p.travel_until.is_some() {
+            continue;
+        }
+        let age = p.age(tick);
+        let fits = match p.role {
+            Role::Child => age >= FILL_AGE_YEARS,
+            Role::Commoner => matches!(p.path, PathState::Mortal) && (FILL_AGE_YEARS..=FILL_MAX_AGE_YEARS).contains(&age),
+            _ => false,
+        };
+        if fits && best.is_none_or(|(r, _)| p.attrs.root > r) {
+            best = Some((p.attrs.root, p.id));
+        }
+    }
+    best.map(|b| b.1)
+}
+
+/// 補足（3.4 來源第 2 項）：成員少於規模的宗門，從山門州郡既有的人裡挑弟子入門（[`local_recruit`]），
+/// 挑不到就不補；不再建立新魂。沒有成員的宗門不補（道統已斷，見覆滅）。
+fn fill_sects(w: &mut World, round: Round) {
+    let seed = w.params.seed;
     for idx in 0..w.powers.len() {
         let pw = &w.powers[idx];
-        if !is_live_sect(pw) || pw.members.is_empty() {
+        if !is_live_sect(pw) || !round.takes(seed, Domain::Sect, pw.id) || pw.members.is_empty() {
             continue;
         }
         let cap = sect_capacity(effective_prestige(pw));
         let (id, seat_province, seat_cell) = (pw.id, pw.seat_province, pw.seat_cell);
         let mut have = pw.members.len();
-        while have < cap && soul::living_notables(w) < soul::notable_cap(w) {
-            let (_, pid) = soul::spawn_new_life(w, SoulOrigin::New, seat_province);
-            let tick = w.tick;
+        while have < cap {
+            let Some(pid) = local_recruit(w, seat_province) else { break };
             let p = &mut w.persons[pid as usize];
-            p.born = tick as i32 - (FILL_AGE_YEARS * 12) as i32;
             p.role = Role::Cultivator;
             p.path = PathState::Cultivator { realm: 0, exp: 0.0, last_attempt: None };
             p.lifespan = p.lifespan.max(REALM_LIFESPAN[0] as u16);
             join_sect(w, pid, id);
             w.persons[pid as usize].cell = seat_cell;
+            crate::people::events::arm_adult(w, pid);
             let p = &w.persons[pid as usize];
             let mut e = NewEvent::new(EventKind::ComeOfAge, 1, EventArgs::Role { role: Role::Cultivator });
             e.province = Some(p.province);
@@ -413,9 +473,10 @@ fn fill_sects(w: &mut World) {
 
 /// 拜師：沒有師父的非掌門成員，拜本宗境界高於自己的長老（金丹以上、徒弟 < 5）；
 /// 沒有長老時拜掌門。建立師徒關係，師父 G += 2，建師徒線。
-fn assign_masters(w: &mut World) {
+fn assign_masters(w: &mut World, round: Round) {
+    let seed = w.params.seed;
     for idx in 0..w.powers.len() {
-        if !is_live_sect(&w.powers[idx]) {
+        if !is_live_sect(&w.powers[idx]) || !round.takes(seed, Domain::Sect, w.powers[idx].id) {
             continue;
         }
         let members = w.powers[idx].members.clone();
@@ -490,10 +551,12 @@ fn strongest(w: &World, members: &[PersonId], skip: Option<PersonId>) -> Option<
 pub(super) fn fall_sect(w: &mut World, id: PowerId, cause: Option<EventId>) {
     let tick = w.tick;
     let members = std::mem::take(&mut w.powers[id as usize].members);
+    let mut scattered = Vec::new();
     for m in members {
         let p = &mut w.persons[m as usize];
         if p.power == Some(id) {
             p.power = None;
+            scattered.push(m);
         }
     }
     let former_leader = w.powers[id as usize].leader.take();
@@ -508,15 +571,25 @@ pub(super) fn fall_sect(w: &mut World, id: PowerId, cause: Option<EventId>) {
     } else if let Some(c) = former_leader.and_then(|l| w.persons[l as usize].last_event) {
         e.causes.push(c);
     }
-    ledger::record(w, e);
+    let fallen = ledger::record(w, e);
+    // 門人成為散修（師徒關係不變）：各記一筆離宗，以覆滅為因。
+    for m in scattered {
+        ledger::note_sect_left(w, m, id, Why::SectDestroyed, Some(fallen));
+    }
 }
 
 /// GDD 3.5 傳承：首領缺位（`None`、已死或已離宗）的宗門，由戰力最高的成員繼任；
 /// 然後若成員 ≥ 8 且次強者戰力 ≥ 繼任者 70%，35% 機率分裂。成員歸零者覆滅。
 pub fn resolve_leaders(w: &mut World) {
+    resolve_leaders_round(w, Round::All);
+}
+
+/// 同 [`resolve_leaders`]，只處理本輪輪到判定月的宗門（`Sim::step` 的每月宗門事務用）。
+pub(super) fn resolve_leaders_round(w: &mut World, round: Round) {
+    let seed = w.params.seed;
     for idx in 0..w.powers.len() {
         let pw = &w.powers[idx];
-        if !is_live_sect(pw) || leader_valid(w, pw) {
+        if !is_live_sect(pw) || !round.takes(seed, Domain::Sect, pw.id) || leader_valid(w, pw) {
             continue;
         }
         let id = pw.id;
@@ -550,7 +623,7 @@ pub fn resolve_leaders(w: &mut World) {
     }
 }
 
-fn split_sect(w: &mut World, parent: PowerId, second: PersonId, cause: EventId) {
+pub(super) fn split_sect(w: &mut World, parent: PowerId, second: PersonId, cause: EventId) {
     let origin = w.persons[second as usize].province;
     let Some(seat) = choose_seat(w, origin, Some(parent)) else { return };
     let followers: Vec<PersonId> = w.persons[second as usize]
@@ -560,9 +633,9 @@ fn split_sect(w: &mut World, parent: PowerId, second: PersonId, cause: EventId) 
         .filter(|&d| w.persons[d as usize].alive() && w.persons[d as usize].power == Some(parent))
         .collect();
     // 次強者脫離本宗（師徒解除，但門下徒弟隨行，故先記下再還原）
-    leave_sect(w, second);
+    let departure = leave_sect(w, second, &followers);
     let id = create_sect(w, second, seat);
-    for d in followers {
+    for &d in &followers {
         w.powers[parent as usize].members.retain(|&m| m != d);
         w.persons[d as usize].power = None;
         join_sect(w, d, id);
@@ -580,13 +653,20 @@ fn split_sect(w: &mut World, parent: PowerId, second: PersonId, cause: EventId) 
     e.persons = smallvec![second];
     e.powers = smallvec![id, parent];
     e.causes = smallvec![cause];
-    ledger::record(w, e);
+    let split = ledger::record(w, e);
+    // 掌門另立由 `SectSplit` 交代；他原有的師徒與不隨行的徒弟另記解除。隨行的徒弟離開本宗、投入新宗。
+    note_departure(w, &departure, None, Some(split));
+    for d in followers {
+        ledger::note_sect_left(w, d, parent, Why::FollowedMaster, Some(split));
+        ledger::note_sect_joined(w, d, id, Why::FollowedMaster, Some(split));
+    }
 }
 
 /// GDD 6.3 步驟 18：覆滅檢查（成員 0）→ 聲望重算 → 勢力範圍 → 修正值衰減。
-pub(super) fn yearly_prestige(w: &mut World) {
+pub(super) fn yearly_prestige(w: &mut World, round: Round) {
+    let seed = w.params.seed;
     for idx in 0..w.powers.len() {
-        if !is_live_sect(&w.powers[idx]) {
+        if !is_live_sect(&w.powers[idx]) || !round.takes(seed, Domain::Sect, w.powers[idx].id) {
             continue;
         }
         if w.powers[idx].members.is_empty() {
@@ -598,8 +678,7 @@ pub(super) fn yearly_prestige(w: &mut World) {
         pw.prestige = f;
         pw.prestige_mod *= PRESTIGE_MOD_DECAY;
         let eff = pw.prestige + pw.prestige_mod;
-        let r = (SECT_RADIUS_BASE + (1.0 + eff.max(0.0) / SECT_RADIUS_PRESTIGE_DIV).log2().floor() as u32)
-            .min(SECT_RADIUS_MAX);
+        let r = (SECT_RADIUS_BASE + (1.0 + eff.max(0.0) / SECT_RADIUS_PRESTIGE_DIV).log2().floor() as u32).min(SECT_RADIUS_MAX);
         let PowerKind::Sect(s) = &mut pw.kind;
         s.radius = r as u8;
     }

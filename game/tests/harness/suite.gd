@@ -8,6 +8,9 @@ const BOOTSTRAP := "res://app/scenes/bootstrap.tscn"
 ## 流程測試用的世界：固定種子、小尺寸（開得快）。
 const TEST_SEED := 20261011
 const TEST_SIZE := "small"
+## 測試期間存檔與設定的位置（預設沒有任何檔案）；需要寫檔的套件在 setup 改到它底下自己的資料夾。
+## 每個測試行程一個資料夾：幾個工作樹同時跑測試時不會讀到彼此寫的檔。
+static var TEST_STORAGE := "user://test_run/%d" % OS.get_process_id()
 ## 流程測試的畫面大小。
 const FLOW_VIEW := Vector2i(1920, 1080)
 
@@ -73,13 +76,15 @@ func assert_lt(actual: Variant, threshold: Variant, msg: String = "") -> void:
 
 ## 開起整個遊戲（入口場景，小尺寸世界），回傳入口節點；案例結束時自動關掉。時間先暫停，由案例自己放行。
 ## opening_flight 為真時保留開場運鏡，否則鏡頭直接落在開場位置。
-func boot(opening_flight := false, view := FLOW_VIEW) -> Node:
+func boot(opening_flight := false, view := FLOW_VIEW, show_guide := false) -> Node:
 	# 無視窗模式的畫面預設只有 64×64，器物會蓋住整個畫面；預設固定成 1920×1080。
 	tree.root.size = view
 	var game: Node = (load(BOOTSTRAP) as PackedScene).instantiate()
 	game.start_seed = TEST_SEED
 	game.start_size = TEST_SIZE
 	game.opening_flight = opening_flight
+	game.auto_save = false
+	game.show_guide = show_guide
 	track(game)
 	tree.root.add_child(game)
 	await frames(2)
@@ -149,6 +154,15 @@ func click(pos: Vector2) -> void:
 	for pressed: bool in [true, false]:
 		Input.parse_input_event(_mouse_button(MOUSE_BUTTON_LEFT, pressed, pos))
 		await frames(2)
+
+
+## 滑鼠移到螢幕位置 pos（不按鍵）。
+func move_mouse(pos: Vector2) -> void:
+	var event := InputEventMouseMotion.new()
+	event.position = pos
+	event.global_position = pos
+	Input.parse_input_event(event)
+	await frames(2)
 
 
 ## 滾輪在螢幕位置 pos 滾一格；up 為真是往上（拉近）。
@@ -250,12 +264,28 @@ func _note(msg: String) -> String:
 	return "" if msg.is_empty() else "（%s）" % msg
 
 
+## 刪掉這次測試寫下的存檔與設定（執行程式結束前呼叫）。
+static func wipe_storage(dir: String = TEST_STORAGE) -> void:
+	var path := ProjectSettings.globalize_path(dir)
+	if not DirAccess.dir_exists_absolute(path):
+		return
+	for sub in DirAccess.get_directories_at(path):
+		wipe_storage(dir.path_join(sub))
+	for file in DirAccess.get_files_at(path):
+		DirAccess.remove_absolute(path.path_join(file))
+	DirAccess.remove_absolute(path)
+
+
 ## 執行程式在每個案例前後呼叫。
 func _begin_case() -> void:
 	_failed = false
 	_message = ""
 	_assertions = 0
 	_expected_errors.clear()
+	# 存檔與設定指到測試用的位置：測試不讀也不寫玩家的檔案。
+	SaveStore.root = TEST_STORAGE.path_join("saves")
+	GameSettings.file_path = TEST_STORAGE.path_join("settings.cfg")
+	GameSettings.load_file()
 
 
 func _finish_case() -> void:
@@ -275,4 +305,7 @@ func _finish_case() -> void:
 		Input.action_release(action)
 	tree.paused = false
 	Engine.time_scale = 1.0
+	SaveStore.root = SaveStore.DEFAULT_ROOT
+	GameSettings.file_path = GameSettings.DEFAULT_PATH
+	GameSettings.load_file()
 	await tree.process_frame

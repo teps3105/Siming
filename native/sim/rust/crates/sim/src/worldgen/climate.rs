@@ -123,16 +123,10 @@ pub fn compute(sp: &Sphere, height: &[f32], sea: f32, humidity: f32, scale: usiz
             // 乾燥帶中心緯度隨低頻雜訊擺動 ±WG_DRY_BELT_WOBBLE。
             let center = WG_DRY_BELT_LAT + WG_DRY_BELT_WOBBLE * (2.0 * dn_f[i] - 1.0);
             let dz = (lat_deg - center) / WG_DRY_BELT_HALF;
-            let dry = WG_DRY_BELT_DEPTH
-                * (-dz * dz).exp()
-                * (WG_DRY_BELT_PATCH_BASE + WG_DRY_BELT_PATCH_SPAN * qn_f[i]);
+            let dry = WG_DRY_BELT_DEPTH * (-dz * dz).exp() * (WG_DRY_BELT_PATCH_BASE + WG_DRY_BELT_PATCH_SPAN * qn_f[i]);
             t[i] = lat_t - WG_TEMP_ALT_COEF * land_h(i) + WG_TEMP_NOISE_COEF * (tn_f[i] - 0.5);
             let coast = (-(dist[i] as f32) / (WG_COAST_DECAY * scale as f32)).exp();
-            q[i] = (WG_HUMID_NOISE_WEIGHT * qn_f[i]
-                + WG_HUMID_MOIST_WEIGHT * moist[i]
-                + WG_HUMID_COAST_WEIGHT * coast
-                - dry)
-                * humidity;
+            q[i] = (WG_HUMID_NOISE_WEIGHT * qn_f[i] + WG_HUMID_MOIST_WEIGHT * moist[i] + WG_HUMID_COAST_WEIGHT * coast - dry) * humidity;
             q[i] = q[i].max(0.0);
         }
     }

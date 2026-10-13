@@ -3,6 +3,7 @@
 use std::collections::BTreeMap;
 
 use super::*;
+use crate::ledger::{self, NewEvent};
 use crate::model::*;
 use crate::params::*;
 use crate::people;
@@ -20,7 +21,7 @@ fn province(id: u16, neighbors: Vec<u16>, aura: f32) -> Province {
         terrain_mix: [0; Terrain::COUNT],
         habitability: 1.0,
         capacity: 1000.0,
-        population: 1000.0,
+        population: 1_000_000.0,
         aura,
         karma_qi: 0.0,
         merit: 0.0,
@@ -28,6 +29,7 @@ fn province(id: u16, neighbors: Vec<u16>, aura: f32) -> Province {
         devastation: 0.0,
         faith: [0.3, 0.1, 0.1],
         city_level: 0,
+        lost: false,
     }
 }
 
@@ -55,10 +57,7 @@ fn line_world(seed: u64, n: usize, nodes: &[(u16, f32)]) -> World {
         river: vec![],
         province_of: (0..n as u16 * 2).map(|c| c / 2).collect(),
         aura_cell: vec![],
-        nodes: nodes
-            .iter()
-            .map(|&(p, s)| LeyNode { cell: p as u32 * 2, strength: s, name: format!("n{p}") })
-            .collect(),
+        nodes: nodes.iter().map(|&(p, s)| LeyNode { cell: p as u32 * 2, strength: s, origin: s, name: format!("n{p}") }).collect(),
         ley: vec![],
         rivers: vec![],
         ranges: vec![],
@@ -67,7 +66,7 @@ fn line_world(seed: u64, n: usize, nodes: &[(u16, f32)]) -> World {
     };
     let mut w = World::empty(WorldParams::new(seed), geo, provs);
     soul::ensure_heaven(&mut w);
-    w.tick = 1200;
+    w.tick = 1200 * 30;
     w
 }
 
@@ -76,7 +75,7 @@ fn cult(w: &mut World, prov: u16, realm: u8, exp: f32) -> PersonId {
     let (_, pid) = soul::spawn_new_life(w, SoulOrigin::New, prov);
     let tick = w.tick;
     let p = &mut w.persons[pid as usize];
-    p.born = tick as i32 - 30 * 12;
+    p.born = tick as i32 - 30 * 360;
     p.role = Role::Cultivator;
     p.path = PathState::Cultivator { realm, exp, last_attempt: None };
     p.lifespan = 10_000;
@@ -153,8 +152,8 @@ fn formulas_match_params() {
     assert!((ascension_survival(300.0) - 0.80 * (-1.0f32).exp()).abs() < 1e-6);
     // 冷卻 36 個月
     assert!(cooldown_ready(None, 5));
-    assert!(!cooldown_ready(Some(100), 135));
-    assert!(cooldown_ready(Some(100), 136));
+    assert!(!cooldown_ready(Some(100), 100 + 36 * 30 - 1));
+    assert!(cooldown_ready(Some(100), 100 + 36 * 30));
     // 心魔
     assert_eq!(heart_demon_chance(50.0, 0.0, false), 0.0);
     assert!((heart_demon_chance(280.0, 0.0, false) - 0.2).abs() < 1e-6);
@@ -192,7 +191,7 @@ fn cultivation_caps_at_realm_exp() {
     let mut w = line_world(2, 2, &[]);
     let a = cult(&mut w, 0, 0, 7.9);
     w.persons[a as usize].last_attempt_block();
-    cultivate::yearly_actions(&mut w);
+    cultivate::yearly_actions(&mut w, crate::schedule::Round::All);
     assert!(exp(&w, a) <= REALM_EXP[0] + 1e-4);
 }
 
@@ -203,7 +202,7 @@ impl Block for Person {
     /// 讓冷卻未過，避免測試中途突破。
     fn last_attempt_block(&mut self) {
         if let PathState::Cultivator { realm, exp, .. } = self.path {
-            self.path = PathState::Cultivator { realm, exp, last_attempt: Some(1199) };
+            self.path = PathState::Cultivator { realm, exp, last_attempt: Some(1199 * 30) };
         }
     }
 }
@@ -237,14 +236,12 @@ fn failed_breakthrough_keeps_85_percent_and_may_kill_from_golden_core() {
         w.persons[i as usize].attrs.insight = 0.0;
     }
     yearly(&mut w);
-    assert!(ids
-        .iter()
-        .all(|&i| !matches!(w.persons[i as usize].died, Some((_, DeathCause::BreakthroughFailed)))));
+    assert!(ids.iter().all(|&i| !matches!(w.persons[i as usize].died, Some((_, DeathCause::BreakthroughFailed)))));
     let failed = ids.iter().filter(|&&i| w.persons[i as usize].alive() && realm(&w, i) == 1).count();
     assert!(failed > 100);
     for &i in &ids {
         if w.persons[i as usize].alive() && realm(&w, i) == 1 {
-            assert!(matches!(w.persons[i as usize].path, PathState::Cultivator { last_attempt: Some(1200), .. }));
+            assert!(matches!(w.persons[i as usize].path, PathState::Cultivator { last_attempt: Some(36000), .. }));
             assert!(exp(&w, i) >= REALM_EXP[1] * BT_FAIL_KEEP - 1e-3);
         }
     }
@@ -256,11 +253,10 @@ fn failed_breakthrough_keeps_85_percent_and_may_kill_from_golden_core() {
         set_soul(&mut w, i, 0.0, 0.0);
     }
     yearly(&mut w);
-    let failed_death = ids
-        .iter()
-        .filter(|&&i| matches!(w.persons[i as usize].died, Some((_, DeathCause::BreakthroughFailed))))
-        .count() as f32;
-    let fails = ids.len() as f32 * (1.0 - 0.35 * 0.8) * 0.0 + ids.iter().filter(|&&i| realm(&w, i) == 2 || !w.persons[i as usize].alive()).count() as f32;
+    let failed_death =
+        ids.iter().filter(|&&i| matches!(w.persons[i as usize].died, Some((_, DeathCause::BreakthroughFailed)))).count() as f32;
+    let fails = ids.len() as f32 * (1.0 - 0.35 * 0.8) * 0.0
+        + ids.iter().filter(|&&i| realm(&w, i) == 2 || !w.persons[i as usize].alive()).count() as f32;
     // 失敗者中的身死比例 ≈ 0.16（含天劫死亡者不在此列）
     let rate = failed_death / (failed_death + ids.iter().filter(|&&i| w.persons[i as usize].alive() && realm(&w, i) == 2).count() as f32);
     assert!((rate - 0.16).abs() < 0.04, "rate {rate} fails {fails}");
@@ -301,14 +297,8 @@ fn tribulation_outcomes_follow_sin() {
         let tol = 4.0 * (0.4f32 * 0.6 / fails).sqrt();
         assert!((shed as f32 / fails - 0.4).abs() < tol, "shed {shed} perished {perished}");
         // 死因與魂印
-        assert_eq!(
-            ids.iter().filter(|&&i| matches!(w.persons[i as usize].died, Some((_, DeathCause::ShedBody)))).count(),
-            shed
-        );
-        assert_eq!(
-            ids.iter().filter(|&&i| matches!(w.persons[i as usize].died, Some((_, DeathCause::Tribulation)))).count(),
-            perished
-        );
+        assert_eq!(ids.iter().filter(|&&i| matches!(w.persons[i as usize].died, Some((_, DeathCause::ShedBody)))).count(), shed);
+        assert_eq!(ids.iter().filter(|&&i| matches!(w.persons[i as usize].died, Some((_, DeathCause::Tribulation)))).count(), perished);
     }
 }
 
@@ -327,11 +317,7 @@ fn passing_tribulation_resets_exp_and_extends_lifespan() {
     assert_eq!(count(&w, EventKind::Tribulation), 1);
     // 事件的境界為新境界
     assert!(w.ledger.events.iter().any(|e| e.kind == EventKind::Breakthrough && e.args == EventArgs::Realm { realm: 2 }));
-    assert!(w
-        .ledger
-        .events
-        .iter()
-        .any(|e| e.args == EventArgs::Tribulation { realm: 2, outcome: TribulationOutcome::Passed }));
+    assert!(w.ledger.events.iter().any(|e| e.args == EventArgs::Tribulation { realm: 2, outcome: TribulationOutcome::Passed }));
 }
 
 /// 轉世大能：渡過天劫同時寫 `Tribulation{Passed}` 與 `Breakthrough`（同境界），天書只計一次。
@@ -377,10 +363,7 @@ fn forced_ascension_liberates_soul_and_counts_for_sect() {
     monthly_forced(&mut w);
     let p = &w.persons[a as usize];
     assert!(matches!(p.died, Some((_, DeathCause::Ascended))));
-    assert!(matches!(
-        w.souls[p.soul as usize].state,
-        SoulState::Liberated { way: Liberation::Ascension, .. }
-    ));
+    assert!(matches!(w.souls[p.soul as usize].state, SoulState::Liberated { way: Liberation::Ascension, .. }));
     assert_eq!(count(&w, EventKind::Ascended), 1);
     let PowerKind::Sect(sc) = &w.powers[s as usize].kind;
     assert_eq!(sc.ascended, 1);
@@ -392,11 +375,11 @@ fn forced_ascension_liberates_soul_and_counts_for_sect() {
 fn omen_for_yuanying_with_full_exp_and_cooldown_ending() {
     let mut w = line_world(15, 2, &[]);
     let a = cult(&mut w, 0, 3, REALM_EXP[3]);
-    w.persons[a as usize].path = PathState::Cultivator { realm: 3, exp: REALM_EXP[3], last_attempt: Some(w.tick - 30) };
+    w.persons[a as usize].path = PathState::Cultivator { realm: 3, exp: REALM_EXP[3], last_attempt: Some(w.tick - 30 * 30) };
     let b = cult(&mut w, 0, 2, REALM_EXP[2]);
-    w.persons[b as usize].path = PathState::Cultivator { realm: 2, exp: REALM_EXP[2], last_attempt: Some(w.tick - 30) };
+    w.persons[b as usize].path = PathState::Cultivator { realm: 2, exp: REALM_EXP[2], last_attempt: Some(w.tick - 30 * 30) };
     let c = cult(&mut w, 0, 3, REALM_EXP[3]);
-    w.persons[c as usize].path = PathState::Cultivator { realm: 3, exp: REALM_EXP[3], last_attempt: Some(w.tick - 5) };
+    w.persons[c as usize].path = PathState::Cultivator { realm: 3, exp: REALM_EXP[3], last_attempt: Some(w.tick - 5 * 30) };
     yearly(&mut w);
     let omens: Vec<_> = w.ledger.events.iter().filter(|e| e.kind == EventKind::TribulationOmen).collect();
     assert_eq!(omens.len(), 1);
@@ -458,12 +441,11 @@ fn demon_slaying_evil_target_gives_merit_without_thread() {
     w.persons[demon as usize].role = Role::Demonic;
     set_soul(&mut w, hunter, 10.0, 0.0);
     set_soul(&mut w, demon, 0.0, 200.0); // S > G + 50
-    let index = demon::PersonIndex::build(&w);
     for _ in 0..200 {
         if !w.persons[demon as usize].alive() {
             break;
         }
-        demon::hunt(&mut w, &index, hunter);
+        demon::hunt(&mut w, hunter);
     }
     assert!(!w.persons[demon as usize].alive(), "10% 每年，200 次內必中");
     assert!(matches!(w.persons[demon as usize].died, Some((_, DeathCause::Killed))));
@@ -472,6 +454,8 @@ fn demon_slaying_evil_target_gives_merit_without_thread() {
     assert_eq!(w.souls[hs].sin, 0.0);
     assert!(w.threads.is_empty());
     assert_eq!(count(&w, EventKind::Killed), 1);
+    let ke = w.ledger.events.iter().find(|e| e.kind == EventKind::Killed).unwrap();
+    assert_eq!(ke.why, Why::SlayDemon, "斬妖除魔的殺人事件記成因「除魔」");
 }
 
 #[test]
@@ -482,10 +466,9 @@ fn hunt_requires_realm_and_net_karma() {
     set_soul(&mut w, sinner, 0.0, 10.0);
     let demon = cult(&mut w, 0, 0, 0.0);
     w.persons[demon as usize].role = Role::Demonic;
-    let index = demon::PersonIndex::build(&w);
     for _ in 0..300 {
-        demon::hunt(&mut w, &index, low);
-        demon::hunt(&mut w, &index, sinner);
+        demon::hunt(&mut w, low);
+        demon::hunt(&mut w, sinner);
     }
     assert!(w.persons[demon as usize].alive());
 }
@@ -497,14 +480,13 @@ fn demon_assassination_gains_exp_and_sin() {
     w.persons[d as usize].role = Role::Demonic;
     w.persons[d as usize].attrs.ferocity = 10.0; // 20%
     let victim = cult(&mut w, 1, 0, 0.0);
-    let index = demon::PersonIndex::build(&w);
     for _ in 0..200 {
         if !w.persons[victim as usize].alive() {
             break;
         }
-        demon::assassinate(&mut w, &index, d);
+        demon::assassinate(&mut w, d);
     }
-    
+
     assert!(!w.persons[victim as usize].alive());
     // 修為 += 對方戰力（1.1）× 2
     assert!((exp(&w, d) - 1.1 * DEMON_KILL_EXP).abs() < 1e-3, "{}", exp(&w, d));
@@ -543,7 +525,7 @@ fn yearly_found_creates_sects_with_spacing() {
             cult(&mut w, i, 2, 0.0);
         }
     }
-    sect::yearly_found(&mut w);
+    sect::yearly_found(&mut w, crate::schedule::Round::All);
     let sects: Vec<_> = w.powers.iter().collect();
     assert!(!sects.is_empty());
     for (i, a) in sects.iter().enumerate() {
@@ -586,8 +568,15 @@ fn recruit_masters_fill_and_join() {
     let s = new_sect(&mut w, 0, &[leader, elder, novice], leader);
     let rogue_near = cult(&mut w, 1, 0, 0.0);
     w.persons[novice as usize].master = None;
+    // 山門州郡內有 6 名滿 12 歲的幼年；補足只從他們當中挑，不建立新魂。
+    let tick = w.tick as i32;
+    for _ in 0..6 {
+        let (_, kid) = soul::spawn_new_life(&mut w, SoulOrigin::New, 0);
+        w.persons[kid as usize].born = tick - 12 * 360;
+    }
+    let souls = w.souls.len();
     let g0 = 0.0;
-    sect::yearly_recruit(&mut w);
+    sect::yearly_recruit(&mut w, crate::schedule::Round::All, &mut sect::RangeCache::default());
     // 新人拜長老（境界高於自己者），長老無師父 → 拜掌門
     assert!([Some(leader), Some(elder)].contains(&w.persons[novice as usize].master));
     assert_eq!(w.persons[elder as usize].master, Some(leader));
@@ -605,7 +594,21 @@ fn recruit_masters_fill_and_join() {
     }
     let newest = *w.powers[s as usize].members.last().unwrap();
     assert_eq!(w.persons[newest as usize].age(w.tick), 12);
+    assert_eq!(w.persons[newest as usize].born, tick - 12 * 360, "降生時刻不改");
+    assert_eq!(w.souls.len(), souls, "不建立新魂");
     assert!(w.persons[rogue_near as usize].power.is_none() || w.persons[rogue_near as usize].power == Some(s));
+}
+
+/// 不憑空造人：山門州郡沒有可招的人，宗門就不補足。
+#[test]
+fn fill_does_not_create_people_when_nobody_is_local() {
+    let mut w = line_world(36, 4, &[]);
+    let leader = cult(&mut w, 0, 4, 0.0);
+    let s = new_sect(&mut w, 0, &[leader], leader);
+    let (souls, persons) = (w.souls.len(), w.persons.len());
+    sect::yearly_recruit(&mut w, crate::schedule::Round::All, &mut sect::RangeCache::default());
+    assert_eq!(w.powers[s as usize].members.len(), 1);
+    assert_eq!((w.souls.len(), w.persons.len()), (souls, persons));
 }
 
 #[test]
@@ -625,7 +628,7 @@ fn rogues_join_highest_prestige_unfilled_sect_in_range() {
             d
         })
         .collect();
-    sect::join_rogues(&mut w);
+    sect::join_rogues(&mut w, crate::schedule::Round::All, &mut sect::RangeCache::default());
     let joined1 = rogues.iter().filter(|&&r| w.persons[r as usize].power == Some(s1)).count();
     let joined2 = rogues.iter().filter(|&&r| w.persons[r as usize].power == Some(s2)).count();
     // 聲望較高的 s2 先收滿，溢出者才進 s1；兩宗都不超過各自規模
@@ -646,7 +649,7 @@ fn prestige_and_radius() {
         sc.ascended = 2;
     }
     w.powers[s as usize].prestige_mod = 100.0;
-    sect::yearly_prestige(&mut w);
+    sect::yearly_prestige(&mut w, crate::schedule::Round::All);
     let pw = &w.powers[s as usize];
     let expect = people::power_of(&w, l).sqrt() + people::power_of(&w, m).sqrt() + 100.0;
     assert!((pw.prestige - expect).abs() < 1e-4);
@@ -825,7 +828,7 @@ fn yearly_wars_need_shared_node_and_hostility() {
             }
             let PowerKind::Sect(x) = &mut w.powers[sb as usize].kind;
             x.evil = evil;
-            war::yearly_wars(&mut w);
+            war::yearly_wars(&mut w, crate::schedule::Round::All, &mut sect::RangeCache::default());
             fought[case] += count(&w, EventKind::SectWar) as u32;
         }
     }
@@ -846,7 +849,7 @@ fn scenario(seed: u64) -> u64 {
         }
     }
     for y in 0..40 {
-        w.tick += 12;
+        w.tick += 360;
         yearly(&mut w);
         yearly_sects(&mut w);
         if y % 7 == 0 {
@@ -897,4 +900,182 @@ fn smoke_three_yun() {
             w.persons.iter().filter(|p| p.alive()).count()
         );
     }
+}
+
+// ── 分月判定（GDD 6.3 判定月）────────────────────────────
+
+/// 每個修士一年內修煉恰好一次：連續 12 個月逐月呼叫個人判定，修為增量落在單次修煉的範圍內；
+/// 年中才建立的人也一樣，從建立當月起算滿 12 個月仍只有一次，不重複也不漏。
+#[test]
+fn gdd_6_3_cultivation_once_per_year_across_monthly_rounds() {
+    let mut w = line_world(31, 2, &[]);
+    w.tick = 1237 * 30; // 年中
+    let ids: Vec<_> = (0..60).map(|_| cult(&mut w, 0, 0, 0.0)).collect();
+    for &id in &ids {
+        w.persons[id as usize].last_attempt_block();
+    }
+    let coef: Vec<f32> = ids.iter().map(|&id| cultivation_coefficient(&w, &w.persons[id as usize])).collect();
+    for _ in 0..12 {
+        w.tick += 30;
+        monthly_personal(&mut w);
+    }
+    let mut checked = 0;
+    for (k, &id) in ids.iter().enumerate() {
+        let p = &w.persons[id as usize];
+        if !p.alive() || !matches!(p.role, Role::Cultivator) || !matches!(p.path, PathState::Cultivator { .. }) {
+            continue;
+        }
+        let gain = exp(&w, id);
+        let c = coef[k];
+        assert!(gain >= c * CULT_NOISE_MIN - 1e-4 && gain <= c * CULT_NOISE_MAX + 1e-4, "人 {id} 增量 {gain} 係數 {c}");
+        checked += 1;
+    }
+    assert!(checked >= 50, "多數人應仍在世且為修士，實得 {checked}");
+}
+
+/// 單月輪次只處理判定月輪到的人：同一個月內，沒輪到的人修為不動。
+#[test]
+fn gdd_6_3_monthly_round_touches_only_due_persons() {
+    let mut w = line_world(32, 2, &[]);
+    w.tick = 1200 * 30;
+    let ids: Vec<_> = (0..60).map(|_| cult(&mut w, 0, 0, 0.0)).collect();
+    for &id in &ids {
+        w.persons[id as usize].last_attempt_block();
+    }
+    w.tick += 30;
+    let month = crate::schedule::month_of(w.tick);
+    monthly_personal(&mut w);
+    for &id in &ids {
+        let due = crate::schedule::judge_month(w.params.seed, crate::schedule::Domain::Person, id) == month;
+        if w.persons[id as usize].alive() && matches!(w.persons[id as usize].role, Role::Cultivator) {
+            assert_eq!(exp(&w, id) > 0.0, due, "人 {id}");
+        }
+    }
+}
+
+// ── GDD 5.12 人物生平的三種紀錄：入宗門、離宗、師徒解除 ──────────────
+
+fn events_of(w: &World, k: EventKind) -> Vec<&Event> {
+    w.ledger.events.iter().filter(|e| e.kind == k).collect()
+}
+
+fn link_master(w: &mut World, disciple: PersonId, master: PersonId) {
+    w.persons[disciple as usize].master = Some(master);
+    w.persons[master as usize].disciples.push(disciple);
+}
+
+type Digest = (Vec<u32>, Vec<u32>, Why, Vec<u32>);
+
+fn digest(list: &[&Event]) -> Vec<Digest> {
+    list.iter().map(|e| (e.persons.to_vec(), e.powers.to_vec(), e.why, e.causes.to_vec())).collect()
+}
+
+#[test]
+fn rogue_joining_a_sect_is_recorded_once_and_leaves_last_event_alone() {
+    let mut w = line_world(61, 4, &[]);
+    let l = cult(&mut w, 0, 3, 0.0);
+    let s = new_sect(&mut w, 0, &[l], l);
+    let rogues: Vec<_> = (0..40).map(|_| cult(&mut w, 1, 0, 0.0)).collect();
+    // 寫入前先給每人一個最近事件，確認紀錄不改它、且以它為因。
+    let marks: Vec<_> = rogues
+        .iter()
+        .map(|&r| {
+            let mut e = NewEvent::new(EventKind::Traveled, 1, EventArgs::None);
+            e.persons.push(r);
+            ledger::record(&mut w, e)
+        })
+        .collect();
+    sect::join_rogues(&mut w, crate::schedule::Round::All, &mut sect::RangeCache::default());
+    let joined: Vec<_> = rogues.iter().copied().filter(|&r| w.persons[r as usize].power == Some(s)).collect();
+    assert!(!joined.is_empty());
+    let notes = events_of(&w, EventKind::SectJoined);
+    assert_eq!(notes.len(), joined.len(), "每個投靠的人一筆");
+    for (&r, &mark) in rogues.iter().zip(&marks) {
+        assert_eq!(w.persons[r as usize].last_event, Some(mark), "紀錄不改最近事件");
+        let mine: Vec<_> = notes.iter().filter(|e| e.persons.as_slice() == [r]).collect();
+        assert_eq!(mine.len(), usize::from(joined.contains(&r)));
+        if let Some(e) = mine.first() {
+            assert_eq!((e.why, e.importance, e.powers.to_vec(), e.causes.to_vec()), (Why::RogueJoined, 1, vec![s], vec![mark]));
+        }
+    }
+}
+
+#[test]
+fn master_death_ends_each_apprenticeship_with_the_death_as_cause() {
+    let mut w = line_world(62, 4, &[]);
+    let m = cult(&mut w, 0, 4, 0.0);
+    let (a, b) = (cult(&mut w, 0, 1, 0.0), cult(&mut w, 0, 1, 0.0));
+    link_master(&mut w, a, m);
+    link_master(&mut w, b, m);
+    let born_a = w.persons[a as usize].last_event;
+    let died = people::die(&mut w, m, DeathCause::Age, None, &[]).unwrap();
+    let ends = events_of(&w, EventKind::MasterEnded);
+    assert_eq!(ends.len(), 2);
+    for (e, d) in ends.iter().zip([a, b]) {
+        assert_eq!((e.persons.to_vec(), e.why, e.causes.to_vec()), (vec![d, m], Why::MasterDied, vec![died]));
+        assert_eq!(w.persons[d as usize].master, None);
+    }
+    assert_eq!(w.persons[a as usize].last_event, born_a, "紀錄不改最近事件");
+}
+
+#[test]
+fn falling_to_demon_records_leaving_the_sect_and_both_ends_of_the_apprenticeship() {
+    let mut w = line_world(63, 4, &[]);
+    let (top, x, y) = (cult(&mut w, 0, 5, 0.0), cult(&mut w, 0, 3, 0.0), cult(&mut w, 0, 1, 0.0));
+    let s = new_sect(&mut w, 0, &[top, x, y], top);
+    link_master(&mut w, x, top);
+    link_master(&mut w, y, x);
+    fall_to_demon(&mut w, x);
+    let fell = events_of(&w, EventKind::FellToDemon)[0].id;
+    assert_eq!(digest(&events_of(&w, EventKind::SectLeft)), vec![(vec![x], vec![s], Why::LeftForDemon, vec![fell])]);
+    let ends: Vec<_> = events_of(&w, EventKind::MasterEnded).iter().map(|e| (e.persons.to_vec(), e.why, e.causes.to_vec())).collect();
+    assert_eq!(ends, vec![(vec![x, top], Why::DiscipleLeft, vec![fell]), (vec![y, x], Why::MasterLeft, vec![fell])]);
+}
+
+#[test]
+fn a_fallen_sect_scatters_its_members_and_keeps_their_masters() {
+    let mut w = line_world(64, 4, &[]);
+    let (a, b) = (cult(&mut w, 2, 3, 0.0), cult(&mut w, 2, 2, 0.0));
+    let s = new_sect(&mut w, 2, &[a, b], a);
+    link_master(&mut w, b, a);
+    sect::fall_sect(&mut w, s, None);
+    let fallen = events_of(&w, EventKind::PowerFallen)[0].id;
+    assert_eq!(
+        digest(&events_of(&w, EventKind::SectLeft)),
+        vec![(vec![a], vec![s], Why::SectDestroyed, vec![fallen]), (vec![b], vec![s], Why::SectDestroyed, vec![fallen])]
+    );
+    assert_eq!(count(&w, EventKind::MasterEnded), 0, "師徒關係沒有變");
+    assert_eq!(w.persons[b as usize].master, Some(a));
+}
+
+#[test]
+fn schism_moves_followers_with_their_master_and_drops_only_the_rest() {
+    let mut w = line_world(65, 4, &[]);
+    let (top, second) = (cult(&mut w, 0, 5, 0.0), cult(&mut w, 0, 4, 0.0));
+    let (f1, f2) = (cult(&mut w, 0, 1, 0.0), cult(&mut w, 0, 1, 0.0));
+    let outsider = cult(&mut w, 1, 1, 0.0);
+    let parent = new_sect(&mut w, 0, &[top, second, f1, f2], top);
+    link_master(&mut w, second, top);
+    for d in [f1, f2, outsider] {
+        link_master(&mut w, d, second);
+    }
+    sect::split_sect(&mut w, parent, second, 0);
+    let split = events_of(&w, EventKind::SectSplit)[0];
+    let new = split.powers[0];
+    assert_eq!(
+        digest(&events_of(&w, EventKind::SectLeft)),
+        vec![(vec![f1], vec![parent], Why::FollowedMaster, vec![split.id]), (vec![f2], vec![parent], Why::FollowedMaster, vec![split.id])]
+    );
+    assert_eq!(
+        digest(&events_of(&w, EventKind::SectJoined)),
+        vec![(vec![f1], vec![new], Why::FollowedMaster, vec![split.id]), (vec![f2], vec![new], Why::FollowedMaster, vec![split.id])]
+    );
+    // 師徒解除只有掌門離開本宗的那一條與不隨行的徒弟；隨行者沒有。
+    let ends: Vec<_> = events_of(&w, EventKind::MasterEnded).iter().map(|e| (e.persons.to_vec(), e.why, e.causes.to_vec())).collect();
+    assert_eq!(
+        ends,
+        vec![(vec![second, top], Why::DiscipleLeft, vec![split.id]), (vec![outsider, second], Why::MasterLeft, vec![split.id])]
+    );
+    assert_eq!((w.persons[f1 as usize].master, w.persons[f2 as usize].master), (Some(second), Some(second)));
+    assert_eq!(w.persons[outsider as usize].master, None);
 }

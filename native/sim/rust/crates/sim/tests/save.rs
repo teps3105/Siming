@@ -4,7 +4,7 @@
 //! 讓出生、入道、婚配、修煉、突破、轉世、宿緣、因果帳都真的跑起來。
 
 use siming_sim::model::{Command, SoulOrigin};
-use siming_sim::save::{SaveError, SaveFile};
+use siming_sim::save::{Replay, SaveError, SaveFile};
 use siming_sim::types::{WorldGenError, WorldParams};
 use siming_sim::{soul, Sim};
 
@@ -14,13 +14,13 @@ fn populated(p: &WorldParams) -> Result<Sim, WorldGenError> {
     let g = siming_sim::worldgen::generate(p)?;
     let mut sim = Sim::from_parts(g.params, g.geo, g.provinces);
     let w = sim.world_mut();
-    w.tick = 1200;
+    w.tick = 1200 * 30;
     soul::ensure_heaven(w);
     let n = w.provinces.len() as u16;
     for i in 0..400u32 {
         let prov = (i * 7 % n as u32) as u16;
         let (_, pid) = soul::spawn_new_life(w, SoulOrigin::Primordial, prov);
-        w.persons[pid as usize].born = w.tick as i32 - ((16 + i % 30) * 12) as i32;
+        w.persons[pid as usize].born = w.tick as i32 - ((16 + i % 30) * 360) as i32;
     }
     Ok(sim)
 }
@@ -40,7 +40,7 @@ fn two_runs_same_seed_same_hash_at_every_yun_boundary() {
             b.step();
         }
         assert_eq!(a.hash(), b.hash());
-        assert_eq!(a.world().tick % YUN, 1200 % YUN);
+        assert_eq!(a.world().tick % (YUN * 30), 1200 * 30 % (YUN * 30));
     }
     // 世界確實在演化（不是兩個空世界）。
     assert!(a.world().ledger.events.len() > 400);
@@ -164,12 +164,63 @@ fn hash_covers_new_fields() {
     assert_ne!(h0, mutate(&|w| w.persons[1].lifespan += 1));
     assert_ne!(h0, mutate(&|w| w.kill_pairs.insert((1, 2), 1).map(|_| ()).unwrap_or(())));
     assert_ne!(h0, mutate(&|w| w.prerun = !w.prerun));
-    assert_ne!(h0, mutate(&|w| {
-        use rand::RngCore;
-        w.rng.command.next_u32();
-    }));
-    assert_ne!(h0, mutate(&|w| {
-        use rand::RngCore;
-        w.rng.people.next_u32();
-    }));
+    assert_ne!(
+        h0,
+        mutate(&|w| {
+            use rand::RngCore;
+            w.rng.command.next_u32();
+        })
+    );
+    assert_ne!(
+        h0,
+        mutate(&|w| {
+            use rand::RngCore;
+            w.rng.people.next_u32();
+        })
+    );
+}
+
+#[test]
+fn replay_in_slices_matches_loading_in_one_go() {
+    let mut a = populated(&params(4242)).unwrap();
+    for _ in 0..200 {
+        a.step();
+    }
+    a.apply(Command::Follow { soul: 5, on: true });
+    for _ in 0..150 {
+        a.step();
+    }
+    a.apply(Command::Follow { soul: 9, on: true });
+    let file = a.save();
+
+    let mut replay = Replay::start(file.clone(), populated).unwrap();
+    assert_eq!(replay.progress(), 0.0);
+    let mut last = 0.0;
+    let mut rounds = 0;
+    while !replay.advance(60).unwrap() {
+        let p = replay.progress();
+        assert!(p >= last && p <= 1.0);
+        last = p;
+        rounds += 1;
+    }
+    assert!(rounds >= 5, "350 個 tick 每次 60 個，至少分 5 段");
+    assert_eq!(replay.progress(), 1.0);
+    let b = replay.finish().unwrap();
+    assert_eq!(b.hash(), a.hash());
+    assert_eq!(b.queued_commands(), a.queued_commands());
+
+    let mut bad = file;
+    bad.hash ^= 1;
+    let mut replay = Replay::start(bad, populated).unwrap();
+    while !replay.advance(1000).unwrap() {}
+    assert!(matches!(replay.finish(), Err(SaveError::Desync { .. })));
+}
+
+#[test]
+fn world_name_is_stable_per_seed_and_varies() {
+    use siming_sim::worldgen::world_name;
+    assert_eq!(world_name(42), world_name(42));
+    assert!(!world_name(42).is_empty());
+    let names: std::collections::BTreeSet<String> = (0..64u64).map(world_name).collect();
+    assert!(names.len() > 8);
 }

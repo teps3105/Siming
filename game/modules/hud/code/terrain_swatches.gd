@@ -5,7 +5,7 @@ extends RefCounted
 const COLORS := {
 	"terrain_plains": Color("BAC690"),
 	"terrain_hills": Color("C9B58C"),
-	"terrain_mountain": Color("A49D97"),
+	"terrain_mountain": Color("7397A3"),
 	"terrain_forest": Color("7AA06C"),
 	"terrain_desert": Color("D9C59A"),
 	"terrain_snow": Color("F1F0EA"),

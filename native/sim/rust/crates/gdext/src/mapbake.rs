@@ -13,14 +13,16 @@ pub const FRONTIER_FRAC: f32 = 0.05;
 /// `paper` 貼圖的邊長。
 pub const PAPER_SIZE: usize = 512;
 
+/// 三教著色：道教化達到此值即上滿色；道的底色是 5.1 的 cyan（4F8F9A）調淡後的淡彩。
+const FAITH_FULL: f32 = 0.5;
+const FAITH_TAO_COLOR: [f32; 3] = [0.65, 0.82, 0.86];
+
 const PAPER_SEED: u32 = 0x5A17_0001;
 
 // ---------------------------------------------------------------- 雜訊工具
 
 fn hash(x: i32, y: i32, seed: u32) -> u32 {
-    let mut h = (x as u32).wrapping_mul(0x27D4_EB2D)
-        ^ (y as u32).wrapping_mul(0x1656_67B1)
-        ^ seed.wrapping_mul(0x9E37_79B9);
+    let mut h = (x as u32).wrapping_mul(0x27D4_EB2D) ^ (y as u32).wrapping_mul(0x1656_67B1) ^ seed.wrapping_mul(0x9E37_79B9);
     h ^= h >> 15;
     h = h.wrapping_mul(0x85EB_CA6B);
     h ^= h >> 13;
@@ -81,10 +83,7 @@ pub fn gen_paper() -> Vec<u8> {
         for s in 0..steps {
             let t = s as f32;
             let (fx, fy) = (px + ang.cos() * t, py + ang.sin() * t);
-            let (ix, iy) = (
-                fx.rem_euclid(N as f32) as usize,
-                fy.rem_euclid(N as f32) as usize,
-            );
+            let (ix, iy) = (fx.rem_euclid(N as f32) as usize, fy.rem_euclid(N as f32) as usize);
             lum[iy * N + ix] += delta;
         }
     }
@@ -114,11 +113,7 @@ fn bspline_sample(grid: &[f32], w: usize, h: usize, x: f32, y: f32, wrap: bool) 
             if wx <= 0.0 {
                 continue;
             }
-            let cx = if wrap {
-                i.rem_euclid(w as i32)
-            } else {
-                i.clamp(0, w as i32 - 1)
-            } as usize;
+            let cx = if wrap { i.rem_euclid(w as i32) } else { i.clamp(0, w as i32 - 1) } as usize;
             sum += grid[cy * w + cx] * wx * wy;
         }
     }
@@ -179,11 +174,7 @@ fn river_flow(
     is_river: &dyn Fn(usize) -> bool,
 ) -> Vec<Option<(usize, i32, i32)>> {
     let (w, h) = (geo.w as usize, geo.h as usize);
-    let row_cos = |y: usize| {
-        (std::f32::consts::PI * (y as f32 + 0.5) / h as f32)
-            .sin()
-            .max(1e-3)
-    };
+    let row_cos = |y: usize| (std::f32::consts::PI * (y as f32 + 0.5) / h as f32).sin().max(1e-3);
     let mut down: Vec<Option<(usize, i32, i32)>> = vec![None; w * h];
     for (i, d) in down.iter_mut().enumerate() {
         if !is_river(i) {
@@ -195,11 +186,7 @@ fn river_flow(
             if geo.height[j] >= hi {
                 continue;
             }
-            let ew = if dx != 0 {
-                0.5 * (row_cos(i / w) + row_cos(j / w))
-            } else {
-                0.0
-            };
+            let ew = if dx != 0 { 0.5 * (row_cos(i / w) + row_cos(j / w)) } else { 0.0 };
             let ns = if dy != 0 { 1.0 } else { 0.0 };
             let slope = (hi - geo.height[j]) / (ew * ew + ns * ns).sqrt().max(1e-3);
             if best.is_none_or(|b| slope > b.3) {
@@ -210,10 +197,7 @@ fn river_flow(
             // 平地：取等高（容差內）的水格，其次河格
             for (j, dx, dy) in nbrs(i) {
                 let ok = geo.terrain[j].is_water() || is_river(j);
-                if ok
-                    && (geo.height[j] - hi).abs() < 1e-5
-                    && best
-                        .is_none_or(|b| geo.terrain[j].is_water() && !geo.terrain[b.0].is_water())
+                if ok && (geo.height[j] - hi).abs() < 1e-5 && best.is_none_or(|b| geo.terrain[j].is_water() && !geo.terrain[b.0].is_water())
                 {
                     best = Some((j, dx, dy, 0.0));
                 }
@@ -254,10 +238,7 @@ pub fn color_provinces(provinces: &[Province]) -> Vec<usize> {
             }
         }
         let start = (id * 5) % 24;
-        idx[id] = (0..24)
-            .map(|k| (start + k) % 24)
-            .find(|&c| !used[c])
-            .unwrap_or(start);
+        idx[id] = (0..24).map(|k| (start + k) % 24).find(|&c| !used[c]).unwrap_or(start);
     }
     idx
 }
@@ -274,28 +255,16 @@ pub struct WorldTextures {
 pub fn build_world_textures(geo: &Geography) -> WorldTextures {
     let (w, h) = (geo.w as usize, geo.h as usize);
     let (tw, th) = (w * SS, h * SS);
-    let aura_cell: Vec<f32> = geo
-        .aura_cell
-        .iter()
-        .map(|a| (a / 2.0).clamp(0.0, 1.0))
-        .collect();
+    let aura_cell: Vec<f32> = geo.aura_cell.iter().map(|a| (a / 2.0).clamp(0.0, 1.0)).collect();
     let mut aura = vec![0u8; tw * th];
     for ty in 0..th {
         for tx in 0..tw {
             // 紋素中心在格點座標（格中心為整數）的位置
-            let (gx, gy) = (
-                (tx as f32 + 0.5) / SS as f32 - 0.5,
-                (ty as f32 + 0.5) / SS as f32 - 0.5,
-            );
-            aura[ty * tw + tx] =
-                (bspline_sample(&aura_cell, w, h, gx, gy, geo.wrap_x).clamp(0.0, 1.0) * 255.0)
-                    .round() as u8;
+            let (gx, gy) = ((tx as f32 + 0.5) / SS as f32 - 0.5, (ty as f32 + 0.5) / SS as f32 - 0.5);
+            aura[ty * tw + tx] = (bspline_sample(&aura_cell, w, h, gx, gy, geo.wrap_x).clamp(0.0, 1.0) * 255.0).round() as u8;
         }
     }
-    let province_id: Vec<u8> = dilate_provinces(geo, 2)
-        .iter()
-        .flat_map(|p| p.to_le_bytes())
-        .collect();
+    let province_id: Vec<u8> = dilate_provinces(geo, 2).iter().flat_map(|p| p.to_le_bytes()).collect();
     WorldTextures { aura, province_id }
 }
 
@@ -338,6 +307,24 @@ pub fn province_color_table(provinces: &[Province]) -> Vec<u8> {
     t
 }
 
+/// 三教模式的州郡著色表（GDD 5.4 F3）：州郡 ID → 淡彩的 256×1 RGBA8（sRGB）。
+/// M2 只有道的教化有來源：道是該州的主教化（不小於釋與儒）且大於 0 時，上道的青色，
+/// alpha 依道教化的濃度（以 `FAITH_FULL` 為滿）；其餘州郡 alpha 為 0，不上色。
+pub fn faith_color_table(provinces: &[Province]) -> Vec<u8> {
+    let mut t = vec![0u8; 256 * 4];
+    for p in provinces {
+        let id = p.id as usize;
+        let [tao, buddha, ru] = p.faith;
+        if id >= 255 || p.id == NO_PROVINCE || tao <= 0.0 || tao < buddha || tao < ru {
+            continue;
+        }
+        let a = (tao / FAITH_FULL).clamp(0.0, 1.0);
+        let q = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
+        t[id * 4..id * 4 + 4].copy_from_slice(&[q(FAITH_TAO_COLOR[0]), q(FAITH_TAO_COLOR[1]), q(FAITH_TAO_COLOR[2]), q(a)]);
+    }
+    t
+}
+
 /// 州郡名的位置（GDD 5.3「文字標籤」）：州郡內離州界最遠的那一格（東西相接）；
 /// 同樣遠的取最靠近重心者，再同則取編號最小者。`cells` 不可為空。
 pub fn province_label_cell(cells: &[u32], grid_w: usize, grid_h: usize) -> u32 {
@@ -345,10 +332,7 @@ pub fn province_label_cell(cells: &[u32], grid_w: usize, grid_h: usize) -> u32 {
     let index: BTreeMap<u32, usize> = cells.iter().enumerate().map(|(i, &c)| (c, i)).collect();
     let neighbours = |c: u32| {
         let (x, y) = (c as usize % grid_w, c as usize / grid_w);
-        let mut out = vec![
-            (y * grid_w + (x + 1) % grid_w) as u32,
-            (y * grid_w + (x + grid_w - 1) % grid_w) as u32,
-        ];
+        let mut out = vec![(y * grid_w + (x + 1) % grid_w) as u32, (y * grid_w + (x + grid_w - 1) % grid_w) as u32];
         if y > 0 {
             out.push(((y - 1) * grid_w + x) as u32);
         }
@@ -362,8 +346,7 @@ pub fn province_label_cell(cells: &[u32], grid_w: usize, grid_h: usize) -> u32 {
     let mut queue = VecDeque::new();
     for (i, &c) in cells.iter().enumerate() {
         let y = c as usize / grid_w;
-        let on_edge =
-            y == 0 || y + 1 == grid_h || neighbours(c).iter().any(|n| !index.contains_key(n));
+        let on_edge = y == 0 || y + 1 == grid_h || neighbours(c).iter().any(|n| !index.contains_key(n));
         if on_edge {
             depth[i] = 0;
             queue.push_back(i);
@@ -391,12 +374,7 @@ pub fn province_label_cell(cells: &[u32], grid_w: usize, grid_h: usize) -> u32 {
         let p = unwrap(c);
         (a.0 + p.0 / n, a.1 + p.1 / n)
     });
-    let deepest = depth
-        .iter()
-        .copied()
-        .filter(|&d| d != u32::MAX)
-        .max()
-        .unwrap_or(0);
+    let deepest = depth.iter().copied().filter(|&d| d != u32::MAX).max().unwrap_or(0);
     let mut best = cells[0];
     let mut best_d2 = f32::MAX;
     for (i, &c) in cells.iter().enumerate() {
@@ -457,11 +435,9 @@ pub fn build_terrain_mesh(grid_w: usize, grid_h: usize) -> MeshArrays {
     }
     for i in 0..vw as i32 - 1 {
         let (no, nm) = (n0 + i, i);
-        m.indices
-            .extend_from_slice(&[no, no + 1, nm, no + 1, nm + 1, nm]);
+        m.indices.extend_from_slice(&[no, no + 1, nm, no + 1, nm + 1, nm]);
         let (sm, so) = (((vh - 1) * vw) as i32 + i, n0 + vw as i32 + i);
-        m.indices
-            .extend_from_slice(&[sm, sm + 1, so, sm + 1, so + 1, so]);
+        m.indices.extend_from_slice(&[sm, sm + 1, so, sm + 1, so + 1, so]);
     }
     m
 }
@@ -505,10 +481,7 @@ impl RiverCurve {
     /// 曲線上參數 t（0..1）的位置。
     pub fn at(&self, t: f32) -> (f32, f32) {
         let (a, b, c) = ((1.0 - t) * (1.0 - t), 2.0 * t * (1.0 - t), t * t);
-        (
-            a * self.p0.0 + b * self.p1.0 + c * self.p2.0,
-            a * self.p0.1 + b * self.p1.1 + c * self.p2.1,
-        )
+        (a * self.p0.0 + b * self.p1.0 + c * self.p2.0, a * self.p0.1 + b * self.p1.1 + c * self.p2.1)
     }
 }
 
@@ -535,11 +508,7 @@ pub fn river_curves(geo: &Geography) -> Vec<RiverCurve> {
                     continue;
                 }
                 let (nx_raw, ny) = (x + dx, y + dy);
-                let nx = if geo.wrap_x {
-                    nx_raw.rem_euclid(w as i32)
-                } else {
-                    nx_raw
-                };
+                let nx = if geo.wrap_x { nx_raw.rem_euclid(w as i32) } else { nx_raw };
                 if nx < 0 || ny < 0 || nx >= w as i32 || ny >= h as i32 {
                     continue;
                 }
@@ -587,9 +556,7 @@ pub fn river_curves(geo: &Geography) -> Vec<RiverCurve> {
             comp_size[r] = u32::MAX;
         }
     }
-    let keep: Vec<bool> = (0..w * h)
-        .map(|i| is_river(i) && comp_size[root(&mut comp, i)] >= RIVER_MIN_CELLS)
-        .collect();
+    let keep: Vec<bool> = (0..w * h).map(|i| is_river(i) && comp_size[root(&mut comp, i)] >= RIVER_MIN_CELLS).collect();
     let lat_of_row = |y: usize| 90.0 - 180.0 * (y as f32 + 0.5) / h as f32;
     let mut out = Vec::new();
     for i in 0..w * h {
@@ -599,16 +566,7 @@ pub fn river_curves(geo: &Geography) -> Vec<RiverCurve> {
         let c = ((i % w) as f32 + 0.5, (i / w) as f32 + 0.5);
         let off = |dx: i32, dy: i32| (c.0 + dx as f32 * 0.5, c.1 + dy as f32 * 0.5);
         let level = lvl(i);
-        let mut push = |p0, p1, p2, k0, k2| {
-            out.push(RiverCurve {
-                p0,
-                p1,
-                p2,
-                level,
-                k0,
-                k2,
-            })
-        };
+        let mut push = |p0, p1, p2, k0, k2| out.push(RiverCurve { p0, p1, p2, level, k0, k2 });
         match down[i] {
             Some((_, dx, dy)) => {
                 let end = off(dx, dy);
@@ -659,8 +617,7 @@ pub fn build_river_mesh(geo: &Geography, relief: &Relief) -> RiverArrays {
         }
         for k in 0..n as i32 {
             let a = base + k * 2;
-            out.indices
-                .extend_from_slice(&[a, a + 1, a + 2, a + 1, a + 3, a + 2]);
+            out.indices.extend_from_slice(&[a, a + 1, a + 2, a + 1, a + 3, a + 2]);
         }
     }
     out
@@ -688,6 +645,19 @@ mod tests {
         assert_eq!(t.province_id.len(), w * h * 2);
         assert_eq!(gen_paper().len(), PAPER_SIZE * PAPER_SIZE * 4);
         assert_eq!(province_color_table(&sim.world().provinces).len(), 256 * 4);
+        let faith = faith_color_table(&sim.world().provinces);
+        assert_eq!(faith.len(), 256 * 4);
+        // 模擬目前沒有教化來源，開天後各州都是 0：不上色。
+        assert!(faith.chunks(4).all(|c| c[3] == 0));
+        // 道為主教化才上色，濃度依道教化；釋或儒較強、或全為 0 的州郡不上色。
+        let mut ps: Vec<Province> = sim.world().provinces[..3].to_vec();
+        ps[0].faith = [0.25, 0.1, 0.0];
+        ps[1].faith = [0.1, 0.3, 0.0];
+        ps[2].faith = [0.0, 0.0, 0.0];
+        let t = faith_color_table(&ps);
+        assert_eq!(t[3], 128);
+        assert_eq!(t[7], 0);
+        assert_eq!(t[11], 0);
     }
 
     #[test]
@@ -718,10 +688,7 @@ mod tests {
         let h = w.geo.h as f32;
         for (p, sl) in r.positions.iter().zip(&r.side_level) {
             let lat = 90.0 - 180.0 * p[2] / h;
-            assert!(
-                lat.abs() <= RIVER_MAX_LAT_DEG + 180.0 / h,
-                "極區不應有河流頂點：緯度 {lat}"
-            );
+            assert!(lat.abs() <= RIVER_MAX_LAT_DEG + 180.0 / h, "極區不應有河流頂點：緯度 {lat}");
             assert!(sl[0].abs() == 1.0 && (1.0..=3.0).contains(&sl[1]));
         }
     }
@@ -757,10 +724,6 @@ mod tests {
         }
         let cell = province_label_cell(&cells, w, h);
         assert_eq!(cell as usize / w, 2);
-        assert!(
-            [7usize, 0].contains(&(cell as usize % w)),
-            "中心貼著接縫：{}",
-            cell as usize % w
-        );
+        assert!([7usize, 0].contains(&(cell as usize % w)), "中心貼著接縫：{}", cell as usize % w);
     }
 }

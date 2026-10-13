@@ -1,0 +1,313 @@
+{
+ "part": "eyes-m0",
+ "paint": [
+  {
+   "tag": "eyes-m0-t1",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261014,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a4d200fd6faca19ec/sources/parts/portrait/base-face-m.png",
+     "6eb81df3857716d33152534009eecf9090d5c7a2a6b3c29c3f5a48bfdca3b318"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a4d200fd6faca19ec/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版（背景是純綠色），圖2是畫風基準圖。請在圖1的臉上畫一雙眼睛，位置在鼻樑兩側、略高於耳朵中段的眼線上，兩眼左右對稱、與鼻樑等距。細長的鳳眼，上眼瞼墨線較粗、下眼瞼有一條細線，眼白是淺米白色，瞳孔是一個石青色的圓，中間一點深色、一小塊白色高光。畫法大幅概括簡化，每隻眼只用少數幾條乾淨的線，不畫睫毛叢、不畫眼影、不畫眉毛、不畫眼袋。臉的其他部分不許動。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫的這一件，人物的頭、臉、頸、肩與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純綠色（#00FF00），純色無漸層。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a4d200fd6faca19ec/.shiftblame/tmp/parts/portrait/paint/eyes-m0-t1.png",
+   "output_sha256": "814aafef9e9047ec133385e8e37bd9928c1c1276efeb37f274b861d9ca2679af",
+   "seconds": 210.2,
+   "time": "2026-10-13 17:30:52"
+  }
+ ],
+ "collect": [
+  {
+   "from": "paint/eyes-m0-t1.png",
+   "affine": [
+    [
+     1.000920057296753,
+     0.0002300000051036477,
+     -0.5891299843788147
+    ],
+    [
+     7.999999797903001e-05,
+     0.9998900294303894,
+     -0.014940000139176846
+    ]
+   ],
+   "ecc": 0.99642,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 2660,
+   "bbox": [
+    396,
+    563,
+    656,
+    595
+   ],
+   "components": 2,
+   "output": "D:/Siming/.claude/worktrees/agent-a4d200fd6faca19ec/.shiftblame/tmp/parts/portrait/collect/eyes-m0.png",
+   "time": "2026-10-13 17:36:27"
+  }
+ ],
+ "key": [
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/eyes-m0.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "iris": {
+     "file": ".shiftblame/tmp/parts/portrait/key/eyes-m0.iris.png",
+     "pixels": 94,
+     "dye": "iris",
+     "centers": [
+      57.5,
+      75.8,
+      92.9
+     ],
+     "share": [
+      0.791,
+      0.165,
+      0.044
+     ],
+     "levels": [
+      "base",
+      "high",
+      "high"
+     ]
+    },
+    "rest": {
+     "file": ".shiftblame/tmp/parts/portrait/key/eyes-m0.rest.png",
+     "pixels": 226,
+     "dye": "定色",
+     "fixed": true
+    }
+   },
+   "time": "2026-10-13 17:36:32"
+  }
+ ],
+ "check": [
+  {
+   "metrics": {
+    "eyes-m0.iris": {
+     "edge_len": 76,
+     "bare_edge": 76,
+     "bare_ratio": 1.0,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.224,
+     "pixels": 92
+    },
+    "eyes-m0.rest": {
+     "edge_len": 119,
+     "bare_edge": 4,
+     "bare_ratio": 0.034,
+     "blobs": 6,
+     "specks": 4,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 123
+    },
+    "eyes-m0.union": {
+     "edge_len": 123,
+     "bare_edge": 16,
+     "bare_ratio": 0.13,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 215
+    }
+   },
+   "time": "2026-10-13 17:36:53"
+  },
+  {
+   "metrics": {
+    "eyes-m0.iris": {
+     "edge_len": 76,
+     "bare_edge": 76,
+     "bare_ratio": 1.0,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.224,
+     "pixels": 92
+    },
+    "eyes-m0.rest": {
+     "edge_len": 119,
+     "bare_edge": 4,
+     "bare_ratio": 0.034,
+     "blobs": 6,
+     "specks": 4,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 123
+    },
+    "eyes-m0.union": {
+     "edge_len": 123,
+     "bare_edge": 16,
+     "bare_ratio": 0.13,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 215
+    }
+   },
+   "time": "2026-10-13 17:38:13"
+  },
+  {
+   "metrics": {
+    "eyes-m0.iris": {
+     "edge_len": 76,
+     "bare_edge": 76,
+     "bare_ratio": 1.0,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.224,
+     "pixels": 92
+    },
+    "eyes-m0.rest": {
+     "edge_len": 119,
+     "bare_edge": 4,
+     "bare_ratio": 0.034,
+     "blobs": 6,
+     "specks": 4,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 123
+    },
+    "eyes-m0.union": {
+     "edge_len": 123,
+     "bare_edge": 16,
+     "bare_ratio": 0.13,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 215
+    }
+   },
+   "time": "2026-10-13 17:41:13"
+  },
+  {
+   "metrics": {
+    "eyes-m0.iris": {
+     "edge_len": 76,
+     "bare_edge": 76,
+     "bare_ratio": 1.0,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.224,
+     "pixels": 92
+    },
+    "eyes-m0.rest": {
+     "edge_len": 119,
+     "bare_edge": 4,
+     "bare_ratio": 0.034,
+     "blobs": 6,
+     "specks": 4,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 123
+    },
+    "eyes-m0.union": {
+     "edge_len": 123,
+     "bare_edge": 16,
+     "bare_ratio": 0.13,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 215
+    }
+   },
+   "time": "2026-10-13 18:00:15"
+  },
+  {
+   "metrics": {
+    "eyes-m0.iris": {
+     "edge_len": 76,
+     "bare_edge": 76,
+     "bare_ratio": 1.0,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.224,
+     "pixels": 92
+    },
+    "eyes-m0.rest": {
+     "edge_len": 119,
+     "bare_edge": 4,
+     "bare_ratio": 0.034,
+     "blobs": 6,
+     "specks": 4,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 123
+    },
+    "eyes-m0.union": {
+     "edge_len": 123,
+     "bare_edge": 16,
+     "bare_ratio": 0.13,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 215
+    }
+   },
+   "time": "2026-10-13 18:01:24"
+  },
+  {
+   "metrics": {
+    "eyes-m0.iris": {
+     "edge_len": 76,
+     "bare_edge": 76,
+     "bare_ratio": 1.0,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.224,
+     "pixels": 92
+    },
+    "eyes-m0.rest": {
+     "edge_len": 119,
+     "bare_edge": 4,
+     "bare_ratio": 0.034,
+     "blobs": 6,
+     "specks": 4,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 123
+    },
+    "eyes-m0.union": {
+     "edge_len": 123,
+     "bare_edge": 16,
+     "bare_ratio": 0.13,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 215
+    }
+   },
+   "time": "2026-10-13 18:34:23"
+  }
+ ]
+}

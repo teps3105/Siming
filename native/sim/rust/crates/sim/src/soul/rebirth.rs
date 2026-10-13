@@ -11,11 +11,7 @@ use crate::sim::World;
 use crate::types::ProvinceId;
 
 fn merge_best(a: Achievements, b: Achievements) -> Achievements {
-    Achievements {
-        realm: a.realm.max(b.realm),
-        fruit: a.fruit.max(b.fruit),
-        immortality: a.immortality.max(b.immortality),
-    }
+    Achievements { realm: a.realm.max(b.realm), fruit: a.fruit.max(b.fruit), immortality: a.immortality.max(b.immortality) }
 }
 
 /// GDD 3.1 前世成就帶來的宿慧加成（不含兵解）。
@@ -103,20 +99,14 @@ pub fn attach_person(w: &mut World, sid: SoulId, pid: PersonId) {
 /// 輪迴出生（GDD 3.2 出生）：轉世處理 → 建立肉身 → 綁定 → 寫入 `Rebirth` 事件。
 /// 有未了宿緣者事件重要度 3，其他 1（GDD 7.2）。
 pub fn rebirth(w: &mut World, sid: SoulId, province: ProvinceId) -> PersonId {
-    let cause = w.souls[sid as usize]
-        .lives
-        .last()
-        .and_then(|&p| w.persons.get(p as usize))
-        .and_then(|p| p.last_event);
+    let cause = w.souls[sid as usize].lives.last().and_then(|&p| w.persons.get(p as usize)).and_then(|p| p.last_event);
     prepare_rebirth(w, sid, province);
     let cell = pick_cell(w, province);
     let pid = spawn_person(w, sid, province, cell);
     attach_person(w, sid, pid);
 
-    let has_thread = w.souls[sid as usize]
-        .threads
-        .iter()
-        .any(|&t| w.threads.get(t as usize).is_some_and(|t| t.resolved.is_none() && t.strength > 0.0));
+    let has_thread =
+        w.souls[sid as usize].threads.iter().any(|&t| w.threads.get(t as usize).is_some_and(|t| t.resolved.is_none() && t.strength > 0.0));
     let mut e = NewEvent::new(EventKind::Rebirth, if has_thread { 3 } else { 1 }, EventArgs::None);
     e.province = Some(province);
     e.cell = Some(cell);
@@ -148,6 +138,7 @@ pub fn ensure_heaven(w: &mut World) {
             marks: SoulMarks::default(),
             last_place: (0, 0),
             guide: None,
+            settled: Vec::new(),
         });
     }
 }
@@ -179,7 +170,9 @@ pub fn create_soul(w: &mut World, origin: SoulOrigin, province: ProvinceId) -> S
         marks,
         last_place: (province, 0),
         guide: None,
+        settled: Vec::new(),
     });
+    super::arm(w, w.souls.len() as SoulId - 1);
     id
 }
 

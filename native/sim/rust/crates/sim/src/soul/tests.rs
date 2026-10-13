@@ -25,6 +25,7 @@ fn province(id: u16, pop: f64, neighbors: Vec<u16>, faith: [f32; 3]) -> Province
         devastation: 0.0,
         faith,
         city_level: 0,
+        lost: false,
     }
 }
 
@@ -101,9 +102,10 @@ fn add_thread(w: &mut World, kind: ThreadKind, debtor: SoulId, creditor: SoulId,
     id
 }
 
-fn run_to(w: &mut World, tick: Tick) {
-    while w.tick < tick {
-        w.tick += 1;
+/// 推進到第 `month` 個月底（月序，不是日序）。
+fn run_to(w: &mut World, month: Tick) {
+    while w.tick < month * 30 {
+        w.tick += 30;
         monthly(w);
     }
 }
@@ -160,15 +162,15 @@ fn gdd_3_2_realm_durations_and_returns() {
     // 為獸：期滿回來 S × 0.9，重新判定。
     let mut w = line_world(7, &[100.0, 100.0]);
     let (sid, pid) = living(&mut w, 0, 0.0, 250.0);
-    w.tick = 10;
+    w.tick = 10 * 30;
     kill(&mut w, pid);
     run_to(&mut w, 12);
     let SoulState::Realm { path, until } = w.souls[sid as usize].state else { panic!("{:?}", w.souls[sid as usize].state) };
     assert_eq!(path, SixPath::Beast);
-    assert!((12 + 120..=12 + 360).contains(&until));
+    assert!(((12 + 120) * 30..=(12 + 360) * 30).contains(&until));
     let s_before = w.souls[sid as usize].sin;
-    w.tick = until - 1;
-    run_to(&mut w, until);
+    w.tick = until - 30;
+    run_to(&mut w, until / 30);
     // 重判：S = 225 → x ≈ −225 → 仍是畜生道（或因雜訊相同），S 已被 × 0.9。
     assert!((w.souls[sid as usize].sin - s_before * 0.9).abs() < 1e-3);
     assert!(matches!(w.souls[sid as usize].state, SoulState::Realm { path: SixPath::Beast, .. }));
@@ -180,7 +182,7 @@ fn gdd_3_2_realm_durations_and_returns() {
     w.souls[sid as usize].state = SoulState::Realm { path: SixPath::Heaven, until: 5 };
     w.persons.clear();
     w.alive_ids.clear();
-    w.tick = 4;
+    w.tick = 4 * 30;
     run_to(&mut w, 5);
     // 400 × 0.5 = 200，加雜訊後可能 < 200 而判入人道；不論如何 G 都減半。
     assert!((w.souls[sid as usize].merit - 200.0).abs() < 1e-3);
@@ -202,16 +204,16 @@ fn gdd_3_2_hungry_and_hell_decay_yearly() {
 fn gdd_3_2_death_bardo_then_rebirth_flow() {
     let mut w = line_world(11, &[100.0, 100.0, 100.0]);
     let (sid, pid) = living(&mut w, 1, 100.0, 0.0);
-    w.tick = 100;
+    w.tick = 100 * 30;
     kill(&mut w, pid);
-    assert_eq!(w.souls[sid as usize].state, SoulState::Bardo { until: 102 });
+    assert_eq!(w.souls[sid as usize].state, SoulState::Bardo { until: 102 * 30 });
     run_to(&mut w, 101);
     assert!(matches!(w.souls[sid as usize].state, SoulState::Bardo { .. }));
     run_to(&mut w, 102);
     let SoulState::Incarnate(np) = w.souls[sid as usize].state else { panic!() };
     assert_ne!(np, pid);
     assert_eq!(w.souls[sid as usize].lives, vec![pid, np]);
-    assert_eq!(w.persons[np as usize].born, 102);
+    assert_eq!(w.persons[np as usize].born, 102 * 30);
     // Judged、Rebirth 事件，Rebirth 的因是 Judged 之前的死亡事件（此測試沒寫死亡事件，故無因）。
     let kinds: Vec<_> = w.ledger.events.iter().map(|e| e.kind).collect();
     assert!(kinds.contains(&EventKind::Judged) && kinds.contains(&EventKind::Rebirth));
@@ -220,7 +222,7 @@ fn gdd_3_2_death_bardo_then_rebirth_flow() {
     let (s2, p2) = living(&mut w, 0, 0.0, 0.0);
     w.persons[p2 as usize].died = Some((102, DeathCause::Ascended));
     on_death(&mut w, p2, Some(Liberation::Ascension));
-    assert_eq!(w.souls[s2 as usize].state, SoulState::Liberated { way: Liberation::Ascension, tick: 102 });
+    assert_eq!(w.souls[s2 as usize].state, SoulState::Liberated { way: Liberation::Ascension, tick: 102 * 30 });
 }
 
 #[test]
@@ -303,16 +305,14 @@ fn gdd_3_2_waiting_and_pairing_same_month() {
     let (b, pb) = living(&mut w, 4, 100.0, 0.0);
     add_thread(&mut w, ThreadKind::Feud, a, b, 70.0);
     // a 先死，b 晚 6 個月死。
-    w.tick = 10;
+    w.tick = 10 * 30;
     kill(&mut w, pa);
-    w.tick = 16;
+    w.tick = 16 * 30;
     kill(&mut w, pb);
-    w.tick = 11;
+    w.tick = 11 * 30;
     run_to(&mut w, 12);
-    let SoulState::Waiting { until, ref for_souls } = w.souls[a as usize].state else {
-        panic!("{:?}", w.souls[a as usize].state)
-    };
-    assert_eq!(until, 12 + 360);
+    let SoulState::Waiting { until, ref for_souls } = w.souls[a as usize].state else { panic!("{:?}", w.souls[a as usize].state) };
+    assert_eq!(until, 12 * 30 + 30 * 360);
     assert_eq!(for_souls.as_slice(), &[b]);
     // b 判定那個月，兩者同月出生，a 在 b 的州或其陸鄰。
     run_to(&mut w, 18);
@@ -320,8 +320,8 @@ fn gdd_3_2_waiting_and_pairing_same_month() {
     else {
         panic!()
     };
-    assert_eq!(w.persons[na as usize].born, 18);
-    assert_eq!(w.persons[nb as usize].born, 18);
+    assert_eq!(w.persons[na as usize].born, 18 * 30);
+    assert_eq!(w.persons[nb as usize].born, 18 * 30);
     let pb_prov = w.persons[nb as usize].province;
     let pa_prov = w.persons[na as usize].province;
     assert!(pa_prov == pb_prov || w.provinces[pb_prov as usize].neighbors.contains(&pa_prov));
@@ -348,9 +348,9 @@ fn gdd_3_2_no_wait_cases() {
     w.threads[t as usize].strength = 50.0;
     assert_eq!(wait_target(&w, &sa, 0), Some(b));
     // 他道 30 年內期滿：等；尚遠：不等。
-    w.souls[b as usize].state = SoulState::Realm { path: SixPath::Hell, until: 360 };
+    w.souls[b as usize].state = SoulState::Realm { path: SixPath::Hell, until: 10_800 };
     assert_eq!(wait_target(&w, &sa, 0), Some(b));
-    w.souls[b as usize].state = SoulState::Realm { path: SixPath::Hell, until: 361 };
+    w.souls[b as usize].state = SoulState::Realm { path: SixPath::Hell, until: 10_801 };
     assert_eq!(wait_target(&w, &sa, 0), None);
     // 對方已超脫、在等待中：不等。
     w.souls[b as usize].state = SoulState::Liberated { way: Liberation::Nirvana, tick: 1 };
@@ -375,7 +375,7 @@ fn gdd_3_2_waiting_timeout_births_alone() {
     let (a, _) = living(&mut w, 0, 100.0, 0.0);
     w.persons.clear();
     w.alive_ids.clear();
-    w.souls[a as usize].state = SoulState::Waiting { until: 360, for_souls: smallvec![5] };
+    w.souls[a as usize].state = SoulState::Waiting { until: 360 * 30, for_souls: smallvec![5] };
     run_to(&mut w, 359);
     assert!(matches!(w.souls[a as usize].state, SoulState::Waiting { .. }));
     run_to(&mut w, 360);
@@ -387,7 +387,7 @@ fn gdd_3_2_birth_cap_defers_group() {
     let mut w = line_world(6, &[100.0, 100.0]);
     let cap = notable_cap(&w);
     let (a, pa) = living(&mut w, 0, 100.0, 0.0);
-    w.tick = 1;
+    w.tick = 30;
     kill(&mut w, pa);
     // 填滿到上限。
     for _ in 0..cap {
@@ -396,7 +396,7 @@ fn gdd_3_2_birth_cap_defers_group() {
     assert_eq!(living_notables(&w), cap);
     run_to(&mut w, 3);
     // 判定當月因上限延後 1 年。
-    assert_eq!(w.souls[a as usize].state, SoulState::Bardo { until: 3 + 12 });
+    assert_eq!(w.souls[a as usize].state, SoulState::Bardo { until: (3 + 12) * 30 });
     assert!(!w.ledger.events.iter().any(|e| e.kind == EventKind::Judged));
     // 空出一個位置後出生。
     let victim = w.persons.iter().rposition(|p| p.alive()).unwrap() as PersonId;
@@ -527,12 +527,12 @@ fn scenario(seed: u64) -> World {
         add_thread(&mut w, ThreadKind::Feud, ids[k].0, ids[k + 20].0, 55.0 + k as f32);
     }
     for (i, &(_, p)) in ids.iter().enumerate() {
-        w.tick = (i as Tick % 24) + 1;
+        w.tick = ((i as Tick % 24) + 1) * 30;
         kill(&mut w, p);
     }
     w.tick = 0;
     for t in 1..=3000 {
-        w.tick = t;
+        w.tick = t * 30;
         monthly(&mut w);
         if t % 12 == 0 {
             yearly_refill(&mut w);

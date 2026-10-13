@@ -1,0 +1,495 @@
+class_name PersonCard
+extends LedgerCard
+## GDD 5.8 人物卡（命簿）：題簽直書姓名；首列是身分（門派職分、境界）；其下基本資料與魂的來歷，
+## 然後是個人歷程——這個人一生牽涉的事件，由舊到新，每筆一句話（與傳聞簽同一套 7.2 模板）。
+## 歷程裡的其他人名、地名可點：人名換成那個人的卡，地名飛往並開州郡卡。已身故者仍可開卡，歷程到死為止。
+## 頁尾：置中（鏡頭移到此人所在）；從別的卡點進來時另有「返回」。
+
+signal center_requested(map_pos: Vector2)
+## 點了歷程或基本資料裡的人名。
+signal person_requested(person: int)
+## 點了歷程或基本資料裡的地名。
+signal province_requested(province: int)
+## 點了首列或歷程裡的宗門名。
+signal sect_requested(sect: int)
+## 點了歷程的一筆（人名、地名以外的部分）：開那則事件的事件卡。
+signal event_requested(event: int)
+signal back_requested
+
+## 歷程每筆之間的空白。
+const ROW_GAP := 10.0
+## 歷程清單至少留多高（畫面再矮也不低於這個）。
+const MIN_LIST := 120.0
+## 頭像（GDD 5.8、8.12）：160×200 乘版面倍率，靠左；與右側首列資訊之間的空白。預設寬度的卡為它加寬一個頭像寬。
+const PORTRAIT_W := 160.0
+const PORTRAIT_H := 200.0
+const PORTRAIT_GAP := 12.0
+
+## 佔位部件的頭像要不要顯示：預設不顯示（真部件進來前不給玩家看），開發時以 `-- --placeholder-portraits` 或測試打開。
+static var show_placeholder := OS.get_cmdline_user_args().has("--placeholder-portraits")
+
+var person := -1
+## 是否有上一張卡可以返回（Hud 設定）；有的話 Esc／B 是返回，關閉鈕不掛鍵。
+var can_back := false:
+	set(value):
+		if can_back != value:
+			can_back = value
+			_relayout()
+			queue_redraw()
+
+var _info: Dictionary = {}
+var _list: LedgerList
+var _portrait: PartStack
+## 頭像縮放（1 是 160×200）：畫面矮到連歷程清單的最低高度都放不下時先縮成一半，仍放不下就收起（0），不讓頭像把卡撐出畫面。
+var _portrait_k := 1.0
+## 首列身分與基本資料的段落（依序：首列、年齡、地點、資質、魂）。
+var _subtitle: Dictionary = {}
+var _paragraphs: Array[Dictionary] = []
+## 歷程各筆：top（內容座標的上緣）、height、date、seal、paragraph。
+var _rows: Array[Dictionary] = []
+var _rows_height := 0.0
+## 年表是否展開（換人時收合）。
+var _expanded := false
+## 年表的列數與小傳的段數（組合結果）。
+var _timeline_count := 0
+var _toggle_top := 0.0
+## 版面（相對於紙面上緣的位移，已含版面倍率）。
+var _layout := {}
+
+
+func setup(world: SimWorld, unit: float, width := -1.0) -> void:
+	super.setup(world, unit, width if width > 0.0 else (WIDTH + (PORTRAIT_W if _portrait_on() else 0.0)) * unit)
+	_portrait = PartStack.new()
+	add_child(_portrait)
+	_portrait.size = _portrait_size()
+	_portrait.visible = false
+	_list = LedgerList.new()
+	add_child(_list)
+	_list.setup(unit)
+	_list.painter = _paint_history
+	_list.finder = _history_target_at
+	_list.activated.connect(_on_target)
+	_list.visible = false
+
+
+func show_person(id: int) -> void:
+	var fresh := id != person
+	person = id
+	if fresh:
+		_expanded = false
+	refresh()
+	if fresh and _list != null:
+		_list.scroll = 0.0
+	_begin_open()
+
+
+func _forget() -> void:
+	person = -1
+
+
+## 重新讀取人物與歷程（每月推進後呼叫）。
+func refresh() -> void:
+	if person < 0:
+		return
+	_info = _world.person(person)
+	if not _info.is_empty():
+		_portrait.set_recipe(PortraitRecipe.from_person(_info), PartCatalog.load_class(PortraitRecipe.CLASS_ID))
+	_relayout()
+	queue_redraw()
+
+
+## 頁尾動作「置中」：把鏡頭移到此人所在。
+func request_center() -> void:
+	if is_open() and not _info.is_empty():
+		center_requested.emit(_info["pos"])
+
+
+func _has_content() -> bool:
+	return not _info.is_empty()
+
+
+func _title() -> String:
+	return _info["name"]
+
+
+func _close_has_key() -> bool:
+	return not can_back
+
+
+## 鍵盤的 Esc、搖桿的 B（返回與關閉共用同一個動作，由 Hud 分派）。
+func _back_key() -> String:
+	return InputHints.label(InputActions.CANCEL, gamepad)
+
+
+func _center_key() -> String:
+	return InputHints.label(InputActions.CARD_CENTER, gamepad)
+
+
+# ── 版面 ──────────────────────────────────────────────────────
+
+func _province_link(word: String, id: int) -> Dictionary:
+	return {"text": word, "target": "province:%d" % id}
+
+
+## 這一類有部件可畫，而且不是被藏起來的佔位部件。
+static func _portrait_on() -> bool:
+	var catalog := PartCatalog.load_class(PortraitRecipe.CLASS_ID)
+	return catalog != null and (show_placeholder or not catalog.placeholder)
+
+
+## 頭像佔去的左側寬度（含空白）；收起時為 0。
+func _side() -> float:
+	return 0.0 if _portrait_k <= 0.0 else _portrait_size().x + PORTRAIT_GAP * _unit
+
+
+func _portrait_size() -> Vector2:
+	return Vector2(PORTRAIT_W, PORTRAIT_H) * _unit * _portrait_k
+
+
+## 卡高上限改變時（畫面大小、例簽顯示）重排：頭像縮放取決於放不放得下。
+func _on_max_height_changed() -> void:
+	if not _info.is_empty() and _unit > 0.0 and _layout.has("fixed"):
+		var before := _portrait_k
+		_relayout()
+		if before != _portrait_k:
+			queue_redraw()
+
+
+## 依目前資料重算所有段落與高度；改了資料、寬度或「可返回」時呼叫。
+func _relayout() -> void:
+	if _info.is_empty() or _unit <= 0.0:
+		return
+	if not _portrait_on():
+		_portrait_k = 0.0
+		_compose()
+		return
+	_portrait_k = 1.0
+	_compose()
+	for k: float in [0.5, 0.0]:
+		if min_height() <= max_height:
+			break
+		_portrait_k = k
+		_compose()
+
+
+func _compose() -> void:
+	var u := _unit
+	var body := Ink.font_size(Ink.SIZE_BODY, u)
+	var note := Ink.font_size(Ink.SIZE_NOTE, u)
+	var width := _inner_width()
+	var alive: bool = _info["alive"]
+	var no_links: Array[Dictionary] = []
+
+	# 頭像靠左，首列與基本資料前幾段排在它右邊；排到頭像下緣之後回到滿寬。
+	var side := _side()
+	var side_width := width - side
+	_layout["portrait_bottom"] = 14.0 * u + _portrait_size().y
+	# 首列：身分（避開右上的關閉鈕與它的文字、鍵）。
+	var sub_width := side_width - _close_cluster_width(_close_has_key()) - 10.0 * u - CLOSE_RADIUS * 2.0 * u
+	var sub_links: Array[Dictionary] = []
+	if int(_info["power"]) >= 0 and not String(_info["power_name"]).is_empty():
+		sub_links.append({"text": _info["power_name"], "target": "sect:%d" % _info["power"]})
+	_subtitle = LedgerText.paragraph(PersonText.identity_line(_info), sub_links, sub_width, body)
+
+	# 基本資料。
+	var gender := PersonText.gender_word(_info["gender"])
+	var line1: String
+	if alive:
+		line1 = Locale.t("card_age_line").format({"G": gender, "N": str(_info["age"]), "L": str(_info["lifespan"])})
+	else:
+		line1 = Locale.t("card_dead_line").format({"G": gender, "N": str(_info["age"])})
+	if not String(_info["title"]).is_empty():
+		line1 = "%s · %s" % [_info["title"], line1]
+	var place_label := Locale.t("card_place" if alive else "card_died_at")
+	var line2 := "%s %s · %s %s" % [place_label, _info["province_name"], Locale.t("card_home"), _info["home_name"]]
+	var places: Array[Dictionary] = [_province_link(_info["province_name"], _info["province"]), _province_link(_info["home_name"], _info["home"])]
+	var attrs := []
+	for key: String in ["root", "insight", "talent", "virtue", "ferocity"]:
+		attrs.append("%s %d" % [Locale.t("attr_" + key), int(round(float(_info[key])))])
+	var line3 := " · ".join(attrs)
+	var line4 := "%s %s · %s %d · %s %d · %s %d" % [
+		Locale.t("card_soul"), Locale.t("card_life_nth").format({"N": str(_info.get("life_index", 1))}),
+		Locale.t("card_merit"), int(round(float(_info.get("merit", 0.0)))),
+		Locale.t("card_sin"), int(round(float(_info.get("sin", 0.0)))),
+		Locale.t("card_wisdom"), int(round(float(_info.get("wisdom", 0.0)))),
+	]
+	# 各段：[文字, 連結, 字級]；依序排下去，起點在頭像下緣之上的排窄欄，其餘滿寬。
+	var specs: Array = [[line1, no_links, body], [line2, places, body]]
+	if not alive:
+		var cause := Locale.t("card_death_cause").format({"X": PersonText.death_word(_info["death_cause"])})
+		specs.append([cause, no_links, body])
+	specs.append([line3, no_links, note])
+	specs.append([line4, no_links, note])
+
+	# 版面位移（歷程的各筆之後再算，這裡先排到基本資料）。
+	var y := 14.0 * u
+	_layout["subtitle_y"] = y
+	y += maxf(34.0 * u, float(_subtitle["height"]) + 10.0 * u)
+	_layout["stroke_y"] = y
+	y += 12.0 * u
+	_layout["para_y"] = []
+	_layout["para_x"] = []
+	_paragraphs = []
+	for i in specs.size():
+		var beside := y < float(_layout["portrait_bottom"])
+		var para := LedgerText.paragraph(specs[i][0], specs[i][1], side_width if beside else width, specs[i][2])
+		para["strong"] = i < (2 if alive else 3)
+		_paragraphs.append(para)
+		_layout["para_y"].append(y)
+		_layout["para_x"].append(side if beside else 0.0)
+		y += float(para["height"]) + 6.0 * u
+	y = maxf(y, float(_layout["portrait_bottom"]) + 6.0 * u) + 4.0 * u
+
+	# 小傳、年表（GDD 5.12）。
+	_compose_chronicle(width - 8.0 * u, body, note)
+	_layout["section_y"] = y
+	y += 26.0 * u
+	_layout["fixed"] = y + (8.0 + 12.0 + ACTION_RADIUS * 2.0 + 14.0) * u + Ink.CARD_BAND * 2.0
+	custom_minimum_size.y = _content_height() + ROD * 2.0 * u
+	size = custom_minimum_size
+	if _list != null:
+		_list.content_height = maxf(_rows_height, 1.0)
+
+
+func _fixed_height() -> float:
+	return float(_layout.get("fixed", 0.0))
+
+
+## 卡片（含軸頭）至少要多高：固定部分加上歷程清單的最低高度；畫面矮於這個就只能出界或壓到印匣。
+func min_height() -> float:
+	var all := maxf(_rows_height, LedgerText.line_height(Ink.font_size(Ink.SIZE_BODY, _unit)))
+	return _fixed_height() + ROD * 2.0 * _unit + minf(all, MIN_LIST * _unit)
+
+
+## 歷程清單的高度：畫面放得下就全列，放不下縮到剩下的高度（至少 MIN_LIST）。
+func _list_height() -> float:
+	var all := maxf(_rows_height, LedgerText.line_height(Ink.font_size(Ink.SIZE_BODY, _unit)))
+	var spare := max_height - (_fixed_height() + ROD * 2.0 * _unit)
+	return clampf(spare, minf(all, MIN_LIST * _unit), all)
+
+
+func _content_height() -> float:
+	return _fixed_height() + _list_height()
+
+
+func _list_rect() -> Rect2:
+	var paper := _paper_rect(_content_height())
+	var x := paper.position.x + (STRIP + 14.0) * _unit
+	var bottom := paper.end.y - (8.0 + 12.0 + ACTION_RADIUS * 2.0 + 14.0) * _unit
+	var height := _list_height()
+	return Rect2(Vector2(x, bottom - height), Vector2(_inner_width(), height))
+
+
+## 頭像的範圍（卡片座標）：紙面左上、題簽右邊。
+func _portrait_rect() -> Rect2:
+	var paper := _paper_rect(_content_height())
+	return Rect2(Vector2(paper.position.x + (STRIP + 14.0) * _unit, paper.position.y + 14.0 * _unit), _portrait_size())
+
+
+func _arrange(unrolled: bool) -> void:
+	if _list == null:
+		return
+	if _portrait != null:
+		var frame := _portrait_rect()
+		_portrait.visible = unrolled and _portrait_k > 0.0
+		_portrait.position = frame.position
+		_portrait.size = frame.size
+	_list.visible = unrolled
+	_list.edge_scroll = gamepad
+	if unrolled:
+		var rect := _list_rect()
+		_list.position = rect.position
+		_list.size = rect.size
+		_list.content_height = maxf(_rows_height, 1.0)
+
+
+# ── 頁尾 ──────────────────────────────────────────────────────
+
+func _center_rect() -> Rect2:
+	return _action_rect((STRIP + 14.0) * _unit)
+
+
+## 「置中」整顆（圓鈕、字、鍵）佔的寬度。
+func _center_width() -> float:
+	var body := Ink.font_size(Ink.SIZE_BODY, _unit)
+	return ACTION_RADIUS * 2.0 * _unit + 8.0 * _unit + Ink.text_size(Locale.t("act_center"), body).x + 8.0 * _unit + Ink.key_glyph_width(_center_key(), _unit)
+
+
+func _back_rect() -> Rect2:
+	return _action_rect((STRIP + 14.0) * _unit + _center_width() + 16.0 * _unit)
+
+
+# ── 繪製 ──────────────────────────────────────────────────────
+
+func _draw_body(paper: Rect2) -> void:
+	var u := _unit
+	var x := paper.position.x + (STRIP + 14.0) * u
+	var right := paper.end.x - 16.0 * u
+	var section := Ink.font_size(Ink.SIZE_SECTION, u)
+	var note := Ink.font_size(Ink.SIZE_NOTE, u)
+	var top := paper.position.y
+	# 頭像的紙底與細框（頭像本身是子節點 PartStack，畫在它們上面）。
+	var frame := _portrait_rect()
+	if _portrait_k > 0.0:
+		draw_rect(frame, Ink.PAPER_LIGHT, true)
+		draw_rect(frame.grow(1.0), Color(Ink.INK, 0.8), false, 1.5)
+	var side := _side()
+	LedgerText.draw(self, Vector2(x + side, top + float(_layout["subtitle_y"])), _subtitle, Ink.INK, _hover, _pressed)
+	var stroke_y := top + float(_layout["stroke_y"])
+	Ink.stroke(self, Vector2(x + side, stroke_y), Vector2(right, stroke_y), 2.0 * u, Color(Ink.INK, 0.7))
+	for i in _paragraphs.size():
+		var color := Ink.INK if _paragraphs[i]["strong"] else Ink.INK_LIGHT
+		LedgerText.draw(self, Vector2(x + float(_layout["para_x"][i]), top + float(_layout["para_y"][i])), _paragraphs[i], color, _hover, _pressed)
+	var section_y := top + float(_layout["section_y"])
+	Ink.section(self, Vector2(x, section_y), Locale.t("card_bio_title"), section)
+	# 頁尾動作印。
+	_draw_action(_center_rect(), &"center", Locale.t("act_center"), _center_key(), "center")
+	if can_back:
+		_draw_action(_back_rect(), &"back", Locale.t("act_back"), _back_key(), "back")
+
+
+## 小傳與年表的清單畫法（內容座標）：小傳各段、「年表 N 條」一列、展開後每條一行小字的年月加那句話。
+func _paint_history(list: LedgerList) -> void:
+	var u := _unit
+	var note := Ink.font_size(Ink.SIZE_NOTE, u)
+	var body := Ink.font_size(Ink.SIZE_BODY, u)
+	var date_height := LedgerText.line_height(note)
+	var first := list.scroll
+	var last := list.scroll + list.size.y
+	for row: Dictionary in _rows:
+		var top: float = row["top"]
+		if top + float(row["height"]) < first or top > last:
+			continue
+		match row["kind"]:
+			"bio":
+				LedgerText.draw(list, Vector2(0.0, top), row["paragraph"], Ink.INK, list.hover, list.pressed)
+			"toggle":
+				var lit := list.hover == "chronicle:toggle"
+				if lit:
+					list.draw_rect(Rect2(Vector2(-2.0, top), Vector2(list.size.x - 4.0 * u, float(row["height"]) - ROW_GAP * u * 0.5)), Color(Ink.INK, 0.07), true)
+				var label: String = row["label"]
+				Ink.text(list, Vector2(0.0, top + (float(row["height"]) - ROW_GAP * u - Ink.text_size(label, body).y) * 0.5), label, body, Ink.SEAL_RED)
+				var base2: float = top + float(row["height"]) - ROW_GAP * u * 0.5
+				list.draw_line(Vector2(0.0, base2), Vector2(list.size.x - 8.0 * u, base2), Color(Ink.INK_LIGHT, 0.4), 1.0)
+			_:
+				if list.hover == "event:%d" % int(row["event"]):
+					list.draw_rect(Rect2(Vector2(-2.0, top), Vector2(list.size.x - 4.0 * u, float(row["height"]) - ROW_GAP * u * 0.5)), Color(Ink.INK, 0.07), true)
+				var date: String = row["date"]
+				Ink.text(list, Vector2(0.0, top + (date_height - Ink.text_size(date, note).y) * 0.5), date, note, Ink.INK_LIGHT)
+				LedgerText.draw(list, Vector2(0.0, top + date_height), row["paragraph"], Ink.INK, list.hover, list.pressed)
+				var base: float = top + float(row["height"]) - ROW_GAP * u * 0.5
+				list.draw_line(Vector2(0.0, base), Vector2(list.size.x - 8.0 * u, base), Color(Ink.INK_LIGHT, 0.22), 1.0)
+
+
+# ── 點擊 ──────────────────────────────────────────────────────
+
+func _history_target_at(point: Vector2) -> String:
+	var date_height := LedgerText.line_height(Ink.font_size(Ink.SIZE_NOTE, _unit))
+	for row: Dictionary in _rows:
+		var top: float = row["top"]
+		if point.y < top or point.y >= top + float(row["height"]):
+			continue
+		if row["kind"] == "toggle":
+			return "chronicle:toggle"
+		var offset := 0.0 if row["kind"] == "bio" else date_height
+		var link := LedgerText.target_at(Vector2(0.0, top + offset), row["paragraph"], point)
+		if not link.is_empty() or row["kind"] == "bio":
+			return link
+		# 人名、地名的連結優先，其餘部分是這一條所記的事件（對得到事件時）。
+		return "event:%d" % int(row["event"]) if bool(row["has_event"]) else ""
+	return ""
+
+
+func _on_target(target: String) -> void:
+	if target == "chronicle:toggle":
+		toggle_timeline()
+	elif target.begins_with("person:"):
+		person_requested.emit(int(target.substr(7)))
+	elif target.begins_with("province:"):
+		province_requested.emit(int(target.substr(9)))
+	elif target.begins_with("event:"):
+		event_requested.emit(int(target.substr(6)))
+	elif target.begins_with("sect:"):
+		sect_requested.emit(int(target.substr(5)))
+
+
+func _activate(target: String) -> void:
+	if target == "center":
+		request_center()
+	elif target == "back":
+		back_requested.emit()
+	else:
+		_on_target(target)
+
+
+func _paragraph_origin(index: int) -> Vector2:
+	var paper := _paper_rect(_content_height())
+	return Vector2(paper.position.x + (STRIP + 14.0) * _unit + float(_layout["para_x"][index]), paper.position.y + float(_layout["para_y"][index]))
+
+
+func _target_at(pos: Vector2) -> String:
+	if _info.is_empty() or _layout.is_empty():
+		return ""
+	if _in_round(_close_rect(), pos):
+		return "close"
+	if _in_round(_center_rect(), pos):
+		return "center"
+	if can_back and _in_round(_back_rect(), pos):
+		return "back"
+	if not _subtitle.is_empty():
+		var paper := _paper_rect(_content_height())
+		var sub_target := LedgerText.target_at(Vector2(paper.position.x + (STRIP + 14.0) * _unit + _side(), paper.position.y + float(_layout["subtitle_y"])), _subtitle, pos)
+		if not sub_target.is_empty():
+			return sub_target
+	for i in _paragraphs.size():
+		var target := LedgerText.target_at(_paragraph_origin(i), _paragraphs[i], pos)
+		if not target.is_empty():
+			return target
+	return ""
+
+
+# ── 小傳與年表 ─────────────────────────────────────────────────
+
+## 小傳與年表的組合：人物現況加生平事實清單（GDD 5.12）。
+func _chronicle() -> Dictionary:
+	var lookup := func(id: int) -> Dictionary: return _world.person(id)
+	return ChronicleText.compose(_info, _world.person_chronicle(person), lookup, _world.history_years())
+
+
+func _compose_chronicle(list_width: float, body: int, note: int) -> void:
+	_rows.clear()
+	var chronicle := _chronicle()
+	var top := 0.0
+	for para: Dictionary in chronicle["bio"]:
+		var laid := LedgerText.paragraph(para["text"], para["links"], list_width, body, ChronicleText.keep_pieces(para["text"]))
+		_rows.append({"kind": "bio", "top": top, "height": float(laid["height"]) + 8.0 * _unit, "paragraph": laid})
+		top += float(laid["height"]) + 8.0 * _unit
+	var rows: Array = chronicle["rows"]
+	_timeline_count = rows.size()
+	if _timeline_count > 0:
+		_toggle_top = top
+		var label := Locale.t("card_timeline_close" if _expanded else "card_timeline_open").format({"N": str(_timeline_count)})
+		var toggle_h := LedgerText.line_height(body) + ROW_GAP * _unit + 4.0 * _unit
+		_rows.append({"kind": "toggle", "top": top, "height": toggle_h, "label": label})
+		top += toggle_h
+		if _expanded:
+			var date_height := LedgerText.line_height(note)
+			for row: Dictionary in rows:
+				var para := LedgerText.paragraph(row["text"], row["links"], list_width, body, ChronicleText.keep_pieces(row["text"]))
+				var height: float = date_height + float(para["height"]) + ROW_GAP * _unit
+				var event := int(row["event"])
+				_rows.append({"kind": "row", "top": top, "height": height, "event": event, "has_event": event >= 0 and not _world.event(event).is_empty(),
+					"date": row["date"], "paragraph": para, "text": row["text"]})
+				top += height
+	_rows_height = top
+
+
+## 展開或收合年表；展開時把「年表」一列捲到清單頂端。
+func toggle_timeline() -> void:
+	if _timeline_count == 0:
+		return
+	_expanded = not _expanded
+	_relayout()
+	if _expanded and _list != null:
+		_list.scroll = _toggle_top
+	queue_redraw()

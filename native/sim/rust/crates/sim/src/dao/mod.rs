@@ -37,18 +37,17 @@ mod sect;
 mod tests;
 mod war;
 
-pub use breakthrough::{
-    ascension_survival, breakthrough_chance, cooldown_ready, fail_death_chance, tribulation_survival, ASCENSION_REALM,
-};
-pub use cultivate::cultivation_coefficient;
-pub use demon::{fall_to_demon, heart_demon_chance};
+pub use breakthrough::{ascension_survival, breakthrough_chance, cooldown_ready, fail_death_chance, tribulation_survival, ASCENSION_REALM};
+pub use cultivate::{cultivation_coefficient, person_year};
+pub use demon::{fall_to_demon, fall_to_demon_why, heart_demon_chance};
 pub use kill::kill;
+pub use sect::RangeCache;
 pub use sect::{
-    choose_seat, effective_prestige, found_sect, join_sect, provinces_within, resolve_leaders, sect_name, sect_range,
-    Seat,
+    choose_seat, effective_prestige, found_sect, join_sect, provinces_within, resolve_leaders, sect_name, sect_of, sect_range, Seat,
 };
 
 use crate::model::*;
+use crate::schedule::Round;
 use crate::sim::World;
 
 /// GDD 6.3 步驟 3：開局保證的強制突破（4.6）。
@@ -78,17 +77,43 @@ pub fn monthly_forced(w: &mut World) {
 }
 
 /// GDD 6.3 步驟 11：修煉、突破、天劫、心魔、斬妖除魔、魔修襲殺、劫雲將聚預兆。
-pub fn yearly(w: &mut World) {
-    cultivate::yearly_actions(w);
-    breakthrough::yearly_omens(w);
+///
+/// 逐人判定，輪到判定月（見 [`crate::schedule`]）的人才處理；`Sim::step` 每月呼叫。
+pub fn monthly_personal(w: &mut World) {
+    personal_round(w, Round::at(w.tick));
 }
 
-/// GDD 6.3 步驟 15–18：宗門創立、招收、爭脈、繼任分裂、聲望與範圍。
+/// 同 [`monthly_personal`]，但一次判定全部人（整年份；測試與工具用）。
+pub fn yearly(w: &mut World) {
+    personal_round(w, Round::All);
+}
+
+fn personal_round(w: &mut World, round: Round) {
+    cultivate::yearly_actions(w, round);
+    breakthrough::yearly_omens(w, round);
+}
+
+/// GDD 6.3 步驟 15–18：宗門創立、招收、爭脈、繼任分裂、聲望與範圍；`Sim::step` 每月呼叫。
+///
+/// 散修創宗與投靠是逐人判定，依人物的判定月；補足、拜師、繼任、聲望與範圍是逐宗判定，依宗門編號的判定月；
+/// 爭脈是兩宗之間的判定，由編號較小的一宗的判定月帶出。
+pub fn monthly_sects(w: &mut World) {
+    sects_round(w, Round::at(w.tick));
+}
+
+/// 同 [`monthly_sects`]，但一次判定全部（整年份；測試與工具用）。
 pub fn yearly_sects(w: &mut World) {
-    sect::resolve_leaders(w);
-    sect::yearly_found(w);
-    sect::yearly_recruit(w);
-    war::yearly_wars(w);
-    sect::resolve_leaders(w);
-    sect::yearly_prestige(w);
+    sects_round(w, Round::All);
+}
+
+fn sects_round(w: &mut World, round: Round) {
+    // 勢力範圍在本輪內不變（半徑只在最後的聲望重算改），招收與爭脈共用一份快取。
+    let mut ranges = std::mem::take(&mut w.range_cache);
+    sect::resolve_leaders_round(w, round);
+    sect::yearly_found(w, round);
+    sect::yearly_recruit(w, round, &mut ranges);
+    war::yearly_wars(w, round, &mut ranges);
+    sect::resolve_leaders_round(w, round);
+    sect::yearly_prestige(w, round);
+    w.range_cache = ranges;
 }

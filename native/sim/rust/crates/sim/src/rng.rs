@@ -20,6 +20,9 @@ pub enum Stream {
     Field = 7,
     Cosmos = 8,
     Command = 9,
+    Evolution = 10,
+    /// GDD 3.7 王朝與天命專用子流（只供 `dynasty` 模組使用，不借用其他系統的子流）。
+    Dynasty = 11,
 }
 
 pub fn stream(seed: u64, s: Stream) -> ChaCha8Rng {
@@ -37,6 +40,8 @@ pub struct RngStreams {
     pub powers: ChaCha8Rng,
     pub field: ChaCha8Rng,
     pub command: ChaCha8Rng,
+    pub evolution: ChaCha8Rng,
+    pub dynasty: ChaCha8Rng,
 }
 
 impl RngStreams {
@@ -48,6 +53,21 @@ impl RngStreams {
             powers: stream(seed, Stream::Powers),
             field: stream(seed, Stream::Field),
             command: stream(seed, Stream::Command),
+            evolution: stream(seed, Stream::Evolution),
+            dynasty: stream(seed, Stream::Dynasty),
         }
+    }
+}
+
+/// 從作業系統的亂數來源取一個新的 64 位元種子（開天人物落地時、讀檔時用）。不讀系統時鐘。
+pub fn os_seed() -> u64 {
+    use rand::RngCore;
+    rand::rngs::OsRng.next_u64()
+}
+
+impl RngStreams {
+    /// 以新種子重設全部子流。天地生成（`Stream::Worldgen`）不在其中，仍由世界種子決定。
+    pub fn reseed(&mut self, seed: u64) {
+        *self = Self::new(seed);
     }
 }

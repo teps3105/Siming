@@ -52,8 +52,8 @@ pub fn roll_attrs(rng: &mut ChaCha8Rng, soul: &Soul) -> Attrs {
 pub fn spawn(w: &mut World, soul: SoulId, province: ProvinceId, cell: u32) -> PersonId {
     let id = w.persons.len() as PersonId;
     w.alive_ids.push(id);
-    let s = w.souls.get(soul as usize).cloned().expect("spawn: soul");
-    let attrs = roll_attrs(&mut w.rng.people, &s);
+    w.alive_added(id);
+    let attrs = roll_attrs(&mut w.rng.people, w.souls.get(soul as usize).expect("spawn: soul"));
     let gender = if w.rng.people.gen::<bool>() { Gender::Male } else { Gender::Female };
     let name = person_name(&mut w.rng.people, gender);
     let lifespan = mortal_lifespan(&mut w.rng.people);
@@ -80,7 +80,9 @@ pub fn spawn(w: &mut World, soul: SoulId, province: ProvinceId, cell: u32) -> Pe
         blessed_until: None,
         travel_until: None,
         forced_breakthrough: None,
+        next_marry: None,
         last_event: None,
     });
+    super::events::arm_birth(w, id);
     id
 }

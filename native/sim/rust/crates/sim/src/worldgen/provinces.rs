@@ -74,12 +74,13 @@ fn step_cost(t: Terrain, river: u8) -> f32 {
 
 /// GDD 2.2 步驟 7 種子點：以宜居度加權的 Poisson-disk 取樣（最小間距 `0.8 × sqrt(陸地面積 / 目標)`，球面距離）。
 /// 若候選用盡而數量未達目標，將間距縮為 0.9 倍後繼續。
-fn poisson_seeds(
+pub(crate) fn poisson_seeds(
     sp: &Sphere,
     cand: &[u32],
     hab: &[f64],
     land_area: f32,
     target: usize,
+    spacing: f32,
     rng: &mut ChaCha8Rng,
 ) -> Vec<u32> {
     let (w, h) = (sp.w, sp.h);
@@ -87,26 +88,20 @@ fn poisson_seeds(
     if cand.is_empty() || target == 0 {
         return seeds;
     }
-    let mut r = WG_PROV_SPACING * (land_area / target as f32).sqrt();
+    let mut r = spacing * (land_area / target as f32).sqrt();
     let mut alive: Vec<bool> = vec![true; cand.len()];
     let mut pos_of = vec![NONE; w * h];
     for (i, &c) in cand.iter().enumerate() {
         pos_of[c as usize] = i as u32;
     }
     while seeds.len() < target && r >= 1.0 {
-        let total: f64 = cand
-            .iter()
-            .enumerate()
-            .filter(|(i, _)| alive[*i])
-            .map(|(_, &c)| hab[c as usize])
-            .sum();
+        let total: f64 = cand.iter().enumerate().filter(|(i, _)| alive[*i]).map(|(_, &c)| hab[c as usize]).sum();
         if total <= 0.0 {
             // 候選用盡：縮小間距，重算存活者。
             r *= 0.9;
             let r2 = r * r;
             for (i, &c) in cand.iter().enumerate() {
-                alive[i] = !seeds.iter().any(|&s| sp.dist2(s as usize, c as usize) < r2)
-                    && !seeds.contains(&c);
+                alive[i] = !seeds.iter().any(|&s| sp.dist2(s as usize, c as usize) < r2) && !seeds.contains(&c);
             }
             continue;
         }
@@ -299,13 +294,7 @@ fn label_components(w: usize, h: usize, lab: &[u32]) -> (Vec<u32>, Vec<u32>, Vec
 }
 
 /// GDD 2.2 步驟 7 合併過小者：面積 < 平均 35%（且 < 30 赤道格）的州郡，併入代價最低的陸鄰（共享邊界的平均成長代價最小者）。
-fn merge_small(
-    sp: &Sphere,
-    terrain: &[Terrain],
-    river: &[u8],
-    lab: &mut [u32],
-    n_labels: usize,
-) {
+fn merge_small(sp: &Sphere, terrain: &[Terrain], river: &[u8], lab: &mut [u32], n_labels: usize) {
     let (w, h) = (sp.w, sp.h);
     let n = w * h;
     let land_total: f32 = (0..n).filter(|&c| lab[c] != NONE).map(|c| sp.area(c)).sum();
@@ -331,11 +320,7 @@ fn merge_small(
         }
         let mut pick = NONE;
         for l in 0..n_labels {
-            if area[l] > 0.0
-                && !blocked[l]
-                && area[l] < thresh
-                && (pick == NONE || area[l] < area[pick as usize])
-            {
+            if area[l] > 0.0 && !blocked[l] && area[l] < thresh && (pick == NONE || area[l] < area[pick as usize]) {
                 pick = l as u32;
             }
         }
@@ -353,8 +338,7 @@ fn merge_small(
                 if l == NONE || l == pick {
                     continue;
                 }
-                let cost =
-                    0.5 * (step_cost(terrain[c], river[c]) + step_cost(terrain[nb], river[nb]));
+                let cost = 0.5 * (step_cost(terrain[c], river[c]) + step_cost(terrain[nb], river[nb]));
                 match acc.iter_mut().find(|e| e.0 == l) {
                     Some(e) => {
                         e.1 += cost;
@@ -418,14 +402,141 @@ fn component_area(sp: &Sphere, label: &[u32], count: usize) -> Vec<f32> {
     area
 }
 
+/// 州郡的相鄰關係（GDD 2.2 步驟 7「相鄰」）。
+pub struct Adjacency {
+    /// 陸鄰：共享邊界格。
+    pub land: Vec<BTreeSet<u16>>,
+    /// 海鄰：隔海、球面距離 ≤ `WG_SEA_LANE` 的沿岸州郡。
+    pub sea: Vec<BTreeSet<u16>>,
+    /// 鄰接海或湖的格數。
+    pub coast_cells: Vec<u32>,
+}
+
+/// 由每格的歸屬 `of` 算出 `count` 個州郡的陸鄰、海鄰與沿岸格數；世界生成與天地演變（GDD 2.8）共用。
+pub fn adjacency(sp: &Sphere, terrain: &[Terrain], of: &[u16], count: usize) -> Adjacency {
+    let (w, h) = (sp.w, sp.h);
+    let n = w * h;
+    // 陸鄰：共享邊界格。
+    let mut nbr: Vec<BTreeSet<u16>> = vec![BTreeSet::new(); count];
+    for c in 0..n {
+        if of[c] == u16::MAX {
+            continue;
+        }
+        for nb in nb4(w, h, c) {
+            if of[nb] != u16::MAX && of[nb] != of[c] {
+                nbr[of[c] as usize].insert(of[nb]);
+            }
+        }
+    }
+
+    // 沿岸格（海或湖，用於命名）與沿海格（僅海，用於海路）。
+    let mut coast_cells = vec![0u32; count];
+    let mut sea_coast = vec![false; n];
+    for c in 0..n {
+        if of[c] == u16::MAX {
+            continue;
+        }
+        let mut near_water = false;
+        let mut near_sea = false;
+        for (nb, _) in nb8(w, h, c) {
+            near_water |= terrain[nb].is_water();
+            near_sea |= terrain[nb] == Terrain::Sea;
+        }
+        if near_water {
+            coast_cells[of[c] as usize] += 1;
+        }
+        sea_coast[c] = near_sea;
+    }
+
+    // 海鄰：隔海、球面距離 ≤ WG_SEA_LANE 的沿岸州郡（兩者連線須經過海格；陸鄰不算）。
+    // 每個沿海格只看方框內的沿海格（各列的沿海格先依 x 排好，用二分找範圍）；
+    // 已判定的州對（陸鄰或已是海鄰）先跳過，再算距離與連線。
+    let mut lanes: Vec<BTreeSet<u16>> = vec![BTreeSet::new(); count];
+    let r2 = (WG_SEA_LANE * WG_SEA_LANE) as f32;
+    let mut settled = vec![false; count * count];
+    for (p, set) in nbr.iter().enumerate() {
+        for &q in set {
+            settled[p * count + q as usize] = true;
+        }
+    }
+    let rows: Vec<Vec<u32>> = (0..h).map(|y| (0..w).filter(|&x| sea_coast[y * w + x]).map(|x| x as u32).collect()).collect();
+    let ry = WG_SEA_LANE as i32;
+    for a in 0..n {
+        if !sea_coast[a] {
+            continue;
+        }
+        let pa = of[a];
+        let (cx, cy) = ((a % w) as i32, (a / w) as i32);
+        for y in (cy - ry).max(0) as usize..=(cy + ry).min(h as i32 - 1) as usize {
+            let rx = sp.box_half_width(y, WG_SEA_LANE as f32);
+            let (lo, hi) = (cx - rx, cx + rx);
+            let wi = w as i32;
+            // x 環繞：方框跨過左右邊界時拆成兩段。
+            let spans: [(i32, i32); 2] = if hi - lo + 1 >= wi {
+                [(0, wi - 1), (1, 0)]
+            } else if lo < 0 {
+                [(lo + wi, wi - 1), (0, hi)]
+            } else if hi >= wi {
+                [(lo, wi - 1), (0, hi - wi)]
+            } else {
+                [(lo, hi), (1, 0)]
+            };
+            let row = &rows[y];
+            for (from, to) in spans {
+                if from > to {
+                    continue;
+                }
+                let start = row.partition_point(|&x| (x as i32) < from);
+                for &x in row[start..].iter().take_while(|&&x| x as i32 <= to) {
+                    let b = y * w + x as usize;
+                    let pb = of[b];
+                    if pb <= pa || settled[pa as usize * count + pb as usize] || sp.dist2(a, b) > r2 {
+                        continue;
+                    }
+                    if line_crosses_sea(w, terrain, a, b) {
+                        lanes[pa as usize].insert(pb);
+                        lanes[pb as usize].insert(pa);
+                        settled[pa as usize * count + pb as usize] = true;
+                    }
+                }
+            }
+        }
+    }
+    Adjacency { land: nbr, sea: lanes, coast_cells }
+}
+
+/// 海鄰原本的逐格算法，留作 [`adjacency`] 的對照。
+#[cfg(test)]
+fn sea_lanes_reference(sp: &Sphere, terrain: &[Terrain], of: &[u16], count: usize, nbr: &[BTreeSet<u16>]) -> Vec<BTreeSet<u16>> {
+    let (w, h) = (sp.w, sp.h);
+    let n = w * h;
+    let sea_coast: Vec<bool> = (0..n).map(|c| of[c] != u16::MAX && nb8(w, h, c).any(|(nb, _)| terrain[nb] == Terrain::Sea)).collect();
+    let mut lanes: Vec<BTreeSet<u16>> = vec![BTreeSet::new(); count];
+    let r2 = (WG_SEA_LANE * WG_SEA_LANE) as f32;
+    for a in 0..n {
+        if !sea_coast[a] {
+            continue;
+        }
+        let pa = of[a];
+        for b in sp.box_cells(a, WG_SEA_LANE as f32) {
+            if !sea_coast[b] || sp.dist2(a, b) > r2 {
+                continue;
+            }
+            let pb = of[b];
+            if pb <= pa || nbr[pa as usize].contains(&pb) || lanes[pa as usize].contains(&pb) {
+                continue;
+            }
+            if line_crosses_sea(w, terrain, a, b) {
+                lanes[pa as usize].insert(pb);
+                lanes[pb as usize].insert(pa);
+            }
+        }
+    }
+    lanes
+}
+
 /// GDD 2.2 步驟 7：完整的州郡生成。
-pub fn build(
-    sp: &Sphere,
-    terrain: &[Terrain],
-    river: &[u8],
-    target: usize,
-    rng: &mut ChaCha8Rng,
-) -> Provinces {
+pub fn build(sp: &Sphere, terrain: &[Terrain], river: &[u8], target: usize, rng: &mut ChaCha8Rng) -> Provinces {
     let (w, h) = (sp.w, sp.h);
     let n = w * h;
     let hab = cell_habitability(sp, terrain, river);
@@ -435,11 +546,8 @@ pub fn build(
     // 島嶼（四鄰連通陸塊，面積加權）。
     let (cl, csz) = components(w, h, &land, false);
     let carea = component_area(sp, &cl, csz.len());
-    let cand: Vec<u32> = (0..n)
-        .filter(|&c| land[c] && carea[cl[c] as usize] >= WG_ISLAND_MIN as f32)
-        .map(|c| c as u32)
-        .collect();
-    let seeds = poisson_seeds(sp, &cand, &hab, land_area, target, rng);
+    let cand: Vec<u32> = (0..n).filter(|&c| land[c] && carea[cl[c] as usize] >= WG_ISLAND_MIN as f32).map(|c| c as u32).collect();
+    let seeds = poisson_seeds(sp, &cand, &hab, land_area, target, WG_PROV_SPACING, rng);
     let mut lab = grow(w, h, terrain, river, &seeds);
     let mut n_labels = seeds.len();
 
@@ -548,60 +656,7 @@ pub fn build(
         }
     }
 
-    // 陸鄰：共享邊界格。
-    let mut nbr: Vec<BTreeSet<u16>> = vec![BTreeSet::new(); count];
-    for c in 0..n {
-        if of[c] == u16::MAX {
-            continue;
-        }
-        for nb in nb4(w, h, c) {
-            if of[nb] != u16::MAX && of[nb] != of[c] {
-                nbr[of[c] as usize].insert(of[nb]);
-            }
-        }
-    }
-
-    // 沿岸格（海或湖，用於命名）與沿海格（僅海，用於海路）。
-    let mut coast_cells = vec![0u32; count];
-    let mut sea_coast = vec![false; n];
-    for c in 0..n {
-        if of[c] == u16::MAX {
-            continue;
-        }
-        let mut near_water = false;
-        let mut near_sea = false;
-        for (nb, _) in nb8(w, h, c) {
-            near_water |= terrain[nb].is_water();
-            near_sea |= terrain[nb] == Terrain::Sea;
-        }
-        if near_water {
-            coast_cells[of[c] as usize] += 1;
-        }
-        sea_coast[c] = near_sea;
-    }
-
-    // 海鄰：隔海、球面距離 ≤ WG_SEA_LANE 的沿岸州郡（兩者連線須經過海格；陸鄰不算）。
-    let mut lanes: Vec<BTreeSet<u16>> = vec![BTreeSet::new(); count];
-    let r2 = (WG_SEA_LANE * WG_SEA_LANE) as f32;
-    for a in 0..n {
-        if !sea_coast[a] {
-            continue;
-        }
-        let pa = of[a];
-        for b in sp.box_cells(a, WG_SEA_LANE as f32) {
-            if !sea_coast[b] || sp.dist2(a, b) > r2 {
-                continue;
-            }
-            let pb = of[b];
-            if pb <= pa || nbr[pa as usize].contains(&pb) || lanes[pa as usize].contains(&pb) {
-                continue;
-            }
-            if line_crosses_sea(w, terrain, a, b) {
-                lanes[pa as usize].insert(pb);
-                lanes[pb as usize].insert(pa);
-            }
-        }
-    }
+    let Adjacency { land: nbr, sea: lanes, coast_cells } = adjacency(sp, terrain, &of, count);
 
     let mut list = Vec::with_capacity(count);
     for id in 0..count {
@@ -627,4 +682,29 @@ pub fn build(
         });
     }
     Provinces { of, list }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Sim, WorldParams};
+
+    /// 海鄰的快算法與原本的逐格算法結果相同：開局的世界，以及海岸移動過幾世之後的世界。
+    #[test]
+    fn gdd_2_2_sea_lanes_match_the_reference() {
+        for seed in [7u64, 42, 20261011] {
+            let mut sim = Sim::new(&WorldParams::new(seed)).unwrap();
+            for round in 0..3 {
+                let w = sim.world();
+                let sp = Sphere::new(w.geo.w as usize, w.geo.h as usize);
+                let found = adjacency(&sp, &w.geo.terrain, &w.geo.province_of, w.provinces.len());
+                let expected = sea_lanes_reference(&sp, &w.geo.terrain, &w.geo.province_of, w.provinces.len(), &found.land);
+                assert!(expected.iter().any(|set| !set.is_empty()), "種子 {seed} 應有海鄰");
+                assert_eq!(found.sea, expected, "種子 {seed} 第 {round} 輪");
+                for _ in 0..360 * 4 {
+                    sim.step();
+                }
+            }
+        }
+    }
 }

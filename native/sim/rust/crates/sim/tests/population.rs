@@ -1,7 +1,8 @@
 //! GDD 2.3 人口年度更新。
 
 use siming_sim::params::*;
-use siming_sim::population::yearly;
+use siming_sim::population::{monthly_with, yearly};
+use siming_sim::schedule::Round;
 use siming_sim::{Province, Terrain};
 
 fn prov(id: u16, hab: f64, pop: f64, neighbors: Vec<u16>) -> Province {
@@ -23,6 +24,7 @@ fn prov(id: u16, hab: f64, pop: f64, neighbors: Vec<u16>) -> Province {
         devastation: 0.0,
         faith: [0.0; 3],
         city_level: 0,
+        lost: false,
     }
 }
 
@@ -72,11 +74,7 @@ fn gdd_2_3_no_famine_below_threshold() {
 fn gdd_2_3_migration_conserves_population_and_targets_lowest_ratio() {
     let k = 10.0 * POP_CAP_PER_HAB;
     // P=0.95K 無饑荒；成長後仍 > 0.9K，觸發遷徙。
-    let mut v = vec![
-        prov(0, 10.0, 0.95 * k, vec![1, 2]),
-        prov(1, 10.0, 0.5 * k, vec![0]),
-        prov(2, 10.0, 0.2 * k, vec![0]),
-    ];
+    let mut v = vec![prov(0, 10.0, 0.95 * k, vec![1, 2]), prov(1, 10.0, 0.5 * k, vec![0]), prov(2, 10.0, 0.2 * k, vec![0])];
     // 先單獨算成長後的人口（無鄰接），以便對照。
     let mut solo = v.clone();
     for p in solo.iter_mut() {
@@ -96,12 +94,7 @@ fn gdd_2_3_migration_conserves_population_and_targets_lowest_ratio() {
 #[test]
 fn gdd_2_3_migration_independent_of_order() {
     let k = 10.0 * POP_CAP_PER_HAB;
-    let mk = || {
-        vec![
-            prov(0, 10.0, 0.95 * k, vec![1]),
-            prov(1, 10.0, 0.95 * k, vec![0]),
-        ]
-    };
+    let mk = || vec![prov(0, 10.0, 0.95 * k, vec![1]), prov(1, 10.0, 0.95 * k, vec![0])];
     let mut v = mk();
     yearly(&mut v);
     // 對稱情境：雙方互相遷出同量，結果對稱。
@@ -110,12 +103,7 @@ fn gdd_2_3_migration_independent_of_order() {
 
 #[test]
 fn gdd_2_3_city_levels() {
-    let cases = [
-        (CITY_LEVEL_TOWN_POP * 0.99, 0),
-        (CITY_LEVEL_TOWN_POP, 1),
-        (CITY_LEVEL_COUNTY_POP, 2),
-        (CITY_LEVEL_STATE_POP, 3),
-    ];
+    let cases = [(CITY_LEVEL_TOWN_POP * 0.99, 0), (CITY_LEVEL_TOWN_POP, 1), (CITY_LEVEL_COUNTY_POP, 2), (CITY_LEVEL_STATE_POP, 3)];
     for (pop, lv) in cases {
         // 以極大承載讓成長可忽略，人口維持於門檻附近。
         let mut p = prov(0, 1.0e6, pop, vec![]);
@@ -148,3 +136,36 @@ fn gdd_2_4_famine_karma_stays_within_the_field_range() {
     assert!(v[0].karma_qi > 0.99);
 }
 
+/// GDD 6.3 判定月：每個州郡一年恰好成長一次——連續 12 個月的單月輪次，結果與一次整年輪次相同（孤立州郡，無遷徙）。
+#[test]
+fn gdd_2_3_each_province_grows_exactly_once_per_year_in_monthly_rounds() {
+    let make = || (0..40).map(|i| prov(i, 10.0, 1000.0 + 37.0 * i as f64, vec![])).collect::<Vec<_>>();
+    let mut a = make();
+    let mut b = make();
+    yearly(&mut a);
+    for tick in 1..=12u32 {
+        monthly_with(&mut b, &[], 77, Round::at(tick * 30));
+    }
+    for (x, y) in a.iter().zip(&b) {
+        assert!((x.population - y.population).abs() < 1e-9, "州 {} 整年 {} 分月 {}", x.id, x.population, y.population);
+    }
+    // 第二年同樣恰好一次。
+    yearly(&mut a);
+    for tick in 13..=24u32 {
+        monthly_with(&mut b, &[], 77, Round::at(tick * 30));
+    }
+    for (x, y) in a.iter().zip(&b) {
+        assert!((x.population - y.population).abs() < 1e-9);
+    }
+}
+
+/// 單月輪次只動輪到判定月的州郡。
+#[test]
+fn gdd_2_3_monthly_round_touches_only_due_provinces() {
+    let mut v: Vec<Province> = (0..60).map(|i| prov(i, 10.0, 1000.0, vec![])).collect();
+    monthly_with(&mut v, &[], 5, Round::Month(3));
+    for p in &v {
+        let due = siming_sim::schedule::judge_month(5, siming_sim::schedule::Domain::Province, p.id as u32) == 3;
+        assert_eq!(p.population != 1000.0, due, "州 {}", p.id);
+    }
+}

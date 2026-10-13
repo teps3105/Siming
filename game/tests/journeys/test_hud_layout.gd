@@ -83,7 +83,22 @@ func test_card_hides_empty_bars_and_empty_faith() -> void:
 		await wait(0.3)
 		assert_false(_hud._card._shows_faith_ring(), "沒有教化時不畫教化環")
 	var card_bottom: float = _hud._card.position.y + _hud._card.size.y
-	assert_lt(card_bottom, _hud._seals.position.y + _hud._seals._legend_top(), "命簿不與例簽重疊")
+	assert_lt(card_bottom, _hud._seals.top_edge(), "命簿不與印匣重疊")
+
+
+func test_card_height_limit_follows_the_legend_when_it_shows() -> void:
+	await _boot(FLOW_VIEW)
+	_hud._card.show_province(0)
+	await wait(0.5)
+	var plain: float = _hud._card.max_height
+	assert_gt(plain, _hud._seals.top_edge() - Hud.MARGIN * 2.0 - 1.0, "平時卡高上限到印匣上緣之上一個間距")
+	_hud._seals._flash = 5.0
+	await frames(3)
+	assert_lt(_hud._card.max_height, plain, "例簽顯示時，卡高上限縮到例簽上緣之上")
+	assert_lt(_hud._card.position.y + _hud._card.size.y, _hud._seals.top_edge(), "命簿不壓到例簽")
+	_hud._seals._flash = 0.0
+	await frames(3)
+	assert_eq(_hud._card.max_height, plain, "例簽收起後恢復")
 
 
 func test_legend_and_card_use_one_terrain_palette() -> void:
@@ -97,8 +112,8 @@ func test_legend_and_card_use_one_terrain_palette() -> void:
 func test_disabled_seals_stay_readable_and_do_not_switch() -> void:
 	await _boot(FLOW_VIEW)
 	assert_gt(Ink.DISABLED_GLYPH_ALPHA, 0.6, "尚未開放的模式鈕仍看得清字")
-	assert_eq(_hud._seals._key_label(2), "", "尚未開放的模式鈕不掛鍵帽")
-	await click(_hud._seals.position + _hud._seals._seal_rect(2).get_center())
+	assert_eq(_hud._seals._key_label(5), "", "尚未開放的模式鈕不掛鍵帽")
+	await click(_hud._seals.position + _hud._seals._seal_rect(5).get_center())
 	assert_eq(_hud._seals.mode, TerrainMap.Mode.SHANHE, "尚未開放的印不切換模式")
 
 
@@ -139,11 +154,18 @@ func test_every_control_has_text_and_a_key_image() -> void:
 	assert_eq(_hud._seals._key_label(3), "F4")
 	assert_eq(_hud._dial._state_label(), Locale.t("dial_paused"), "時速簽寫出行止狀態")
 	assert_eq(_hud._dial._pause_key(), "Space")
-	assert_eq(_hud._dial._speed_label(), "1 %s" % Locale.t("dial_speed_unit"), "時速簽寫出倍速")
-	assert_eq(_hud._dial._speed_keys(), ["1", "4"])
-	await key(KEY_3)
+	assert_eq(_hud._dial._speed_label(), "1x", "時速簽寫出倍率")
+	assert_eq(_hud._dial._speed_keys(), ["Tab"])
+	await key(KEY_TAB)
+	await key(KEY_TAB)
 	assert_eq(_hud._dial._state_label(), Locale.t("dial_running"))
-	assert_eq(_hud._dial._speed_label(), "20 %s" % Locale.t("dial_speed_unit"))
+	assert_eq(_hud._dial._speed_label(), "10x")
+	await key(KEY_TAB)
+	assert_eq(_hud._dial._speed_label(), "20x", "最快 20 倍")
+	assert_eq(_hud._view._key(), "G", "視角鈕帶快捷鍵的圖像")
+	assert_false(_hud._view._label().is_empty(), "視角鈕有文字")
+	var badge_owner: Rect2 = _hud._seals._seal_rect(0)
+	assert_lt(_hud._seals._badge_position(0).x, badge_owner.get_center().x, "模式鈕的鍵帽掛在左上角")
 	assert_eq(_hud._card._close_key(), "Esc")
 	assert_eq(_hud._card._center_key(), "C")
 
@@ -230,12 +252,12 @@ func test_map_labels_keep_clear_of_the_instruments() -> void:
 	_hud._card.show_province(0)
 	await wait(0.5)
 	var reserved: Array[Rect2] = _hud._overlay.reserved
-	assert_eq(reserved.size(), 4, "圓盤、兩張簽、模式鈕與開著的命簿")
+	assert_eq(reserved.size(), 6, "圓盤、兩張簽、傳聞簽、模式鈕、視角鈕與開著的命簿")
 	var card := Rect2(_hud._card.position, _hud._card.size)
 	assert_true(reserved[3].encloses(card), "命簿的範圍在避讓區內")
 	_hud._card.close()
 	await wait(0.5)
-	assert_eq(_hud._overlay.reserved.size(), 3, "命簿收起後不再佔位")
+	assert_eq(_hud._overlay.reserved.size(), 5, "命簿收起後不再佔位")
 
 
 func test_card_title_is_written_vertically_on_a_side_strip() -> void:
@@ -276,4 +298,114 @@ func test_water_names_stay_on_the_water() -> void:
 				assert_true(overlay._is_water_at(point + corner * half, world_pos.y), "「%s」的四角都在水面上" % label["text"])
 	assert_gt(lakes, 0, "測試世界應有湖")
 	assert_gt(hidden_or_shrunk, 0, "拉遠時，小湖放不下原字級的名字：要嘛縮小、要嘛不顯示")
+
+
+func test_time_slips_keep_one_fixed_width() -> void:
+	await _boot(FLOW_VIEW)
+	var title_width: float = _hud._dial._title_rect().size.x
+	var speed_width: float = _hud._dial._speed_rect().size.x
+	assert_eq(title_width, speed_width, "題簽與時速簽同寬")
+	# 推進到月份變兩位數、年份多一位數，寬度都不變。
+	var seen_two_digit_month := false
+	for i in 30:
+		_sim.world.step(1)
+		_hud._dial.queue_redraw()
+		assert_eq(_hud._dial._title_rect().size.x, title_width, "日期變了，題簽寬度不變：%s" % _sim.world.date_short())
+		if _sim.world.date_short().ends_with("11月"):
+			seen_two_digit_month = true
+	assert_true(seen_two_digit_month, "測試涵蓋到兩位數的月份")
+	# 切到每一檔速度，寬度都不變。
+	for i in SimHost.SPEED_MULTIPLIERS.size():
+		await key(KEY_TAB)
+		assert_eq(_hud._dial._speed_rect().size.x, speed_width, "倍速 %s 時寬度不變" % _hud._dial._speed_label())
+	# 換成搖桿（鍵圖像不同），寬度也不變。
+	await joy_button(JOY_BUTTON_LEFT_STICK)
+	await frames(2)
+	assert_eq(_hud._dial._speed_rect().size.x, speed_width, "換輸入裝置時寬度不變")
+	assert_eq(_hud._dial._title_rect().size.x, title_width)
+	for i in TimeDial.STROKE_COUNT:
+		assert_true(_hud._dial._speed_rect().encloses(_hud._dial._stroke_rect(i)), "四筆仍在時速簽內")
+
+
+func test_date_is_centred_in_the_title_slip() -> void:
+	await _boot(FLOW_VIEW)
+	for i in 3:
+		var title: Rect2 = _hud._dial._title_rect()
+		var date: Rect2 = _hud._dial._date_rect()
+		assert_lt(absf(date.get_center().x - title.get_center().x), 0.5, "整串日期在題簽裡置中：%s" % _sim.world.date_short())
+		assert_true(title.encloses(date), "日期不超出題簽")
+		_sim.world.step(700)
+
+
+func test_gdd_2_8_dial_carries_two_arcs_with_dots_inside_the_outer_ring() -> void:
+	for view: Vector2i in [FLOW_VIEW, DECK_VIEW]:
+		await _boot(view)
+		var dial := _hud._dial
+		var center := dial._disc_center()
+		assert_gt(center.x - dial.outer_radius(), -0.01, "外圈不超出器物的左上角")
+		for kind: StringName in [&"warmth", &"tide"]:
+			var dot := dial.arc_dot(kind)
+			assert_gt(dot.distance_to(center), dial._disc_radius(), "朱點在圓盤外")
+			assert_lt(dot.distance_to(center) + TimeDial.ARC_DOT * _hud._unit, dial.outer_radius(), "朱點在外圈內")
+		assert_lt(dial.arc_dot(&"warmth").x, center.x, "寒暖在左弧")
+		assert_gt(dial.arc_dot(&"tide").x, center.x, "靈潮在右弧")
+		assert_gt(dial._title_rect().position.x, center.x + dial.outer_radius(), "題簽讓開外圈")
+		assert_gt(_hud._view.position.y, dial.position.y + dial.outer_radius() * 2.0, "視角鈕在外圈之下")
+		assert_gt(TimeDial.ARC_DOT * 2.0 * _hud._unit, 6.9, "朱點直徑至少 7 px")
+
+
+func test_gdd_2_8_arc_dot_and_arrow_follow_the_world() -> void:
+	await _boot(FLOW_VIEW)
+	var dial := _hud._dial
+	var seen := {}
+	for shi in 40:
+		var c: Dictionary = _sim.world.climate()
+		var want := signi(int(signf(float(c["warmth_next"]) - float(c["warmth"])))) if absf(float(c["warmth_next"]) - float(c["warmth"])) >= 0.02 else 0
+		assert_eq(dial.trend(&"warmth"), want)
+		seen[dial.trend(&"warmth")] = true
+		# 左弧下寒上暖：寒暖愈高朱點愈高。
+		var level: float = inverse_lerp(-1.0, 1.0, c["warmth"])
+		assert_lt(absf(dial.arc_dot(&"warmth").y - dial._arc_point(&"warmth", level).y), 0.01)
+		_sim.advance(360)
+	assert_true(seen.has(1) and seen.has(-1), "四十世裡寒暖應有升有降")
+	assert_lt(dial._arc_point(&"warmth", 1.0).y, dial._arc_point(&"warmth", 0.0).y, "暖在上")
+	assert_lt(dial._arc_point(&"tide", 1.0).y, dial._arc_point(&"tide", 0.0).y, "盛在上")
+
+
+func test_gdd_2_8_hovering_an_arc_explains_it() -> void:
+	await _boot(FLOW_VIEW)
+	var dial := _hud._dial
+	assert_eq(dial.hover_text(), "")
+	await move_mouse(dial.position + dial.arc_dot(&"warmth"))
+	assert_true(dial.hover_text().begins_with(Locale.t("dial_warmth")), "停在左弧說寒暖：%s" % dial.hover_text())
+	assert_false(dial.is_hot(dial.arc_dot(&"warmth")), "弧不能按")
+	await move_mouse(dial.position + dial.arc_dot(&"tide"))
+	assert_true(dial.hover_text().begins_with(Locale.t("dial_tide")), "停在右弧說靈潮：%s" % dial.hover_text())
+	await move_mouse(Vector2(900.0, 600.0))
+	assert_eq(dial.hover_text(), "", "移開後說明簽收起")
+
+
+func test_gdd_2_8_a_world_change_posts_a_notice_that_goes_away() -> void:
+	await _boot(FLOW_VIEW)
+	var notice := _hud._notice
+	assert_false(notice.showing(), "開局沒有告示")
+	var heard: Array = []
+	_sim.world_changed.connect(func(change: String, era: String) -> void: heard.append([change, era]))
+	for shi in 60:
+		_sim.advance(360)
+		if not heard.is_empty():
+			break
+	assert_gt(heard.size(), 0, "六十世裡應有世界大事")
+	assert_true(notice.showing(), "世界大事發生時出現告示")
+	assert_eq(notice.text(), Hud._world_notice(heard[0][0], heard[0][1]))
+	var bounds := Vector2(tree.root.get_visible_rect().size)
+	var rect := Rect2(notice.position, notice.size)
+	assert_lt(absf(rect.get_center().x - bounds.x * 0.5), 1.0, "告示在上方中央")
+	await wait(NoticeSlip.HOLD_SECONDS * heard.size() + NoticeSlip.FADE_SECONDS * 2.0 * heard.size() + 0.5)
+	assert_false(notice.showing(), "告示停幾秒後收起")
+
+
+func test_gdd_2_8_notice_text_names_the_new_era() -> void:
+	assert_eq(Hud._world_notice("ColdBegan", "玄冥"), "天下大寒，改元玄冥")
+	assert_eq(Hud._world_notice("ColdEnded", ""), "大寒已過")
 

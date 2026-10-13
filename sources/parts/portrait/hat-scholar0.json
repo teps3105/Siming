@@ -1,0 +1,432 @@
+{
+ "part": "hat-scholar0",
+ "paint": [
+  {
+   "tag": "hat-scholar0-t1",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20262188,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/sources/parts/portrait/base-face-m.png",
+     "6eb81df3857716d33152534009eecf9090d5c7a2a6b3c29c3f5a48bfdca3b318"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版（背景是純綠色），圖2是畫風基準圖。請在圖1的光頭上戴一頂儒生的「方巾」（儒巾）：布製的方頂軟帽，頂部平整略呈方形，包住頭頂，帽的下緣是一條水平的帽圈，壓在額頭上方三分之一處（額頭下半、眉眼與耳朵完全露出），帽後垂下兩條短短的飄帶落在耳後。帽子高度約為頭高的四分之一。是一件完整的帽子，外緣用墨線完整包住，帽面用兩三條褶線表示布的軟，不畫花紋與玉飾。【只有這一件畫成灰色】這一件是灰階稿，之後才會上色，所以只用中性灰、完全沒有色相：底色是明亮的中淺灰（約 #B0B0B0），陰影塊是明顯較深的灰（約 #606060），少量近白的高光塊（約 #F2F2F2），輪廓線與摺線用近黑（約 #151515）；外緣一圈用連續封閉的墨線包住，約 3 到 4 像素寬；底色、陰影、高光三階要一眼分得開。人物其餘的地方——臉、耳、頸、肩的皮膚——必須保持圖1原本的暖膚色，一點都不要變灰，整張圖其他部分與圖1完全一樣。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫的這一件，人物的頭、臉、頸、肩與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純綠色（#00FF00），純色無漸層。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/.shiftblame/tmp/parts/portrait/paint/hat-scholar0-t1.png",
+   "output_sha256": "1e56fa345eca5a25e28b590ede7d37130d41980bf0798a21b8c283ca270ab725",
+   "seconds": 64.8,
+   "time": "2026-10-13 19:43:00"
+  },
+  {
+   "tag": "hat-scholar0-t2",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261015,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/sources/parts/portrait/base-face-m.png",
+     "6eb81df3857716d33152534009eecf9090d5c7a2a6b3c29c3f5a48bfdca3b318"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版（背景是純綠色），圖2是畫風基準圖。請在圖1的光頭上戴一頂儒生的「方巾」（儒巾）：布製的方頂軟帽，頂部平整略呈方形，包住頭頂，帽的下緣是一條水平的帽圈，壓在額頭上方三分之一處（額頭下半、眉眼與耳朵完全露出），帽後垂下兩條短短的飄帶落在耳後。帽子高度約為頭高的四分之一。帽圈是中間高、兩側向下彎的拱形：額頭正中帽圈壓在額頭上方三分之一處，兩側的帽圈向下垂、整個蓋住左右兩邊的鬢角與太陽穴，帽圈兩端落到耳朵上緣的高度為止（耳朵上緣以上的頭皮全部被帽蓋住、不露出任何頭皮或頭髮的位置）；額頭下半、眉眼與耳朵仍然完全露出。是一件完整的帽子，外緣用墨線完整包住，帽面用兩三條褶線表示布的軟，不畫花紋與玉飾。【只有這一件畫成灰色】這一件是灰階稿，之後才會上色，所以只用中性灰、完全沒有色相：底色是明亮的中淺灰（約 #B0B0B0），陰影塊是明顯較深的灰（約 #606060），少量近白的高光塊（約 #F2F2F2），輪廓線與摺線用近黑（約 #151515）；外緣一圈用連續封閉的墨線包住，約 3 到 4 像素寬；底色、陰影、高光三階要一眼分得開。人物其餘的地方——臉、耳、頸、肩的皮膚——必須保持圖1原本的暖膚色，一點都不要變灰，整張圖其他部分與圖1完全一樣。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫的這一件，人物的頭、臉、頸、肩與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純綠色（#00FF00），純色無漸層。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/paint/hat-scholar0-t2.png",
+   "output_sha256": "95347bf10a2ba8fd2d31d31e52d8218829931034559b1a729421d496de23ed08",
+   "seconds": 72.1,
+   "time": "2026-10-13 21:37:34"
+  },
+  {
+   "tag": "hat-scholar0-t3",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261016,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/sources/parts/portrait/base-face-m.png",
+     "6eb81df3857716d33152534009eecf9090d5c7a2a6b3c29c3f5a48bfdca3b318"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版（背景是純綠色），圖2是畫風基準圖。請在圖1的光頭上戴一頂儒生的「方巾」（儒巾）：布製的方頂軟帽，頂部平整略呈方形，包住頭頂，帽的下緣是一條水平的帽圈，壓在額頭正中（眉眼與耳朵完全露出），帽後垂下兩條短短的飄帶落在耳後。帽子高度約為頭高的四分之一。帽圈是中間高、兩側向下彎的拱形：額頭正中帽圈壓得比一般更低、下緣落在額頭高度的正中（額頭上半被帽圈蓋住，帽圈下緣到眉毛之間只留不到一半的額頭），兩側的帽圈向下垂、整個蓋住左右兩邊的鬢角與太陽穴，帽圈兩端落到耳朵上緣的高度為止（耳朵上緣以上的頭皮全部被帽蓋住、不露出任何頭皮或頭髮的位置）；額頭下半、眉眼與耳朵仍然完全露出。是一件完整的帽子，外緣用墨線完整包住，帽面用兩三條褶線表示布的軟，不畫花紋與玉飾。【只有這一件畫成灰色】這一件是灰階稿，之後才會上色，所以只用中性灰、完全沒有色相：底色是明亮的中淺灰（約 #B0B0B0），陰影塊是明顯較深的灰（約 #606060），少量近白的高光塊（約 #F2F2F2），輪廓線與摺線用近黑（約 #151515）；外緣一圈用連續封閉的墨線包住，約 3 到 4 像素寬；底色、陰影、高光三階要一眼分得開。人物其餘的地方——臉、耳、頸、肩的皮膚——必須保持圖1原本的暖膚色，一點都不要變灰，整張圖其他部分與圖1完全一樣。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫的這一件，人物的頭、臉、頸、肩與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純綠色（#00FF00），純色無漸層。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/paint/hat-scholar0-t3.png",
+   "output_sha256": "cbffc9c638ec668a0a073ae9265c83e2c6c168921f5f03c8d36b71c7330fbd7c",
+   "seconds": 72.1,
+   "time": "2026-10-13 21:42:52"
+  },
+  {
+   "tag": "hat-scholar0-t4",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261017,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/sources/parts/portrait/base-face-m.png",
+     "6eb81df3857716d33152534009eecf9090d5c7a2a6b3c29c3f5a48bfdca3b318"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版（背景是純綠色），圖2是畫風基準圖。請在圖1的光頭上戴一頂儒生的「方巾」（儒巾）：布製的方頂軟帽，頂部平整略呈方形，包住頭頂，帽的下緣是一條水平的帽圈，壓在額頭正中（眉眼與耳朵完全露出），帽後只垂下兩條很短的飄帶貼在耳後、不向外翹。帽子高度約為頭高的四分之一。帽的左右兩側完全對稱：左右兩側的帽圈一樣低、一樣寬。帽圈是中間高、兩側向下彎的拱形：額頭正中帽圈壓得比一般更低、下緣落在額頭高度的正中（額頭上半被帽圈蓋住，帽圈下緣到眉毛之間只留不到一半的額頭），兩側的帽圈向下垂、整個蓋住左右兩邊的鬢角與太陽穴，帽圈兩端落到耳朵上緣的高度為止（耳朵上緣以上的頭皮全部被帽蓋住、不露出任何頭皮或頭髮的位置）；額頭下半、眉眼與耳朵仍然完全露出。是一件完整的帽子，外緣用墨線完整包住，帽面用兩三條褶線表示布的軟，不畫花紋與玉飾。【只有這一件畫成灰色】這一件是灰階稿，之後才會上色，所以只用中性灰、完全沒有色相：底色是明亮的中淺灰（約 #B0B0B0），陰影塊是明顯較深的灰（約 #606060），少量近白的高光塊（約 #F2F2F2），輪廓線與摺線用近黑（約 #151515）；外緣一圈用連續封閉的墨線包住，約 3 到 4 像素寬；底色、陰影、高光三階要一眼分得開。人物其餘的地方——臉、耳、頸、肩的皮膚——必須保持圖1原本的暖膚色，一點都不要變灰，整張圖其他部分與圖1完全一樣。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫的這一件，人物的頭、臉、頸、肩與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純綠色（#00FF00），純色無漸層。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/paint/hat-scholar0-t4.png",
+   "output_sha256": "abab955bab48b4abed8c43954226a3e8b07b4691ac5946046bee70b4d8b864e8",
+   "seconds": 88.3,
+   "time": "2026-10-13 21:46:08"
+  }
+ ],
+ "collect": [
+  {
+   "from": "paint/hat-scholar0-t1.png",
+   "affine": [
+    [
+     0.9963600039482117,
+     0.00019999999494757503,
+     1.7157599925994873
+    ],
+    [
+     -0.0006300000241026282,
+     1.0014499425888062,
+     -1.9231300354003906
+    ]
+   ],
+   "ecc": 0.99821,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 95336,
+   "bbox": [
+    298,
+    219,
+    717,
+    535
+   ],
+   "components": 1,
+   "output": "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/.shiftblame/tmp/parts/portrait/collect/hat-scholar0.png",
+   "time": "2026-10-13 19:43:01"
+  },
+  {
+   "from": "paint/hat-scholar0-t2.png",
+   "affine": [
+    [
+     0.9994199872016907,
+     -0.000539999979082495,
+     0.283270001411438
+    ],
+    [
+     -3.9999998989515007e-05,
+     0.9997299909591675,
+     2.472170114517212
+    ]
+   ],
+   "ecc": 0.99536,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 91703,
+   "bbox": [
+    301,
+    226,
+    718,
+    524
+   ],
+   "components": 1,
+   "output": "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/collect/hat-scholar0.png",
+   "time": "2026-10-13 21:40:14"
+  },
+  {
+   "from": "paint/hat-scholar0-t3.png",
+   "affine": [
+    [
+     0.9965199828147888,
+     0.0015899999998509884,
+     -1.3511199951171875
+    ],
+    [
+     -0.0003100000030826777,
+     1.001979947090149,
+     -1.5377600193023682
+    ]
+   ],
+   "ecc": 0.99717,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 80986,
+   "bbox": [
+    288,
+    303,
+    739,
+    549
+   ],
+   "components": 1,
+   "output": "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/collect/hat-scholar0.png",
+   "time": "2026-10-13 21:43:32"
+  },
+  {
+   "from": "paint/hat-scholar0-t4.png",
+   "affine": [
+    [
+     1.0011999607086182,
+     -0.0005699999746866524,
+     -0.7478299736976624
+    ],
+    [
+     0.00039000000106170774,
+     1.001099944114685,
+     -1.9786399602890015
+    ]
+   ],
+   "ecc": 0.9959,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 123961,
+   "bbox": [
+    275,
+    207,
+    743,
+    540
+   ],
+   "components": 1,
+   "output": "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/collect/hat-scholar0.png",
+   "time": "2026-10-13 21:47:38"
+  }
+ ],
+ "key": [
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/hat-scholar0.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "hat": {
+     "file": ".shiftblame/tmp/parts/portrait/key/hat-scholar0.hat.png",
+     "pixels": 9497,
+     "dye": "robe",
+     "centers": [
+      69.1,
+      101.3,
+      131.5,
+      153.9
+     ],
+     "share": [
+      0.066,
+      0.131,
+      0.069,
+      0.734
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "shadow",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 19:43:01"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/hat-scholar0.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "hat": {
+     "file": ".shiftblame/tmp/parts/portrait/key/hat-scholar0.hat.png",
+     "pixels": 9136,
+     "dye": "robe",
+     "centers": [
+      72.2,
+      115.0,
+      131.7,
+      153.1
+     ],
+     "share": [
+      0.032,
+      0.163,
+      0.081,
+      0.724
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "shadow",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 21:40:14"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/hat-scholar0.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "hat": {
+     "file": ".shiftblame/tmp/parts/portrait/key/hat-scholar0.hat.png",
+     "pixels": 8094,
+     "dye": "robe",
+     "centers": [
+      54.2,
+      91.2,
+      114.4,
+      149.1
+     ],
+     "share": [
+      0.032,
+      0.094,
+      0.122,
+      0.753
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "shadow",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 21:43:32"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/hat-scholar0.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "hat": {
+     "file": ".shiftblame/tmp/parts/portrait/key/hat-scholar0.hat.png",
+     "pixels": 12295,
+     "dye": "robe",
+     "centers": [
+      52.2,
+      91.1,
+      117.7,
+      147.2
+     ],
+     "share": [
+      0.028,
+      0.172,
+      0.031,
+      0.769
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "shadow",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 21:47:39"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/hat-scholar0.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "hat": {
+     "file": ".shiftblame/tmp/parts/portrait/key/hat-scholar0.hat.png",
+     "pixels": 12295,
+     "dye": "robe",
+     "centers": [
+      52.2,
+      91.1,
+      117.7,
+      147.2
+     ],
+     "share": [
+      0.028,
+      0.172,
+      0.031,
+      0.769
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "shadow",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 21:49:15"
+  }
+ ],
+ "check": [
+  {
+   "metrics": {
+    "hat-scholar0.hat": {
+     "edge_len": 513,
+     "bare_edge": 404,
+     "bare_ratio": 0.788,
+     "blobs": 1,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 9171
+    }
+   },
+   "time": "2026-10-13 19:43:01"
+  },
+  {
+   "metrics": {
+    "hat-scholar0.hat": {
+     "edge_len": 524,
+     "bare_edge": 474,
+     "bare_ratio": 0.905,
+     "blobs": 1,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 11965
+    }
+   },
+   "time": "2026-10-13 21:48:46"
+  }
+ ]
+}

@@ -6,6 +6,7 @@ use smallvec::smallvec;
 use crate::ledger::{self, NewEvent};
 use crate::model::*;
 use crate::params::*;
+use crate::schedule::Round;
 use crate::sim::World;
 use crate::types::ProvinceId;
 
@@ -24,9 +25,9 @@ pub fn sect_capacity(prestige: f32) -> usize {
 
 /// 濁氣（GDD 2.4）：`clamp(業氣 − 0.5·功德 − 0.5·正氣, 0, 1)`。
 fn turbid(w: &World, province: ProvinceId) -> f32 {
-    w.provinces.get(province as usize).map_or(0.0, |p| {
-        (p.karma_qi - TURBID_MIX_MERIT * p.merit - TURBID_MIX_RIGHT * p.righteous).clamp(0.0, 1.0)
-    })
+    w.provinces
+        .get(province as usize)
+        .map_or(0.0, |p| (p.karma_qi - TURBID_MIX_MERIT * p.merit - TURBID_MIX_RIGHT * p.righteous).clamp(0.0, 1.0))
 }
 
 /// 本州或陸鄰有山門的宗門中，聲望最高者（同值取 ID 小者）。
@@ -114,6 +115,10 @@ pub fn enter_path(w: &mut World, pid: PersonId) -> Role {
         Some(Door::Buddha) => (Role::Monk, PathState::Monk { fruit: 0, practice: 0.0 }, None, None),
         Some(Door::Ru) => (Role::Scholar, PathState::Scholar { virtue: 0.0, deed: 0.0, word: 0.0 }, None, None),
         Some(Door::Demon) => (Role::Demonic, cult, None, Some(base_life)),
+        // GDD 3.4：州郡屬於王朝且才略 ≥ 6 → 武將候補；否則散人。
+        None if w.dynasty.owner_of(home).is_some() && attrs.talent >= GENERAL_CANDIDATE_TALENT => {
+            (Role::GeneralCandidate, PathState::Mortal, None, None)
+        }
         None => (Role::Commoner, PathState::Mortal, None, None),
     };
     if let Some(id) = power {
@@ -133,27 +138,44 @@ pub fn enter_path(w: &mut World, pid: PersonId) -> Role {
 }
 
 /// GDD 6.3 步驟 12：年齡 ≥ 12 且身分為 `Child` 者入道，寫入 `ComeOfAge` 事件（因：出生事件）。
+///
+/// 逐人判定：年齡由出生月起算，滿 12 歲後在自己的判定月入道（可能晚於 12 歲生日至多 11 個月）；
+/// 年中才滿 12 歲者等到下一個自己的判定月。`Sim::step` 每月呼叫。
+pub fn monthly_coming_of_age(w: &mut World) {
+    coming_of_age_round(w, Round::at(w.tick));
+}
+
+/// 同 [`monthly_coming_of_age`]，但一次判定全部人（整年份；測試與工具用）。
 pub fn yearly_coming_of_age(w: &mut World) {
-    let tick = w.tick;
-    for i in w.alive_snapshot().into_iter().map(|x| x as usize) {
-        let p = &w.persons[i];
-        if !p.alive() || p.role != Role::Child || p.age(tick) < COMING_OF_AGE_YEARS {
-            continue;
-        }
-        let pid = p.id;
-        let role = enter_path(w, pid);
-        let p = &w.persons[i];
-        let mut e = NewEvent::new(EventKind::ComeOfAge, 1, EventArgs::Role { role });
-        e.province = Some(p.province);
-        e.cell = Some(p.cell);
-        e.souls = smallvec![p.soul];
-        e.persons = smallvec![pid];
-        if let Some(pw) = p.power {
-            e.powers = smallvec![pw];
-        }
-        if let Some(c) = p.last_event {
-            e.causes = smallvec![c];
-        }
-        ledger::record(w, e);
+    coming_of_age_round(w, Round::All);
+}
+
+fn coming_of_age_round(w: &mut World, round: Round) {
+    for i in w.round_alive(round) {
+        come_of_age_one(w, i);
     }
+}
+
+/// 單一人物入道：在世、仍是幼年且滿 12 歲才做事。入道後依身分排定年度結算、遊歷與婚配。
+pub(super) fn come_of_age_one(w: &mut World, pid: PersonId) {
+    let tick = w.tick;
+    let p = &w.persons[pid as usize];
+    if !p.alive() || p.role != Role::Child || p.age(tick) < COMING_OF_AGE_YEARS {
+        return;
+    }
+    let role = enter_path(w, pid);
+    let p = &w.persons[pid as usize];
+    let mut e = NewEvent::new(EventKind::ComeOfAge, 1, EventArgs::Role { role });
+    e.province = Some(p.province);
+    e.cell = Some(p.cell);
+    e.souls = smallvec![p.soul];
+    e.persons = smallvec![pid];
+    if let Some(pw) = p.power {
+        e.powers = smallvec![pw];
+    }
+    if let Some(c) = p.last_event {
+        e.causes = smallvec![c];
+    }
+    ledger::record(w, e);
+    super::events::arm_adult(w, pid);
 }

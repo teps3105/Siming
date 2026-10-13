@@ -71,9 +71,7 @@ pub fn fill_and_lakes(h: &[f32], w: usize, hh: usize, sea: f32, lake_min: u32) -
     }
 
     // 湖：填平後高於原高度 ≥ WG_LAKE_DEPTH 的連通窪地，面積 ≥ WG_LAKE_MIN（淺的填平部分不算湖）。
-    let depression: Vec<bool> = (0..n)
-        .map(|c| !is_sea[c] && filled[c] - h[c] >= WG_LAKE_DEPTH)
-        .collect();
+    let depression: Vec<bool> = (0..n).map(|c| !is_sea[c] && filled[c] - h[c] >= WG_LAKE_DEPTH).collect();
     let (label, sizes) = components(w, hh, &depression, true);
     let mut lake = vec![false; n];
     for c in 0..n {
@@ -102,12 +100,7 @@ pub fn fill_and_lakes(h: &[f32], w: usize, hh: usize, sea: f32, lake_min: u32) -
         flow[c] = if best != NONE { best } else { parent[c] };
     }
 
-    Filled {
-        filled,
-        flow,
-        order,
-        lake,
-    }
+    Filled { filled, flow, order, lake }
 }
 
 /// 一條已找出的幹流（尚未命名）。`cells` 由源頭到出海口。
@@ -147,10 +140,7 @@ pub fn rivers(f: &Filled, q: &[f32], sea_cell: &[bool], scale: usize) -> Rivers 
     }
 
     // 分級：陸地（非海、非湖）格累積量的分位數。
-    let mut vals: Vec<f32> = (0..n)
-        .filter(|&c| !sea_cell[c] && !f.lake[c])
-        .map(|c| acc[c])
-        .collect();
+    let mut vals: Vec<f32> = (0..n).filter(|&c| !sea_cell[c] && !f.lake[c]).map(|c| acc[c]).collect();
     vals.sort_by(|a, b| b.partial_cmp(a).unwrap());
     let thr = |ratio: f32| -> f32 {
         if vals.is_empty() {
@@ -161,11 +151,7 @@ pub fn rivers(f: &Filled, q: &[f32], sea_cell: &[bool], scale: usize) -> Rivers 
     };
     // 分位以遊戲格定義；細格的河道格數約為 scale 倍，分位除以 scale 使降採樣後的河網密度相同。
     let k = scale as f32;
-    let (t1, t2, t3) = (
-        thr(WG_RIVER_Q_SMALL / k),
-        thr(WG_RIVER_Q_LARGE / k),
-        thr(WG_RIVER_Q_JIANG / k),
-    );
+    let (t1, t2, t3) = (thr(WG_RIVER_Q_SMALL / k), thr(WG_RIVER_Q_LARGE / k), thr(WG_RIVER_Q_JIANG / k));
     let mut level = vec![0u8; n];
     for c in 0..n {
         if sea_cell[c] || f.lake[c] {
@@ -205,8 +191,7 @@ pub fn rivers(f: &Filled, q: &[f32], sea_cell: &[bool], scale: usize) -> Rivers 
         if sea_cell[t] || !passable(t) {
             continue;
         }
-        let better = len[c] + 1 > len[t]
-            || (len[c] + 1 == len[t] && up[t] != NONE && acc[c] > acc[up[t] as usize]);
+        let better = len[c] + 1 > len[t] || (len[c] + 1 == len[t] && up[t] != NONE && acc[c] > acc[up[t] as usize]);
         if better {
             len[t] = len[c] + 1;
             up[t] = c as u32;
@@ -236,11 +221,6 @@ pub fn rivers(f: &Filled, q: &[f32], sea_cell: &[bool], scale: usize) -> Rivers 
             stems.push(Stem { level: lv, cells });
         }
     }
-    stems.sort_by(|a, b| {
-        b.level
-            .cmp(&a.level)
-            .then(b.cells.len().cmp(&a.cells.len()))
-            .then(a.cells.last().cmp(&b.cells.last()))
-    });
+    stems.sort_by(|a, b| b.level.cmp(&a.level).then(b.cells.len().cmp(&a.cells.len())).then(a.cells.last().cmp(&b.cells.last())));
     Rivers { level, acc, stems }
 }

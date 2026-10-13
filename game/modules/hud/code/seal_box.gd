@@ -1,7 +1,7 @@
 class_name SealBox
 extends Control
 ## GDD 5.7 印匣與例簽：右下六枚模式鈕切換地圖模式（5.4），每枚是圖示加模式名；
-## 鍵盤模式在鈕的右上角掛該模式的鍵帽，搖桿模式在整列兩側畫 LB、RB。
+## 鍵盤模式在鈕的左上角掛該模式的鍵帽，搖桿模式在整列兩側畫 LB、RB。
 ## 停留在某鈕上時，上方展開例簽說明該模式。支援的決定：想問的是哪一類問題。
 
 signal mode_chosen(mode: TerrainMap.Mode)
@@ -13,9 +13,9 @@ const FLASH_SECONDS := 1.6
 const SEALS := [
 	{"key": "shanhe", "mode": TerrainMap.Mode.SHANHE, "action": InputActions.MODE_SHANHE},
 	{"key": "tianxia", "mode": TerrainMap.Mode.TIANXIA, "action": InputActions.MODE_TIANXIA},
-	{"key": "sanjiao", "mode": -1, "action": &""},
+	{"key": "sanjiao", "mode": TerrainMap.Mode.SANJIAO, "action": InputActions.MODE_SANJIAO},
 	{"key": "lingmai", "mode": TerrainMap.Mode.LINGMAI, "action": InputActions.MODE_LINGMAI},
-	{"key": "yinguo", "mode": -1, "action": &""},
+	{"key": "yinguo", "mode": TerrainMap.Mode.KARMA, "action": InputActions.MODE_YINGUO},
 	{"key": "yeqi", "mode": -1, "action": &""},
 ]
 const ICON_RADIUS := 9.0
@@ -28,7 +28,7 @@ const TERRAIN_LEGEND: Array[String] = [
 	"terrain_desert", "terrain_snow", "terrain_swamp", "terrain_water",
 ]
 ## 例簽列出的地名種類（顏色見 MapOverlay.KIND_COLORS）。
-const PLACE_LEGEND: Array[String] = ["continent", "province", "seat", "water", "river", "range", "node"]
+const PLACE_LEGEND: Array[String] = ["continent", "province", "seat", "water", "river", "range", "node", "sect"]
 ## 地名欄組排幾欄；地形欄組佔例簽內寬的比例。
 const PLACE_COLUMNS := 2
 const LEGEND_SPLIT := 0.5
@@ -108,6 +108,12 @@ func _key_label(index: int) -> String:
 	return InputHints.label(SEALS[index]["action"], false)
 
 
+## 該鈕的鍵帽畫在哪裡：鈕的左上角，往上凸出一截。
+func _badge_position(index: int) -> Vector2:
+	var rect := _seal_rect(index)
+	return Vector2(rect.position.x + 3.0, rect.position.y - BADGE_RISE * _unit)
+
+
 ## 搖桿切換上一個、下一個模式的鍵。
 func _cycle_keys() -> Array[String]:
 	return [InputHints.label(InputActions.MODE_PREV, true), InputHints.label(InputActions.MODE_NEXT, true)]
@@ -116,6 +122,27 @@ func _cycle_keys() -> Array[String]:
 ## 例簽所在區域的上緣（相對於本器物）。
 func _legend_top() -> float:
 	return 0.0
+
+
+## 目前顯示著的例簽所屬的模式印（停留在某鈕上，或剛切換模式的片刻）；沒有例簽為空。
+func _legend_entry() -> Dictionary:
+	if _hover >= 0:
+		return SEALS[_hover]
+	if _flash > 0.0:
+		for entry: Dictionary in SEALS:
+			if entry["mode"] == int(mode):
+				return entry
+	return {}
+
+
+## 印匣（連同鍵帽）與目前顯示著的例簽的上緣，Hud 座標：命簿的下緣停在它之上。
+## 例簽平時不顯示，不佔這段高度（器物本身為例簽預留了一塊，但空著時卡片可以用）。
+func top_edge() -> float:
+	var top := _badge_position(0).y
+	var entry := _legend_entry()
+	if not entry.is_empty():
+		top = minf(top, _legend_slip(entry).position.y - Ink.SLIP_BAND)
+	return position.y + top
 
 
 func _draw() -> void:
@@ -130,7 +157,7 @@ func _draw() -> void:
 		var text_pos := Vector2(icon_center.x + (ICON_RADIUS + 6.0) * _unit, rect.position.y + (rect.size.y - Ink.text_size(label, label_size).y) * 0.5)
 		Ink.text(self, text_pos, label, label_size, ink)
 		var key := _key_label(i)
-		Ink.key_glyph(self, Vector2(rect.end.x - Ink.key_glyph_width(key, _unit) - 3.0, rect.position.y - BADGE_RISE * _unit), key, _unit)
+		Ink.key_glyph(self, _badge_position(i), key, _unit)
 	if gamepad:
 		var keys := _cycle_keys()
 		var key_y := size.y - (SEAL_SIZE + Ink.KEY_HEIGHT) * 0.5 * _unit
@@ -144,11 +171,12 @@ func _draw() -> void:
 				_draw_legend(entry)
 
 
-func _draw_legend(entry: Dictionary) -> void:
+## 該模式的圖例：左欄組 lines 與右側並排的第二欄組 places（山河模式列出各種地名在地圖上的顏色）。
+## 每項是 [字串鍵, 色塊種類, 附帶資料]。
+func legend_entries(for_mode: int) -> Dictionary:
 	var lines: Array = []
-	# 右側並排的第二欄組：山河模式列出各種地名在地圖上的顏色。
 	var places: Array = []
-	match entry["mode"]:
+	match for_mode:
 		TerrainMap.Mode.SHANHE:
 			for key in TERRAIN_LEGEND:
 				lines.append([key, "terrain"])
@@ -156,19 +184,55 @@ func _draw_legend(entry: Dictionary) -> void:
 				places.append(["place_%s" % kind, "place", kind])
 		TerrainMap.Mode.TIANXIA:
 			lines = [["legend_tianxia", ""]]
+		TerrainMap.Mode.SANJIAO:
+			lines = [["legend_sanjiao_tao", "tao"], ["legend_sanjiao_range", "ring"]]
 		TerrainMap.Mode.LINGMAI:
 			lines = [["legend_lingmai", "ramp"]]
+		TerrainMap.Mode.KARMA:
+			lines = [["legend_karma_soul", "soul"]]
+			for kind in KarmaLayer.KIND_KEYS.size():
+				lines.append(["kind_%s" % KarmaLayer.KIND_KEYS[kind], "karma_line", kind])
 		_:
 			lines = [["mode_disabled_hint", ""]]
-	var row := 20.0 * _unit
+	return {"lines": lines, "places": places}
+
+
+## 該模式圖例用到的字串鍵（測試與核對用）。
+func legend_keys(for_mode: int) -> Array:
+	var entries := legend_entries(for_mode)
+	var keys: Array = []
+	for item: Array in entries["lines"] + entries["places"]:
+		keys.append(item[0])
+	return keys
+
+
+## 例簽的列數（圖例的行數）。
+func _legend_rows(entry: Dictionary) -> int:
+	var entries := legend_entries(entry["mode"])
+	var lines: Array = entries["lines"]
+	var places: Array = entries["places"]
 	var columns := 2 if lines.size() > 4 else 1
 	var rows := int(ceil(float(lines.size()) / columns))
 	if not places.is_empty():
 		rows = maxi(rows, int(ceil(float(places.size()) / PLACE_COLUMNS)))
-	# 例簽沒有標題，容器裡只有圖例本身。
-	var height := 10.0 * _unit + rows * row + 6.0 * _unit
+	return rows
+
+
+## 例簽的紙面（本器物座標）。例簽沒有標題，容器裡只有圖例本身。
+func _legend_slip(entry: Dictionary) -> Rect2:
+	var height := 10.0 * _unit + _legend_rows(entry) * 20.0 * _unit + 6.0 * _unit
 	var band := Ink.SLIP_BAND
-	var slip := Rect2(Vector2(_side() + band, size.y - (SEAL_SIZE + BADGE_RISE + 14.0) * _unit - band - height), Vector2(size.x - (_side() + band) * 2.0, height))
+	return Rect2(Vector2(_side() + band, size.y - (SEAL_SIZE + BADGE_RISE + 14.0) * _unit - band - height), Vector2(size.x - (_side() + band) * 2.0, height))
+
+
+func _draw_legend(entry: Dictionary) -> void:
+	var entries := legend_entries(entry["mode"])
+	var lines: Array = entries["lines"]
+	var places: Array = entries["places"]
+	var row := 20.0 * _unit
+	var columns := 2 if lines.size() > 4 else 1
+	var rows := _legend_rows(entry)
+	var slip := _legend_slip(entry)
 	Ink.paper_slip(self, slip)
 	var cursor := slip.position + Vector2(12.0, 10.0) * _unit
 	var inner := slip.size.x - 24.0 * _unit
@@ -195,12 +259,47 @@ func _draw_legend_lines(lines: Array, origin: Vector2, column_width: float, colu
 				var color := Ink.PAPER.lerp(Ink.CYAN, t * 2.0) if t < 0.5 else Ink.CYAN.lerp(Ink.GOLD, (t - 0.5) * 2.0)
 				draw_rect(Rect2(pos + Vector2(k * 14.0 * _unit, 3.0 * _unit), Vector2(13.0, 12.0) * _unit), color, true)
 			text_x = steps * 14.0 * _unit + 6.0 * _unit
+		elif swatch == "tao":
+			# 道的色階：由淡到濃三格。
+			for k in 3:
+				var tint := MapOverlay.TAO_TINT.lerp(Ink.PAPER, 0.6 - 0.3 * k)
+				draw_rect(Rect2(pos + Vector2(k * 14.0 * _unit, 3.0 * _unit), Vector2(13.0, 12.0) * _unit), tint, true)
+			text_x = 3 * 14.0 * _unit + 6.0 * _unit
+		elif swatch == "ring":
+			var mid := pos + Vector2(21.0 * _unit, 9.0 * _unit)
+			for k in 8:
+				draw_arc(mid, 8.0 * _unit, TAU * k / 8.0, TAU * (k + 0.6) / 8.0, 4, MapOverlay.RING_COLOR, 1.5, true)
+			text_x = 3 * 14.0 * _unit + 6.0 * _unit
+		elif swatch == "soul":
+			# 魂光：金（淨業力為正）與赤（為負）兩點。
+			for k in 2:
+				var mid := pos + Vector2((6.0 + 14.0 * k) * _unit, 9.0 * _unit)
+				var tone: Color = KarmaLayer.GOLD if k == 0 else KarmaLayer.RED
+				draw_circle(mid, 6.0 * _unit, Color(tone, 0.28))
+				draw_circle(mid, 3.5 * _unit, tone)
+			text_x = 2 * 14.0 * _unit + 6.0 * _unit
+		elif swatch == "karma_line":
+			_draw_karma_swatch(pos + Vector2(0.0, 9.0 * _unit), lines[i][2])
+			text_x = 3 * 14.0 * _unit + 6.0 * _unit
 		elif swatch == "terrain":
 			TerrainSwatches.chip(self, Rect2(pos + Vector2(0.0, (note_size - 12.0 * _unit) * 0.5 + 2.0), Vector2(13.0, 12.0) * _unit), lines[i][0])
 			text_x = 19.0 * _unit
 		elif swatch == "place":
 			ink = MapOverlay.KIND_COLORS[lines[i][2]]
 		Ink.text(self, pos + Vector2(text_x, 0.0), Locale.t(lines[i][0]), note_size, ink)
+
+
+## 因果線的圖例線樣：顏色與線型（線型是不靠顏色的區別，5.1）同地圖上的因果線；origin 是線樣左端的中線。
+func _draw_karma_swatch(origin: Vector2, kind: int) -> void:
+	var color := KarmaLayer.KIND_COLORS[kind]
+	# 每種線型的 [起, 止] 劃段（像素），週期見 karma_line.gdshader 的 pattern。
+	var runs: Array = [[[0.0, 40.0]], [[0.0, 16.0], [22.0, 38.0]], [[0.0, 3.0], [9.0, 12.0], [18.0, 21.0], [27.0, 30.0], [36.0, 39.0]], [[0.0, 12.0], [17.0, 20.0], [28.0, 40.0]], [[0.0, 6.0], [12.0, 18.0], [24.0, 30.0], [36.0, 40.0]]][kind]
+	var width := 3.0 * _unit
+	for run: Array in runs:
+		var a := origin + Vector2(run[0] * _unit, 0.0)
+		var b := origin + Vector2(run[1] * _unit, 0.0)
+		draw_line(a, b, Color(KarmaLayer.CASING, 0.9), width + 2.0 * _unit)
+		draw_line(a, b, color, width)
 
 
 func _gui_input(event: InputEvent) -> void:
@@ -234,6 +333,12 @@ func _seal_at(pos: Vector2) -> int:
 		if _seal_rect(i).has_point(pos):
 			return i
 	return -1
+
+
+## 游標停在這裡時是否可以按（GDD 5.9 游標圖示）：尚未開放的印不算。
+func is_hot(point: Vector2) -> bool:
+	var index := _seal_at(point)
+	return index >= 0 and SEALS[index]["mode"] >= 0
 
 
 ## 滑鼠只在印章上才攔截，例簽與空白處讓地圖收到事件。

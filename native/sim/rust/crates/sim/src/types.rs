@@ -4,7 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 
-/// 模擬的一步 = 一個月（GDD 2.6）。
+/// 模擬時刻 = 自開天起的日數（一月 30 日、一年 360 日；GDD 2.6）。月步進在每月最後一日結算。
 pub type Tick = u32;
 
 /// 州郡 ID；海、湖格以 [`NO_PROVINCE`] 表示。
@@ -88,6 +88,19 @@ pub struct WorldParams {
     pub relief: f32,
     pub humidity: f32,
     pub era: Era,
+    /// GDD 4.6 人口期的長度（年）：開天時天地間沒有人，人口從第一批聚落成長、擴散。上限 [`crate::params::GENESIS_POP_YEARS_MAX`]。
+    #[serde(default = "default_pop_years")]
+    pub pop_years: u32,
+    /// GDD 4.6 人物期的長度（年）：接在人口期之後逐月完整推演，修士、宗門、王朝在其間累積。
+    #[serde(default = "default_prerun_years")]
+    pub prerun_years: u32,
+}
+
+fn default_pop_years() -> u32 {
+    crate::params::GENESIS_POP_YEARS
+}
+fn default_prerun_years() -> u32 {
+    crate::params::GENESIS_PRERUN_YEARS
 }
 
 impl WorldParams {
@@ -101,6 +114,8 @@ impl WorldParams {
             relief: crate::params::WG_RELIEF,
             humidity: crate::params::WG_HUMIDITY,
             era: Era::Middle,
+            pop_years: crate::params::GENESIS_POP_YEARS,
+            prerun_years: crate::params::GENESIS_PRERUN_YEARS,
         }
     }
 }
@@ -109,9 +124,26 @@ impl WorldParams {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LeyNode {
     pub cell: u32,
-    /// 強度 s：1.0 大洞天、0.75 洞天、0.5 福地。
+    /// 目前的強度 s：1.0 大洞天、0.75 洞天、0.5 福地、0 沉寂（GDD 2.8：末法時降級，靈潮回漲後回復）。
     pub strength: f32,
+    /// 生成時的強度；回復至多到這一級，名稱也依這一級取。
+    pub origin: f32,
     pub name: String,
+}
+
+impl LeyNode {
+    /// 各等級的強度，由沉寂（0）到大洞天（3）。
+    pub const LADDER: [f32; 4] =
+        [0.0, crate::params::WG_NODE_STRENGTH_BLESSED, crate::params::WG_NODE_STRENGTH_CAVE, crate::params::WG_NODE_STRENGTH_GREAT];
+
+    /// 強度對應的等級：0 沉寂、1 福地、2 洞天、3 大洞天。
+    pub fn grade_of(strength: f32) -> u8 {
+        (1..4).rev().find(|&g| strength >= Self::LADDER[g]).unwrap_or(0) as u8
+    }
+
+    pub fn grade(&self) -> u8 {
+        Self::grade_of(self.strength)
+    }
 }
 
 /// GDD 2.4 靈脈：連接兩個節點，沿 `path` 的格點描出。
@@ -274,6 +306,10 @@ pub struct Province {
     pub faith: [f32; 3],
     /// 0 村 .. 4 都（GDD 2.3）。
     pub city_level: u8,
+    /// 格全數沒入海中而消失（GDD 2.8）。消失的州郡留在原位、ID 不變，沒有格、人口與鄰州；
+    /// 之後重新浮出的地併入鄰州或成為無主之地，消失的州郡不復原。
+    #[serde(default)]
+    pub lost: bool,
 }
 
 /// 世界生成失敗（品質檢查連續失敗 `WG_RETRY` 次，GDD 2.2）。

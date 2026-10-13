@@ -39,13 +39,7 @@ fn died_importance(p: &Person) -> u8 {
 ///    死者自己的 `spouse`／`master`／`disciples`／`children` 保留作為生平記錄。
 /// 5. 殺業計算與殺業線（3.1、3.3）由呼叫端（衝突、襲殺的處理）負責，本函式不計業。
 /// 6. 會戰統帥（M3）。
-pub fn die(
-    w: &mut World,
-    pid: PersonId,
-    cause: DeathCause,
-    liberation: Option<Liberation>,
-    extra_causes: &[EventId],
-) -> Option<EventId> {
+pub fn die(w: &mut World, pid: PersonId, cause: DeathCause, liberation: Option<Liberation>, extra_causes: &[EventId]) -> Option<EventId> {
     let tick = w.tick;
     let p = w.persons.get_mut(pid as usize)?;
     if !p.alive() {
@@ -54,6 +48,7 @@ pub fn die(
     p.died = Some((tick, cause));
     if let Ok(k) = w.alive_ids.binary_search(&pid) {
         w.alive_ids.remove(k);
+        w.alive_removed(pid);
     }
     let p = &mut w.persons[pid as usize];
     p.travel_until = None;
@@ -62,8 +57,7 @@ pub fn die(
 
     let p = &w.persons[pid as usize];
     let ascended = liberation == Some(Liberation::Ascension);
-    let (kind, importance) =
-        if ascended { (EventKind::Ascended, ASCENDED_IMPORTANCE) } else { (EventKind::Died, died_importance(p)) };
+    let (kind, importance) = if ascended { (EventKind::Ascended, ASCENDED_IMPORTANCE) } else { (EventKind::Died, died_importance(p)) };
     let mut e = NewEvent::new(kind, importance, EventArgs::Death { cause, age: p.age(tick).min(u16::MAX as u32) as u16 });
     e.province = Some(p.province);
     e.cell = Some(p.cell);
@@ -90,23 +84,28 @@ pub fn die(
     if let Some(s) = spouse.and_then(|id| w.persons.get_mut(id as usize)) {
         if s.spouse == Some(pid) {
             s.spouse = None;
+            let (sid, rearm) = (s.id, s.alive() && s.role != Role::Monk);
+            if rearm {
+                super::events::arm_marry(w, sid);
+            }
         }
     }
     if let Some(m) = master.and_then(|id| w.persons.get_mut(id as usize)) {
         m.disciples.retain(|&d| d != pid);
     }
     for d in disciples {
-        if let Some(d) = w.persons.get_mut(d as usize) {
-            if d.master == Some(pid) {
-                d.master = None;
-            }
+        if w.persons.get(d as usize).is_some_and(|x| x.master == Some(pid)) {
+            // 師徒解除的紀錄先寫（此時關係旗標還在），再解除。
+            ledger::note_master_ended(w, d, pid, Why::MasterDied, Some(eid));
+            w.persons[d as usize].master = None;
         }
     }
     Some(eid)
 }
 
-/// GDD 6.3 步驟 10：壽元已盡者（年齡 ≥ 壽元）死亡，死因為壽終。依人物 ID 升冪。
-pub fn yearly_aging(w: &mut World) {
+/// GDD 6.3 步驟 10：壽元已盡者（年齡 ≥ 壽元）死亡，死因為壽終。依人物 ID 升冪。每月檢查：
+/// 年齡 = floor((tick − 出生月) / 12)，只在出生月加一歲，所以人在滿壽元的那個月（出生月）死亡。
+pub fn monthly_aging(w: &mut World) {
     let tick = w.tick;
     for i in w.alive_snapshot().into_iter().map(|x| x as usize) {
         let p = &w.persons[i];

@@ -378,9 +378,7 @@ pub fn atlas(geo: &Geography, fine: &FineGeography, scale: usize) -> Canvas {
             if fine.terrain[i] == Terrain::Sea {
                 continue;
             }
-            let coast = [(x + 1) % fw, (x + fw - 1) % fw]
-                .iter()
-                .any(|&nx| fine.terrain[y * fw + nx] == Terrain::Sea)
+            let coast = [(x + 1) % fw, (x + fw - 1) % fw].iter().any(|&nx| fine.terrain[y * fw + nx] == Terrain::Sea)
                 || (y > 0 && fine.terrain[(y - 1) * fw + x] == Terrain::Sea)
                 || (y + 1 < fh && fine.terrain[(y + 1) * fw + x] == Terrain::Sea);
             if coast {
@@ -454,13 +452,7 @@ pub fn render(geo: &Geography, fine: &FineGeography, provinces: &[Province], lay
             province_borders(&mut cv, geo, s, INK);
         }
         Layer::Aura => {
-            fill_cells(&mut cv, geo, s, |i| {
-                if geo.terrain[i].is_water() {
-                    PAPER_DARK
-                } else {
-                    aura_ramp(geo.aura_cell[i])
-                }
-            });
+            fill_cells(&mut cv, geo, s, |i| if geo.terrain[i].is_water() { PAPER_DARK } else { aura_ramp(geo.aura_cell[i]) });
             for e in &geo.ley {
                 for &c in &e.path {
                     let (cx, cy) = cell_center(geo, c, s as i64);
@@ -553,7 +545,7 @@ mod tests {
             river,
             province_of,
             aura_cell: (0..n).map(|i| (i % 5) as f32 * 0.5).collect(),
-            nodes: vec![LeyNode { cell: 3 * 8 + 5, strength: 1.0, name: "甲洞天".into() }],
+            nodes: vec![LeyNode { cell: 3 * 8 + 5, strength: 1.0, origin: 1.0, name: "甲洞天".into() }],
             ley: vec![LeyEdge { a: 0, b: 0, strength: 1.0, path: vec![3 * 8 + 5, 3 * 8 + 6] }],
             rivers: vec![NamedRiver { name: "乙水".into(), level: 2, cells: vec![10, 18] }],
             ranges: vec![],
@@ -578,6 +570,7 @@ mod tests {
             devastation: 0.0,
             faith: [0.0; 3],
             city_level: 0,
+            lost: false,
         };
         (geo, vec![mk(0, 2 * 8 + 1, 1), mk(1, 2 * 8 + 5, 0)])
     }

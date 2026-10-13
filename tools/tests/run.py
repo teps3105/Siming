@@ -8,6 +8,7 @@
     python tools/tests/run.py --report out.json    # 另存逐案結果
 
 以無視窗模式啟動 Godot 執行 game/tests/harness/run.gd；結束碼 0 表示全過。
+超過 --timeout 秒（預設 900）還沒跑完就結束 Godot，結束碼 124。
 Godot 的位置取自環境變數 GODOT_PATH（內含 Godot_v*_win64_console.exe），
 或以 --godot 指定執行檔。執行前先以 tools/native_build/build.py 建置橋接程式庫。
 """
@@ -37,12 +38,23 @@ def find_godot():
     return None
 
 
+def run_bounded(cmd, seconds, **options):
+    """執行 cmd，超過 seconds 秒就結束它；回傳 (結束碼, CompletedProcess 或 None)，逾時的結束碼是 124。"""
+    try:
+        done = subprocess.run(cmd, timeout=seconds, **options)
+    except subprocess.TimeoutExpired:
+        print(f"逾時：{seconds} 秒內沒有跑完，已結束 Godot", file=sys.stderr)
+        return 124, None
+    return done.returncode, done
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="執行 Godot 端的測試套件")
     ap.add_argument("--godot", type=Path, help="Godot 執行檔；預設取自環境變數 GODOT_PATH")
     ap.add_argument("--suite", help="只跑這個套件（suite_name）")
     ap.add_argument("--case", help="只跑名稱含這段文字的案例")
     ap.add_argument("--report", type=Path, help="把逐案結果寫成 JSON")
+    ap.add_argument("--timeout", type=float, default=900.0, help="最多跑幾秒")
     args = ap.parse_args(argv)
 
     godot = args.godot or find_godot()
@@ -57,7 +69,10 @@ def main(argv=None):
         cmd.append(f"--case={args.case}")
     if args.report:
         cmd.append(f"--report={args.report.resolve()}")
-    return subprocess.run(cmd).returncode
+    # 人物落地起的演變由亂數決定；給整批測試同一個亂數種子，失敗才重現得出來。個別測試仍可用 rng_seed 另外指定。
+    env = dict(os.environ)
+    env.setdefault("SIMING_TEST_RNG_SEED", "20261013")
+    return run_bounded(cmd, args.timeout, env=env)[0]
 
 
 if __name__ == "__main__":

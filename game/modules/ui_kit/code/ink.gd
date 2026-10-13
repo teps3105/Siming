@@ -24,6 +24,9 @@ const SIZE_BODY := 16
 const SIZE_NOTE := 13
 ## Steam Deck 版面的最小字級（GDD 5.9）。
 const DECK_MIN_SIZE := 16
+## Steam Deck 版面（畫面高度 ≤ 800）器物放大不改形（GDD 5.9）。
+const DECK_HEIGHT := 800.0
+const DECK_UNIT := 8.0 / 7.0
 
 ## 綾邊寬：紙簽 3、命簿 6（GDD 5.8）。
 const SLIP_BAND := 3.0
@@ -38,10 +41,14 @@ const KEY_TEXT_SIZE := 12
 const PAD_FACE_COLORS := {"A": Color("5E8A5A"), "B": Color("B23A2E"), "X": Color("4F8F9A"), "Y": Color("C9A246")}
 ## 畫成圖標的搖桿部件（名稱由 InputHints 給）：右搖桿、十字鍵上下、十字鍵左右。
 const PAD_RIGHT_STICK := "RS"
+const PAD_LEFT_STICK := "LS"
 const PAD_DPAD_VERTICAL := "DPAD_V"
 const PAD_DPAD_HORIZONTAL := "DPAD_H"
-const PAD_ICONS: Array[String] = [PAD_RIGHT_STICK, PAD_DPAD_VERTICAL, PAD_DPAD_HORIZONTAL]
-const PAD_SHOULDERS: Array[String] = ["LB", "RB", "LT", "RT", "Start", "Select"]
+## 鍵盤方向鍵（上下、左右）：一個鍵帽裡畫兩個箭頭。
+const KEY_ARROWS_VERTICAL := "ARROWS_V"
+const KEY_ARROWS_HORIZONTAL := "ARROWS_H"
+const PAD_ICONS: Array[String] = [PAD_RIGHT_STICK, PAD_LEFT_STICK, PAD_DPAD_VERTICAL, PAD_DPAD_HORIZONTAL, KEY_ARROWS_VERTICAL, KEY_ARROWS_HORIZONTAL]
+const PAD_SHOULDERS: Array[String] = ["LB", "RB", "LT", "RT", "Start", "Select", "R3"]
 
 ## 紙紋（8.3 `paper`，存的是乘數）；由 hud 在啟動時設定。使用它的 CanvasItem 要開啟 texture_repeat。
 static var paper_texture: Texture2D
@@ -49,11 +56,17 @@ static var _frame_box: StyleBoxFlat
 static var _disc_box: StyleBoxFlat
 
 
+## 版面倍率：設定的介面縮放，Steam Deck 版面再乘 DECK_UNIT。bounds 為畫面大小。
+static func layout_unit(bounds: Vector2, ui_scale: float) -> float:
+	return ui_scale * (DECK_UNIT if bounds.y <= DECK_HEIGHT else 1.0)
+
+
 ## 依版面倍率換算字級；放大的版面（Steam Deck）另有下限。
 static func font_size(base: int, unit: float) -> int:
-	if unit <= 1.0:
+	if is_equal_approx(unit, 1.0):
 		return base
-	return maxi(int(round(base * unit)), DECK_MIN_SIZE)
+	var scaled := int(round(base * unit))
+	return maxi(scaled, DECK_MIN_SIZE) if unit > 1.0 else scaled
 
 
 ## 裱框紙簽：柔影、綾邊（寬 band）、紙面與紙紋、內緣金線。rect 是紙面的範圍，綾邊畫在它外面。
@@ -119,7 +132,8 @@ static func plate(item: CanvasItem, rect: Rect2, active: bool, enabled := true, 
 ## 實體鍵的圖像（GDD 5.9）：A／B／X／Y 是帶色圓鈕，LB／RB／LT／RT／Start 是深色膠囊，其餘是鍵盤鍵帽。
 ## 右搖桿與十字鍵畫成圖標，不寫字。
 ## pos 為左上角，高度為 KEY_HEIGHT × unit；回傳寬度。label 為空時不畫、回傳 0。
-static func key_glyph(item: CanvasItem, pos: Vector2, label: String, unit: float) -> float:
+## keyboard 為真時 A／B／X／Y 是鍵盤上的字母鍵，畫成鍵帽。
+static func key_glyph(item: CanvasItem, pos: Vector2, label: String, unit: float, keyboard := false) -> float:
 	if label.is_empty():
 		return 0.0
 	var height := KEY_HEIGHT * unit
@@ -128,14 +142,14 @@ static func key_glyph(item: CanvasItem, pos: Vector2, label: String, unit: float
 	var size := font_size(KEY_TEXT_SIZE, unit)
 	var extent := text_size(label, size)
 	var at := pos + (rect.size - extent) * 0.5
-	if label == PAD_RIGHT_STICK:
-		# 搖桿：底座圓、搖桿帽，帽上寫 R。
+	if label == PAD_RIGHT_STICK or label == PAD_LEFT_STICK:
+		# 搖桿：底座圓、搖桿帽，帽上寫 R 或 L。
 		var center := rect.get_center()
 		item.draw_circle(center, height * 0.5, SILK)
 		item.draw_circle(center, height * 0.36, PAPER_LIGHT)
 		item.draw_arc(center, height * 0.36, 0.0, TAU, 32, INK, 1.0, true)
-		var letter := text_size("R", size)
-		text(item, center - letter * 0.5, "R", size, INK)
+		var side := "R" if label == PAD_RIGHT_STICK else "L"
+		text(item, center - text_size(side, size) * 0.5, side, size, INK)
 	elif label == PAD_DPAD_VERTICAL or label == PAD_DPAD_HORIZONTAL:
 		# 十字鍵：十字形；要按的那兩臂是亮的。
 		var center := rect.get_center()
@@ -147,7 +161,17 @@ static func key_glyph(item: CanvasItem, pos: Vector2, label: String, unit: float
 		for side: float in [-1.0, 1.0]:
 			var tip := center + lit * side * (arm - thick * 0.5)
 			item.draw_rect(Rect2(tip - Vector2.ONE * thick * 0.32, Vector2.ONE * thick * 0.64), PAPER_LIGHT, true)
-	elif PAD_FACE_COLORS.has(label):
+	elif label == KEY_ARROWS_VERTICAL or label == KEY_ARROWS_HORIZONTAL:
+		# 方向鍵：鍵帽裡兩個相背的箭頭。
+		_key_cap(item, rect)
+		var center := rect.get_center() - Vector2(0.0, 1.0)
+		var along := Vector2(0.0, 1.0) if label == KEY_ARROWS_VERTICAL else Vector2(1.0, 0.0)
+		var across := along.orthogonal()
+		for side: float in [-1.0, 1.0]:
+			var tip := center + along * side * height * 0.34
+			var base := center + along * side * height * 0.1
+			item.draw_colored_polygon(PackedVector2Array([tip, base + across * height * 0.2, base - across * height * 0.2]), INK)
+	elif PAD_FACE_COLORS.has(label) and not keyboard:
 		item.draw_circle(rect.get_center(), height * 0.5, PAD_FACE_COLORS[label])
 		item.draw_arc(rect.get_center(), height * 0.5, 0.0, TAU, 32, INK, 1.0, true)
 		text(item, at, label, size, PAPER_LIGHT)
@@ -158,16 +182,20 @@ static func key_glyph(item: CanvasItem, pos: Vector2, label: String, unit: float
 		item.draw_style_box(box, rect)
 		text(item, at, label, size, PAPER_LIGHT)
 	else:
-		# 鍵帽：紙底墨框，下緣加厚像是有高度的鍵。
-		var cap := StyleBoxFlat.new()
-		cap.bg_color = PAPER_LIGHT
-		cap.border_color = INK
-		cap.set_border_width_all(1)
-		cap.border_width_bottom = 3
-		cap.set_corner_radius_all(3)
-		item.draw_style_box(cap, rect)
+		_key_cap(item, rect)
 		text(item, at - Vector2(0.0, 1.0), label, size, INK)
 	return width
+
+
+## 鍵帽：紙底墨框，下緣加厚像是有高度的鍵。
+static func _key_cap(item: CanvasItem, rect: Rect2) -> void:
+	var cap := StyleBoxFlat.new()
+	cap.bg_color = PAPER_LIGHT
+	cap.border_color = INK
+	cap.set_border_width_all(1)
+	cap.border_width_bottom = 3
+	cap.set_corner_radius_all(3)
+	item.draw_style_box(cap, rect)
 
 
 static func key_glyph_width(label: String, unit: float) -> float:
