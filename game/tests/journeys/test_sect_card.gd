@@ -29,6 +29,11 @@ func _boot(view: Vector2i) -> void:
 	_camera = _game.get_node("MapCamera")
 	# 走一百年，讓宗門有門史、有分有滅。
 	_sim.world.step(12 * 100)
+	# 要有已覆滅的宗門可試；沒有就再走幾十年。
+	for _round in 8:
+		if not _sects(false).is_empty():
+			break
+		_sim.world.step(12 * 50)
 	_sim.world.flush_terrain()
 	_hud._overlay.refresh_sects()
 
