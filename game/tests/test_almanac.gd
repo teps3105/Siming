@@ -234,13 +234,13 @@ func test_clicking_a_sect_name_flies_to_the_gate() -> void:
 	assert_gt(sects.size(), 0, "試驗世界裡有宗門")
 	var id := int((sects[0] as Dictionary)["id"])
 	var flown := []
-	_almanac.sect_requested.connect(func(pos: Vector2) -> void: flown.append(pos))
+	_almanac.sect_requested.connect(func(sect: int) -> void: flown.append(sect))
 	var point := _almanac.target_point("go:sect:%d" % id)
 	assert_true(point.x >= 0.0, "宗門榜裡找得到宗門名")
 	await click(point)
 	await frames(2)
-	assert_eq(flown.size(), 1, "發出飛往山門的要求")
-	assert_eq(flown[0], (sects[0] as Dictionary)["pos"], "座標是山門所在")
+	assert_eq(flown.size(), 1, "發出開宗門卡的要求")
+	assert_eq(flown[0], id, "編號是點的那一宗")
 	assert_false(_almanac.expanded, "飛往後收合")
 
 

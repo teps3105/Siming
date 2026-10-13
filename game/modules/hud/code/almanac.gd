@@ -9,7 +9,7 @@ extends Control
 signal fullscreen_changed(on: bool)
 signal province_requested(id: int)
 signal person_requested(id: int)
-signal sect_requested(map_pos: Vector2)
+signal sect_requested(sect: int)
 signal event_requested(id: int)
 
 const PAGES: Array[String] = ["world", "people", "sect", "karma"]
@@ -973,9 +973,7 @@ func activate_target(target: String) -> void:
 				"event":
 					event_requested.emit(int(parts[2]))
 				"sect":
-					var id := int(parts[2])
-					if _sect_pos.has(id):
-						sect_requested.emit(_sect_pos[id])
+					sect_requested.emit(int(parts[2]))
 
 
 func _on_target(target: String) -> void:

@@ -12,6 +12,8 @@ extends Control
 signal fly_requested(map_pos: Vector2)
 ## 點了「看人物」（或統計名單的一行）：開這個人的人物卡。
 signal person_requested(person: int)
+## 點了「看宗門」小印：開那一則事件所屬宗門的宗門卡。
+signal sect_requested(sect: int)
 ## 點了「溯因」（或統計名單一行的「溯因」）：開這則事件的事件卡。
 signal trace_requested(event: int)
 ## 全螢幕展開或收合了（Hud 據此暫停與復原時間、讓鏡頭讓出畫面）。
@@ -74,6 +76,8 @@ const MEMBER_STRIDE := 10000
 const SLOT_BASE := 5000000
 ## 「溯因」小印的選取碼 = TRACE_BASE + 簽序；名單一行的 = MEMBER_TRACE_BASE + 簽序 × MEMBER_STRIDE + 名單序。
 const TRACE_BASE := 6000000
+## 「看宗門」小印的選取碼 = SECT_BASE + 簽序。
+const SECT_BASE := 7000000
 const MEMBER_TRACE_BASE := 10000000
 ## 原因標記的方框邊長。
 const MARK_SIZE := 16.0
@@ -191,6 +195,7 @@ func post(event: Dictionary) -> bool:
 		"persons": event.get("persons", PackedInt32Array()),
 		"a_person": event.get("a_person", -1),
 		"powers": event.get("powers", PackedInt32Array()),
+		"sect": sect_of(event),
 		"province": event.get("province", -1),
 		"members": [],
 	}
@@ -678,6 +683,19 @@ static func main_person(entry: Dictionary) -> int:
 	return persons[0] if not persons.is_empty() else -1
 
 
+## 一則事件所屬的宗門編號：主角當時的宗門，沒有主角的宗門事件取事件的第一個勢力；沒有為 -1。
+static func sect_of(event: Dictionary) -> int:
+	if int(event.get("a_power_id", -1)) >= 0:
+		return int(event["a_power_id"])
+	return int(event.get("f_power", -1))
+
+
+## 第 index 張是否有「看宗門」入口：單則且事件有所屬宗門。
+func has_sect_slot(index: int) -> bool:
+	var entry := shown()[index]
+	return not is_group(entry) and int(entry.get("sect", -1)) >= 0
+
+
 ## 第 index 張右端的「看人物」「溯因」兩個入口，停留時取代年月（全螢幕時年月欄固定，入口排在它左邊）：
 ## 看人物是最右一顆小印（只有主要人物明確的單則才有），溯因在它左邊；沒有看人物的單則，溯因移到最右。
 ## 統計沒有單一事件，兩者都沒有。
@@ -690,7 +708,9 @@ func action_slots(index: int) -> Dictionary:
 	var person := Rect2(Vector2(right - width, row.position.y + 3.0 * _unit), Vector2(width, row.size.y - 6.0 * _unit))
 	var trace_x := person.position.x - gap - SLOT_WIDTH * _unit if has_person_slot(index) else right - SLOT_WIDTH * _unit
 	var trace := Rect2(Vector2(trace_x, row.position.y + 3.0 * _unit), Vector2(SLOT_WIDTH * _unit, row.size.y - 6.0 * _unit))
-	return {"person": person, "trace": trace}
+	var sect_width := maxf(SLOT_WIDTH * _unit, Ink.text_size(Locale.t("rumor_sect"), font).x + 12.0 * _unit)
+	var sect := Rect2(Vector2(trace.position.x - gap - sect_width, row.position.y + 3.0 * _unit), Vector2(sect_width, row.size.y - 6.0 * _unit))
+	return {"person": person, "trace": trace, "sect": sect}
 
 
 ## 第 index 張是否有「溯因」入口：單則都有，統計沒有。
@@ -983,8 +1003,9 @@ func _draw_row(entry: Dictionary, rect: Rect2, index: int, note: int) -> void:
 	slid.position.y -= (1.0 - fade) * 10.0 * _unit
 	var slot_hot := _hover == SLOT_BASE + index
 	var trace_hot := _hover == TRACE_BASE + index
+	var sect_hot := _hover == SECT_BASE + index
 	var group := is_group(entry)
-	var hot := (_hover == index and not (full and group)) or slot_hot or trace_hot
+	var hot := (_hover == index and not (full and group)) or slot_hot or trace_hot or sect_hot
 	var pressed := _hover == index and _pressed == index and not (full and group)
 	var has_pos: bool = entry.has("pos")
 	var clickable := has_pos or (group and not full)
@@ -1038,17 +1059,27 @@ func _draw_row(entry: Dictionary, rect: Rect2, index: int, note: int) -> void:
 		var trace_text := Locale.t("rumor_trace")
 		Ink.text(self, trace.get_center() - Ink.text_size(trace_text, note) * 0.5, trace_text, note, trace_ink)
 		right = trace.position.x - 6.0 * _unit
+		if has_sect_slot(index):
+			# 「看宗門」小印在溯因的左邊。
+			var sect: Rect2 = action_slots(index)["sect"]
+			var pressed_sect := sect_hot and _pressed == SECT_BASE + index
+			var sect_ink := Color(Ink.SEAL_RED, fade)
+			draw_rect(sect, Color(Ink.SEAL_RED, 0.28 if pressed_sect else (0.14 if sect_hot else 0.0)), true)
+			draw_rect(sect, sect_ink, false, 1.0)
+			var sect_text := Locale.t("rumor_sect")
+			Ink.text(self, sect.get_center() - Ink.text_size(sect_text, note) * 0.5, sect_text, note, sect_ink)
+			right = sect.position.x - 6.0 * _unit
 	# 收合：停留時右端浮出「飛往」加實體鍵（統計是展開），否則是年月；全螢幕：只有「飛往」，年月欄不動。
 	if full:
-		if hot and has_pos and not slot_hot and not trace_hot:
+		if hot and has_pos and not slot_hot and not trace_hot and not sect_hot:
 			tail = Locale.t("rumor_fly")
 			key = _fly_key()
 	elif hot and group:
 		tail = Locale.t("rumor_expand")
-	elif hot and has_pos and not slot_hot and not trace_hot:
+	elif hot and has_pos and not slot_hot and not trace_hot and not sect_hot:
 		tail = Locale.t("rumor_fly")
 		key = _fly_key()
-	elif slot_hot or trace_hot:
+	elif slot_hot or trace_hot or sect_hot:
 		# 游標在小印上：年月讓位，把寬度留給那句話。
 		tail = ""
 	else:
@@ -1155,6 +1186,8 @@ func _select_at(point: Vector2) -> int:
 		if row_rect(i).has_point(point):
 			if has_person_slot(i) and action_slots(i)["person"].has_point(point):
 				return SLOT_BASE + i
+			if has_sect_slot(i) and action_slots(i)["sect"].has_point(point):
+				return SECT_BASE + i
 			if has_trace_slot(i) and action_slots(i)["trace"].has_point(point):
 				return TRACE_BASE + i
 			return i
@@ -1238,6 +1271,8 @@ func activate(select: int) -> void:
 	elif select >= MEMBER_TRACE_BASE:
 		var t := _member_of(select)
 		trace_requested.emit(int(shown()[t[0]]["members"][t[1]]["id"]))
+	elif select >= SECT_BASE:
+		sect_requested.emit(int(shown()[select - SECT_BASE]["sect"]))
 	elif select >= TRACE_BASE:
 		trace_requested.emit(int(shown()[select - TRACE_BASE]["id"]))
 	elif select >= SLOT_BASE:
