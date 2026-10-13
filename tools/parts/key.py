@@ -188,6 +188,11 @@ def key(name):
     if not os.path.exists(src):
         src = P.TMP + f"collect/{name}.png"
     rgba = cv2.cvtColor(cv2.imread(src, cv2.IMREAD_UNCHANGED), cv2.COLOR_BGRA2RGBA)
+    if spec.get("fit_scale"):   # 尺寸一致化：整件繞外框中心等比縮小（畫家畫的紋略貼臉邊，瘦長臉會出界）；只縮放，不改畫的內容
+        ys, xs = np.nonzero(rgba[..., 3] > 8)
+        c = ((xs.min() + xs.max()) / 2.0, (ys.min() + ys.max()) / 2.0)
+        m = cv2.getRotationMatrix2D(c, 0, spec["fit_scale"])
+        rgba = cv2.warpAffine(rgba, m, (rgba.shape[1], rgba.shape[0]), flags=cv2.INTER_AREA)
     img = shrink(rgba)
     masks = split_subs(img, spec["subs"])
     os.makedirs(P.TMP + "key", exist_ok=True)
