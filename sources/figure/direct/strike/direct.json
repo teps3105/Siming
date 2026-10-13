@@ -1,0 +1,19 @@
+{
+ "action": "strike",
+ "seed": 20261013,
+ "prompt": "A full-body ancient Chinese cultivator in a long robe with a topknot, seen from a fixed high-angle camera (about 30 degrees looking down), three-quarter view facing front-left, the camera does not move, zoom or pan, the viewing angle stays the same, plain flat solid background, a single character only, no other people or objects. The character draws a sword from his waist with one hand and swings it in one decisive diagonal slash, steps forward with the stroke, holds the finish, then sheathes it and returns to standing. At the end of the clip the character returns to the same relaxed standing pose as the first frame.",
+ "model": "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+ "lora": "minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
+ "text_encoder": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+ "vae": "minimax_h3_video_vae_fp16.safetensors",
+ "steps": 6,
+ "sampler": "res_multistep",
+ "scheduler": "simple",
+ "width": 640,
+ "height": 640,
+ "length": 56,
+ "fps": 24,
+ "table_every": 2,
+ "generate_seconds": 230,
+ "first_frame": "Blender 5.2 build.py 的立姿，30° 俯角，三分面朝左前"
+}
