@@ -20,6 +20,8 @@ pub enum Action {
     Marker(u32),
     /// 某人的個人規則（見 [`PersonAct`]）。
     Person(u32, PersonAct),
+    /// 某個魂的狀態到期（中陰、他道、等待）。
+    Soul(u32),
 }
 
 /// 個人規則的事件種類。算得出時刻者（壽終、入道、遊歷返回）直接排定；

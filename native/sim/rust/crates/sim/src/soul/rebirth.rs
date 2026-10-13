@@ -170,6 +170,7 @@ pub fn create_soul(w: &mut World, origin: SoulOrigin, province: ProvinceId) -> S
         last_place: (province, 0),
         guide: None,
     });
+    super::arm(w, w.souls.len() as SoulId - 1);
     id
 }
 

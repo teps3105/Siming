@@ -344,6 +344,7 @@ impl Sim {
         match action {
             crate::queue::Action::Marker(_) => self.world.queue.fired += 1,
             crate::queue::Action::Person(pid, act) => crate::people::events::fire(&mut self.world, pid, act),
+            crate::queue::Action::Soul(sid) => crate::soul::fire(&mut self.world, sid),
         }
     }
 
@@ -390,8 +391,10 @@ impl Sim {
         }
         // 3 個人規則（壽終、入道、遊歷、婚配、修煉突破）已改走事件隊列（`people::events`）。
         // 4 軍隊（M3）
-        // 5 中陰、他道、等待、出生
-        crate::soul::monthly(w);
+        // 5 中陰、他道、等待、出生：魂的狀態到期事件走隊列（`soul::fire`）；餓鬼、地獄的衰減每年一次。
+        if is_yearly(tick) {
+            crate::soul::yearly_decay(w);
+        }
         // 6 每季：氣場擴散（M4）
         // 個人、宗門、州郡、王朝的年度判定各在自己的判定月（`schedule`），每月都跑；
         // 只有補魂與天地演變、因果帳修剪留在年底月（第 12 月）。同一個月內各步的相對順序維持不變。

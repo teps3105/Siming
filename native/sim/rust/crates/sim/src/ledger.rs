@@ -95,6 +95,14 @@ pub fn rel_of_souls(w: &World, a: SoulId, b: SoulId) -> Rel {
 pub fn record(w: &mut World, e: NewEvent) -> EventId {
     let id = w.ledger.events.len() as EventId;
     let mut causes = e.causes;
+    // 因若已被修剪成墓碑，改指向最近保留的祖先（墓碑不再接收新的後果）。
+    for c in causes.iter_mut() {
+        if w.ledger.events.get(*c as usize).is_some_and(|x| x.importance == 0) {
+            if let Some(a) = live_ancestor(w, *c) {
+                *c = a;
+            }
+        }
+    }
     causes.sort_unstable();
     causes.dedup();
     for &c in &causes {
@@ -252,10 +260,12 @@ pub fn prune(w: &mut World) {
         w.ledger.prune_deferred = kept;
     }
     if any {
-        for k in 0..w.persons.len() {
-            if let Some(le) = w.persons[k].last_event {
+        // 只修在世者；已死者的 `last_event` 若指向墓碑，由 `record` 在被當成因時改指最近保留的祖先。
+        for k in 0..w.alive_ids.len() {
+            let pid = w.alive_ids[k] as usize;
+            if let Some(le) = w.persons[pid].last_event {
                 if w.ledger.events.get(le as usize).is_some_and(|e| e.importance == 0) {
-                    w.persons[k].last_event = live_ancestor(w, le);
+                    w.persons[pid].last_event = live_ancestor(w, le);
                 }
             }
         }

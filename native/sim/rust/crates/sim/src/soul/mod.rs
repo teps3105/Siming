@@ -124,6 +124,7 @@ pub fn on_death(w: &mut World, pid: PersonId, liberation: Option<Liberation>) {
         Some(way) => SoulState::Liberated { way, tick },
         None => SoulState::Bardo { until: tick + BARDO_MONTHS * crate::calendar::DAYS_PER_MONTH },
     };
+    arm(w, sid);
 }
 
 /// GDD 3.4 王族子女：取一個「已判入人道、在等待中、宿緣對象在世且在 `province`」的魂（依魂 ID 升冪取第一個）。
@@ -316,15 +317,7 @@ pub fn monthly(w: &mut World) {
     let tick: Tick = w.tick;
 
     if tick.is_multiple_of(crate::calendar::DAYS_PER_YEAR) {
-        for soul in &mut w.souls {
-            if let SoulState::Realm { path, .. } = soul.state {
-                match path {
-                    SixPath::Hungry => soul.sin *= PATH_HUNGRY_S_DECAY_PER_YEAR,
-                    SixPath::Hell => soul.sin *= PATH_HELL_S_DECAY_PER_YEAR,
-                    _ => {}
-                }
-            }
-        }
+        yearly_decay(w);
     }
 
     let mut month = Month { cap: notable_cap(w), living: None, waiting: None, pop: None };
@@ -332,32 +325,66 @@ pub fn monthly(w: &mut World) {
     // （第一個到期之前世界沒有改變，數值與一開始就算相同）。
     // 狀態會在迴圈中被配對改變，因此每次重讀。
     for i in 0..w.souls.len() {
-        let sid = i as SoulId;
-        // 先以參照判斷是否到期（多數魂沒有到期，不複製狀態）。
-        let due = match &w.souls[i].state {
-            SoulState::Bardo { until } if *until <= tick => 1,
-            SoulState::Realm { until, .. } if *until <= tick => 2,
-            SoulState::Waiting { until, .. } if *until <= tick => 3,
-            _ => 0,
-        };
-        if due == 0 {
-            continue;
-        }
-        match due {
-            1 => judge_and_place(w, sid, &mut month),
-            2 => {
-                let SoulState::Realm { path, .. } = w.souls[i].state else { continue };
-                let soul = &mut w.souls[i];
-                match path {
-                    SixPath::Heaven => soul.merit *= PATH_HEAVEN_RETURN_G_MULT,
-                    SixPath::Beast => soul.sin *= PATH_BEAST_RETURN_S_MULT,
-                    _ => {}
-                }
-                judge_and_place(w, sid, &mut month);
+        due_one(w, i as SoulId, &mut month, tick);
+    }
+}
+
+/// 餓鬼、地獄的魂每年衰減罪業（每年一次；事件驅動的 `Sim` 在年底月呼叫）。
+pub fn yearly_decay(w: &mut World) {
+    for soul in &mut w.souls {
+        if let SoulState::Realm { path, .. } = soul.state {
+            match path {
+                SixPath::Hungry => soul.sin *= PATH_HUNGRY_S_DECAY_PER_YEAR,
+                SixPath::Hell => soul.sin *= PATH_HELL_S_DECAY_PER_YEAR,
+                _ => {}
             }
-            _ => birth_after_wait(w, sid, &mut month),
         }
     }
+}
+
+/// 單一魂若狀態已到期就處理（中陰判定、他道期滿重判、等待逾時出生）。
+fn due_one(w: &mut World, sid: SoulId, month: &mut Month, tick: Tick) {
+    let i = sid as usize;
+    // 先以參照判斷是否到期（多數魂沒有到期，不複製狀態）。
+    let due = match &w.souls[i].state {
+        SoulState::Bardo { until } if *until <= tick => 1,
+        SoulState::Realm { until, .. } if *until <= tick => 2,
+        SoulState::Waiting { until, .. } if *until <= tick => 3,
+        _ => 0,
+    };
+    match due {
+        0 => {}
+        1 => judge_and_place(w, sid, month),
+        2 => {
+            let SoulState::Realm { path, .. } = w.souls[i].state else { return };
+            let soul = &mut w.souls[i];
+            match path {
+                SixPath::Heaven => soul.merit *= PATH_HEAVEN_RETURN_G_MULT,
+                SixPath::Beast => soul.sin *= PATH_BEAST_RETURN_S_MULT,
+                _ => {}
+            }
+            judge_and_place(w, sid, month);
+        }
+        _ => birth_after_wait(w, sid, month),
+    }
+}
+
+/// 依魂目前的狀態排定到期事件（中陰、他道、等待三種有期限的狀態）。狀態每次改變後呼叫；
+/// 舊狀態遺留的事件到期時發現狀態已變、或尚未到期，什麼都不做。
+pub fn arm(w: &mut World, sid: SoulId) {
+    let until = match &w.souls[sid as usize].state {
+        SoulState::Bardo { until } | SoulState::Realm { until, .. } | SoulState::Waiting { until, .. } => *until,
+        _ => return,
+    };
+    w.queue.schedule(until.max(w.tick), crate::queue::Action::Soul(sid));
+}
+
+/// 事件隊列的魂到期：處理該魂，再依新狀態重排。
+pub fn fire(w: &mut World, sid: SoulId) {
+    let tick = w.tick;
+    let mut month = Month { cap: notable_cap(w), living: None, waiting: None, pop: None };
+    due_one(w, sid, &mut month, tick);
+    arm(w, sid);
 }
 
 /// GDD 3.4 人間補魂：每年，在世有名之人 < `NOTABLE_FLOOR` 時，
