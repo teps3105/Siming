@@ -988,7 +988,7 @@ impl SimWorld {
             return out;
         };
         // 只記了魂的事件（判入六道）只算本世存在期間內的。
-        let mut events: Vec<&siming_sim::Event> = w.ledger.events.iter().filter(|e| e.importance > 0 && belongs_to(e, p)).collect();
+        let mut events: Vec<&siming_sim::Event> = w.ledger.events.iter().filter(|e| e.importance > 0 && belongs_to(w, e, p)).collect();
         events.sort_by_key(|e| (e.tick, e.id));
         let gw = w.geo.w as u32;
         // 故里日後可能變：遊歷是否為歸來，改看它是不是回到上一趟的出發地，或回到現在的故里。
@@ -1311,7 +1311,6 @@ fn ripple_ids(w: &siming_sim::World, root: siming_sim::EventId, cap: usize) -> V
     out
 }
 
-/// 事件是否算這個人的歷程：他是事件的人物；或事件只記了他的魂，且發生在他在世（或身故當下）之間。
 impl SimWorld {
     fn height_at(&self, pos: (f32, f32)) -> f32 {
         self.land.as_ref().map_or(0.0, |l| l.relief.height_at(pos.0, pos.1))
@@ -1334,11 +1333,27 @@ impl SimWorld {
     }
 }
 
-fn belongs_to(e: &siming_sim::Event, p: &siming_sim::Person) -> bool {
+/// 事件是否算這個人的歷程：他是事件的人物；或事件只記了魂，而他是這個魂在事件當時的那一世
+/// （`life_at`；判入六道算上一世的死後，其餘的事身故者只算到死為止）。
+fn belongs_to(w: &siming_sim::World, e: &siming_sim::Event, p: &siming_sim::Person) -> bool {
     if e.persons.contains(&p.id) {
         return true;
     }
-    e.persons.is_empty() && e.souls.contains(&p.soul) && (e.tick as i64) >= p.born as i64 && p.died.is_none_or(|(t, _)| e.tick <= t)
+    if !e.persons.is_empty() || !e.souls.contains(&p.soul) || life_at(w, p.soul, e).is_none_or(|l| l.id != p.id) {
+        return false;
+    }
+    e.kind == siming_sim::EventKind::Judged || p.died.is_none_or(|(t, _)| e.tick <= t)
+}
+
+/// 魂在事件當時的那一世：出生不晚於事件的最近一世（在世或最近去世的一世）。
+/// 判入六道發生在死後，歸給事件之前已去世的最近一世，同月出生的新一世不算。魂此時還沒有任何一世為 `None`。
+fn life_at<'a>(w: &'a siming_sim::World, sid: siming_sim::SoulId, e: &siming_sim::Event) -> Option<&'a siming_sim::Person> {
+    let mut lives = w.souls.get(sid as usize)?.lives.iter().rev().filter_map(|&pid| w.persons.get(pid as usize));
+    if e.kind == siming_sim::EventKind::Judged {
+        lives.find(|p| p.died.is_some_and(|(t, _)| t <= e.tick))
+    } else {
+        lives.find(|p| (p.born as i64) <= e.tick as i64)
+    }
 }
 
 impl SimWorld {
@@ -1386,8 +1401,7 @@ impl SimWorld {
     fn event_fields(&self, w: &siming_sim::World, e: &siming_sim::Event, back: Option<bool>) -> VarDictionary {
         let mut d = VarDictionary::new();
         let province = e.province.and_then(|p| w.provinces.get(p as usize));
-        let person_id = |i: usize| e.persons.get(i).copied().filter(|&id| w.persons.get(id as usize).is_some());
-        let person = |i: usize| person_id(i).and_then(|id| w.persons.get(id as usize));
+        let person = |i: usize| e.persons.get(i).and_then(|&id| w.persons.get(id as usize));
         let power = |i: usize| e.powers.get(i).and_then(|&id| w.powers.get(id as usize));
         let province_name = |id: siming_sim::ProvinceId| w.provinces.get(id as usize).map_or("", |p| p.name.as_str());
         let (person_a, person_b) = subjects(w, e);
@@ -1424,9 +1438,6 @@ impl SimWorld {
             }
             siming_sim::EventArgs::Role { role } => {
                 x = format!("{role:?}");
-                if e.kind == siming_sim::EventKind::ComeOfAge && f.is_empty() {
-                    f = person(0).and_then(|p| p.power).and_then(|id| w.powers.get(id as usize)).map_or("", |pw| pw.name.as_str());
-                }
             }
             siming_sim::EventArgs::Book { entry } => x = format!("{entry:?}"),
             siming_sim::EventArgs::Sect { node } => {
@@ -1472,8 +1483,8 @@ impl SimWorld {
         d.set("x", &GString::from(x.as_str()));
         d.set("n", n);
         d.set("m", m);
-        d.set("a_person", person_id(0).map_or(-1, |id| id as i32));
-        d.set("b_person", person_id(1).map_or(-1, |id| id as i32));
+        d.set("a_person", person_a.map_or(-1, |p| p.id as i32));
+        d.set("b_person", person_b.map_or(-1, |p| p.id as i32));
         d.set("q_province", second_id.map_or(-1, |id| id as i32));
         if let siming_sim::EventArgs::World { change, new_era } = &e.args {
             let year = w.evolution.history_years + siming_sim::evolution::year_of(e.tick);
@@ -1494,13 +1505,11 @@ struct Identity {
     realm: i32,
 }
 
-/// 事件的兩位主角（`{A}`、`{B}`）。判入六道只記了魂，人名取魂最近一世的肉身；
-/// 兩魂牽涉的事件（宿緣）若有一魂當時沒有肉身，人物欄少於魂欄：改按魂的順序各取最近一世，免得把另一人當成主角。
+/// 事件的兩位主角（`{A}`、`{B}`）。事件只記了魂時，人名取魂在事件當時的那一世（`life_at`），不取現在這一世；
+/// 兩魂牽涉的事件（宿緣）若有一魂當時沒有肉身，人物欄少於魂欄：改按魂的順序各取當時那一世，免得把另一人當成主角。
 fn subjects<'a>(w: &'a siming_sim::World, e: &siming_sim::Event) -> (Option<&'a siming_sim::Person>, Option<&'a siming_sim::Person>) {
     let person = |i: usize| e.persons.get(i).and_then(|&id| w.persons.get(id as usize));
-    let soul_body = |i: usize| {
-        e.souls.get(i).and_then(|&s| w.souls.get(s as usize)).and_then(|s| s.lives.last()).and_then(|&pid| w.persons.get(pid as usize))
-    };
+    let soul_body = |i: usize| e.souls.get(i).and_then(|&s| life_at(w, s, e));
     if e.souls.len() >= 2 && e.persons.len() < e.souls.len() {
         (soul_body(0), soul_body(1))
     } else {
@@ -1579,6 +1588,126 @@ mod tests {
             sim.step();
         }
         sim
+    }
+
+    /// 造一個魂兩世的世界：前世 100..500 年（tick）、今生 520 起；回傳 (世界, 這個魂, 前世, 今生, 另一人的魂, 另一人的肉身)。
+    fn two_lives() -> (Sim, siming_sim::SoulId, siming_sim::PersonId, siming_sim::PersonId, siming_sim::SoulId, siming_sim::PersonId) {
+        let mut p = WorldParams::new(20261013);
+        p.size = WorldSize::Small;
+        let mut sim = Sim::new(&p).unwrap();
+        let w = sim.world_mut();
+        // 另一人：複製一個既有的人與魂，出生在 tick 0。
+        let mut other = w.persons[0].clone();
+        let mut other_soul = w.souls[other.soul as usize].clone();
+        other.id = w.persons.len() as siming_sim::PersonId;
+        other.born = 0;
+        other.died = None;
+        other.soul = w.souls.len() as siming_sim::SoulId;
+        other_soul.id = other.soul;
+        other_soul.lives = vec![other.id];
+        w.persons.push(other.clone());
+        w.souls.push(other_soul);
+        let sid = w.souls.len() as siming_sim::SoulId;
+        let mut soul = w.souls[other.soul as usize].clone();
+        soul.id = sid;
+        soul.lives.clear();
+        let mut prev = other.clone();
+        prev.id = w.persons.len() as siming_sim::PersonId;
+        prev.name = "前世甲".to_string();
+        prev.soul = sid;
+        prev.born = 100;
+        prev.died = Some((500, siming_sim::DeathCause::Age));
+        let mut now = prev.clone();
+        now.id = prev.id + 1;
+        now.name = "今生乙".to_string();
+        now.born = 520;
+        now.died = None;
+        soul.lives = vec![prev.id, now.id];
+        let (pid, nid) = (prev.id, now.id);
+        w.persons.push(prev);
+        w.persons.push(now);
+        w.souls.push(soul);
+        (sim, sid, pid, nid, other.soul, other.id)
+    }
+
+    fn new_event(
+        w: &mut siming_sim::World,
+        tick: u32,
+        kind: siming_sim::EventKind,
+        args: siming_sim::EventArgs,
+        souls: &[u32],
+        persons: &[u32],
+    ) -> siming_sim::EventId {
+        w.tick = tick;
+        let mut e = siming_sim::ledger::NewEvent::new(kind, 2, args);
+        e.souls.extend(souls.iter().copied());
+        e.persons.extend(persons.iter().copied());
+        siming_sim::ledger::record(w, e)
+    }
+
+    #[test]
+    fn history_judged_belongs_to_the_life_that_just_died_not_the_one_reborn_in_the_same_month() {
+        let (mut sim, sid, prev, now, _, _) = two_lives();
+        let w = sim.world_mut();
+        // 去世後 20 個月才判完，判入人道的同月新一世出生。
+        let judged = new_event(
+            w,
+            520,
+            siming_sim::EventKind::Judged,
+            siming_sim::EventArgs::Judged { path: siming_sim::SixPath::Human },
+            &[sid],
+            &[],
+        );
+        let e = &w.ledger.events[judged as usize];
+        assert!(belongs_to(w, e, &w.persons[prev as usize]), "魂判入人道是上一世的死後");
+        assert!(!belongs_to(w, e, &w.persons[now as usize]), "新一世的歷程不收它");
+        assert_eq!(subjects(w, e).0.map(|p| p.id), Some(prev), "事件卡的人名也是上一世");
+    }
+
+    #[test]
+    fn history_judged_without_a_dead_life_belongs_to_nobody() {
+        let (mut sim, sid, prev, now, _, _) = two_lives();
+        let w = sim.world_mut();
+        w.persons[prev as usize].died = None;
+        w.persons[now as usize].died = None;
+        let judged = new_event(
+            w,
+            520,
+            siming_sim::EventKind::Judged,
+            siming_sim::EventArgs::Judged { path: siming_sim::SixPath::Human },
+            &[sid],
+            &[],
+        );
+        let e = &w.ledger.events[judged as usize];
+        assert!(!belongs_to(w, e, &w.persons[prev as usize]));
+        assert!(!belongs_to(w, e, &w.persons[now as usize]));
+    }
+
+    #[test]
+    fn soul_only_event_names_the_life_at_the_time_not_the_current_one() {
+        let (mut sim, sid, prev, now, other_soul, other_body) = two_lives();
+        let w = sim.world_mut();
+        let thread = siming_sim::EventArgs::Thread { thread: 0, kind: siming_sim::ThreadKind::Feud, lives: 0 };
+        // 前世結緣：對方有肉身、這個魂沒有（人物欄少於魂欄）。
+        let past = new_event(w, 300, siming_sim::EventKind::ThreadCreated, thread.clone(), &[sid, other_soul], &[other_body]);
+        let e = &w.ledger.events[past as usize];
+        let (a, b) = subjects(w, e);
+        assert_eq!(a.map(|p| p.name.as_str()), Some("前世甲"), "前世那筆的 A 是前世的名字");
+        assert_eq!(b.map(|p| p.soul), Some(other_soul));
+        let later = new_event(w, 700, siming_sim::EventKind::ThreadCreated, thread, &[sid, other_soul], &[other_body]);
+        assert_eq!(subjects(w, &w.ledger.events[later as usize]).0.map(|p| p.id), Some(now), "今生那筆取今生");
+        // 只記了魂的事件歸給當時的那一世。
+        let omen = new_event(
+            w,
+            300,
+            siming_sim::EventKind::ThreadFaded,
+            siming_sim::EventArgs::Thread { thread: 0, kind: siming_sim::ThreadKind::Feud, lives: 1 },
+            &[sid, other_soul],
+            &[],
+        );
+        let e = &w.ledger.events[omen as usize];
+        assert!(belongs_to(w, e, &w.persons[prev as usize]));
+        assert!(!belongs_to(w, e, &w.persons[now as usize]), "出生在事件之後的今生不收前世的事");
     }
 
     /// 挑一則因樹至少兩層的事件。
