@@ -75,8 +75,80 @@ def collect_face(key="face-m0", n=1, as_base=False):
     cv2.imwrite(path, cv2.cvtColor(out, cv2.COLOR_RGBA2BGRA))
     import shutil
     if as_base:
-        shutil.copy(src, P.base_path(P.PARTS[key]["sex"]))
+        shutil.copy(src, P.SRC + f"base-bare-{P.PARTS[key]['sex']}.png")   # 無口鼻的臉底版；原底版 base-face-m.png 不動（舊部件的收件以它為準）
     info = {"from": f"paint/{key}-t{n}.png", "bg": G.astype(int).tolist(), "pixels": int((a > 0.5).sum()), "output": path}
+    P.log(key, "collect", info)
+    print(key, info)
+    return path
+
+
+def extract_lines(warped, base, zone, face_mask, dark_min=0.25, min_area=30, min_extent=18, lip=False):
+    """細線稿的收件：皺紋、口鼻的細線過不了一般收件的膚色排除與厚度門檻，改以「比底版暗多少」直接解混成墨線。
+
+    1. 每個像素的墨線不透明度 a = (底版亮度 − 畫家圖亮度) ÷ (底版亮度 − 墨色亮度)，夾在 0 到 1；a 低於 dark_min 的不收。這一步不看色相，
+       所以淡膚色上的細棕線也留得下來；成品的顏色一律是墨色，不帶膚色（外緣不會有膚色亮邊）。
+    2. 只收範圍內、臉內側（face_mask 往內縮）的像素，並避開底版自己的暗線（鼻、口、輪廓）膨脹後的位置——對位殘留的殘邊在那裡。
+    3. 以連通塊濾碎屑：面積不足 min_area 或外框對角線不足 min_extent 的丟掉（細線的面積小，不能用厚度門檻，改用長度）。
+    4. 不透明度保留連續值（羽化邊），不二值化。
+    回傳 (RGBA 圖, 保留的連通塊數)。"""
+    def luma(im):
+        return im[..., 0] * 0.299 + im[..., 1] * 0.587 + im[..., 2] * 0.114
+    ink = np.array(P.INK, np.float32)
+    lw = cv2.GaussianBlur(luma(warped.astype(np.float32)), (0, 0), 0.6)
+    lb = cv2.GaussianBlur(luma(base.astype(np.float32)), (0, 0), 0.6)
+    ink_l = float(luma(ink[None, None])[0, 0])
+    a = np.clip((lb - lw) / np.maximum(lb - ink_l, 40.0), 0, 1)
+    inner = cv2.erode(face_mask.astype(np.uint8), cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (17, 17))) > 0
+    base_ink = cv2.dilate((lb < 105).astype(np.uint8), cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))) > 0
+    cand = (a >= dark_min) & zone & inner & ~base_ink
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(cand.astype(np.uint8), connectivity=8)
+    keep = np.zeros(cand.shape, bool)
+    kept = 0
+    for i in range(1, count):
+        w, h, area = stats[i, cv2.CC_STAT_WIDTH], stats[i, cv2.CC_STAT_HEIGHT], stats[i, cv2.CC_STAT_AREA]
+        if area >= min_area and np.hypot(w, h) >= min_extent:
+            keep |= labels == i
+            kept += 1
+    soft = cv2.dilate(keep.astype(np.uint8), cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))) > 0   # 邊緣羽化帶一併收，不留碎屑
+    alpha = np.where(soft & zone & inner & ~base_ink, a, 0)
+    out = np.zeros(a.shape + (4,), np.uint8)
+    out[..., :3] = ink.round().astype(np.uint8)
+    out[..., 3] = (alpha * 255).round().astype(np.uint8)
+    if lip:   # 口鼻：唇是帶色的實心塊（紅色相、有彩度），不是暗線；取原色、完全不透明，疊在墨線層下面
+        hsv = cv2.cvtColor(warped.astype(np.uint8), cv2.COLOR_RGB2HSV).astype(np.float32)
+        hue, sat, val = hsv[..., 0] * 2, hsv[..., 1] / 255, hsv[..., 2] / 255
+        diff = np.abs(warped.astype(int) - base.astype(int)).max(2) > 30
+        red = ((hue < 25) | (hue > 335)) & (sat > 0.28) & (val > 0.3) & zone & inner & diff
+        red = cv2.morphologyEx(red.astype(np.uint8), cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+        n2, lab2, st2, _ = cv2.connectedComponentsWithStats(red, connectivity=8)
+        lipm = np.zeros(red.shape, bool)
+        for i in range(1, n2):
+            if st2[i, cv2.CC_STAT_AREA] >= 80:
+                lipm |= lab2 == i
+        out[lipm, :3] = warped[lipm]
+        out[lipm, 3] = 255
+    out[out[..., 3] == 0, :3] = 0
+    return out, kept
+
+
+def collect_line(key, n=1):
+    """細線部件（spec["extract"] == "line"）：對位後以 extract_lines 取出墨線。"""
+    spec = P.PARTS[key]
+    base = load_rgb(P.input_path(key))
+    painted = load_rgb(P.TMP + f"paint/{key}-t{n}.png")
+    h, wd = base.shape[:2]
+    zone = P.zone_mask(spec["zone"], spec["sex"], (h, wd))
+    anchor = P.anchor_mask(spec["zone"], spec["sex"], (h, wd))
+    mat, cc = register(painted, base, anchor)
+    warped = cv2.warpAffine(painted, mat, (wd, h), flags=cv2.INTER_LINEAR + cv2.WARP_INVERSE_MAP, borderMode=cv2.BORDER_REPLICATE)
+    face = np.abs(base.astype(int) - bg_color(base)[None, None]).max(2) > 60   # 底版不是純綠底的地方
+    out, kept = extract_lines(warped, base, zone, face, spec.get("dark_min", 0.25), lip=spec.get("lip", False))
+    os.makedirs(P.TMP + "collect", exist_ok=True)
+    path = P.TMP + f"collect/{key}.png"
+    cv2.imwrite(path, cv2.cvtColor(out, cv2.COLOR_RGBA2BGRA))
+    ys, xs = np.nonzero(out[..., 3] > 40)
+    info = {"from": f"paint/{key}-t{n}.png", "ecc": round(cc, 5), "method": "line", "components": kept, "pixels": int(len(xs)),
+            "bbox": [int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1] if len(xs) else None, "output": path}
     P.log(key, "collect", info)
     print(key, info)
     return path
@@ -170,5 +242,7 @@ if __name__ == "__main__":
     a = ap.parse_args()
     if P.PARTS[a.part].get("zone") is None:
         collect_face(a.part, a.n, a.as_base)
+    elif P.PARTS[a.part].get("extract") == "line":
+        collect_line(a.part, a.n)
     else:
         collect(a.part, a.n, a.thr, thick=a.thick, keep_skin=a.keep_skin)

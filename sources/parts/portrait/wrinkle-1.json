@@ -1,0 +1,83 @@
+{
+ "part": "wrinkle-1",
+ "paint": [
+  {
+   "tag": "wrinkle-1-t1",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261014,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/sources/parts/portrait/base-face-m.png",
+     "6eb81df3857716d33152534009eecf9090d5c7a2a6b3c29c3f5a48bfdca3b318"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版（背景是純綠色），圖2是畫風基準圖。請在圖1的臉上畫一組老年的「皺紋」：只畫細墨線，不改變任何皮膚底色、不畫陰影塊。款式是法令紋與眉間紋：左右各一道法令紋，從鼻翼外側斜向下彎到嘴角外側，一道連續的弧線，左右對稱，不碰到鼻與嘴；另外兩眉之間偏上的額頭正中畫兩道短短的豎紋（川字紋的兩豎），兩道平行、各約半個眼高長；臉上其餘地方不畫紋。每一道皺紋都是一條單獨、連續、乾淨的細線（在 1024 寬的圖上線寬約 5 到 6 像素），顏色是深暗的棕黑色（接近墨色，比皮膚暗得多），兩端自然收細；線與線之間分得開、不相交、不連成一片。不畫眉毛、不畫眼睛，鼻、口、臉的外輪廓、耳、頸與肩都不許動、不許被線蓋住，皺紋避開鼻與口。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫的這一件，人物的頭、臉、頸、肩與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純綠色（#00FF00），純色無漸層。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/paint/wrinkle-1-t1.png",
+   "output_sha256": "2911fd9b73721ae5524a608c3ee2c2c695af134aea90727223bc6e82517fd801",
+   "seconds": 385.9,
+   "time": "2026-10-14 00:16:37"
+  }
+ ],
+ "collect": [
+  {
+   "from": "paint/wrinkle-1-t1.png",
+   "ecc": 0.99538,
+   "method": "line",
+   "components": 10,
+   "pixels": 3285,
+   "bbox": [
+    356,
+    499,
+    674,
+    767
+   ],
+   "output": "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/collect/wrinkle-1.png",
+   "time": "2026-10-14 00:18:06"
+  }
+ ],
+ "key": [
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/wrinkle-1.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "line": {
+     "file": ".shiftblame/tmp/parts/portrait/key/wrinkle-1.line.png",
+     "pixels": 551,
+     "dye": "定色",
+     "fixed": true
+    }
+   },
+   "time": "2026-10-14 00:18:06"
+  }
+ ],
+ "check": [
+  {
+   "metrics": {
+    "wrinkle-1.line": {
+     "edge_len": 320,
+     "bare_edge": 0,
+     "bare_ratio": 0.0,
+     "blobs": 17,
+     "specks": 13,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 321
+    }
+   },
+   "time": "2026-10-14 00:18:58"
+  }
+ ]
+}
