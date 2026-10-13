@@ -5,11 +5,15 @@ extends RefCounted
 ## 同一個動作與時間永遠得到同一個姿勢，暫停時停住。
 ##
 ## 檔案格式：{"version", "fps", "actions": {名稱: {"loop", "loop_start", "length"（格數）, "events": {名稱: 格號},
-## "poses": [length + 1 格，每格 {hip, neck, elbow_f, hand_f, elbow_b, hand_b: [x, y], head_roll, wind, seated, point, anchors: {名稱: [x, y]}}]}}}。
+## "poses": [length + 1 格，每格 {hip, neck, elbow_f, hand_f, elbow_b, hand_b: [x, y], head_roll, wind, seated, point, anchors: {名稱: [x, y]}，
+## 選用 foot_f、foot_b: [x, y]（雙腳位移）、body_roll、body_lift、body_pivot: [x, y]（整體剛體變換）}]}}}。
 ## 座標與 CultivatorFigure 相同：成人身高為 1、腳下為原點、−y 向上、人朝 −x；_f 離看畫的人遠（人物的右手），_b 近（左手）。
 
 const PATH := "res://modules/figure/resources/actions.json"
 const VECTOR_KEYS := ["hip", "neck", "elbow_f", "hand_f", "elbow_b", "hand_b"]
+## 部分動作才有的選用關節：雙腳位移（步行）、整體剛體變換（倒地、浮空）。資料沒有就不放進姿勢字典，畫法回到舊樣子。
+const OPTIONAL_VECTORS := ["foot_f", "foot_b", "body_pivot"]
+const OPTIONAL_FLOATS := ["body_roll", "body_lift"]
 
 static var _data := {}
 static var _fps := 24.0
@@ -30,6 +34,12 @@ static func _load() -> void:
 			var pose := {}
 			for key in VECTOR_KEYS:
 				pose[key] = _vec(frame[key])
+			for key in OPTIONAL_VECTORS:
+				if frame.has(key):
+					pose[key] = _vec(frame[key])
+			for key in OPTIONAL_FLOATS:
+				if frame.has(key):
+					pose[key] = float(frame[key])
 			pose["head_roll"] = float(frame["head_roll"])
 			pose["wind"] = float(frame["wind"])
 			pose["seated"] = bool(frame["seated"])
@@ -87,6 +97,12 @@ static func event_time(action: String, event: String) -> float:
 	return float(_data[action]["events"][event]) / fps()
 
 
+## 動作的全部事件：{名稱: 格號}。
+static func events(action: String) -> Dictionary:
+	_load()
+	return (_data[action]["events"] as Dictionary).duplicate() if _data.has(action) else {}
+
+
 ## 第 index 格的關節（原樣，不內插）。
 static func frame_pose(action: String, index: int) -> Dictionary:
 	_load()
@@ -116,6 +132,12 @@ static func pose(action: String, age: float) -> Dictionary:
 	var out := {}
 	for key in VECTOR_KEYS:
 		out[key] = (a[key] as Vector2).lerp(b[key], t)
+	for key in OPTIONAL_VECTORS:
+		if a.has(key):
+			out[key] = (a[key] as Vector2).lerp(b[key], t)
+	for key in OPTIONAL_FLOATS:
+		if a.has(key):
+			out[key] = lerpf(a[key], b[key], t)
 	out["head_roll"] = lerpf(a["head_roll"], b["head_roll"], t)
 	out["wind"] = lerpf(a["wind"], b["wind"], t)
 	out["seated"] = a["seated"]
