@@ -1,0 +1,83 @@
+{
+ "part": "mouth-2",
+ "paint": [
+  {
+   "tag": "mouth-2-t1",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261014,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/sources/parts/portrait/base-bare-m.png",
+     "7473883fec29feee7c2111fd5eef0aa0210f4e70f2ffa8afc9b03d89c8eb88b8"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版（背景是純綠色），圖2是畫風基準圖。圖1是一張光頭素臉的頭肩半身像（背景是純綠色），臉上沒有鼻子與嘴；圖2是畫風基準圖。請只在圖1臉上的鼻子與嘴的位置畫「鼻」與「口」：鼻樑從兩眼之間起、鼻底在嘴的上方，嘴在鼻底與下巴尖之間偏上處，鼻與口都在臉的正中軸上、左右對稱。款式是帶淡淡微笑的樣子：鼻樑高而窄、鼻尖略尖、鼻翼小；薄唇，嘴角微微上揚，嘴線是一條輕輕上彎的弧線，嘴寬約為兩眼內角間距的 1.3 倍。畫法大幅概括簡化，與圖2同一種賽璐璐水墨平塗：鼻只用鼻翼與鼻底的幾條簡潔細墨線，加一小塊比膚色略深的同色系皮膚陰影塊，鼻子的顏色就是臉的皮膚底色，不上其他顏色；嘴唇是帶一點紅的暗玫瑰色（約 #B86A5E）的平塗色塊，外緣一圈細墨線，嘴線是一條墨線，下唇下方可有一小塊皮膚陰影。除了鼻與口，臉、耳、頭、頸、肩與外輪廓與圖1逐像素相同，不畫眼睛、眉毛、鬍鬚、皺紋，背景保持純綠。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫的這一件，人物的頭、臉、頸、肩與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純綠色（#00FF00），純色無漸層。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/paint/mouth-2-t1.png",
+   "output_sha256": "ee44307eef8fca92d2b5d3a0b8a3228a9f807abf4ffe6851fd4a712d7a4e59ec",
+   "seconds": 64.5,
+   "time": "2026-10-14 00:25:51"
+  }
+ ],
+ "collect": [
+  {
+   "from": "paint/mouth-2-t1.png",
+   "ecc": 0.99804,
+   "method": "line",
+   "components": 2,
+   "pixels": 3804,
+   "bbox": [
+    463,
+    638,
+    598,
+    736
+   ],
+   "output": "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/collect/mouth-2.png",
+   "time": "2026-10-14 00:26:21"
+  }
+ ],
+ "key": [
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/mouth-2.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "lip": {
+     "file": ".shiftblame/tmp/parts/portrait/key/mouth-2.lip.png",
+     "pixels": 247,
+     "dye": "lip",
+     "centers": [
+      95.9,
+      114.4
+     ],
+     "share": [
+      0.49,
+      0.51
+     ],
+     "levels": [
+      "shadow",
+      "base"
+     ]
+    },
+    "line": {
+     "file": ".shiftblame/tmp/parts/portrait/key/mouth-2.line.png",
+     "pixels": 210,
+     "dye": "定色",
+     "fixed": true
+    }
+   },
+   "time": "2026-10-14 00:26:21"
+  }
+ ]
+}

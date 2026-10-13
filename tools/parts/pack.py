@@ -67,17 +67,23 @@ def main():
         spec = P.PARTS[name]
         fixed = sub in spec.get("fixed", [])
         entry = parts.setdefault(P.code_of(name), {"anchor": None, "layers": [], "_boxes": []})
+        entry.setdefault("_subs", []).append(list(spec["subs"]).index(sub))
         entry["layers"].append({"rect": [ax, ay, im.width, im.height], "offset": list(off), "mode": "fixed" if fixed else "keyed",
                                 "tint": None if fixed else spec["dye"][sub]})
         entry["_boxes"].append((off[0], off[1], off[0] + im.width, off[1] + im.height))
     for key, fits in P.HAIRS.items():   # 冠帽可搭配的髮式
-        parts[P.code_of(key)]["hairs"] = list(fits)
+        if P.code_of(key) in parts:
+            parts[P.code_of(key)]["hairs"] = list(fits)
     for e in parts.values():   # 對位參考點：各子層外框聯集的中心
         b = e.pop("_boxes")
         e["anchor"] = [round((min(t[0] for t in b) + max(t[2] for t in b)) / 2), round((min(t[1] for t in b) + max(t[3] for t in b)) / 2)]
     # 順序在字典裡由後往前：子層依 SLOT 順序已由 PARTS 宣告順序決定（同一款的子層：主材質在前、緣邊在後）
-    for e in parts.values():
-        e["layers"].sort(key=lambda l: {"trim": 1, "gold": 2}.get(l["tint"], 0))
+    for code, e in parts.items():
+        order_of = e.pop("_subs")
+        if P.PARTS[next(k for k in P.PARTS if P.code_of(k) == code)].get("extract") == "line":   # 細線件：依 subs 宣告順序（唇在下、墨線在上）
+            e["layers"] = [l for _, l in sorted(zip(order_of, e["layers"]), key=lambda t: t[0])]
+        else:
+            e["layers"].sort(key=lambda l: {"trim": 1, "gold": 2}.get(l["tint"], 0))
     lm = json.load(open(P.SRC + "base.json", encoding="utf-8"))["sex"]["m"]["points"]
     cx, top, chin = lm["cx"]["out"], lm["top_y"]["out"], lm["chin_y"]["out"]
     counts = {}

@@ -21,6 +21,9 @@ const HAIR_WHITE := Color("c9c9c4")
 const VIOLET := Color("6B4A8E")
 const IRIS_VIOLET := Color("7A4FA3")
 const IRISES: Array[Color] = [Color("3b2a22"), Color("2f3b36"), Color("3a3a4a"), Color("55402a")]
+## 唇色：把定色的唇紅往膚色靠、略暗，看得出唇形但不像上妝；三種膚色各自算。
+const LIP_MIX := 0.4
+const LIP_DARK := 0.88
 const SCHOOLS: Array[String] = ["none", "ru", "shi", "dao"]
 const WEALTH: Array[String] = ["poor", "plain", "rich"]
 const HAIRS: Array[String] = ["topknot", "crown", "loose", "hat", "twin_buns", "high_bun", "shaven", "scholar_cap"]
@@ -70,6 +73,12 @@ static func given_of(info: Dictionary) -> Dictionary:
 	return given
 
 
+## 唇色：膚色與唇紅混合（LIP_MIX）再壓暗（LIP_DARK）。
+static func lip_of(skin: Color, red: Color) -> Color:
+	var mixed := Color(skin.r, skin.g, skin.b).lerp(Color(red.r, red.g, red.b), LIP_MIX)
+	return Color(mixed.r * LIP_DARK, mixed.g * LIP_DARK, mixed.b * LIP_DARK, 1.0)
+
+
 static func _pick(seed_value: int, salt: int, count: int) -> int:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value * 7919 + salt * 104729 + 17
@@ -109,7 +118,7 @@ static func from_person(info: Dictionary) -> Dictionary:
 	if life_stage == Stage.ELDER:
 		hair_color = hair_color.lerp(HAIR_WHITE, ELDER_WHITE)
 	var iris: Color = IRIS_VIOLET if demon else IRISES[_pick(soul, 4, IRISES.size())]
-	var lip := Color(colors[CultivatorFigure.LIP], 1.0)
+	var lip := lip_of(colors[CultivatorFigure.SKIN], colors[CultivatorFigure.LIP])
 	var tints := {
 		"hair": hair_color,
 		"skin": colors[CultivatorFigure.SKIN],

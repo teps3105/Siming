@@ -31,6 +31,8 @@ def main():
                 shutil.copy(d + f, P.TMP + "old/" + sub + "-" + f)
     if P.PARTS[a.part].get("zone") is None:
         C.collect_face(a.part, a.n)
+    elif P.PARTS[a.part].get("extract") == "line":
+        C.collect_line(a.part, a.n)
     else:
         C.collect(a.part, a.n, a.thr, thick=a.thick, keep_skin=a.keep_skin)
     K.key(a.part)

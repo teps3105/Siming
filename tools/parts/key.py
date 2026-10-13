@@ -53,13 +53,15 @@ def split_subs(img, subs):
             m = solid & (sat > 0.45) & (val > 0.35) & ((hue < 22) | (hue > 340))
         elif how == "redg":   # 與金紋並存時的紅邊：色相放寬到 30，紅金交界的反鋸齒像素歸紅
             m = solid & (sat > 0.45) & (val > 0.35) & ((hue < 30) | (hue > 340))
+        elif how == "lip":   # 唇：紅色相、有彩度（墨線層的墨色彩度很低，不會落進來）
+            m = solid & (sat > 0.25) & (val > 0.25) & ((hue < 25) | (hue > 335))
         elif how == "gold":   # 金色紋飾：獨立染色層（gold 通道），不混進衣色
             m = solid & (sat > 0.35) & (val > 0.4) & (hue >= 30) & (hue <= 66)
         else:
             continue
         m = m & ~taken
         # 紅邊、瞳、金紋是小塊，去掉面積過小的雜點；剩下的歸 rest
-        if how in ("chroma", "red", "redg", "gold"):
+        if how in ("chroma", "red", "redg", "gold", "lip"):
             n, lab, st, _ = cv2.connectedComponentsWithStats(m.astype(np.uint8), connectivity=8)
             for i in range(1, n):
                 if st[i, cv2.CC_STAT_AREA] < 6:
@@ -188,6 +190,11 @@ def key(name):
     if not os.path.exists(src):
         src = P.TMP + f"collect/{name}.png"
     rgba = cv2.cvtColor(cv2.imread(src, cv2.IMREAD_UNCHANGED), cv2.COLOR_BGRA2RGBA)
+    if spec.get("fit_scale"):   # 尺寸一致化：整件繞外框中心等比縮小（畫家畫的紋略貼臉邊，瘦長臉會出界）；只縮放，不改畫的內容
+        ys, xs = np.nonzero(rgba[..., 3] > 8)
+        c = ((xs.min() + xs.max()) / 2.0, (ys.min() + ys.max()) / 2.0)
+        m = cv2.getRotationMatrix2D(c, 0, spec["fit_scale"])
+        rgba = cv2.warpAffine(rgba, m, (rgba.shape[1], rgba.shape[0]), flags=cv2.INTER_AREA)
     img = shrink(rgba)
     masks = split_subs(img, spec["subs"])
     os.makedirs(P.TMP + "key", exist_ok=True)
@@ -196,7 +203,8 @@ def key(name):
         fixed = sub in spec.get("fixed", [])
         if fixed:
             out = img.copy()
-            out[..., 3] = np.where(m, img[..., 3], 0)
+            gain = spec.get("alpha_gain", 1.0)   # 細線稿縮到入庫尺寸後偏淡：墨線不透明度整體乘係數（一致性修正，不重畫）
+            out[..., 3] = np.where(m, np.clip(img[..., 3].astype(np.float32) * gain, 0, 255), 0).round().astype(np.uint8)
             out[out[..., 3] == 0, :3] = 0
             stats = {"fixed": True}
         else:

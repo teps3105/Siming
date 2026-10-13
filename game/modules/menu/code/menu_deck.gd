@@ -285,6 +285,10 @@ func _settings_rows() -> Array[Dictionary]:
 	while percent <= int(round(GameSettings.UI_SCALE_MAX * 100.0)):
 		scales.append([percent, "%d%%" % percent])
 		percent += int(round(GameSettings.UI_SCALE_STEP * 100.0))
+	var paces := [[0, Locale.t("director_pace_slow")], [1, Locale.t("director_pace_normal")], [2, Locale.t("director_pace_fast")]]
+	var idles := []
+	for seconds: int in [10, 20, 40, 60]:
+		idles.append([seconds, Locale.t("director_idle_seconds") % seconds])
 	return [
 		MenuPanel.choice(&"set.fullscreen", Locale.t("set_fullscreen"), switch, GameSettings.flag("fullscreen")),
 		MenuPanel.choice(&"set.window_size", Locale.t("set_window"), windows, GameSettings.value("window_size")),
@@ -292,6 +296,13 @@ func _settings_rows() -> Array[Dictionary]:
 		MenuPanel.choice(&"set.ui_scale", Locale.t("set_ui_scale"), scales, int(round(GameSettings.ui_scale() * 10.0)) * 10),
 		MenuPanel.choice(&"set.edge_scroll", Locale.t("set_edge"), switch, GameSettings.flag("edge_scroll")),
 		MenuPanel.choice(&"set.language", Locale.t("set_language"), [["zh-Hant", Locale.t("language_zh_hant")]], "zh-Hant"),
+		MenuPanel.head(Locale.t("set_director_head")),
+		MenuPanel.choice(&"set.director", Locale.t("set_director"), switch, GameSettings.flag("director")),
+		MenuPanel.choice(&"set.director_pace", Locale.t("set_director_pace"), paces, GameSettings.value("director_pace")),
+		MenuPanel.choice(&"set.director_idle", Locale.t("set_director_idle"), idles, GameSettings.value("director_idle")),
+		MenuPanel.choice(&"set.director_slow", Locale.t("set_director_slow"), switch, GameSettings.flag("director_slow")),
+		MenuPanel.choice(&"set.director_card", Locale.t("set_director_card"), switch, GameSettings.flag("director_card")),
+		MenuPanel.choice(&"set.director_reduce", Locale.t("set_director_reduce"), switch, GameSettings.flag("director_reduce")),
 		MenuPanel.action(&"set.tutorial", Locale.t("set_tutorial"), &"book"),
 	]
 
