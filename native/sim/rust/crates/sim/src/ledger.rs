@@ -63,6 +63,7 @@ pub fn record(w: &mut World, e: NewEvent) -> EventId {
     w.ledger.events.push(Event {
         id,
         tick: w.tick,
+        day: w.day,
         kind,
         province: e.province,
         cell: e.cell,

@@ -521,6 +521,9 @@ pub enum EventArgs {
 pub struct Event {
     pub id: EventId,
     pub tick: Tick,
+    /// 事件發生的日序（見 [`crate::calendar::Day`]）；舊規則在月步進結算，落在該月最後一日。
+    #[serde(default)]
+    pub day: u32,
     pub kind: EventKind,
     pub province: Option<ProvinceId>,
     pub cell: Option<u32>,

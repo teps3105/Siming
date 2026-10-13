@@ -58,3 +58,16 @@ impl RngStreams {
         }
     }
 }
+
+/// 從作業系統的亂數來源取一個新的 64 位元種子（開天人物落地時、讀檔時用）。不讀系統時鐘。
+pub fn os_seed() -> u64 {
+    use rand::RngCore;
+    rand::rngs::OsRng.next_u64()
+}
+
+impl RngStreams {
+    /// 以新種子重設全部子流。天地生成（`Stream::Worldgen`）不在其中，仍由世界種子決定。
+    pub fn reseed(&mut self, seed: u64) {
+        *self = Self::new(seed);
+    }
+}

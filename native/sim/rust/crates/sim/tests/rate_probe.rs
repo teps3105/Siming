@@ -40,7 +40,12 @@ fn kind_name(k: siming_sim::EventKind) -> String {
 
 /// 開天後再推 `years` 年並量測。
 pub fn measure(seed: u64, years: u32) -> Measure {
-    let mut sim = Sim::new(&WorldParams::new(seed)).expect("世界生成");
+    measure_seeded(seed, years, None)
+}
+
+/// 同 [`measure`]，人物落地起的亂數種子由 `rng` 指定（`None` 從作業系統取）。
+pub fn measure_seeded(seed: u64, years: u32, rng: Option<u64>) -> Measure {
+    let mut sim = Sim::new_seeded(&WorldParams::new(seed), rng).expect("世界生成");
     let start_tick = sim.world().tick;
     for _ in 0..years * 12 {
         sim.step();
@@ -169,6 +174,86 @@ fn measure_year_cost() {
     let json = serde_json::json!({ "engine": "monthly-sweep", "seed": seed, "marks": out });
     let text = serde_json::to_string_pretty(&json).unwrap();
     match std::env::var("SIMING_PERF_OUT") {
+        Ok(path) => std::fs::write(path, text).unwrap(),
+        Err(_) => println!("{text}"),
+    }
+}
+
+/// 與 `rate_baseline.json`（舊引擎）比對：每個世界種子各跑 `SIMING_RATE_RUNS`（預設 3）次不同的固定亂數種子，
+/// 每種事件的年發生率要在基準的 ±25% 內（基準年均 < 0.05 的稀有事件改比絕對差 < 0.02）。
+/// 逐條印出落在容差外者；有任何一條落外則測試失敗。
+#[test]
+#[ignore = "完整開天加千年，每次約 20 秒；用來核對事件驅動改寫的發生率"]
+fn compare_rates() {
+    let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/rate_baseline.json")).expect("基準檔");
+    let base: serde_json::Value = serde_json::from_str(&text).unwrap();
+    let runs: u64 = std::env::var("SIMING_RATE_RUNS").ok().and_then(|s| s.parse().ok()).unwrap_or(3);
+    let years = base["window_years"].as_u64().unwrap() as u32;
+    let mut bad: Vec<String> = Vec::new();
+    for b in base["seeds"].as_array().unwrap() {
+        let seed = b["seed"].as_u64().unwrap();
+        let brates = b["rates_per_year"].as_object().unwrap();
+        let mut per_run: Vec<BTreeMap<String, f64>> = Vec::new();
+        for k in 1..=runs {
+            let m = measure_seeded(seed, years, Some(k));
+            eprintln!(
+                "種子 {seed} 亂數 {k}：在世 {}（基準 {}）宗門 {}（{}）王朝 {}（{}）魂 {}（{}）",
+                m.alive, b["alive"], m.powers_alive, b["powers_alive"], m.dynasties_alive, b["dynasties_alive"], m.souls, b["souls"]
+            );
+            per_run.push(m.counts.iter().map(|(k, &v)| (k.clone(), v as f64 / years as f64)).collect());
+        }
+        let mut kinds: Vec<String> = brates.keys().cloned().collect();
+        for r in &per_run {
+            for k in r.keys() {
+                if !kinds.contains(k) {
+                    kinds.push(k.clone());
+                }
+            }
+        }
+        kinds.sort();
+        eprintln!("{:<18} {:>8} | 各次 | 平均", format!("種子 {seed}"), "基準");
+        for k in &kinds {
+            let br = brates.get(k).and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let rs: Vec<f64> = per_run.iter().map(|r| r.get(k).copied().unwrap_or(0.0)).collect();
+            let mean = rs.iter().sum::<f64>() / rs.len() as f64;
+            let ok = |r: f64| if br < 0.05 { (r - br).abs() < 0.02 } else { (r / br - 1.0).abs() <= 0.25 };
+            let fails = rs.iter().filter(|&&r| !ok(r)).count();
+            let cells: Vec<String> = rs.iter().map(|r| format!("{r:.3}")).collect();
+            eprintln!("{:<18} {:>8.3} | {} | {:.3}{}", k, br, cells.join(" "), mean, if fails > 0 { "  <== 落在容差外" } else { "" });
+            if fails > 0 {
+                bad.push(format!("種子 {seed} {k}：基準 {br:.3}，各次 {}", cells.join(" ")));
+            }
+        }
+    }
+    assert!(bad.is_empty(), "落在容差外 {} 條：\n{}", bad.len(), bad.join("\n"));
+}
+
+/// 同一份舊規則（月步進）在不同亂數種子下的離散程度：每個世界種子跑 `SIMING_RATE_RUNS`（預設 6）次，
+/// 輸出各次的年發生率、平均與標準差。用來判斷單一基準的 ±25% 容差本身有多少雜訊。
+#[test]
+#[ignore = "每個世界種子多次完整開天加千年；由 SIMING_RATE_OUT 指定輸出檔"]
+fn measure_rates_runs() {
+    let runs: u64 = std::env::var("SIMING_RATE_RUNS").ok().and_then(|s| s.parse().ok()).unwrap_or(6);
+    let mut seeds = Vec::new();
+    for seed in [7u64, 42, 20261011] {
+        let ms: Vec<Measure> = (1..=runs).map(|k| measure_seeded(seed, WINDOW_YEARS, Some(k))).collect();
+        let mut kinds: Vec<String> = ms.iter().flat_map(|m| m.counts.keys().cloned()).collect();
+        kinds.sort();
+        kinds.dedup();
+        let mut stats = serde_json::Map::new();
+        for k in &kinds {
+            let rs: Vec<f64> = ms.iter().map(|m| m.counts.get(k).copied().unwrap_or(0) as f64 / WINDOW_YEARS as f64).collect();
+            let mean = rs.iter().sum::<f64>() / rs.len() as f64;
+            let var = rs.iter().map(|r| (r - mean).powi(2)).sum::<f64>() / (rs.len() - 1).max(1) as f64;
+            stats.insert(k.clone(), serde_json::json!({ "runs": rs, "mean": mean, "std": var.sqrt() }));
+        }
+        let alive: Vec<u32> = ms.iter().map(|m| m.alive).collect();
+        seeds.push(serde_json::json!({ "seed": seed, "alive": alive, "kinds": stats }));
+    }
+    let json =
+        serde_json::json!({ "engine": "monthly-sweep，固定亂數種子 1..N", "window_years": WINDOW_YEARS, "runs": runs, "seeds": seeds });
+    let text = serde_json::to_string_pretty(&json).unwrap();
+    match std::env::var("SIMING_RATE_OUT") {
         Ok(path) => std::fs::write(path, text).unwrap(),
         Err(_) => println!("{text}"),
     }

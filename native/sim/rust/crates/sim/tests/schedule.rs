@@ -106,9 +106,9 @@ fn gdd_6_3_come_of_age_happens_in_own_judge_month() {
     let mut seen = std::collections::BTreeSet::new();
     for e in w.ledger.events.iter().filter(|e| e.kind == EventKind::ComeOfAge && e.tick > start) {
         let pid = e.persons[0];
-        let p = &w.persons[pid as usize];
-        // 補足的新弟子出生即 12 歲整；自然入道者的出生月與入道月不會剛好相差 12 年整。
-        if p.born == e.tick as i32 - 144 {
+        // 宗門補足也寫 ComeOfAge（挑山門州郡既有的人，不經本人的判定月），入了宗門者一律不檢查；
+        // 只看沒有勢力的入道（僧、儒、散人、魔修與無宗門可投的修士）。
+        if !e.powers.is_empty() {
             continue;
         }
         assert_eq!((calendar::date(e.tick).month - 1) as u8, judge_month(seed, Domain::Person, pid), "人 {pid}");

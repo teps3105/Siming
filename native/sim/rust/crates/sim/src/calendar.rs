@@ -51,6 +51,35 @@ pub fn date(tick: Tick) -> Date {
     Date { hui, yun, shi, year, month, total_year }
 }
 
+/// 日序：自開天起的日數（開天當下為 0，第一個月的第一天為 1）。事件以日為時刻（事件驅動引擎）。
+pub type Day = u32;
+/// 每月 30 日；一年 12 月、360 日。
+pub const DAYS_PER_MONTH: u32 = 30;
+pub const DAYS_PER_YEAR: u32 = DAYS_PER_MONTH * MONTHS_PER_YEAR;
+
+/// 月序 `tick` 的最後一日。月步進（舊規則）在這一日結算。
+pub fn day_of_tick(tick: Tick) -> Day {
+    tick * DAYS_PER_MONTH
+}
+
+/// 日所屬的月序（`tick`）：第 1–30 日屬 tick 1，開天當下（日 0）屬 tick 0。
+pub fn tick_of_day(day: Day) -> Tick {
+    day.div_ceil(DAYS_PER_MONTH)
+}
+
+/// 含日的日期：元會運世日期加上月內第幾日（1..=30）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DayDate {
+    pub date: Date,
+    /// 日，於月之內（1..=30）。
+    pub day: u32,
+}
+
+/// 將日序換算為含日的日期。日 0 與日 1 同為第一年一月一日。
+pub fn day_date(day: Day) -> DayDate {
+    DayDate { date: date(tick_of_day(day)), day: day.saturating_sub(1) % DAYS_PER_MONTH + 1 }
+}
+
 /// 紀元（GDD 2.6）：世界裡的大事會開啟新的紀元，日期以「某某紀元 N年 M月」表示。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Era {
@@ -200,5 +229,34 @@ mod tests {
         assert_eq!(year_label(13, 0), "第 2 年");
         assert_eq!(year_label(361, 0), "第 31 年");
         assert_eq!(year_label(361, 1800), "第 1831 年");
+    }
+
+    #[test]
+    fn day_and_tick_round_trip() {
+        assert_eq!(day_of_tick(0), 0);
+        assert_eq!(day_of_tick(1), 30);
+        assert_eq!(tick_of_day(0), 0);
+        assert_eq!(tick_of_day(1), 1);
+        assert_eq!(tick_of_day(30), 1);
+        assert_eq!(tick_of_day(31), 2);
+        for t in 0..500 {
+            assert_eq!(tick_of_day(day_of_tick(t)), t);
+        }
+        assert_eq!(DAYS_PER_YEAR, 360);
+    }
+
+    #[test]
+    fn day_date_has_day_of_month() {
+        let d = day_date(1);
+        assert_eq!((d.date.year, d.date.month, d.day), (1, 1, 1));
+        let d = day_date(30);
+        assert_eq!((d.date.month, d.day), (1, 30));
+        let d = day_date(31);
+        assert_eq!((d.date.month, d.day), (2, 1));
+        let d = day_date(360);
+        assert_eq!((d.date.year, d.date.month, d.day), (1, 12, 30));
+        let d = day_date(361);
+        assert_eq!((d.date.year, d.date.month, d.day, d.date.total_year), (2, 1, 1, 2));
+        assert_eq!(day_date(0), day_date(1));
     }
 }

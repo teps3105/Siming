@@ -12,7 +12,7 @@ use crate::types::{Tick, WorldGenError, WorldParams};
 
 pub const MAGIC: [u8; 4] = *b"SMGS";
 /// 模擬規則版本：規則（含任何影響推演結果的參數）改變時遞增，舊存檔即拒絕載入。
-pub const SIM_VERSION: u32 = 8;
+pub const SIM_VERSION: u32 = 9;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SaveFile {
@@ -28,6 +28,9 @@ pub struct SaveFile {
     pub snapshot: Option<Vec<u8>>,
     #[serde(default)]
     pub snapshot_tick: Tick,
+    /// 人物落地時的亂數種子（見 `World::rng_origin`）。快照存檔上線前，重播靠它重建同一個世界。
+    #[serde(default)]
+    pub rng_origin: Option<u64>,
 }
 
 #[derive(Debug)]
@@ -103,12 +106,13 @@ impl Sim {
             hash: self.hash(),
             snapshot: None,
             snapshot_tick: 0,
+            rng_origin: w.rng_origin,
         }
     }
 
     /// 載入：重新開天（[`Sim::new`]）再重播指令。
     pub fn load(file: &SaveFile) -> Result<Self, SaveError> {
-        Self::load_with(file, Sim::new)
+        Self::load_with(file, |p| Sim::new_seeded(p, file.rng_origin))
     }
 
     /// 載入，開局由 `build` 提供（測試與開發工具用，須與存檔時的建構方式相同）。

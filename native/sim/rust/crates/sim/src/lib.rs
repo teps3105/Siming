@@ -19,6 +19,7 @@ pub mod model;
 pub mod params;
 pub mod people;
 pub mod population;
+pub mod queue;
 pub mod rng;
 pub mod save;
 pub mod schedule;

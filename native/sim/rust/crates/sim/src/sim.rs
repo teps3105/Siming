@@ -2,6 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::calendar::Day;
 use crate::model::*;
 use crate::rng::RngStreams;
 use crate::types::{FineGeography, Geography, Province, ProvinceId, Tick, WorldGenError, WorldParams};
@@ -60,6 +61,14 @@ pub struct World {
     /// 天地負荷與大劫的狀態（GDD 3.11）。
     pub calamity: crate::cataclysm::Calamity,
     pub rng: RngStreams,
+    /// 事件驅動引擎的時刻（日序，見 [`crate::calendar::Day`]）。月步進把它設在該月最後一日，
+    /// 隊列事件把它設在事件自己的日。移植完成前，`tick`（月序）仍是舊規則的時鐘。
+    pub day: Day,
+    /// 待發生事件隊列（事件驅動引擎）。
+    pub queue: crate::queue::EventQueue,
+    /// 全部子流上次重設用的種子；`None` 表示仍是世界種子決定的初始狀態（人物落地之前）。
+    /// 讀檔重播的過渡期用它重建同一個世界；快照存檔上線後不再需要。
+    pub rng_origin: Option<u64>,
 }
 
 /// 在世者依判定月分桶（桶內升冪）。`total` 為桶內人數總和，`usize::MAX` 表示失效。
@@ -120,6 +129,9 @@ impl World {
             settlements: Vec::new(),
             calamity: Default::default(),
             rng,
+            day: 0,
+            queue: Default::default(),
+            rng_origin: None,
         }
     }
 
@@ -225,12 +237,31 @@ pub struct Sim {
     log: Vec<(Tick, Command)>,
     /// `drain_events` 尚未取走的事件（GDD 6.3 事件輸出）。
     pending: Vec<EventId>,
+    /// 測試與除錯用：指定人物落地時的亂數種子。`None`（預設）從作業系統取。
+    fixed_rng: Option<u64>,
+}
+
+/// [`Sim::advance_until`] 的停止條件。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Until {
+    /// 下一件重要度不小於 k 的事件。
+    Importance(u8),
+    /// 下一件牽涉指定魂的事件。
+    Soul(SoulId),
+    /// 再過這麼多年。
+    Years(u32),
 }
 
 impl Sim {
     /// GDD 4.6 開天：世界生成 → 開天 → 預跑。
     pub fn new(params: &WorldParams) -> Result<Self, WorldGenError> {
         Self::new_with_diag(params, &mut |_, _| {})
+    }
+
+    /// 同 [`Sim::new`]，但人物落地起的亂數種子由呼叫端指定（`None` 同 [`Sim::new`]，從作業系統取）。
+    /// 測試與除錯用：同種子、同亂數種子得到同一個世界。
+    pub fn new_seeded(params: &WorldParams, rng_seed: Option<u64>) -> Result<Self, WorldGenError> {
+        Self::new_with_progress_seeded(params, rng_seed, &mut |_, _| {}, &mut |_, _| {})
     }
 
     /// 同 [`Sim::new`]，但世界生成每次品質檢查失敗時回呼 `diag(種子, 原因)`（工具用）。
@@ -244,8 +275,19 @@ impl Sim {
         diag: &mut dyn FnMut(u64, &str),
         progress: &mut dyn FnMut(crate::genesis::Stage, f32),
     ) -> Result<Self, WorldGenError> {
+        Self::new_with_progress_seeded(params, None, diag, progress)
+    }
+
+    /// 同 [`Sim::new_with_progress`]，人物落地起的亂數種子由呼叫端指定（見 [`Sim::new_seeded`]）。
+    pub fn new_with_progress_seeded(
+        params: &WorldParams,
+        rng_seed: Option<u64>,
+        diag: &mut dyn FnMut(u64, &str),
+        progress: &mut dyn FnMut(crate::genesis::Stage, f32),
+    ) -> Result<Self, WorldGenError> {
         let g = crate::worldgen::generate_with(params, diag)?;
         let mut sim = Self::from_parts(g.params, g.geo, g.provinces);
+        sim.fixed_rng = rng_seed;
         sim.world.fine = g.fine;
         crate::evolution::prepare_aura(&mut sim.world);
         crate::landform::prepare(&mut sim.world);
@@ -256,14 +298,89 @@ impl Sim {
 
     /// 以既有的世界資料建立（測試、開發工具用；不執行開天）。
     pub fn from_parts(params: WorldParams, geo: Geography, provinces: Vec<Province>) -> Self {
-        Self { world: World::empty(params, geo, provinces), queued: Vec::new(), log: Vec::new(), pending: Vec::new() }
+        Self { world: World::empty(params, geo, provinces), queued: Vec::new(), log: Vec::new(), pending: Vec::new(), fixed_rng: None }
     }
 
-    /// 推進一個月（GDD 6.3）。M2 範圍以外的步驟為空操作。
+    /// 人物落地時重設全部亂數子流（開天用）：有指定固定種子用它，否則從作業系統取。
+    pub fn reseed_rng(&mut self) {
+        let k = self.fixed_rng.unwrap_or_else(crate::rng::os_seed);
+        self.world.rng.reseed(k);
+        self.world.rng_origin = Some(k);
+    }
+
+    /// 測試與除錯用：目前指定的固定亂數種子。
+    pub fn fixed_rng(&self) -> Option<u64> {
+        self.fixed_rng
+    }
+
+    /// 推進一個月（30 日）：等於 `advance_to` 下個月的最後一日。
     pub fn step(&mut self) {
+        self.advance_to(crate::calendar::day_of_tick(self.world.tick + 1));
+    }
+
+    /// 推進到第 `target` 日（含）：依時刻先後執行月步進與隊列裡到期的事件，同日先月步進再隊列。
+    /// 月步進是尚未移植的舊規則（GDD 6.3），每月最後一日結算一次；規則移植到隊列後，它會逐步縮小。
+    pub fn advance_to(&mut self, target: Day) {
+        loop {
+            let month_day = crate::calendar::day_of_tick(self.world.tick + 1);
+            let queued = self.world.queue.peek_day();
+            match queued {
+                Some(qd) if qd < month_day && qd <= target => self.run_queued(qd),
+                _ if month_day <= target => self.month_step(),
+                _ => break,
+            }
+        }
+        if self.world.day < target {
+            self.world.day = target;
+        }
+        self.pending.extend(crate::ledger::take_new(&mut self.world));
+    }
+
+    /// 取出並執行一件到期的隊列事件。
+    fn run_queued(&mut self, qd: Day) {
+        let Some((day, action)) = self.world.queue.pop_due(qd) else { return };
+        self.world.day = self.world.day.max(day);
+        match action {
+            crate::queue::Action::Marker(_) => self.world.queue.fired += 1,
+        }
+    }
+
+    /// 推進到停止條件成立或超過 `max_days` 日；回傳使條件成立的事件（因果帳 ID），沒有則 `None`。
+    /// 逐個時間單位（一次月步進或一件隊列事件）推進並檢查新寫入的事件。
+    pub fn advance_until(&mut self, cond: Until, max_days: Day) -> Option<EventId> {
+        let start_day = self.world.day;
+        let deadline = match cond {
+            Until::Years(n) => start_day + n * crate::calendar::DAYS_PER_YEAR,
+            _ => start_day + max_days,
+        };
+        let mut seen = self.world.ledger.events.len();
+        while self.world.day < deadline {
+            let month_day = crate::calendar::day_of_tick(self.world.tick + 1);
+            let next = self.world.queue.peek_day().map_or(month_day, |q| q.min(month_day)).min(deadline);
+            self.advance_to(next);
+            let w = &self.world;
+            for id in seen..w.ledger.events.len() {
+                let e = &w.ledger.events[id];
+                let hit = match cond {
+                    Until::Importance(k) => e.importance >= k,
+                    Until::Soul(s) => e.souls.contains(&s),
+                    Until::Years(_) => false,
+                };
+                if hit {
+                    return Some(id as EventId);
+                }
+            }
+            seen = w.ledger.events.len();
+        }
+        None
+    }
+
+    /// 月步進（GDD 6.3）：尚未移植到隊列的舊規則。
+    fn month_step(&mut self) {
         let w = &mut self.world;
         // 1
         w.tick += 1;
+        w.day = crate::calendar::day_of_tick(w.tick);
         let tick = w.tick;
         // 2 指令
         for cmd in std::mem::take(&mut self.queued) {
