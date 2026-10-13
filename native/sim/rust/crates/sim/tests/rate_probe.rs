@@ -131,3 +131,45 @@ fn measure_rates() {
         Err(_) => println!("{text}"),
     }
 }
+
+/// 人物期第 100、1,000、5,000、10,000 年附近每推進一年的平均耗時（毫秒）。窗為 10 年，
+/// 起點在上述年數的前 5 年；人物期從第 0 年起逐步推進（`prerun` 為真，同開天）。
+#[test]
+#[ignore = "人物期推到萬年，需數分鐘至十數分鐘；由 SIMING_PERF_OUT 指定輸出檔"]
+fn measure_year_cost() {
+    let seed: u64 = std::env::var("SIMING_PERF_SEED").ok().and_then(|s| s.parse().ok()).unwrap_or(42);
+    let mut p = WorldParams::new(seed);
+    p.prerun_years = 0;
+    let mut sim = Sim::new(&p).expect("世界生成");
+    sim.world_mut().prerun = true;
+    let marks = [100u32, 1000, 5000, 10000];
+    let mut out = Vec::new();
+    let mut year = 0u32;
+    for &m in &marks {
+        while year < m - 5 {
+            for _ in 0..12 {
+                sim.step();
+            }
+            year += 1;
+        }
+        let t = std::time::Instant::now();
+        for _ in 0..10 {
+            for _ in 0..12 {
+                sim.step();
+            }
+            year += 1;
+        }
+        let ms = t.elapsed().as_secs_f64() * 1000.0 / 10.0;
+        let w = sim.world();
+        eprintln!("人物期第 {m} 年附近：每年 {ms:.2} 毫秒（在世 {}，帳 {} 筆）", w.alive_ids.len(), w.ledger.events.len());
+        out.push(serde_json::json!({
+            "year": m, "ms_per_year": ms, "alive": w.alive_ids.len(), "ledger_events": w.ledger.events.len(), "souls": w.souls.len(),
+        }));
+    }
+    let json = serde_json::json!({ "engine": "monthly-sweep", "seed": seed, "marks": out });
+    let text = serde_json::to_string_pretty(&json).unwrap();
+    match std::env::var("SIMING_PERF_OUT") {
+        Ok(path) => std::fs::write(path, text).unwrap(),
+        Err(_) => println!("{text}"),
+    }
+}
