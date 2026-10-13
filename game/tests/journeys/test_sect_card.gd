@@ -138,7 +138,8 @@ func test_person_history_sect_name_opens_the_sect_card() -> void:
 			if picked >= 0:
 				break
 			for entry: Dictionary in _sim.world.person_history(member["id"]):
-				if int(entry["f_power"]) >= 0 and entry["kind"] != "Died":
+				# 只挑句子真的寫了宗門名的歷程（突破、渡劫等句子不寫自己的宗門）。
+				if int(entry["f_power"]) >= 0 and not String(entry["f"]).is_empty() and EventText.history_line(entry, member["id"]).contains(String(entry["f"])):
 					picked = member["id"]
 					wanted = entry["f_power"]
 					break
@@ -161,6 +162,43 @@ func test_person_history_sect_name_opens_the_sect_card() -> void:
 	assert_ne(point, Vector2.INF, "歷程的句子裡宗門名可點")
 	await click(point)
 	assert_true(_card().is_open() and _card().sect == wanted, "點歷程裡的宗門名開那一宗的卡")
+
+
+## 凡句子裡寫了宗門名的事件，都要接成 `sect:<編號>` 連結：掃遍各宗門的門史與門人的歷程，
+## 事件卡的句子（`EventText.line`）與人物歷程的句子（`EventText.history_line`）各驗一遍，並記下涵蓋到的事件種類。
+func test_every_sentence_that_writes_a_sect_name_links_it() -> void:
+	await _boot(FLOW_VIEW)
+	var checked := {}
+	var missing: Array[String] = []
+	for row: Dictionary in _sim.world.sects():
+		var entries: Array = _sim.world.sect_history(row["id"]).duplicate()
+		for member: Dictionary in _sim.world.sect(row["id"])["members"]:
+			entries.append_array(_sim.world.person_history(member["id"]))
+		for entry: Dictionary in entries:
+			for style: int in 2:
+				var text := EventText.line(entry) if style == 0 else EventText.history_line(entry, int(entry.get("a_person", -1)))
+				var para := LedgerText.paragraph(text, EventCard.links_of(entry), 100000.0, 16)
+				var targets := []
+				for hit: Dictionary in para["hits"]:
+					targets.append(hit["target"])
+				for pair: Array in [["f", "f_power"], ["g", "g_power"], ["a_power", "a_power_id"]]:
+					var id := int(entry.get(pair[1], -1))
+					var name := String(entry.get(pair[0], ""))
+					if id >= 0 and not name.is_empty() and text.contains(name):
+						checked[entry["kind"]] = true
+						if not targets.has("sect:%d" % id):
+							missing.append("%s/%s（%s）" % [entry["kind"], pair[0], text])
+	assert_eq(missing.size(), 0, "句子寫了宗門名卻沒連結：%s" % [missing.slice(0, 5)])
+	for kind: String in ["ComeOfAge", "Succession", "PowerFounded", "PowerFallen"]:
+		assert_true(checked.has(kind), "掃到寫了宗門名的 %s 事件（涵蓋種類：%s）" % [kind, checked.keys()])
+	# 模擬世界不保證出現的兩種（爭脈、分宗）用合成事件驗：兩個宗門名都要連結。
+	for kind: String in ["SectWar", "SectSplit"]:
+		var entry := {"kind": kind, "a": "某人", "a_person": 1, "b": "", "b_person": -1, "p": "", "province": -1, "q": "", "q_province": -1,
+			"f": "甲山派", "f_power": 3, "g": "乙水門", "g_power": 4, "x": "紫府福地", "n": 0, "m": 0, "era": "某紀元", "year": 1, "month": 1, "importance": 2}
+		var links := []
+		for hit: Dictionary in LedgerText.paragraph(EventText.line(entry), EventCard.links_of(entry), 100000.0, 16)["hits"]:
+			links.append(hit["target"])
+		assert_true(links.has("sect:3") and links.has("sect:4"), "%s 的兩個宗門名都連結：%s" % [kind, links])
 
 
 func test_event_card_sect_name_opens_the_sect_card() -> void:
@@ -244,7 +282,23 @@ func test_card_numbers_agree_with_the_list_and_realms() -> void:
 			assert_true(realm <= last_realm, "依境界由高到低")
 			last_realm = realm
 	assert_eq(rows, info["member_count"])
-	assert_eq(card.history_row_count(), _sim.world.sect_history(id).size(), "門史每一則都列出")
+	assert_eq(card.history_event_count(), _sim.world.sect_history(id).size(), "門史各列涵蓋的事件數總和等於事件筆數")
+	var succession := 0
+	var history_rows := 0
+	var leader_rows := 0
+	for row: Dictionary in card._rows:
+		if row["kind"] == "event":
+			assert_ne(_sim.world.event(row["event"])["kind"], "Succession", "繼位不單獨成列")
+			history_rows += 1
+		elif row["kind"] == "leaders":
+			leader_rows += 1
+			history_rows += 1
+	for entry: Dictionary in _sim.world.sect_history(id):
+		if entry["kind"] == "Succession":
+			succession += 1
+	assert_eq(card.history_row_count(), history_rows, "門史列數對得上")
+	assert_true(leader_rows >= 1 or succession == 0, "有繼位就有歷任掌門列")
+	assert_true(history_rows <= _sim.world.sect_history(id).size() - maxi(succession - leader_rows, 0), "連續繼位已合併")
 	var head := card.head_text()
 	assert_true(head.contains(Locale.t("sect_good") if not info["evil"] else Locale.t("sect_evil")), "首列寫正邪")
 	assert_true(head.contains(info["province_name"]) and head.contains(Locale.t("sect_leader")), "首列有州郡，下有掌門")
@@ -330,6 +384,53 @@ func test_history_link_in_the_sect_history_reaches_a_person_or_a_sect() -> void:
 	assert_true(_card().is_open() and _card().sect == found, "返回宗門卡")
 
 
+func test_leaders_row_lists_names_with_years_and_names_open_person_cards() -> void:
+	await _boot(FLOW_VIEW)
+	var id := -1
+	for candidate: Dictionary in _sects(true):
+		for entry: Dictionary in _sim.world.sect_history(candidate["id"]):
+			if entry["kind"] == "Succession" and id < 0 and int(entry["a_person"]) >= 0:
+				id = candidate["id"]
+	assert_gt(id, -1, "有宗門發生過繼位")
+	_hud.open_sect(id)
+	await wait(0.5)
+	var card := _card()
+	var row := {}
+	for candidate: Dictionary in card._rows:
+		if candidate["kind"] == "leaders":
+			row = candidate
+			break
+	assert_false(row.is_empty(), "有歷任掌門列")
+	var text := "".join(row["paragraph"]["lines"])
+	assert_true(text.contains("年起") and text.contains("年）"), "每位附在位年份，最後一位寫「起」：" + text)
+	assert_false(text.contains("紀元 ") or text.contains(" 年"), "年份內沒有多餘空格：" + text)
+	var hit: Dictionary = row["paragraph"]["hits"][0]
+	assert_true(String(hit["target"]).begins_with("person:"))
+	var list := card.list()
+	list.scroll = clampf(float(row["top"]) - 4.0, 0.0, list.max_scroll())
+	await wait(0.3)
+	var date_height := LedgerText.line_height(Ink.font_size(Ink.SIZE_NOTE, card._unit))
+	await click(list.get_global_rect().position + Vector2(0.0, float(row["top"]) + date_height - list.scroll) + (hit["rect"] as Rect2).get_center())
+	assert_true(_hud.person_card().is_open(), "點歷任掌門的人名開人物卡")
+
+
+func test_fallen_sect_head_keeps_the_fall_year_together() -> void:
+	await _boot(FLOW_VIEW)
+	_hud.open_sect(_sects(false)[0]["id"])
+	await wait(0.5)
+	var fell := Locale.t("sect_fell")
+	var seen := false
+	for block: Dictionary in _card()._blocks:
+		if block["kind"] != "para":
+			continue
+		for line: String in block["paragraph"]["lines"]:
+			if line.contains(fell):
+				seen = true
+				assert_true(line.ends_with("年"), "「覆滅」與年份在同一行、紀元名與年不拆開：" + line)
+	assert_true(seen, "首列寫了覆滅年")
+	assert_false(_card().head_text().contains("紀元 "), "年份內沒有多餘空格")
+
+
 func test_fallen_sect_opens_a_card_with_fall_year_and_cause() -> void:
 	await _boot(FLOW_VIEW)
 	var fallen := _sects(false)
@@ -368,6 +469,8 @@ func test_map_gate_is_clickable_without_blocking_the_map() -> void:
 	await wait(0.8)
 	await move_mouse(hit.get_global_rect().get_center())
 	assert_eq(_hud._cursor.kind(), &"point", "游標停在山門上是可點的指標")
+	await wait(1.0)
+	assert_eq(_camera._hover_province, -1, "游標在山門上時不顯示州郡提示")
 	await move_mouse(hit.get_global_rect().end + Vector2(70.0, 70.0))
 	assert_eq(_hud._cursor.kind(), &"arrow", "移開後回到一般游標")
 	var before_focus := _camera._target_focus
