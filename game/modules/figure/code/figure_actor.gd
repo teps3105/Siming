@@ -135,6 +135,22 @@ func event_time(action: String, event: String) -> float:
 	return FigureMotion.event_time(action, event)
 
 
+## 整枚棋子的不透明度 0..1（淡入淡出用）。
+func set_fade(alpha: float) -> void:
+	_ensure_nodes()
+	_material.set_shader_parameter("fade", clampf(alpha, 0.0, 1.0))
+
+
+## 目前播的動作名。
+func action() -> String:
+	return _action
+
+
+## 棋子一個身高單位目前的世界高度（place 之後有效）。
+func body_height() -> float:
+	return _height
+
+
 ## 面片目前在水平方向的縮放（負的是朝右的鏡像）。
 func card_scale_x() -> float:
 	return _card.scale.x if _card != null else 0.0

@@ -1,0 +1,191 @@
+class_name EventScript
+extends RefCounted
+## 5.13「棋子演出」：事件 → 棋子動作腳本。純資料與計算，不碰畫面。
+## 每件演出四段：定場 INTRO（站定）、動作、餘韻 HOLD（停在結束姿勢）、收場 OUTRO（淡出）。
+## 對照表 ROWS 以資料寫成：鍵是事件種類（有分支的加 :x 參數）；actors 的順序就是站位（第一位在左，兩人時相向）。
+## 每位演員的 steps 依序播；沒有 sync 的步驟接在前一步結束；sync 寫成「演員序號:動作:事件名」，
+## 表示從那位演員那個動作的事件時刻起播（例如倒地從出手「命中」那一格開始）。
+## len 是動作沒有固定長度（循環動作）時的秒數，len_of 取另一個動作的長度。
+
+const INTRO := 1.5
+const HOLD := 2.0
+const OUTRO := 0.5
+## 定場裡淡入的秒數（其餘時間站定）。
+const FADE_IN := 0.5
+## 迎擊（對方未死）、行走的動作長度。
+const BRACE_SECONDS := 2.0
+const WALK_SECONDS := 3.0
+## 行走速度（身高／秒）：一步 11 格（24 fps）、腳相對髖前後共 0.18 身高。
+const WALK_SPEED := 0.393
+
+const ROWS := {
+	"Killed": {"actors": [
+		{"who": "a", "steps": [{"do": "strike"}]},
+		{"who": "b", "steps": [{"do": "fall", "sync": "0:strike:hit"}]}]},
+	"FeudEscalated": {"actors": [
+		{"who": "a", "steps": [{"do": "strike"}]},
+		{"who": "b", "steps": [{"do": "fall", "sync": "0:strike:hit"}]}]},
+	# 了結：a 是欠債方、b 是債主（Spectacle._debtor_end）；報仇的是債主，倒下的是欠債方。
+	"ThreadResolved:Feud": {"actors": [
+		{"who": "b", "steps": [{"do": "strike"}]},
+		{"who": "a", "steps": [{"do": "fall", "sync": "0:strike:hit"}]}]},
+	"ThreadResolved:Feud:Survived": {"actors": [
+		{"who": "b", "steps": [{"do": "strike"}]},
+		{"who": "a", "steps": [{"do": "brace", "len": 2.0, "sync": "0:strike:hit"}]}]},
+	"ThreadResolved:Grace": {"actors": [
+		{"who": "a", "steps": [{"do": "bow"}]}, {"who": "b", "steps": [{"do": "bow"}]}]},
+	"ThreadResolved:Love": {"actors": [
+		{"who": "a", "steps": [{"do": "bow"}]}, {"who": "b", "steps": [{"do": "bow"}]}]},
+	"ThreadResolved:Grudge": {"actors": [
+		{"who": "a", "steps": [{"do": "bow"}]}, {"who": "b", "steps": [{"do": "bow"}]}]},
+	"Died:Age": {"actors": [{"who": "a", "steps": [{"do": "fall"}]}]},
+	"Died:Plague": {"actors": [{"who": "a", "steps": [{"do": "fall"}]}]},
+	"Breakthrough": {"actors": [{"who": "a", "steps": [{"do": "seal"}, {"do": "rise"}]}]},
+	"Ascended": {"ascend": true, "actors": [{"who": "a", "steps": [{"do": "rise"}]}]},
+	"FellToDemon": {"actors": [{"who": "a", "steps": [{"do": "seal"}, {"do": "struck"}]}]},
+	"ThreadCreated:Mentor": {"actors": [
+		{"who": "a", "steps": [{"do": "bow"}]},
+		{"who": "b", "steps": [{"do": "stand", "len_of": "bow"}]}]},
+	"Married": {"actors": [
+		{"who": "a", "steps": [{"do": "bow"}]}, {"who": "b", "steps": [{"do": "bow"}]}]},
+	"Succession": {"actors": [{"who": "a", "steps": [{"do": "bow"}]}]},
+	"PowerFounded": {"actors": [{"who": "a", "steps": [{"do": "seal"}]}]},
+	"SectSplit": {"actors": [{"who": "a", "steps": [{"do": "seal"}]}]},
+	"Traveled:Out": {"travel": true, "actors": [{"who": "a", "steps": [{"do": "walk", "len": 3.0}]}]},
+	"Traveled:Back": {"travel": true, "actors": [{"who": "a", "steps": [{"do": "walk", "len": 3.0}]}]},
+}
+
+
+## 飛升：動作段前 ASCEND_STILL 比例原地 rise，之後離地上升到 ASCEND_HEIGHT 個身高，餘韻段再以 ASCEND_DRIFT（身高／秒）緩升。
+const ASCEND_STILL := 0.3
+const ASCEND_HEIGHT := 1.5
+const ASCEND_DRIFT := 0.15
+
+## 表裡有的事件種類 → 可演的 x 參數（空陣列是不分支）；post 在最前面用它跳過沒有對應的事件，不建字典、不查位置。
+static var _accepted := {}
+
+
+## 事件的種類（與 x 參數）在表裡有對應：只查種類與參數，不看位置與當事人。
+static func accepts(event: Dictionary) -> bool:
+	if _accepted.is_empty():
+		for key: String in ROWS:
+			var parts := key.split(":")
+			if not _accepted.has(parts[0]):
+				_accepted[parts[0]] = []
+			if parts.size() > 1 and not (_accepted[parts[0]] as Array).has(parts[1]):
+				(_accepted[parts[0]] as Array).append(parts[1])
+	var xs: Variant = _accepted.get(event.get("kind", ""))
+	if xs == null:
+		return false
+	return (xs as Array).is_empty() or (xs as Array).has(event.get("x", ""))
+
+
+## 事件對到表的哪一列；沒有對應回空字串。
+static func row_key(event: Dictionary) -> String:
+	var kind := str(event.get("kind", ""))
+	var x := str(event.get("x", ""))
+	var key := kind
+	match kind:
+		"Died", "ThreadCreated", "Traveled":
+			key = "%s:%s" % [kind, x]
+		"ThreadResolved":
+			key = "ThreadResolved:" + x
+			if x == "Feud" and bool(event.get("survivor_alive", false)):
+				key += ":Survived"
+	return key if ROWS.has(key) else ""
+
+
+## 事件的演出腳本：{key, actors: [{who, person, steps: [{do, start, length}], end}], action_len, total, travel, to}；
+## 沒有對應動作、沒有位置、沒有當事人（或行走沒有目的州郡）回空字典。
+static func plan(event: Dictionary) -> Dictionary:
+	var key := row_key(event)
+	if key.is_empty() or not event.has("pos"):
+		return {}
+	var row: Dictionary = ROWS[key]
+	var travel := bool(row.get("travel", false))
+	if travel and int(event.get("q_province", -1)) < 0:
+		return {}
+	var actors: Array[Dictionary] = []
+	for spec: Dictionary in row["actors"]:
+		var person := _person_of(event, str(spec["who"]))
+		if person < 0:
+			continue
+		actors.append({"who": spec["who"], "person": person, "spec": spec})
+	if actors.is_empty():
+		return {}
+	var action_len := 0.0
+	for index in actors.size():
+		var steps: Array[Dictionary] = []
+		var cursor := 0.0
+		for step: Dictionary in (actors[index]["spec"] as Dictionary)["steps"]:
+			var action := str(step["do"])
+			var length := float(step["len"]) if step.has("len") else (FigureMotion.length(str(step["len_of"])) if step.has("len_of") else FigureMotion.length(action))
+			var start := cursor
+			if step.has("sync"):
+				start = _sync_time(actors, str(step["sync"]))
+			steps.append({"do": action, "start": start, "length": length})
+			cursor = start + length
+		actors[index]["steps"] = steps
+		actors[index]["end"] = cursor
+		actors[index].erase("spec")
+		action_len = maxf(action_len, cursor)
+	return {"key": key, "actors": actors, "action_len": action_len, "total": INTRO + action_len + HOLD + OUTRO,
+		"travel": travel, "ascend": bool(row.get("ascend", false)), "to": int(event.get("q_province", -1))}
+
+
+## 事件的演出長度（秒，四段合計）；沒有對應動作回 0。
+static func duration_for(event: Dictionary) -> float:
+	var p := plan(event)
+	return float(p["total"]) if not p.is_empty() else 0.0
+
+
+## 此刻（演出時間 time）某位演員該做的動作與動作內的時間：定場站定，之後依步驟；已播完的步驟停在結束姿勢。
+## 站定與停格期間回傳的時間不再增加（姿勢不變就不必重畫）；keep_moving 為真（行走）時時間照走。
+static func pose_at(actor: Dictionary, time: float, keep_moving := false) -> Dictionary:
+	var t := time - INTRO
+	var current: Dictionary = {}
+	for step: Dictionary in actor["steps"]:
+		if float(step["start"]) <= t:
+			current = step
+	if t < 0.0 or current.is_empty():
+		return {"action": "stand", "time": 0.0}
+	var inside := t - float(current["start"])
+	return {"action": current["do"], "time": inside if keep_moving else minf(inside, float(current["length"]))}
+
+
+## 飛升的離地高度（身高的倍數）：動作段前段原地，之後升到 ASCEND_HEIGHT，餘韻再緩升；不是飛升回 0。
+static func lift_at(plan: Dictionary, time: float) -> float:
+	if not bool(plan.get("ascend", false)):
+		return 0.0
+	var t := time - INTRO
+	var span := float(plan["action_len"])
+	var still := span * ASCEND_STILL
+	if t <= still:
+		return 0.0
+	var k := clampf((t - still) / maxf(span - still, 1e-4), 0.0, 1.0)
+	return ASCEND_HEIGHT * k * k * (3.0 - 2.0 * k) + maxf(t - span, 0.0) * ASCEND_DRIFT
+
+
+## 整段演出在時間 time 的不透明度：淡入、站定、淡出。
+static func opacity_at(total: float, time: float) -> float:
+	return clampf(time / FADE_IN, 0.0, 1.0) * clampf((total - time) / OUTRO, 0.0, 1.0)
+
+
+static func _person_of(event: Dictionary, who: String) -> int:
+	var persons: PackedInt32Array = event.get("persons", PackedInt32Array())
+	var index := 0 if who == "a" else 1
+	var id := int(event.get("a_person" if who == "a" else "b_person", -1))
+	if id < 0 and persons.size() > index:
+		id = persons[index]
+	return id
+
+
+static func _sync_time(actors: Array[Dictionary], sync: String) -> float:
+	var parts := sync.split(":")
+	var other := int(parts[0])
+	if other >= actors.size() or not actors[other].has("steps"):
+		return 0.0
+	for step: Dictionary in actors[other]["steps"]:
+		if str(step["do"]) == parts[1]:
+			return float(step["start"]) + maxf(FigureMotion.event_time(parts[1], parts[2]), 0.0)
+	return 0.0
