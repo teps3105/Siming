@@ -179,30 +179,34 @@ fn measure_year_cost() {
     }
 }
 
-/// 與 `rate_baseline.json`（舊引擎）比對：每個世界種子各跑 `SIMING_RATE_RUNS`（預設 3）次不同的固定亂數種子，
-/// 每種事件的年發生率要在基準的 ±25% 內（基準年均 < 0.05 的稀有事件改比絕對差 < 0.02）。
-/// 逐條印出落在容差外者；有任何一條落外則測試失敗。
+/// 與 `rate_baseline_runs.json`（舊引擎，每個世界種子 6 次、固定亂數種子 1..6）比對。
+/// 新引擎同樣每個世界種子跑 `SIMING_RATE_RUNS`（預設 6）次，取平均後逐種事件比：
+/// 舊基準變異係數 ≤ 10% 的常見事件，平均差在 ±25% 內；其餘事件，兩平均差 ≤ 3 倍合併標準誤；
+/// 任一邊平均 < 0.05 次／年者另要求絕對差 < 0.02。落在容差外者逐條印出，有任何一條則測試失敗。
 #[test]
-#[ignore = "完整開天加千年，每次約 20 秒；用來核對事件驅動改寫的發生率"]
+#[ignore = "每個世界種子 6 次完整開天加千年，約十分鐘；用來核對事件驅動改寫的發生率"]
 fn compare_rates() {
-    let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/rate_baseline.json")).expect("基準檔");
+    let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/rate_baseline_runs.json")).expect("基準檔");
     let base: serde_json::Value = serde_json::from_str(&text).unwrap();
-    let runs: u64 = std::env::var("SIMING_RATE_RUNS").ok().and_then(|s| s.parse().ok()).unwrap_or(3);
+    let runs: u64 = std::env::var("SIMING_RATE_RUNS").ok().and_then(|s| s.parse().ok()).unwrap_or(6);
     let years = base["window_years"].as_u64().unwrap() as u32;
+    let only: Option<u64> = std::env::var("SIMING_RATE_ONLY").ok().and_then(|s| s.parse().ok());
     let mut bad: Vec<String> = Vec::new();
     for b in base["seeds"].as_array().unwrap() {
         let seed = b["seed"].as_u64().unwrap();
-        let brates = b["rates_per_year"].as_object().unwrap();
+        if only.is_some_and(|o| o != seed) {
+            continue;
+        }
+        let bkinds = b["kinds"].as_object().unwrap();
+        let nb = base["runs"].as_u64().unwrap() as f64;
         let mut per_run: Vec<BTreeMap<String, f64>> = Vec::new();
         for k in 1..=runs {
             let m = measure_seeded(seed, years, Some(k));
-            eprintln!(
-                "種子 {seed} 亂數 {k}：在世 {}（基準 {}）宗門 {}（{}）王朝 {}（{}）魂 {}（{}）",
-                m.alive, b["alive"], m.powers_alive, b["powers_alive"], m.dynasties_alive, b["dynasties_alive"], m.souls, b["souls"]
-            );
+            eprintln!("種子 {seed} 亂數 {k}：在世 {} 宗門 {} 王朝 {} 魂 {}", m.alive, m.powers_alive, m.dynasties_alive, m.souls);
             per_run.push(m.counts.iter().map(|(k, &v)| (k.clone(), v as f64 / years as f64)).collect());
         }
-        let mut kinds: Vec<String> = brates.keys().cloned().collect();
+        let n = runs as f64;
+        let mut kinds: Vec<String> = bkinds.keys().cloned().collect();
         for r in &per_run {
             for k in r.keys() {
                 if !kinds.contains(k) {
@@ -211,21 +215,39 @@ fn compare_rates() {
             }
         }
         kinds.sort();
-        eprintln!("{:<18} {:>8} | 各次 | 平均", format!("種子 {seed}"), "基準");
+        eprintln!("{:<18} {:>8} {:>8} | {:>8} {:>8} | 判定", format!("種子 {seed}"), "舊均", "舊CV", "新均", "新std");
         for k in &kinds {
-            let br = brates.get(k).and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let (om, os) = bkinds.get(k).map(|v| (v["mean"].as_f64().unwrap(), v["std"].as_f64().unwrap())).unwrap_or((0.0, 0.0));
             let rs: Vec<f64> = per_run.iter().map(|r| r.get(k).copied().unwrap_or(0.0)).collect();
-            let mean = rs.iter().sum::<f64>() / rs.len() as f64;
-            let ok = |r: f64| if br < 0.05 { (r - br).abs() < 0.02 } else { (r / br - 1.0).abs() <= 0.25 };
-            let fails = rs.iter().filter(|&&r| !ok(r)).count();
-            let cells: Vec<String> = rs.iter().map(|r| format!("{r:.3}")).collect();
-            eprintln!("{:<18} {:>8.3} | {} | {:.3}{}", k, br, cells.join(" "), mean, if fails > 0 { "  <== 落在容差外" } else { "" });
-            if fails > 0 {
-                bad.push(format!("種子 {seed} {k}：基準 {br:.3}，各次 {}", cells.join(" ")));
+            let nm = rs.iter().sum::<f64>() / n;
+            let ns = (rs.iter().map(|r| (r - nm).powi(2)).sum::<f64>() / (n - 1.0).max(1.0)).sqrt();
+            let cv = if om > 0.0 { os / om } else { f64::INFINITY };
+            let diff = (nm - om).abs();
+            let mut ok = if cv <= 0.10 {
+                om > 0.0 && (nm / om - 1.0).abs() <= 0.25
+            } else {
+                let se = (os * os / nb + ns * ns / n).sqrt();
+                diff <= 3.0 * se
+            };
+            if om.min(nm) < 0.05 && diff >= 0.02 {
+                ok = false;
+            }
+            eprintln!("{:<18} {:>8.3} {:>8.3} | {:>8.3} {:>8.3} | {}", k, om, cv, nm, ns, if ok { "ok" } else { "<== 落在容差外" });
+            if !ok {
+                bad.push(format!("種子 {seed} {k}：舊均 {om:.3}（CV {cv:.2}），新均 {nm:.3}（std {ns:.3}）"));
             }
         }
     }
-    assert!(bad.is_empty(), "落在容差外 {} 條：\n{}", bad.len(), bad.join("\n"));
+    assert!(
+        bad.is_empty(),
+        "落在容差外 {} 條：
+{}",
+        bad.len(),
+        bad.join(
+            "
+"
+        )
+    );
 }
 
 /// 同一份舊規則（月步進）在不同亂數種子下的離散程度：每個世界種子跑 `SIMING_RATE_RUNS`（預設 6）次，
