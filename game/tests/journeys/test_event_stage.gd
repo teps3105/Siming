@@ -73,6 +73,7 @@ func test_gdd_5_13_table_maps_each_event_to_its_action_sequence() -> void:
 		[_event("ThreadResolved", {"x": "Grace"}), [["bow"], ["bow"]]],
 		[_event("ThreadResolved", {"x": "Love"}), [["bow"], ["bow"]]],
 		[_event("ThreadResolved", {"x": "Grudge"}), [["bow"], ["bow"]]],
+		[_event("ThreadResolved", {"x": "Mentor"}), [["bow"], ["bow"]]],
 		[_event("Died", {"x": "Age"}), [["fall"]]],
 		[_event("Died", {"x": "Plague"}), [["fall"]]],
 		[_event("Breakthrough", {"n": 2}), [["seal", "rise"]]],
@@ -98,7 +99,7 @@ func test_gdd_5_13_table_maps_each_event_to_its_action_sequence() -> void:
 
 func test_gdd_5_13_events_without_a_matching_action_have_zero_length() -> void:
 	var none := [_event("Born"), _event("Tribulation", {"x": "Passed", "n": 3}), _event("Died", {"x": "Killed"}), _event("Died", {"x": "Tribulation"}),
-		_event("ThreadCreated", {"x": "Feud"}), _event("ThreadResolved", {"x": "Mentor"}), _event("Traveled", {"x": "Out", "q_province": -1}),
+		_event("ThreadCreated", {"x": "Feud"}), _event("Traveled", {"x": "Out", "q_province": -1}),
 		_event("WorldChanged"), _event("Famine")]
 	for event: Dictionary in none:
 		assert_eq(EventStage.duration_for(event), 0.0, "%s（%s）沒有對應動作" % [event["kind"], event["x"]])
@@ -391,3 +392,74 @@ func test_gdd_5_13_resolved_feud_shows_brace_when_the_other_side_lives() -> void
 	var expected := "brace" if bool(alive.get("alive", false)) else "fall"
 	_stage.advance(INTRO + 2.6)
 	assert_eq(_stage.figures()[1].action(), expected, "欠債方在世就迎擊，不在世就倒下")
+
+
+# ── 師徒了結與轉世 ────────────────────────────────────────────
+
+func test_gdd_5_13_resolved_mentor_has_a_row_with_the_apprentice_as_a() -> void:
+	var event := _event("ThreadResolved", {"x": "Mentor", "a_person": 4, "b_person": 7})
+	assert_eq(EventScript.row_key(event), "ThreadResolved:Mentor", "師徒了結對得到列")
+	assert_true(EventScript.accepts(event))
+	assert_gt(EventStage.duration_for(event), 0.0)
+	var plan := EventScript.plan(event)
+	assert_eq(int(plan["actors"][0]["person"]), 4, "a 是徒（同 ThreadCreated:Mentor）")
+	assert_eq(int(plan["actors"][1]["person"]), 7, "b 是師")
+	assert_eq(_actions(plan), [["bow"], ["bow"]], "兩人列沒有走開，退成兩人相向行禮")
+	var gone := EventScript.plan(_event("ThreadResolved", {"x": "Mentor", "a_person": -1, "b_person": 7}))
+	assert_eq(_actions(gone), [["bow"]], "一方不在場只演另一方，同 Grace")
+
+
+func test_gdd_5_13_every_thread_kind_has_a_resolved_row() -> void:
+	for kind in ["Feud", "Grace", "Love", "Mentor", "Grudge"]:
+		assert_ne(EventScript.row_key(_event("ThreadResolved", {"x": kind})), "", "%s 了結有演出" % kind)
+
+
+func test_gdd_5_13_rebirth_row_is_a_light_with_the_same_four_segments_and_no_actors() -> void:
+	var event := _event("Rebirth")
+	assert_eq(EventScript.row_key(event), "Rebirth")
+	assert_true(EventScript.accepts(event))
+	var plan := EventScript.plan(event)
+	assert_false(plan.is_empty())
+	assert_true(bool(plan["light"]), "轉世是光效")
+	assert_eq((plan["actors"] as Array).size(), 0, "嬰兒不放成人棋子")
+	assert_gt(EventStage.duration_for(event), 0.0, "導演的有演出判斷成立")
+	assert_true(is_equal_approx(EventStage.duration_for(event), INTRO + float(plan["action_len"]) + HOLD + OUTRO), "總長是四段合計")
+	assert_gt(float(plan["action_len"]), 0.0)
+	var nobody := EventScript.plan(_event("Rebirth", {"a_person": -1, "b_person": -1}))
+	assert_false(nobody.is_empty(), "光效不需要人物")
+	var no_pos := _event("Rebirth")
+	no_pos.erase("pos")
+	assert_eq(EventStage.duration_for(no_pos), 0.0, "沒有事件格給不出落點")
+
+
+func test_gdd_5_13_rebirth_makes_a_light_not_a_figure_and_frees_it_after_the_outro() -> void:
+	await _boot()
+	var event := _event_at_seat("Rebirth")
+	var total := EventStage.duration_for(event)
+	_stage.post(event)
+	assert_eq(_stage.figures().size(), 0, "轉世不建立人物棋子")
+	assert_eq(_stage.lights().size(), 1, "有一道光")
+	var light: Node3D = _stage.lights()[0]
+	assert_true(light.is_inside_tree())
+	_stage.advance(total - OUTRO - 0.1)
+	assert_eq(_stage.lights().size(), 1, "餘韻結束前光還在")
+	_stage.advance(OUTRO + 0.2)
+	assert_eq(_stage.lights().size(), 0, "收場後光效移除")
+	assert_eq(_stage.performances().size(), 0)
+	assert_true(light.is_queued_for_deletion(), "光效節點被釋放")
+
+
+func test_gdd_5_13_rebirth_lights_obey_the_figure_cap_and_the_same_cell_queue() -> void:
+	await _boot()
+	var seat := _look_at_province(0)
+	for i in 20:
+		_stage.post(_event("Rebirth", {"pos": seat + Vector2(float(i % 4) * 1.1, float(i / 4) * 1.1), "importance": 1 + i % 5}))
+	assert_eq(_stage.lights().size(), EventStage.MAX_FIGURES, "光效同樣受全場 12 的上限")
+	assert_eq(_stage.figures().size(), 0)
+	var cell := _event("Rebirth", {"pos": seat, "importance": 2})
+	_stage.clear()
+	_stage.post(cell)
+	for i in 5:
+		_stage.post(_event("Rebirth", {"pos": seat, "importance": 3}))
+	assert_eq(_stage.performances().size(), 4, "同格一件在播、最多排 3 件")
+	assert_eq(_stage.lights().size(), 1, "同格一次一道光")

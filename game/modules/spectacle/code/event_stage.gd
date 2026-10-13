@@ -28,7 +28,7 @@ static var _known := {}
 var _spectacle: Spectacle
 var _sim: SimHost
 var _holder: Node3D
-## 演出：{id, event, plan, importance, province, pos, cell, serial, age（−1 尚未開演）, actors: Array[FigureActor], to_pos}
+## 演出：{id, event, plan, importance, province, pos, cell, serial, age（−1 尚未開演）, actors: Array[FigureActor], light（轉世的光效，沒有為 null）, to_pos}
 var _perfs: Array[Dictionary] = []
 var _holds := {}
 var _serial := 0
@@ -78,7 +78,7 @@ func post(event: Dictionary) -> void:
 	_serial += 1
 	var perf := {"id": int(prepared.get("id", -1)), "event": prepared, "plan": plan, "importance": int(prepared.get("importance", 1)),
 		"province": int(prepared.get("province", -1)), "pos": pos, "cell": Vector2i(floori(pos.x), floori(pos.y)),
-		"serial": _serial, "age": -1.0, "actors": [], "to_pos": _destination(plan)}
+		"serial": _serial, "age": -1.0, "actors": [], "light": null, "to_pos": _destination(plan)}
 	if int(perf["id"]) >= 0:
 		_known[perf["id"]] = float(plan["total"])
 	_perfs.append(perf)
@@ -149,6 +149,15 @@ func clear() -> void:
 ## 登記中的演出（測試與量測用）。
 func performances() -> Array[Dictionary]:
 	return _perfs
+
+
+## 目前存在的轉世光效（沒有人物棋子，與棋子共用全場上限）。
+func lights() -> Array[Node3D]:
+	var out: Array[Node3D] = []
+	for perf in _perfs:
+		if perf["light"] != null:
+			out.append(perf["light"])
+	return out
 
 
 ## 目前存在的棋子。
@@ -259,6 +268,10 @@ func _destination(plan: Dictionary) -> Vector2:
 # ── 棋子 ──────────────────────────────────────────────────────
 
 func _free_actors(perf: Dictionary) -> void:
+	if perf["light"] != null:
+		if is_instance_valid(perf["light"]):
+			(perf["light"] as Node).queue_free()
+		perf["light"] = null
 	for actor: FigureActor in perf["actors"]:
 		if is_instance_valid(actor):
 			if _pool.size() < POOL_MAX:
@@ -277,7 +290,7 @@ func _sync() -> void:
 	var shown: Array[Dictionary] = []
 	for perf in _perfs:
 		if float(perf["age"]) < 0.0 or hidden or not _is_visible(perf):
-			if not (perf["actors"] as Array).is_empty():
+			if not (perf["actors"] as Array).is_empty() or perf["light"] != null:
 				_free_actors(perf)
 			continue
 		shown.append(perf)
@@ -286,7 +299,7 @@ func _sync() -> void:
 			return int(a["importance"]) > int(b["importance"]) or (int(a["importance"]) == int(b["importance"]) and int(a["serial"]) < int(b["serial"])))
 	var budget := MAX_FIGURES
 	for perf in shown:
-		var need: int = (perf["plan"] as Dictionary)["actors"].size()
+		var need: int = maxi((perf["plan"] as Dictionary)["actors"].size(), 1)
 		if need > budget:
 			_free_actors(perf)
 			continue
@@ -305,6 +318,9 @@ func _is_visible(perf: Dictionary) -> bool:
 
 func _stage(perf: Dictionary) -> void:
 	var plan: Dictionary = perf["plan"]
+	if bool(plan["light"]):
+		_stage_light(perf)
+		return
 	var actors_plan: Array = plan["actors"]
 	if (perf["actors"] as Array).size() != actors_plan.size():
 		_free_actors(perf)
@@ -349,6 +365,22 @@ func _stage(perf: Dictionary) -> void:
 		origin += _spectacle.up_basis(origin).y * EventScript.lift_at(plan, age) * height
 		actor.place(origin, _spectacle.up_basis(origin).y, camera, u, false)
 		actor.set_fade(fade)
+
+
+## 轉世的光效：立在事件格地表，縮放等於身高，時間用演出的 age（RebirthStage 自己淡入淡出）。
+func _stage_light(perf: Dictionary) -> void:
+	if perf["light"] == null:
+		var made := RebirthStage.new()
+		_holder.add_child(made)
+		made.setup({"seed": int(perf["id"]) * 7 + 13, "total": float((perf["plan"] as Dictionary)["total"])})
+		perf["light"] = made
+	var light: RebirthStage = perf["light"]
+	var camera := _spectacle.camera()
+	var base := _spectacle.world_of(perf["pos"])
+	var basis := _spectacle.up_basis(base)
+	var height := FigureActor.world_height(FigureActor.pixels_per_unit(camera, base), _spectacle.unit())
+	light.global_transform = Transform3D(basis.scaled(Vector3.ONE * height), base)
+	light.tick(maxf(float(perf["age"]), 0.0), {})
 
 
 ## 樣子：人物編號決定（沒有就用事件編號），橋接給得出的欄位（性別、年紀）照用，同天劫。

@@ -138,7 +138,7 @@ func _arrive_run(sim: SimHost, camera: MapCamera, director: Director, card: Dire
 			if spot is Vector2:
 				var world: Vector3 = camera._map.world_position(spot, camera.focus.x)
 				screen = camera.unproject_position(world)
-			var name := "p%d_%s_t%03d_a%.1f" % [director.current, sim.world.province_info(director.current)["name"], int(_game_t), since]
+			var name := "p%d_%s_%s%s_t%03d_a%.1f" % [director.current, sim.world.province_info(director.current)["name"], event.get("kind", "?"), event.get("x", ""), int(_game_t), since]
 			_note("%s 種類 %s 事件格 %s 治所 %s 螢幕 %s 焦點 (%.1f, %.1f) 高 %.1f/寬 %.0f 字卡 %s" % [name, event.get("kind", "?"), spot,
 				sim.world.province_info(director.current)["seat"], screen, camera.focus.x, camera.focus.y, camera.z, camera.map_width(), card.text()])
 			await _shot(name)
