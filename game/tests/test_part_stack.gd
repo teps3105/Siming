@@ -240,3 +240,61 @@ func test_gdd_8_12_part_stack_node_builds_one_view_per_layer_and_keeps_an_unchan
 	assert_eq((first as Control).size, Vector2(layer["rect"].size) * 0.5, "畫布 320×400 縮成 160×200")
 	stack.set_recipe(PortraitRecipe.from_person(_info(6)), catalog)
 	assert_ne(stack.get_child(0), first, "換一串就重建")
+
+
+## 試驗類：畫家畫的真部件（portrait_trial），格式與佔位類相同，款數隨已入庫的部件增加。
+const TRIAL_SLOTS := ["back_hair", "face", "collar", "eyes", "brows", "beard", "front_hair"]
+const TRIAL_TINTS := {"skin": Color("dfb182"), "hair": Color("605450"), "robe": Color("5c7080"), "trim": Color("b23a2e"), "iris": Color("466e96")}
+
+
+func test_gdd_8_12_trial_catalog_reads_and_every_rect_is_inside_the_atlas() -> void:
+	var catalog := PartCatalog.load_class("portrait_trial")
+	assert_true(catalog != null, "試驗類目錄讀得到")
+	assert_false(catalog.placeholder, "真部件的目錄不標佔位")
+	assert_eq(catalog.canvas, Vector2i(320, 400), "入庫尺寸寫在目錄")
+	assert_eq(catalog.slots().size(), TRIAL_SLOTS.size(), "格數")
+	for i in TRIAL_SLOTS.size():
+		assert_eq(catalog.slots()[i], TRIAL_SLOTS[i], "格由後往前：臉在領之後，領蓋住頸根")
+	var atlas := catalog.atlas_image()
+	var bounds := Rect2i(Vector2i.ZERO, atlas.get_size())
+	for slot: String in TRIAL_SLOTS:
+		assert_eq(catalog.parts_in(slot).size(), catalog.slot_count(slot), "%s 的款數與目錄一致" % slot)
+		assert_gt(catalog.parts_in(slot).size(), 0, "%s 至少一款" % slot)
+		for code in catalog.parts_in(slot):
+			assert_true(code.begins_with("portrait_trial/"), "代號前綴是類名：" + code)
+			assert_gt(catalog.anchor_of(code).x, 0.0, "有定位點：" + code)
+			for layer in catalog.layers_of(code):
+				var rect: Rect2i = layer["rect"]
+				assert_true(bounds.encloses(rect), "子層在圖集內：" + code)
+				assert_true(layer["mode"] in ["keyed", "fixed"])
+				assert_true(layer["mode"] == "fixed" or catalog.channels.has(layer["tint"]), "染色欄位有宣告：" + code)
+				var mid := atlas.get_pixel(rect.position.x + rect.size.x / 2, rect.position.y + rect.size.y / 2)
+				assert_lt(maxf(mid.r, maxf(mid.g, mid.b)), mid.a + 0.01, "預乘 alpha：RGB 不超過 alpha")
+
+
+func test_gdd_8_12_trial_stack_renders_a_non_empty_portrait_and_dye_changes_it() -> void:
+	var catalog := PartCatalog.load_class("portrait_trial")
+	var items: Array[Dictionary] = []
+	for slot in catalog.slots():
+		items.append({"part": catalog.parts_in(slot)[0], "tints": TRIAL_TINTS.duplicate()})
+	var recipe := {"items": items, "halo": 0}
+	var image := PartCompose.render(recipe, catalog, 2)
+	var solid := 0
+	for y in image.get_height():
+		for x in image.get_width():
+			if image.get_pixel(x, y).a > 0.5:
+				solid += 1
+	assert_gt(solid, image.get_width() * image.get_height() / 4, "疊出的圖不是空的")
+	var white := recipe.duplicate(true)
+	for item: Dictionary in white["items"]:
+		item["tints"]["hair"] = Color("e1e1dc")
+	assert_ne(PartCompose.render(white, catalog, 2).get_data(), image.get_data(), "髮色一換圖就不同")
+	assert_eq(PartCompose.render(recipe, catalog, 2).get_data(), image.get_data(), "同一串兩次逐位元組相同")
+	for item: Dictionary in items:
+		var single := PartCompose.render({"items": [item], "halo": 0}, catalog, 2)
+		var count := 0
+		for y in single.get_height():
+			for x in single.get_width():
+				if single.get_pixel(x, y).a > 0.0:
+					count += 1
+		assert_gt(count, 50, "單層非空：" + String(item["part"]))

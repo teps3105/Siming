@@ -1,0 +1,166 @@
+{
+ "canvas": [
+  1024,
+  1280
+ ],
+ "out": [
+  320,
+  400
+ ],
+ "scale": 0.3125,
+ "raw_size": [
+  1122,
+  1402
+ ],
+ "sex": {
+  "m": {
+   "raw": ".shiftblame/tmp/parts/portrait/base-m-c.png",
+   "raw_sha256": "cef78b6d248c4e0bf8523a702f0f67653093f125139aa3df656c08c23f0a8780",
+   "file": "base-m.png",
+   "sha256": "7be124b36c6dc146ad44c45f3ae1ff87ccf58c4e6864c47da8a95eefee2e3a86",
+   "points": {
+    "cx": {
+     "canvas": 511,
+     "out": 160
+    },
+    "top_y": {
+     "canvas": 315,
+     "out": 98
+    },
+    "eye_y": {
+     "canvas": 593,
+     "out": 185
+    },
+    "nose_y": {
+     "canvas": 676,
+     "out": 211
+    },
+    "mouth_y": {
+     "canvas": 723,
+     "out": 226
+    },
+    "chin_y": {
+     "canvas": 835,
+     "out": 261
+    },
+    "neck_y": {
+     "canvas": 991,
+     "out": 310
+    },
+    "ears": {
+     "l": {
+      "canvas": [
+       315,
+       530,
+       676
+      ],
+      "out": [
+       98,
+       165,
+       211
+      ]
+     },
+     "r": {
+      "canvas": [
+       707,
+       530,
+       676
+      ],
+      "out": [
+       221,
+       165,
+       211
+      ]
+     }
+    },
+    "head_w": {
+     "canvas": [
+      329,
+      698
+     ],
+     "out": [
+      103,
+      218
+     ]
+    }
+   }
+  },
+  "f": {
+   "raw": ".shiftblame/tmp/parts/portrait/base-f-c.png",
+   "raw_sha256": "5e41995bd25947897bfa2356aa05b1f63ad95a4a094596ce01b77cf2801c420a",
+   "file": "base-f.png",
+   "sha256": "eb1e4e936cdae32db10520df859a2bae49c8adc95f669029996da3d6a1143e4d",
+   "points": {
+    "cx": {
+     "canvas": 511,
+     "out": 160
+    },
+    "top_y": {
+     "canvas": 306,
+     "out": 96
+    },
+    "eye_y": {
+     "canvas": 593,
+     "out": 185
+    },
+    "nose_y": {
+     "canvas": 665,
+     "out": 208
+    },
+    "mouth_y": {
+     "canvas": 710,
+     "out": 222
+    },
+    "chin_y": {
+     "canvas": 813,
+     "out": 254
+    },
+    "neck_y": {
+     "canvas": 904,
+     "out": 282
+    },
+    "ears": {
+     "l": {
+      "canvas": [
+       321,
+       548,
+       662
+      ],
+      "out": [
+       100,
+       171,
+       207
+      ]
+     },
+     "r": {
+      "canvas": [
+       703,
+       548,
+       662
+      ],
+      "out": [
+       220,
+       171,
+       207
+      ]
+     }
+    },
+    "head_w": {
+     "canvas": [
+      335,
+      689
+     ],
+     "out": [
+      105,
+      215
+     ]
+    }
+   }
+  }
+ },
+ "prompts": {
+  "a_m": "圖是畫風基準(style.png)。請照同一畫風…畫一張「底版」：壯年男子的光頭頭肩半身像，直幅4:5，…完全光頭…不畫眉毛與眼睛（眼眶位置只有平坦的皮膚）；身穿最簡單的素色圓領貼身內衫，頸根與鎖骨清楚，肩線一直畫到畫面下緣。五官大幅概括簡化。背景純平宣紙色#EDE4CF，不要紙紋。（edit_image，參照 style.png，codex 後端，1024x1280 提示、實得 1122x1402）",
+  "b": "照 a 重畫：臉上不要有跨過眼窩與額頭的大塊投影，陰影只留在顱頂右側邊緣、耳後、下巴底下與頸側；頭擺正，雙耳露出。",
+  "c": "照 b 重畫：整個人縮小，頭頂離上緣約20%（留出畫髮髻與冠帽的空白），肩膀被左右邊緣切掉，肩與衣畫到下緣，頸根在畫面高約72%。女版同理（a 以 style-girl.png 為參照，內衫月白色）。"
+ }
+}
