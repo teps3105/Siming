@@ -210,6 +210,8 @@
   "credits_font": "LXGW WenKai TC／SIL OFL 1.1",
   "credits_logo_font": "衡山毛筆行書／作者許可商用",
   "credits_water": "Godot Water Shader／binbun／CC0",
+  "credits_particles": "Particle Pack／Kenney／CC0",
+  "credits_storm": "Storm & Wind 3D Free／heyheythere／CC BY 4.0",
   "credits_engine": "Godot Engine／Godot Engine contributors／MIT",
   "credits_bridge": "godot-rust／godot-rust contributors／MPL-2.0",
   "guide_pan": "移動地圖，或按住左鍵拖動",

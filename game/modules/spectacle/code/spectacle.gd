@@ -1,8 +1,9 @@
 class_name Spectacle
-extends CanvasLayer
+extends Node
 ## GDD 5.6 地圖奇觀（第一批：天劫、飛升、宿緣了結）。
 ## 由 SimHost.event_posted 觸發，只讀事件字典，不讀遊戲規則；事件發生在鏡頭外時不放（傳聞簽已有），
-## 傳聞簽點擊飛往時以 replay() 補放。畫在地圖之上、介面之下的一層，位置每幀由地圖座標換成螢幕座標。
+## 傳聞簽點擊飛往時以 replay() 補放。奇觀放在 3D 世界裡：每個奇觀一個舞台（SpectacleStage），原點在事件所在格的
+## 地表，隨鏡頭縮放，被山遮得住；位置每幀由地圖座標換成世界座標（含高度消失點與星球視角的位移）。
 ## 時長是實際秒，與遊戲速度無關；暫停（含開著選單）時不前進。
 
 const KINDS: Array[String] = ["Tribulation", "Ascended", "ThreadResolved"]
@@ -14,18 +15,24 @@ const REPLAY_DELAY := 0.9
 const VIEW_MARGIN := 48.0
 ## 找不到了結另一端時，兩端各向兩側張開的距離（地圖座標）。
 const FALLBACK_SPREAD := 2.5
+## 奇觀半徑在螢幕上的範圍（介面單位的像素）：一格的像素數乘 14，夾在這兩個值之間。
+const RADIUS_PX_MIN := 110.0
+const RADIUS_PX_MAX := 320.0
+## 了結線的半寬（介面單位的像素）、孤高（弧頂離弦的比例）。
+const LINE_HALF_PX := 3.4
+const ARC_RISE := 0.22
 
 var _sim: SimHost
 var _map: TerrainMap
 var _camera: MapCamera
 var _queue := SpectacleQueue.new()
-var _canvas: SpectacleCanvas
 var _memory := {}
 var _memory_order: Array[int] = []
+var _holder: Node3D
+var _stages := {}
 
 
 func _init() -> void:
-	layer = 0
 	add_to_group("spectacle")
 
 
@@ -33,9 +40,9 @@ func setup(sim: SimHost, map: TerrainMap, camera: MapCamera) -> void:
 	_sim = sim
 	_map = map
 	_camera = camera
-	_canvas = SpectacleCanvas.new()
-	_canvas.layer = self
-	add_child(_canvas)
+	_holder = Node3D.new()
+	_holder.name = "SpectacleStages"
+	add_child(_holder)
 	sim.event_posted.connect(post)
 	sim.world_created.connect(clear)
 
@@ -49,7 +56,7 @@ func post(event: Dictionary) -> void:
 	if not _in_view(spec):
 		return
 	_queue.add(spec, _sim.speed_multiplier() >= SpectacleQueue.FAST_SPEED)
-	_redraw()
+	_sync()
 
 
 ## 傳聞簽點擊飛往時重播：傳聞簽的記錄（或事件字典）。不是這三種事件、或這件已在放，回傳 false。
@@ -65,7 +72,7 @@ func replay(entry: Dictionary) -> bool:
 	if spec.is_empty():
 		return false
 	var added := _queue.add(spec, false, REPLAY_DELAY)
-	_redraw()
+	_sync()
 	return added
 
 
@@ -73,31 +80,30 @@ func clear() -> void:
 	_queue.clear()
 	_memory.clear()
 	_memory_order.clear()
-	_redraw()
+	_sync()
 
 
 ## 前進 seconds 秒（_process 在沒暫停時呼叫；測試也直接呼叫）。
 func step(seconds: float) -> void:
 	_queue.advance(seconds)
-	_redraw()
+	_sync()
 
 
 func queue() -> SpectacleQueue:
 	return _queue
 
 
+## 目前有舞台的奇觀數（測試與量測用）。
+func stage_count() -> int:
+	return _stages.size()
+
+
 func _process(delta: float) -> void:
-	if _sim == null or _canvas == null:
+	if _sim == null or _holder == null:
 		return
 	if not _sim.paused:
 		_queue.advance(delta)
-	if _queue.count() > 0 or _queue.spots().size() > 0:
-		_canvas.queue_redraw()
-
-
-func _redraw() -> void:
-	if _canvas != null:
-		_canvas.queue_redraw()
+	_sync()
 
 
 # ── 事件 → 奇觀資料 ───────────────────────────────────────────
@@ -191,29 +197,98 @@ func unit() -> float:
 	return Ink.layout_unit(get_viewport().get_visible_rect().size, GameSettings.ui_scale())
 
 
-## 畫布呼叫：把佇列裡的奇觀畫出來。
-func paint(canvas: CanvasItem) -> void:
-	var u := unit()
+# ── 舞台 ──────────────────────────────────────────────────────
+
+## 讓舞台與佇列一致：新開始的奇觀建舞台，結束或被捨棄的拆掉，其餘依鏡頭擺放並推進到各自的 age。
+func _sync() -> void:
+	if _holder == null or _map == null or _camera == null:
+		return
+	var live := {}
 	for list in [_queue.items(), _queue.spots()]:
 		for item: Dictionary in list:
-			var age := float(item["age"])
-			if age < 0.0:
+			if float(item["age"]) < 0.0:
 				continue
-			var t := age / float(item["duration"])
-			if item.has("ends") and item["kind"] != "Spot":
-				var a := screen_of(item["ends"][0])
-				var b := screen_of(item["ends"][1])
-				if a.is_finite() and b.is_finite():
-					SpectacleBrush.resolved(canvas, item, a, b, u, age, t)
-				continue
-			var p := screen_of(item["pos"])
-			if not p.is_finite():
-				continue
-			var radius := clampf(cell_px(item["pos"]) * 14.0, 110.0, 320.0) * u
-			match str(item["kind"]):
-				"Tribulation":
-					SpectacleBrush.tribulation(canvas, item, p, radius, u, age, t)
-				"Ascended":
-					SpectacleBrush.ascended(canvas, item, p, radius, u, age, t)
-				"Spot":
-					SpectacleBrush.spot(canvas, item, p, u, t)
+			var order := int(item["order"])
+			live[order] = true
+			var stage: SpectacleStage = _stages.get(order)
+			if stage == null:
+				stage = _make_stage(item)
+				_stages[order] = stage
+				_holder.add_child(stage)
+				stage.setup(item)
+			_place(stage, item)
+	for order: int in _stages.keys():
+		if not live.has(order):
+			(_stages[order] as Node).queue_free()
+			_stages.erase(order)
+
+
+func _make_stage(item: Dictionary) -> SpectacleStage:
+	if str(item["kind"]) == "Spot":
+		return SpotStage.new()
+	match str(item["kind"]):
+		"Tribulation":
+			return TribulationStage.new()
+		"Ascended":
+			return AscendedStage.new()
+	return ResolvedStage.new()
+
+
+## 依鏡頭把舞台擺到事件所在格的地表（了結是兩端的世界座標），縮放成螢幕上該有的大小。
+func _place(stage: SpectacleStage, item: Dictionary) -> void:
+	var age := float(item["age"])
+	var u := unit()
+	var near_x := _camera.focus.x
+	var kind := str(item["kind"])
+	if item.has("ends") and kind != "Spot":
+		_place_thread(stage, item, age, u, near_x)
+		return
+	var pos: Vector2 = item["pos"]
+	var screen := screen_of(pos)
+	stage.visible = screen.is_finite()
+	if not screen.is_finite():
+		return
+	var world := _map.world_position(pos, near_x)
+	var px := maxf(cell_px(pos), 0.01)
+	var radius_px := clampf(px * 14.0, RADIUS_PX_MIN, RADIUS_PX_MAX) * u
+	if kind == "Spot":
+		radius_px = 40.0 * u
+	var radius := radius_px / px
+	stage.global_transform = Transform3D(_up_basis(world).scaled(Vector3.ONE * radius), world)
+	# 光柱要貫到畫面頂端：正交鏡頭下鉛直 1 單位在螢幕上約 cos(俯角) 像素乘每單位像素數。
+	var beam_height := maxf((screen.y + 40.0) / (px * cos(MapView.pitch())) / radius, 2.0)
+	stage.tick(maxf(age, 0.0), {"scale": radius, "u": u, "px_world": 1.0 / px, "beam_height": beam_height})
+
+
+func _place_thread(stage: SpectacleStage, item: Dictionary, age: float, u: float, near_x: float) -> void:
+	var ends: Array = item["ends"]
+	var a_screen := screen_of(ends[0])
+	var b_screen := screen_of(ends[1])
+	stage.visible = a_screen.is_finite() and b_screen.is_finite()
+	if not stage.visible:
+		return
+	var a := _map.world_position(ends[0], near_x)
+	var b := _map.world_position(ends[1], near_x)
+	var mid_pos: Vector2 = (ends[0] + ends[1]) * 0.5
+	var px := maxf(cell_px(mid_pos), 0.01)
+	var up := _up_basis((a + b) * 0.5).y
+	# 弧線二次貝茲：控制點在弦的中點之上，弧頂高度取弦長的一成多，至少幾格。
+	var length := a.distance_to(b)
+	var rise := maxf(length * ARC_RISE, 24.0 * u / px * 0.5)
+	var control := (a + b) * 0.5 + up * rise * 2.0
+	var radius_px := clampf(px * 14.0, RADIUS_PX_MIN, RADIUS_PX_MAX) * u
+	stage.global_transform = Transform3D.IDENTITY
+	stage.tick(maxf(age, 0.0), {"a": a, "b": b, "control": control, "scale": radius_px / px * 0.45,
+		"line_half_width": LINE_HALF_PX * u / px, "u": u, "px_world": 1.0 / px})
+
+
+## 平面視角地表朝上；星球視角朝球心向外。
+func _up_basis(world: Vector3) -> Basis:
+	if _map.globe_morph <= 0.5:
+		return Basis.IDENTITY
+	var up := (world - _map.globe_xform.origin).normalized()
+	var side := up.cross(Vector3.BACK)
+	if side.length_squared() < 1e-4:
+		side = up.cross(Vector3.RIGHT)
+	side = side.normalized()
+	return Basis(side, up, side.cross(up).normalized())
