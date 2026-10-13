@@ -40,6 +40,7 @@ var _cursor: GameCursor
 var _guide: GuideSlip
 var _notice: NoticeSlip
 var _rumor: RumorSlip
+var _almanac: Almanac
 var _menu: MenuDeck
 ## 是否顯示引導簽（測試會關掉）；在 setup 之前設定。
 var guide_enabled := true
@@ -50,6 +51,10 @@ var _menu_switching := false
 ## 傳聞簽全螢幕展開時是否已替它暫停了時間，與展開前時間是否已經暫停（器物重建時展開狀態會帶到新的簽上，不可重記）。
 var _rumor_pause_held := false
 var _paused_before_rumor := false
+## 天下冊全螢幕展開時同理；頁籤停在上次的一頁（器物重建時帶到新的天下冊上）。
+var _almanac_pause_held := false
+var _paused_before_almanac := false
+var _almanac_page := 0
 
 
 func setup(sim: SimHost, map: TerrainMap, camera: MapCamera) -> void:
@@ -150,6 +155,9 @@ func _build() -> void:
 	if _rumor != null:
 		rumors = _rumor.snapshot()
 	var rumors_open := _rumor != null and _rumor.expanded
+	var almanac_open := _almanac != null and _almanac.expanded
+	if _almanac != null:
+		_almanac_page = _almanac.page
 	var notices: Array[String] = []
 	if _notice != null:
 		notices = _notice.pending()
@@ -246,6 +254,20 @@ func _build() -> void:
 	for line in notices:
 		_notice.post(line)
 
+	_almanac = Almanac.new()
+	add_child(_almanac)
+	_almanac.setup(_sim, _unit)
+	_almanac.page = _almanac_page
+	_almanac.fullscreen_changed.connect(_on_almanac_fullscreen)
+	_almanac.expanded = almanac_open
+	_almanac.province_requested.connect(func(id: int) -> void: open_province(id))
+	_almanac.person_requested.connect(func(id: int) -> void: open_person(id))
+	_almanac.event_requested.connect(func(id: int) -> void: open_event(id))
+	_almanac.sect_requested.connect(func(map_pos: Vector2) -> void:
+		_almanac.expanded = false
+		_camera.look_at_map(map_pos))
+	_dial.almanac_requested.connect(toggle_almanac)
+
 	# 遊戲內游標畫在所有器物之上。
 	_cursor = GameCursor.new()
 	add_child(_cursor)
@@ -259,6 +281,9 @@ func _build() -> void:
 
 ## 傳聞簽全螢幕展開：模擬暫停（記下展開前的行止）、鏡頭讓出畫面；收合時行止與速度回到展開前。
 func _on_rumor_fullscreen(on: bool) -> void:
+	# 兩張全螢幕互斥：先收另一張（它的行止先還原），這一張才記下展開前的行止。
+	if on and _almanac != null:
+		_almanac.expanded = false
 	_camera.modal = on
 	if _sim == null:
 		return
@@ -273,6 +298,33 @@ func _on_rumor_fullscreen(on: bool) -> void:
 		_menu_switching = true
 		_sim.set_paused(_paused_before_rumor)
 		_menu_switching = false
+
+
+## 天下冊全螢幕展開：與傳聞簽相同——模擬暫停、鏡頭讓出畫面，收合時行止與速度回到展開前。
+func _on_almanac_fullscreen(on: bool) -> void:
+	if on and _rumor != null:
+		_rumor.expanded = false
+	_camera.modal = on
+	if _sim == null:
+		return
+	if on and not _almanac_pause_held:
+		_almanac_pause_held = true
+		_paused_before_almanac = _sim.paused
+		_menu_switching = true
+		_sim.set_paused(true)
+		_menu_switching = false
+	elif not on and _almanac_pause_held:
+		_almanac_pause_held = false
+		_menu_switching = true
+		_sim.set_paused(_paused_before_almanac)
+		_menu_switching = false
+
+
+## 展開或收回天下冊。
+func toggle_almanac() -> void:
+	if _menu != null or _sim == null:
+		return
+	_almanac.expanded = not _almanac.expanded
 
 
 ## 引導簽在底部中央、印鈕列上方 24 px（GDD 5.7）；畫面窄到會壓住印匣的例簽時往左讓開。
@@ -331,6 +383,7 @@ func open_person(id: int) -> void:
 	if _sim == null or id < 0 or _sim.world.person(id).is_empty():
 		return
 	_rumor.expanded = false
+	_almanac.expanded = false
 	_remember_open_card()
 	_card.suspend()
 	_event_card.suspend()
@@ -345,6 +398,7 @@ func open_province(id: int) -> void:
 	if _sim == null or id < 0 or id >= _sim.world.province_count():
 		return
 	_rumor.expanded = false
+	_almanac.expanded = false
 	_remember_open_card()
 	_person_card.suspend()
 	_event_card.suspend()
@@ -360,6 +414,7 @@ func open_event(id: int) -> void:
 	if _sim == null or id < 0:
 		return
 	_rumor.expanded = false
+	_almanac.expanded = false
 	_remember_open_card()
 	_card.suspend()
 	_person_card.suspend()
@@ -430,6 +485,10 @@ func rumor() -> RumorSlip:
 	return _rumor
 
 
+func almanac() -> Almanac:
+	return _almanac
+
+
 func guide() -> GuideSlip:
 	return _guide
 
@@ -449,6 +508,7 @@ func open_menu() -> void:
 		return
 	# 全螢幕傳聞先收合，時間回到展開前的行止，選單才記得住開選單前的暫停狀態。
 	_rumor.expanded = false
+	_almanac.expanded = false
 	_paused_before_menu = _sim.paused
 	_menu_switching = true
 	_sim.set_paused(true)
@@ -524,6 +584,7 @@ func _apply_device() -> void:
 	_view.gamepad = _camera.use_crosshair
 	_guide.gamepad = _camera.use_crosshair
 	_rumor.gamepad = _camera.use_crosshair
+	_almanac.gamepad = _camera.use_crosshair
 
 
 ## 因果模式下點了魂光（GDD 5.4）：開那位的人物卡，地圖只留他的線並標出前世所在，鏡頭落在他的魂光上。
@@ -565,8 +626,19 @@ func _set_mode(mode: TerrainMap.Mode) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if _sim == null or _menu != null:
 		return
-	if event.is_action_pressed(InputActions.RUMOR_LIST):
+	if event.is_action_pressed(InputActions.ALMANAC):
+		_almanac.expanded = not _almanac.expanded
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed(InputActions.RUMOR_LIST):
 		_rumor.expanded = not _rumor.expanded
+	elif _almanac.expanded:
+		# 天下冊開著：同傳聞簽，只收 Esc／B 收合與 Start 開選單，其餘時間與地圖的快捷鍵都不動。
+		if event.is_action_pressed(InputActions.CANCEL):
+			_almanac.expanded = false
+			get_viewport().set_input_as_handled()
+		elif event.is_action_pressed(InputActions.MENU):
+			open_menu()
+			get_viewport().set_input_as_handled()
 	elif _rumor.expanded:
 		# 全螢幕傳聞開著：只收 Esc／B 收合與 Start 開選單，其餘時間與地圖的快捷鍵都不動。
 		if event.is_action_pressed(InputActions.CANCEL):

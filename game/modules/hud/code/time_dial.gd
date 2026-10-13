@@ -6,6 +6,9 @@ extends Control
 ## 圓盤外圈兩道弧（GDD 2.8）：左弧寒暖（下寒上暖）、右弧靈潮（下枯上盛），兩端加粗的一段是大寒、大暖、末法、靈氣復甦的範圍；
 ## 朱點是目前的值，朱點旁的箭頭指向下一世結算後的走向；滑鼠停在弧上，題簽右邊出現一張說明簽。
 
+## 點題簽右端的「冊」印，要求展開天下冊（GDD 5.10）。
+signal almanac_requested
+
 ## 圓盤半徑含綾邊（直徑 56）；盤心鈕直徑 30。
 const DISC_RADIUS := 28.0
 const SEAL_RADIUS := 15.0
@@ -32,6 +35,9 @@ const DATE_PAD := 12.0
 const PRESSED_PAUSE := 100
 ## 兩個調速鍵之間的間距。
 const KEY_GAP := 10.0
+## 題簽右端的「冊」印邊長，與印、鍵右側的留白。
+const ALMANAC_SEAL := 20.0
+const ALMANAC_PAD := 6.0
 
 ## 目前的輸入裝置是否為搖桿（決定畫哪一種實體鍵圖像）。
 var gamepad := false:
@@ -43,6 +49,7 @@ var _sim: SimHost
 var _unit := 1.0
 var _hover_stroke := -1
 var _hover_seal := false
+var _hover_almanac := false
 ## 滑鼠停在哪一道弧上：&""、&"warmth"、&"tide"。
 var _hover_arc := &""
 ## 正按住的地方（按下的回饋）：-1 沒有、0–3 疾徐的某一筆、PRESSED_PAUSE 行止鈕。
@@ -189,7 +196,19 @@ func _slip_left() -> float:
 
 ## 兩張簽共用的寬度：取日期與時速內容中較寬者，與目前的日期、倍速、輸入裝置無關。
 func _slip_width() -> float:
-	return maxf(_date_max_width() + DATE_PAD * 2.0 * _unit, _columns()["end"] - _slip_left())
+	return maxf(_date_max_width() + DATE_PAD * 2.0 * _unit + _almanac_strip() * 2.0, _columns()["end"] - _slip_left())
+
+
+## 題簽右端留給「冊」印與它的鍵圖像的寬度；日期仍在題簽正中，所以兩側各留一份。
+func _almanac_strip() -> float:
+	return (ALMANAC_SEAL + ALMANAC_PAD * 2.0) * _unit + _widest_key(InputActions.ALMANAC) + 6.0 * _unit
+
+
+## 「冊」印的範圍（題簽右端，垂直置中）。
+func _almanac_rect() -> Rect2:
+	var title := _title_rect()
+	var side := ALMANAC_SEAL * _unit
+	return Rect2(Vector2(title.end.x - ALMANAC_PAD * _unit - side, title.position.y + (title.size.y - side) * 0.5), Vector2.ONE * side)
 
 
 ## 一個數字佔的寬度（取 0–9 中最寬者）。
@@ -290,6 +309,7 @@ func _draw() -> void:
 	Ink.paper_slip(self, title)
 	# 整串日期在題簽裡置中。
 	Ink.text(self, _date_rect().position, _sim.world.date_short(), date_size)
+	_draw_almanac_seal()
 
 	# 時速簽：狀態與暫停鍵；四筆由短到長，已達速度者濃墨；倍速與調速鍵。
 	var slip := _speed_rect()
@@ -324,10 +344,28 @@ func _draw() -> void:
 		Ink.text(self, hint.position + Vector2(PAD * _unit, (hint.size.y - Ink.text_size(hover_text(), note).y) * 0.5), hover_text(), note)
 
 
+## 題簽右端：鍵鼠時先畫 B 鍵圖像，再畫朱底白字的「冊」印。
+func _draw_almanac_seal() -> void:
+	var rect := _almanac_rect()
+	var key := InputHints.label(InputActions.ALMANAC, gamepad)
+	if not key.is_empty():
+		var key_width := Ink.key_glyph_width(key, _unit)
+		Ink.key_glyph(self, Vector2(rect.position.x - 6.0 * _unit - key_width, rect.get_center().y - Ink.KEY_HEIGHT * _unit * 0.5), key, _unit, not gamepad)
+	draw_rect(rect, Ink.SEAL_RED.darkened(0.15) if _hover_almanac else Ink.SEAL_RED, true)
+	draw_rect(rect.grow(-2.0 * _unit), Ink.PAPER_LIGHT, false, 1.0)
+	var size := Ink.font_size(Ink.SIZE_NOTE, _unit)
+	var text := Locale.t("almanac_seal")
+	Ink.text(self, rect.get_center() - Ink.text_size(text, size) * 0.5, text, size, Ink.PAPER_LIGHT)
+
+
 func _gui_input(event: InputEvent) -> void:
 	if _sim == null:
 		return
 	if event is InputEventMouseMotion:
+		var on_almanac := _almanac_rect().grow(Ink.SLIP_BAND).has_point((event as InputEventMouseMotion).position)
+		if on_almanac != _hover_almanac:
+			_hover_almanac = on_almanac
+			queue_redraw()
 		var on_seal: bool = _on_pause((event as InputEventMouseMotion).position)
 		var on_stroke: int = _stroke_at((event as InputEventMouseMotion).position)
 		var on_arc := _arc_at((event as InputEventMouseMotion).position)
@@ -338,7 +376,10 @@ func _gui_input(event: InputEvent) -> void:
 			queue_redraw()
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		var stroke: int = _stroke_at((event as InputEventMouseButton).position)
-		if stroke >= 0:
+		if _almanac_rect().grow(Ink.SLIP_BAND).has_point((event as InputEventMouseButton).position):
+			almanac_requested.emit()
+			accept_event()
+		elif stroke >= 0:
 			_sim.set_speed(stroke)
 			_sim.set_paused(false)
 			_pressed = stroke
@@ -354,22 +395,23 @@ func _gui_input(event: InputEvent) -> void:
 
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_MOUSE_EXIT and (_hover_seal or _hover_stroke >= 0 or _pressed >= 0 or _hover_arc != &""):
+	if what == NOTIFICATION_MOUSE_EXIT and (_hover_almanac or _hover_seal or _hover_stroke >= 0 or _pressed >= 0 or _hover_arc != &""):
 		_pressed = -1
 		_hover_arc = &""
 		_hover_seal = false
+		_hover_almanac = false
 		_hover_stroke = -1
 		queue_redraw()
 
 
 ## 滑鼠只在圓盤（連外圈）與時速簽上才攔截，其餘讓地圖收到事件。
 func _has_point(point: Vector2) -> bool:
-	return point.distance_to(_disc_center()) <= outer_radius() or _speed_rect().grow(Ink.SLIP_BAND).has_point(point)
+	return point.distance_to(_disc_center()) <= outer_radius() or _speed_rect().grow(Ink.SLIP_BAND).has_point(point) or _almanac_rect().grow(Ink.SLIP_BAND).has_point(point)
 
 
 ## 游標停在這裡時是否可以按（GDD 5.9 游標圖示）。
 func is_hot(point: Vector2) -> bool:
-	return _on_pause(point) or _stroke_at(point) >= 0
+	return _on_pause(point) or _stroke_at(point) >= 0 or _almanac_rect().grow(Ink.SLIP_BAND).has_point(point)
 
 
 ## 圓盤，或時速簽上狀態字與暫停鍵那一段：點了切換行止。
