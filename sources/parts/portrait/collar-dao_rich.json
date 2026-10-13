@@ -1,0 +1,184 @@
+{
+ "part": "collar-dao_rich",
+ "paint": [
+  {
+   "tag": "collar-dao_rich-t1",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261014,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a3b042e42e2297999/sources/parts/portrait/base-face-m.png",
+     "6eb81df3857716d33152534009eecf9090d5c7a2a6b3c29c3f5a48bfdca3b318"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a3b042e42e2297999/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版（背景是純綠色），圖2是畫風基準圖。請給圖1的人穿上一件富貴人家的道士交領右衽道袍：衣身是灰青色，交領在胸前交疊成一個深的V形；領緣與衣襟是一道寬的朱紅色緣邊（寬度約為普通滾邊的三倍），緣邊裡面有一條連續的金色雲紋與回紋花紋帶；肩上與胸前另有幾朵小的團花紋樣。道袍蓋住頸根以下的肩與胸，肩線一路畫到畫面左右邊緣與下緣；道袍用兩階明暗（底色加一階硬邊陰影），衣褶只用少數幾條粗而乾淨的線。領口的內緣貼著頸子，沿著整條貼頸的邊都要有一圈完整的墨線。頭、臉、耳與頸子的皮膚不許動、不許被蓋住；V形領口露出的是頸子與鎖骨的皮膚，保持原樣。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫的這一件，人物的頭、臉、頸、肩與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純綠色（#00FF00），純色無漸層。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a3b042e42e2297999/.shiftblame/tmp/parts/portrait/paint/collar-dao_rich-t1.png",
+   "output_sha256": "82520d6bbe9fbf91be8a030cfda8e55861f4f4810265a303fb5d616a0d7320fa",
+   "seconds": 68.6,
+   "time": "2026-10-13 18:13:07"
+  }
+ ],
+ "collect": [
+  {
+   "from": "paint/collar-dao_rich-t1.png",
+   "affine": [
+    [
+     0.9800900220870972,
+     -0.0013000000035390258,
+     9.958669662475586
+    ],
+    [
+     0.0022499999031424522,
+     0.985010027885437,
+     -16.606019973754883
+    ]
+   ],
+   "ecc": 0.99301,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 351446,
+   "bbox": [
+    0,
+    795,
+    1024,
+    1280
+   ],
+   "components": 1,
+   "output": "D:/Siming/.claude/worktrees/agent-a3b042e42e2297999/.shiftblame/tmp/parts/portrait/collect/collar-dao_rich.png",
+   "time": "2026-10-13 18:19:40"
+  }
+ ],
+ "key": [
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/collar-dao_rich.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "trim": {
+     "file": ".shiftblame/tmp/parts/portrait/key/collar-dao_rich.trim.png",
+     "pixels": 6853,
+     "dye": "trim",
+     "centers": [
+      80.9
+     ],
+     "share": [
+      1.0
+     ],
+     "levels": [
+      "base"
+     ]
+    },
+    "robe": {
+     "file": ".shiftblame/tmp/parts/portrait/key/collar-dao_rich.robe.png",
+     "pixels": 27678,
+     "dye": "robe",
+     "centers": [
+      50.1,
+      88.4,
+      108.6,
+      123.2
+     ],
+     "share": [
+      0.029,
+      0.205,
+      0.131,
+      0.635
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "shadow",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 18:19:40"
+  }
+ ],
+ "check": [
+  {
+   "metrics": {
+    "collar-dao_rich.robe": {
+     "edge_len": 4103,
+     "bare_edge": 2971,
+     "bare_ratio": 0.724,
+     "blobs": 14,
+     "specks": 12,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 27332
+    },
+    "collar-dao_rich.trim": {
+     "edge_len": 3346,
+     "bare_edge": 3346,
+     "bare_ratio": 1.0,
+     "blobs": 41,
+     "specks": 30,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 6849
+    },
+    "collar-dao_rich.union": {
+     "edge_len": 639,
+     "bare_edge": 0,
+     "bare_ratio": 0.0,
+     "blobs": 1,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 34181
+    }
+   },
+   "time": "2026-10-13 18:19:41"
+  },
+  {
+   "metrics": {
+    "collar-dao_rich.robe": {
+     "edge_len": 4103,
+     "bare_edge": 2971,
+     "bare_ratio": 0.724,
+     "blobs": 14,
+     "specks": 12,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 27332
+    },
+    "collar-dao_rich.trim": {
+     "edge_len": 3346,
+     "bare_edge": 3346,
+     "bare_ratio": 1.0,
+     "blobs": 41,
+     "specks": 30,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 6849
+    },
+    "collar-dao_rich.union": {
+     "edge_len": 639,
+     "bare_edge": 0,
+     "bare_ratio": 0.0,
+     "blobs": 1,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 34181
+    }
+   },
+   "time": "2026-10-13 18:34:23"
+  }
+ ]
+}

@@ -48,6 +48,30 @@
    "output_sha256": "fadf007280b75370b6a79a4915ef05320437ff30ace9de10158bfb3f02426eee",
    "seconds": 44.7,
    "time": "2026-10-13 17:40:44"
+  },
+  {
+   "tag": "collar-dao_plain-t2",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261015,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a3b042e42e2297999/sources/parts/portrait/base-face-m.png",
+     "6eb81df3857716d33152534009eecf9090d5c7a2a6b3c29c3f5a48bfdca3b318"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a3b042e42e2297999/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版（背景是純綠色），圖2是畫風基準圖。請給圖1的人穿上一件道士的交領右衽道袍：衣身是灰青色，交領在胸前交疊成一個深的V形，領口、衣襟與袖口肩線滾一道朱紅色細邊。道袍蓋住頸根以下的肩與胸，肩線一路畫到畫面左右邊緣與下緣；道袍用兩階明暗（底色加一階硬邊陰影），衣褶只用少數幾條粗而乾淨的線。領口的內緣貼著頸子，沿著整條貼頸的邊都要有一圈完整的墨線。頭、臉、耳與頸子的皮膚不許動、不許被蓋住；V形領口露出的是頸子與鎖骨的皮膚，保持原樣；V形開口裡面只有皮膚，不畫內衫、不畫灰色塊、不畫陰影塊，領口的邊乾淨利落。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫的這一件，人物的頭、臉、頸、肩與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純綠色（#00FF00），純色無漸層。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a3b042e42e2297999/.shiftblame/tmp/parts/portrait/paint/collar-dao_plain-t2.png",
+   "output_sha256": "9f8ab71dbea6934481a59893c61f396c0361259b90d88c95373b7fee49357860",
+   "seconds": 600.3,
+   "time": "2026-10-13 18:25:32"
   }
  ],
  "collect": [
@@ -80,6 +104,66 @@
    "components": 1,
    "output": "D:/Siming/.claude/worktrees/agent-a4d200fd6faca19ec/.shiftblame/tmp/parts/portrait/collect/collar-dao_plain.png",
    "time": "2026-10-13 17:36:30"
+  },
+  {
+   "from": "paint/collar-dao_plain-t1.png",
+   "affine": [
+    [
+     0.9984999895095825,
+     -0.0017000000225380063,
+     0.8637800216674805
+    ],
+    [
+     -0.001019999966956675,
+     1.0359699726104736,
+     -70.91252136230469
+    ]
+   ],
+   "ecc": 0.98002,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 344823,
+   "bbox": [
+    0,
+    795,
+    1024,
+    1280
+   ],
+   "components": 1,
+   "output": "D:/Siming/.claude/worktrees/agent-a3b042e42e2297999/.shiftblame/tmp/parts/portrait/collect/collar-dao_plain.png",
+   "time": "2026-10-13 18:00:11"
+  },
+  {
+   "from": "paint/collar-dao_plain-t2.png",
+   "affine": [
+    [
+     0.9544900059700012,
+     0.0013099999632686377,
+     21.562440872192383
+    ],
+    [
+     -0.0003499999875202775,
+     0.96492999792099,
+     7.007090091705322
+    ]
+   ],
+   "ecc": 0.99634,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 341601,
+   "bbox": [
+    0,
+    795,
+    1024,
+    1280
+   ],
+   "components": 1,
+   "output": "D:/Siming/.claude/worktrees/agent-a3b042e42e2297999/.shiftblame/tmp/parts/portrait/collect/collar-dao_plain.png",
+   "time": "2026-10-13 18:25:54"
   }
  ],
  "key": [
@@ -131,6 +215,150 @@
     }
    },
    "time": "2026-10-13 17:36:33"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/complete/collar-dao_plain.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "trim": {
+     "file": ".shiftblame/tmp/parts/portrait/key/collar-dao_plain.trim.png",
+     "pixels": 2299,
+     "dye": "trim",
+     "centers": [
+      76.1
+     ],
+     "share": [
+      1.0
+     ],
+     "levels": [
+      "base"
+     ]
+    },
+    "robe": {
+     "file": ".shiftblame/tmp/parts/portrait/key/collar-dao_plain.robe.png",
+     "pixels": 32068,
+     "dye": "robe",
+     "centers": [
+      63.7,
+      97.6,
+      113.1,
+      135.7
+     ],
+     "share": [
+      0.03,
+      0.135,
+      0.294,
+      0.541
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "shadow",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 18:00:13"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/collar-dao_plain.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "trim": {
+     "file": ".shiftblame/tmp/parts/portrait/key/collar-dao_plain.trim.png",
+     "pixels": 1929,
+     "dye": "trim",
+     "centers": [
+      74.4
+     ],
+     "share": [
+      1.0
+     ],
+     "levels": [
+      "base"
+     ]
+    },
+    "robe": {
+     "file": ".shiftblame/tmp/parts/portrait/key/collar-dao_plain.robe.png",
+     "pixels": 31963,
+     "dye": "robe",
+     "centers": [
+      63.8,
+      95.8,
+      110.9,
+      134.0
+     ],
+     "share": [
+      0.03,
+      0.144,
+      0.284,
+      0.542
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "shadow",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 18:01:21"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/collar-dao_plain.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "trim": {
+     "file": ".shiftblame/tmp/parts/portrait/key/collar-dao_plain.trim.png",
+     "pixels": 2417,
+     "dye": "trim",
+     "centers": [
+      80.9
+     ],
+     "share": [
+      1.0
+     ],
+     "levels": [
+      "base"
+     ]
+    },
+    "robe": {
+     "file": ".shiftblame/tmp/parts/portrait/key/collar-dao_plain.robe.png",
+     "pixels": 31155,
+     "dye": "robe",
+     "centers": [
+      55.0,
+      94.2,
+      125.8
+     ],
+     "share": [
+      0.021,
+      0.136,
+      0.843
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 18:25:55"
   }
  ],
  "check": [
@@ -238,6 +466,146 @@
     }
    },
    "time": "2026-10-13 17:41:13"
+  },
+  {
+   "metrics": {
+    "collar-dao_plain.robe": {
+     "edge_len": 1952,
+     "bare_edge": 286,
+     "bare_ratio": 0.147,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 31724
+    },
+    "collar-dao_plain.trim": {
+     "edge_len": 1431,
+     "bare_edge": 1431,
+     "bare_ratio": 1.0,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 2299
+    },
+    "collar-dao_plain.union": {
+     "edge_len": 635,
+     "bare_edge": 0,
+     "bare_ratio": 0.0,
+     "blobs": 1,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 34023
+    }
+   },
+   "time": "2026-10-13 18:00:15"
+  },
+  {
+   "metrics": {
+    "collar-dao_plain.robe": {
+     "edge_len": 1736,
+     "bare_edge": 207,
+     "bare_ratio": 0.119,
+     "blobs": 35,
+     "specks": 31,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 31622
+    },
+    "collar-dao_plain.trim": {
+     "edge_len": 1417,
+     "bare_edge": 1417,
+     "bare_ratio": 1.0,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 1904
+    },
+    "collar-dao_plain.union": {
+     "edge_len": 673,
+     "bare_edge": 71,
+     "bare_ratio": 0.105,
+     "blobs": 2,
+     "specks": 1,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 33526
+    }
+   },
+   "time": "2026-10-13 18:01:24"
+  },
+  {
+   "metrics": {
+    "collar-dao_plain.robe": {
+     "edge_len": 1577,
+     "bare_edge": 593,
+     "bare_ratio": 0.376,
+     "blobs": 48,
+     "specks": 46,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 30817
+    },
+    "collar-dao_plain.trim": {
+     "edge_len": 1428,
+     "bare_edge": 1428,
+     "bare_ratio": 1.0,
+     "blobs": 3,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 2393
+    },
+    "collar-dao_plain.union": {
+     "edge_len": 664,
+     "bare_edge": 78,
+     "bare_ratio": 0.117,
+     "blobs": 1,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 33210
+    }
+   },
+   "time": "2026-10-13 18:25:56"
+  },
+  {
+   "metrics": {
+    "collar-dao_plain.robe": {
+     "edge_len": 1577,
+     "bare_edge": 593,
+     "bare_ratio": 0.376,
+     "blobs": 48,
+     "specks": 46,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 30817
+    },
+    "collar-dao_plain.trim": {
+     "edge_len": 1428,
+     "bare_edge": 1428,
+     "bare_ratio": 1.0,
+     "blobs": 3,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 2393
+    },
+    "collar-dao_plain.union": {
+     "edge_len": 664,
+     "bare_edge": 78,
+     "bare_ratio": 0.117,
+     "blobs": 1,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 33210
+    }
+   },
+   "time": "2026-10-13 18:34:23"
   }
  ],
  "complete": [
