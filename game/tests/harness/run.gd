@@ -8,6 +8,9 @@ extends SceneTree
 const Suite := preload("res://tests/harness/suite.gd")
 const ErrorLog := preload("res://tests/harness/error_log.gd")
 const ROOT := "res://tests"
+## 測試的世界用短預跑（人口期 2,000 年、人物期 100 年），不然每個案例開局都要等十秒以上。
+const TEST_POP_YEARS := 2000
+const TEST_PRERUN_YEARS := 100
 
 var _log := ErrorLog.new()
 
@@ -22,6 +25,7 @@ func _main() -> void:
 		var pair := arg.trim_prefix("--").split("=", true, 1)
 		args[pair[0]] = pair[1] if pair.size() > 1 else ""
 	OS.add_logger(_log)
+	SimWorld.set_default_prerun(TEST_POP_YEARS, TEST_PRERUN_YEARS)
 	var results: Array[Dictionary] = []
 	var load_errors: Array[String] = []
 	var paths := _discover(ROOT)

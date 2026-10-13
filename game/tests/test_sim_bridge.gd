@@ -116,9 +116,9 @@ func test_date_uses_the_era_form_with_arabic_numerals() -> void:
 	assert_true(parts[0].ends_with("紀元") and parts[0].length() == 4, "紀元名是兩個字加「紀元」：%s" % parts[0])
 	assert_true(parts[1].ends_with("年") and parts[1].trim_suffix("年").is_valid_int(), "年是阿拉伯數字：%s" % parts[1])
 	assert_eq(parts[2], "%d月" % (months % 12 + 1))
-	# 開局不是開天第一年：開局前的世界已有一段歷史（GDD 2.8）。
+	# 開天就是第 0 年，沒有開局前的歷史；題簽的「開天以來第 N 年」等於預跑年數加上之後的年數。
 	var history := world.history_years()
-	assert_gt(history, 0, "開局前已有歷史")
+	assert_eq(history, 0, "開天沒有開局前的歷史")
 	assert_eq(world.date_text(), "%s（開天以來第 %d 年）" % [date, history + months / 12 + 1])
 
 
@@ -363,7 +363,7 @@ func test_gdd_2_8_world_changes_come_out_of_the_event_queue_with_their_era() -> 
 	assert_gt(changes.size(), 0, "六十世裡應有世界大事")
 	var opened := 0
 	for event in changes:
-		assert_true(event["change"] in ["ColdBegan", "ColdEnded", "WarmBegan", "WarmEnded", "DeclineBegan", "DeclineEnded", "RevivalBegan", "RevivalEnded"])
+		assert_true(event["change"] in ["ColdBegan", "ColdEnded", "WarmBegan", "WarmEnded", "DeclineBegan", "DeclineEnded", "RevivalBegan", "RevivalEnded", "CataclysmBegan", "CataclysmEnded"])
 		if event["era"] != "":
 			opened += 1
 	assert_gt(opened, 0, "六十世裡應有改元")
