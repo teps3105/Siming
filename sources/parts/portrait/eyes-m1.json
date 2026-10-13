@@ -171,6 +171,41 @@
     }
    },
    "time": "2026-10-13 18:34:23"
+  },
+  {
+   "metrics": {
+    "eyes-m1.iris": {
+     "edge_len": 52,
+     "bare_edge": 10,
+     "bare_ratio": 0.192,
+     "blobs": 2,
+     "specks": 2,
+     "holes": 0,
+     "high_on_edge": 0.308,
+     "pixels": 54
+    },
+    "eyes-m1.rest": {
+     "edge_len": 170,
+     "bare_edge": 43,
+     "bare_ratio": 0.253,
+     "blobs": 5,
+     "specks": 3,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 182
+    },
+    "eyes-m1.union": {
+     "edge_len": 149,
+     "bare_edge": 36,
+     "bare_ratio": 0.242,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 236
+    }
+   },
+   "time": "2026-10-13 19:04:49"
   }
  ]
 }
