@@ -157,27 +157,40 @@ def _leg_foot(thigh_deg, shin_deg):
 
 
 def _walk():
-    """步行（timing.md）：一步 11 格、兩步一循環 22 格（大腿前後各 28°）；極點在第 0 與 11 格（一腿前一腿後，步幅最大，腰最低），
-    過渡在第 5.5、16.5 格（腰最高）。逐格由公式給關鍵姿勢：支撐腿以腳底為軸往後掃、擺動腿屈膝收腳再往前；
-    對側臂與腿反向擺；胸前傾約 5°，頭穩定。身體高低由兩腿同時著地推算，腳底貼地。"""
+    """步行（timing.md）：一步 11 格、兩步一循環 22 格；極點在第 0 與 11 格（一腿前一腿後，步幅最大，腰最低），
+    過渡在第 5.5、16.5 格（腰最高）。支撐腿的腳底相對身體等速往後（線性），所以相對地面不動、不滑；
+    擺動腿屈膝收腳、餘弦曲線往前，在極點輕輕落下。對側臂與腿反向擺；胸前傾約 4°，頭穩定。
+    身體高低由兩腿同時著地推算（支撐腳恆貼地）。"""
     keys = {}
-    for frame in range(23):
+    amp = 34.0
+    reach = math.sin(math.radians(amp)) * (THIGH + SHIN)
+    for frame in range(22):
         phi = 2 * math.pi * frame / 22
-        c, sn = math.cos(phi), math.sin(phi)
-        t_r, t_l = -28 * c, 28 * c
-        s_r, s_l = 40 * max(0.0, -sn), 40 * max(0.0, sn)
+        half = (frame % 11) / 11.0
+        # 兩腿各一個「支撐段」：右腿 0–11 格、左腿 11–22 格；支撐腳往後（+）等速 −reach → +reach。
+        stance_x = -reach + 2 * reach * half
+        stance_t = math.degrees(math.asin(stance_x / (THIGH + SHIN)))
+        swing_x = reach * math.cos(math.pi * half)
+        swing_t = math.degrees(math.asin(swing_x / (THIGH + SHIN)))
+        swing_s = 42 * math.sin(math.pi * half)
+        if frame < 11:
+            t_r, s_r, t_l, s_l = stance_t, 0.0, swing_t, swing_s
+        else:
+            t_l, s_l, t_r, s_r = stance_t, 0.0, swing_t, swing_s
         z_r = _leg_foot(t_r, s_r)[1]
         z_l = _leg_foot(t_l, s_l)[1]
         lift = ANKLE_Z - min(z_r, z_l)
+        c = math.cos(phi)
         pose = blend(stand_pose(), {
             "thigh_r": (t_r, 0, 0), "shin_r": (s_r, 0, 0), "foot_r": (-(t_r + s_r), 0, 0),
             "thigh_l": (t_l, 0, 0), "shin_l": (s_l, 0, 0), "foot_l": (-(t_l + s_l), 0, 0),
-            "upper_arm_l": (-18 * c + 4, 0, 0), "forearm_l": (-8 - 10 * max(0.0, c), 0, 0),
-            "upper_arm_r": (18 * c + 4, 0, 0), "forearm_r": (-8 - 10 * max(0.0, -c), 0, 0),
-            "waist": (3, 0, 0), "chest": (2 - 1.2 * c * c, 0, 0), "head": (-3, 0, 0)})
+            "upper_arm_l": (-34 * c + 4, 0, 0), "forearm_l": (-8 - 22 * max(0.0, c), 0, 0),
+            "upper_arm_r": (34 * c + 4, 0, 0), "forearm_r": (-8 - 22 * max(0.0, -c), 0, 0),
+            "waist": (4, 0, 0), "chest": (4 - 1.5 * c * c, 0, 0), "head": (-5, 0, 0)})
         keys[frame] = (pose, lift)
+    keys[22] = keys[0]
     return {"frames": 22, "loop": True, "loop_start": 0, "keys": keys, "events": {"step_a": 0, "step_b": 11},
-            "wind": [(0, 0.08)], "azimuth": 0, "feet": True}
+            "wind": [(0, 0.06)], "azimuth": 0, "feet": True}
 
 
 def _fall():
@@ -234,9 +247,12 @@ def _rise():
 
 
 def _strike():
-    """出手（timing.md，劍不畫）：4–8 右臂抬起、手按腰；14–16 拔劍（肘後拉、手前引）；20–26 舉過頭（慢）、下盤分開；
-    26→32 劈下（6 格，最快）：手臂由頭頂掃到斜向下前方，上身前傾約 10°、蹲得最低；32 起停 2 格再收；38 劍收回身側；44 立姿。
-    右臂是畫面遠側的 _f 臂。"""
+    """出手（並指成劍、一道劍光；節奏照 timing.md 的格數）：0–8 預備、右臂往後引；8–26 身體後坐蓄勢（剪影縮小：
+    膝彎、胸後仰、右肘後拉、手收在腰後）；16 draw 是蓄勢開始吃緊、26 raise 是蓄勢到頂（停一下）；
+    26→32 出手（6 格，整組最快）：右臂水平前刺到最遠（32 hit）、上身前傾、後腳蹬直、衣擺與飄帶向後甩（wind 到頂）、
+    並指（point）；32–34 停住，38 收勢，44 立姿。劍光不畫；匯出時在 palm_f 與 aim_f 標出劍光的起點與方向。
+    與筆記的出入：筆記是拔劍、舉劍過頭、劈下，這裡改成後引與前刺（姿勢照上面，格數與 draw/raise/hit 的節奏照筆記）。
+    右臂是畫面遠側的 _f 臂；az=0 的正側面，前刺是完整的前後向。"""
     base = stand_pose()
 
     def at(ua, fa, chest=0.0, head=0.0, legs=0, left=(6, -14), waist=0.0, spread=0.0):
@@ -247,18 +263,16 @@ def _strike():
                                 "thigh_l": (0, 0, spread), "thigh_r": (0, 0, spread)})
         return pose, -drop
     keys = {0: (base, 0.0),
-            4: at(-30, -55, 1),
-            8: at(-22, -78, 2, 0, 0, (8, -16), 2),
-            14: at(8, -100, 2, 0, 6, (8, -16), 3, 3),
-            16: at(-14, -88, 2, 0, 8, (8, -16), 3, 4),
-            20: at(-112, -62, -2, -3, 10, (10, -18), 0, 6),
-            26: at(-174, -10, -7, -9, 14, (12, -18), -2, 8),
-            32: at(-26, -6, 12, 9, 24, (0, -20), 8, 9),
-            34: at(-22, -8, 11, 8, 24, (0, -20), 8, 9),
-            38: at(-10, -40, 4, 2, 8, (4, -16), 2, 3),
+            8: at(34, -52, -3, -2, 10, (10, -22), -2, 3),
+            16: at(52, -38, -7, -4, 22, (14, -26), -4, 5),
+            26: at(64, -30, -10, -5, 30, (16, -30), -6, 7),
+            32: at(-92, -2, 14, 8, 16, (22, -8), 8, 6),
+            34: at(-92, -2, 14, 8, 16, (22, -8), 8, 6),
+            38: at(-40, -30, 6, 3, 6, (10, -16), 3, 3),
             44: (base, 0.0)}
     return {"frames": 44, "loop": False, "loop_start": 0, "keys": keys, "events": {"draw": 16, "raise": 26, "hit": 32},
-            "wind": [(0, 0.05), (20, 0.1), (26, 0.14), (32, 0.18), (44, 0.05)], "azimuth": 0}
+            "wind": [(0, 0.05), (26, 0.06), (32, 0.32), (34, 0.32), (44, 0.05)], "azimuth": 0, "aim": True,
+            "point": [(0, 0), (27, 0), (28, 1), (36, 1), (37, 0)]}
 
 
 def _seal():

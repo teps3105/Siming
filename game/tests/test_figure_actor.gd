@@ -108,7 +108,7 @@ func test_gdd_8_11_six_more_actions_exist_with_timing_note_lengths_and_events() 
 		for name: String in expect[action]["events"]:
 			assert_true(absf(FigureMotion.event_time(action, name) - float(expect[action]["events"][name]) / 24.0) < 1e-6, "%s 的事件 %s 在第 %d 格" % [action, name, expect[action]["events"][name]])
 	# 筆記的節奏：劈下 4–6 格（最快）、舉劍較慢；結印停住約 16 格；行禮停住約 20 格。
-	assert_true(FigureMotion.event_time("strike", "hit") - FigureMotion.event_time("strike", "raise") <= 6.5 / 24.0, "劈下不超過 6 格")
+	assert_true(FigureMotion.event_time("strike", "hit") - FigureMotion.event_time("strike", "raise") <= 6.5 / 24.0, "出手（蓄勢到頂到前刺）不超過 6 格")
 	assert_true(FigureMotion.event_time("bow", "rise") - FigureMotion.event_time("bow", "bend") >= 18.0 / 24.0, "行禮停住約 20 格")
 
 
@@ -134,8 +134,6 @@ func test_gdd_8_11_fall_ends_lying_down_and_rise_floats_above_the_ground() -> vo
 	var apex := FigureMotion.pose("rise", FigureMotion.event_time("rise", "apex") + 0.2)
 	assert_true((apex["anchors"]["foot"] as Vector2).y < -0.1, "浮空時腳底離地")
 	assert_true(absf((FigureMotion.pose("rise", 0.0)["anchors"]["foot"] as Vector2).y) < 1e-6, "浮空前腳底在地面")
-	var strike_top := FigureMotion.pose("strike", FigureMotion.event_time("strike", "raise"))
-	assert_true((strike_top["hand_f"] as Vector2).y < (strike_top["neck"] as Vector2).y - 0.1, "舉劍時手高過頸")
 	var seal_hold := FigureMotion.pose("seal", 0.8)
 	assert_true(seal_hold["point"], "結印停住時右手前指")
 	assert_true((seal_hold["hand_f"] as Vector2).x < (seal_hold["neck"] as Vector2).x - 0.25, "右臂向前（−x）伸出")
@@ -145,6 +143,73 @@ func test_gdd_8_11_fall_ends_lying_down_and_rise_floats_above_the_ground() -> vo
 	var walk_a := FigureMotion.frame_pose("walk", 0)
 	var walk_b := FigureMotion.frame_pose("walk", 11)
 	assert_true(((walk_a["foot_f"] as Vector2).x - (walk_b["foot_f"] as Vector2).x) * ((walk_a["foot_b"] as Vector2).x - (walk_b["foot_b"] as Vector2).x) < 0.0, "兩步之間兩腳前後互換")
+
+
+func test_gdd_8_11_strike_thrusts_farthest_on_the_hit_frame_after_coiling_back() -> void:
+	var count := FigureMotion.frame_count("strike")
+	var hit := int(FigureMotion.events("strike")["hit"])
+	var stand_palm: Vector2 = FigureMotion.frame_pose("stand", 0)["anchors"]["palm_f"]
+	var reach_at_hit := stand_palm.x - (FigureMotion.frame_pose("strike", hit)["anchors"]["palm_f"] as Vector2).x
+	for i in count + 1:
+		var reach := stand_palm.x - (FigureMotion.frame_pose("strike", i)["anchors"]["palm_f"] as Vector2).x
+		assert_true(reach <= reach_at_hit + 1e-6, "第 %d 格的前伸不超過 hit 格（整組最遠）" % i)
+	assert_true(reach_at_hit >= 0.5 / 7.0 * 1.0, "hit 格的手比立姿多伸出至少半個頭寬：%s" % reach_at_hit)
+	assert_true(reach_at_hit >= 0.3, "前刺是整條手臂伸直，實得 %s" % reach_at_hit)
+	var coil := FigureMotion.frame_pose("strike", int(FigureMotion.events("strike")["raise"]))
+	var stand := FigureMotion.frame_pose("stand", 0)
+	assert_true((coil["anchors"]["palm_f"] as Vector2).x > stand_palm.x + 0.03, "蓄勢時右手往後引：%s" % coil["anchors"]["palm_f"])
+	assert_true((coil["neck"] as Vector2).x > (stand["neck"] as Vector2).x + 0.02 and (coil["hip"] as Vector2).y > (stand["hip"] as Vector2).y + 0.05, "蓄勢時身體後坐、重心降低")
+	assert_true((FigureMotion.frame_pose("strike", hit)["neck"] as Vector2).x < (stand["neck"] as Vector2).x - 0.05, "出手時上身前傾")
+	assert_true(float(FigureMotion.frame_pose("strike", hit)["wind"]) > 0.25, "出手時衣擺與飄帶向後甩")
+	for i in [hit - 1, hit, hit + 1]:
+		var anchors: Dictionary = FigureMotion.frame_pose("strike", i)["anchors"]
+		assert_true(anchors.has("aim_f"), "hit 前後標有劍光方向的錨點")
+		assert_true(((anchors["aim_f"] as Vector2) - (anchors["palm_f"] as Vector2)).x < -0.05, "劍光方向朝前（−x）")
+	assert_true(FigureMotion.frame_pose("strike", hit)["point"], "出手並指")
+
+
+func test_gdd_8_11_walk_has_a_bob_planted_feet_alternating_shoes_and_a_calm_hem() -> void:
+	var hip_y := []
+	for i in 22:
+		hip_y.append((FigureMotion.frame_pose("walk", i)["hip"] as Vector2).y)
+	assert_true(hip_y[0] > hip_y[5] + 0.02 and hip_y[0] > hip_y[6] + 0.02, "接觸格身體最低、過渡格最高")
+	assert_true(hip_y[11] > hip_y[16] + 0.02 and hip_y[11] > hip_y[17] + 0.02, "第二步同樣")
+	# 支撐腳著地期間（高度恆為 0）相對身體等速往後 = 相對地面不動：右腳（foot_f）第 0–11 格、左腳（foot_b）第 11–22 格。
+	for pair: Array in [["foot_f", 0], ["foot_b", 11]]:
+		var key: String = pair[0]
+		var from: int = pair[1]
+		var step := ((FigureMotion.frame_pose("walk", from + 11)[key] as Vector2).x - (FigureMotion.frame_pose("walk", from)[key] as Vector2).x) / 11.0
+		assert_true(step > 0.02, "%s 支撐期每格往後 %s（每步前進量 %s）" % [key, step, step * 11.0])
+		for i in range(from, from + 11):
+			var a: Vector2 = FigureMotion.frame_pose("walk", i)[key]
+			var b: Vector2 = FigureMotion.frame_pose("walk", i + 1)[key]
+			assert_true(absf(a.y) < 0.004, "%s 第 %d 格著地" % [key, i])
+			assert_true(absf((b.x - a.x) - step) < 0.03 * absf(step) + 1e-4, "%s 第 %d 格不滑：每格 %s，應為 %s" % [key, i, b.x - a.x, step])
+	# 前後鞋尖交替：第 0 格右腳在前、第 11 格左腳在前。
+	assert_true((FigureMotion.frame_pose("walk", 0)["foot_f"] as Vector2).x < (FigureMotion.frame_pose("walk", 0)["foot_b"] as Vector2).x - 0.2, "第 0 格右腳在前")
+	assert_true((FigureMotion.frame_pose("walk", 11)["foot_b"] as Vector2).x < (FigureMotion.frame_pose("walk", 11)["foot_f"] as Vector2).x - 0.2, "第 11 格左腳在前")
+	# 雙臂反向擺：兩手的前後位置在極點相反。
+	var p0 := FigureMotion.frame_pose("walk", 0)
+	assert_true(((p0["hand_f"] as Vector2).x - (p0["hand_b"] as Vector2).x) * ((FigureMotion.frame_pose("walk", 11)["hand_f"] as Vector2).x - (FigureMotion.frame_pose("walk", 11)["hand_b"] as Vector2).x) < 0.0, "兩步之間雙臂前後互換")
+	# 衣擺下緣最寬不超過立姿的 1.5 倍。
+	for given in [{}, {"sex": CF.Sex.FEMALE}, {"age": CF.Age.ELDER}]:
+		var look := FigureActor.look_of(19, given)
+		var stand_width := _hem_width(look, FigureMotion.frame_pose("stand", 0))
+		for i in 23:
+			assert_true(_hem_width(look, FigureMotion.frame_pose("walk", i)) <= stand_width * 1.5, "步行第 %d 格下襬 %s 不超過立姿 %s 的 1.5 倍" % [i, _hem_width(look, FigureMotion.frame_pose("walk", i)), stand_width])
+
+
+## 衣擺下緣（身高 0.1 以下的袍與裙）的左右寬度。
+func _hem_width(look: Dictionary, pose: Dictionary) -> float:
+	var low := INF
+	var high := -INF
+	for part in [CF.ROBE, CF.SKIRT]:
+		for piece in CF.pieces(look, pose, part, 0.0):
+			for point in piece:
+				if point.y > -0.1:
+					low = minf(low, point.x)
+					high = maxf(high, point.x)
+	return high - low
 
 
 func test_gdd_8_11_new_actions_play_every_look_without_errors_and_stay_inside_the_frame() -> void:
