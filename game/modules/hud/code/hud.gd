@@ -176,6 +176,7 @@ func _build() -> void:
 	add_child(_overlay)
 	_overlay.setup(_sim.world, _map, _camera, _unit)
 	_overlay.sect_requested.connect(func(id: int) -> void: open_sect(id, false))
+	_camera.over_gate = _overlay.gate_at
 	_map.set_ui_unit(_unit)
 
 	_dial = TimeDial.new()

@@ -79,6 +79,8 @@ var _rotating := false
 var _press_position := Vector2.ZERO
 var _hover_timer := 0.0
 var _hover_province := -1
+## 螢幕座標是否落在地圖上的山門圖示上（介面層設定）；是的話不顯示州郡的停留提示。
+var over_gate := Callable()
 var _last_pointer := Vector2.ZERO
 ## 滑鼠最後一次回報的位置（取自滑鼠事件；遊戲內游標畫在這裡）。
 var _mouse := Vector2.ZERO
@@ -506,6 +508,10 @@ func _update_hover(delta: float) -> void:
 		_set_hover(-1)
 		return
 	var pointer := _pointer()
+	# 指標在地圖上的山門圖示上時，也不顯示州郡的停留提示。
+	if over_gate.is_valid() and over_gate.call(pointer):
+		_set_hover(-1)
+		return
 	if use_crosshair:
 		# 搖桿游標下的州郡即時跟隨。
 		_set_hover(_province_under(pointer))

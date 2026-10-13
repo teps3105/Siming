@@ -7,6 +7,7 @@ extends RefCounted
 ## 不該出現在行首的標點。
 const NO_LINE_START := "，。、；：！？）」』】》…"
 const LINE_FACTOR := 1.35
+const DIGITS := "0123456789"
 
 static var _widths := {}
 
@@ -32,7 +33,9 @@ static func paragraph(text: String, links: Array[Dictionary], width: float, size
 	for i in text.length():
 		var glyph := text[i]
 		var advance := glyph_width(glyph, size)
-		if run + advance > width and not current.is_empty() and not NO_LINE_START.contains(glyph):
+		# 數字不從中間折開（「148年」不折成「14」「8年」）。
+		var inside_number := i > 0 and DIGITS.contains(glyph) and DIGITS.contains(text[i - 1])
+		if run + advance > width and not current.is_empty() and not NO_LINE_START.contains(glyph) and not inside_number:
 			lines.append(current)
 			starts.append(start)
 			current = ""
