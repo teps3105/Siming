@@ -239,7 +239,9 @@ impl SimWorld {
         };
         // 測試開關：`create_with` 的 `rng_seed` 指定人物落地起的亂數種子；沒指定時從作業系統取。
         let fixed = FIXED_RNG.swap(u64::MAX, Ordering::Relaxed);
-        let fixed = (fixed != u64::MAX).then_some(fixed);
+        // 測試執行器以環境變數 `SIMING_TEST_RNG_SEED` 給全部測試一個固定的亂數種子，同一批測試才重跑得出同一個世界。
+        let fixed =
+            (fixed != u64::MAX).then_some(fixed).or_else(|| std::env::var("SIMING_TEST_RNG_SEED").ok().and_then(|v| v.parse::<u64>().ok()));
         match Sim::new_with_progress_seeded(&params, fixed, &mut |_, _| {}, &mut progress) {
             Ok(sim) => {
                 self.adopt(sim);
@@ -1413,7 +1415,10 @@ impl SimWorld {
         let identity = identity.or_else(|| subjects(w, e).0.map(|p| identity_of(w, p)));
         let identity = identity.unwrap_or(Identity { power: String::new(), role: "", realm: -1 });
         d.set("a_power", &GString::from(identity.power.as_str()));
-        d.set("a_power_id", w.powers.iter().find(|pw| !identity.power.is_empty() && pw.name == identity.power).map_or(-1, |pw| pw.id as i32));
+        d.set(
+            "a_power_id",
+            w.powers.iter().find(|pw| !identity.power.is_empty() && pw.name == identity.power).map_or(-1, |pw| pw.id as i32),
+        );
         d.set("a_role", &GString::from(identity.role));
         d.set("a_realm", identity.realm);
         d
