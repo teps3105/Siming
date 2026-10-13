@@ -28,6 +28,7 @@ ELBOW = _along(SHOULDER, UPPER)
 WRIST = _along(ELBOW, FORE)
 PALM = _along(WRIST, 0.045)
 FINGERS = _along(WRIST, HAND)
+HAND_END = _along(WRIST, 0.10)
 HIP_X = 0.05
 KNEE_Z, ANKLE_Z, HIP_Z = 0.27, 0.05, 0.50
 HEAD_C = Vector((0.0, 0.0, 0.9285))
@@ -188,7 +189,7 @@ def _torso_weights(co):
 
 def _arm_weights(co, side):
     tag = "_l" if side > 0 else "_r"
-    pts = [mirror(v, side) for v in (SHOULDER, ELBOW, WRIST, FINGERS)]
+    pts = [mirror(v, side) for v in (SHOULDER, ELBOW, WRIST, HAND_END)]
     s = along_polyline(co, pts)
     return chain_weights(s, ["shoulder" + tag, "upper_arm" + tag, "forearm" + tag, "hand" + tag],
                          [0.012, UPPER, UPPER + FORE], 0.03)
@@ -197,6 +198,21 @@ def _arm_weights(co, side):
 def _leg_weights(co, side):
     tag = "_l" if side > 0 else "_r"
     return chain_weights(HIP_Z - co.z, ["thigh" + tag, "shin" + tag, "foot" + tag], [HIP_Z - KNEE_Z, HIP_Z - ANKLE_Z], 0.03)
+
+
+def _hand(bm, side):
+    """手：扁的掌（連指）加拇指根，朝手臂方向。掌心朝向身體，拇指在前內側。"""
+    a = ARM_ANGLE
+    along = Vector((math.sin(a) * side, 0.0, -math.cos(a)))
+    across = Vector((math.cos(a) * side, 0.0, math.sin(a)))
+    depth = Vector((0.0, 1.0, 0.0))
+
+    def blob(offset, radii, u, v):
+        for vert in bmesh.ops.create_uvsphere(bm, u_segments=u, v_segments=v, radius=1.0)["verts"]:
+            c = vert.co
+            vert.co = mirror(WRIST, side) + along * (offset[2] + c.z * radii[2]) + across * (offset[0] + c.x * radii[0]) + depth * (offset[1] + c.y * radii[1])
+    blob((0.0, 0.0, 0.050), (0.025, 0.013, 0.048), 10, 6)
+    blob((-0.020, -0.011, 0.034), (0.010, 0.010, 0.024), 8, 5)
 
 
 def body(collection):
@@ -208,10 +224,11 @@ def body(collection):
     tube(bm, torso, 12)
     ellipsoid(bm, HEAD_C, HEAD_R, 16, 8)
     for side in (1, -1):
-        points = [(SHOULDER, 0.030), (_along(SHOULDER, UPPER * 0.5), 0.027), (ELBOW, 0.024), (_along(ELBOW, FORE * 0.55), 0.021),
-                  (WRIST, 0.018), (PALM, 0.023), (FINGERS, 0.009)]
+        points = [(SHOULDER, 0.024), (_along(SHOULDER, UPPER * 0.5), 0.023), (ELBOW, 0.021), (_along(ELBOW, FORE * 0.55), 0.019),
+                  (WRIST, 0.017), (_along(WRIST, 0.02), 0.016)]
         tube(bm, [(mirror(p, side), r, r * 0.9) for p, r in points], 8)
-        legs = [((HIP_X * side, 0.0, HIP_Z), 0.044), ((HIP_X * side, 0.0, 0.39), 0.038), ((HIP_X * side, 0.0, KNEE_Z), 0.033),
+        _hand(bm, side)
+        legs = [((HIP_X * side, 0.0, HIP_Z), 0.034), ((HIP_X * side, 0.0, 0.39), 0.034), ((HIP_X * side, 0.0, KNEE_Z), 0.033),
                 ((HIP_X * side, 0.0, 0.16), 0.027), ((HIP_X * side, 0.0, 0.075), 0.023)]
         tube(bm, [(p, r, r) for p, r in legs], 8, cap_end=False)
         ellipsoid(bm, (HIP_X * side, -0.03, 0.034), (0.030, 0.075, 0.034), 8, 6)
@@ -229,22 +246,42 @@ def body(collection):
     return make("body.base", bm, collection, weigh, trim=lambda co: 1.0 if co.z < 0.075 else 0.0)
 
 
+ROBE_RINGS = [((0, 0.02, 0.05), 0.172, 0.122), ((0, 0.015, 0.09), 0.162, 0.115), ((0, 0.01, 0.16), 0.142, 0.105),
+              ((0, 0.005, 0.30), 0.112, 0.083), ((0, 0.003, 0.44), 0.096, 0.075), ((0, 0.0, 0.495), 0.090, 0.070),
+              ((0, 0.0, 0.515), 0.094, 0.073), ((0, 0.0, 0.535), 0.090, 0.070), ((0, 0.0, 0.60), 0.092, 0.066),
+              ((0, 0.0, 0.70), 0.100, 0.066), ((0, 0.0, 0.765), 0.098, 0.062), ((0, 0.0, 0.800), 0.058, 0.050),
+              ((0, 0.0, 0.822), 0.042, 0.040)]
+
+
+def _robe_surface(x, z, lift=0.004):
+    """袍身前面上 (x, z) 處的點（往外抬一點）。"""
+    for (ca, rxa, rya), (cb, rxb, ryb) in zip(ROBE_RINGS, ROBE_RINGS[1:]):
+        if ca[2] <= z <= cb[2]:
+            t = (z - ca[2]) / (cb[2] - ca[2])
+            rx, ry, cy = rxa + (rxb - rxa) * t, rya + (ryb - rya) * t, ca[1] + (cb[1] - ca[1]) * t
+            inside = max(1.0 - (x / rx) ** 2, 0.0)
+            return Vector((x, cy - ry * math.sqrt(inside) - lift, z))
+    return Vector((x, -0.06, z))
+
+
 def robe_male_regular(collection):
-    """男袍、常袖：身體往外撐的殼；袖與衣擺另接出去，綁在袖骨、衣擺骨上。"""
+    """男袍、常袖：身體往外撐的殼，肩略收、下襬外放，交領右衽（領緣兩條帶）；袖口寬、往下垂，袖與衣擺另接出去，綁在袖骨、衣擺骨上。"""
     bm = bmesh.new()
-    body_rings = [((0, 0.02, 0.05), 0.150, 0.112), ((0, 0.015, 0.09), 0.142, 0.106), ((0, 0.01, 0.16), 0.128, 0.098),
-                  ((0, 0.005, 0.30), 0.108, 0.082), ((0, 0.003, 0.44), 0.097, 0.075), ((0, 0.0, 0.495), 0.090, 0.070),
-                  ((0, 0.0, 0.515), 0.094, 0.073), ((0, 0.0, 0.535), 0.090, 0.070), ((0, 0.0, 0.60), 0.098, 0.068),
-                  ((0, 0.0, 0.70), 0.110, 0.070), ((0, 0.0, 0.765), 0.116, 0.067), ((0, 0.0, 0.805), 0.066, 0.052),
-                  ((0, 0.0, 0.835), 0.044, 0.040), ((0, 0.0, 0.855), 0.041, 0.038)]
-    tube(bm, body_rings, 16)
+    tube(bm, ROBE_RINGS, 16)
     sleeve_keys = set()
     for side in (1, -1):
-        sleeve = [(SHOULDER + Vector((-0.05, 0, 0.012)), 0.056, 0.054), (_along(SHOULDER, UPPER * 0.5), 0.050, 0.048),
-                  (ELBOW, 0.052, 0.050), (_along(ELBOW, FORE * 0.5), 0.060, 0.056), (_along(WRIST, -0.02), 0.068, 0.062),
-                  (_along(WRIST, 0.012), 0.070, 0.064)]
+        sleeve = [(SHOULDER + Vector((-0.03, 0, 0.018)), 0.052, 0.050), (SHOULDER + Vector((0.01, 0, 0.002)), 0.056, 0.052),
+                  (_along(SHOULDER, UPPER * 0.5), 0.052, 0.050),
+                  (ELBOW, 0.056, 0.052), (_along(ELBOW, FORE * 0.5), 0.072, 0.062), (_along(WRIST, -0.02), 0.088, 0.070),
+                  (_along(WRIST, 0.032), 0.092, 0.072)]
         for ring in tube(bm, [(mirror(p, side), rx, ry) for p, rx, ry in sleeve], 12, cap_end=False):
             sleeve_keys.update(key(v.co) for v in ring)
+    collar_keys = set()
+    for points in ([(0.034, 0.824), (0.014, 0.785), (-0.026, 0.71), (-0.058, 0.62), (-0.072, 0.545)],
+                   [(-0.034, 0.824), (-0.024, 0.78), (-0.008, 0.745)]):
+        before = {key(v.co) for v in bm.verts}
+        _strip(bm, points, 0.015, _robe_surface)
+        collar_keys.update(key(v.co) for v in bm.verts if key(v.co) not in before)
 
     def weigh(co):
         if key(co) in sleeve_keys:
@@ -284,7 +321,7 @@ def robe_male_regular(collection):
         return smoothstep((0.34 - co.z) / 0.30) ** 1.2 if co.z < 0.34 else 0.0
 
     def trim(co):
-        if co.z < 0.095 or co.z > 0.828:
+        if co.z < 0.095 or key(co) in collar_keys or (co.z > 0.795 and key(co) not in sleeve_keys):
             return 1.0
         if key(co) in sleeve_keys and along_polyline(co, [mirror(v, 1 if co.x > 0 else -1) for v in (SHOULDER, ELBOW, WRIST, FINGERS)]) > UPPER + FORE - 0.02:
             return 1.0
@@ -333,8 +370,8 @@ def _on_head(x, z, lift=0.004):
     return Vector((x, y - lift, z))
 
 
-def _strip(bm, points, width):
-    """頭面上沿一串 (x, z) 點鋪的細帶，朝外（−Y）的一面為正面。"""
+def _strip(bm, points, width, surface=_on_head):
+    """表面上沿一串 (x, z) 點鋪的細帶，朝外（−Y）的一面為正面。"""
     rows = []
     for i, (x, z) in enumerate(points):
         a = points[max(i - 1, 0)]
@@ -343,20 +380,22 @@ def _strip(bm, points, width):
         length = math.hypot(tx, tz) or 1.0
         nx, nz = -tz / length, tx / length
         half = width[i] * 0.5 if isinstance(width, (list, tuple)) else width * 0.5
-        rows.append((bm.verts.new(_on_head(x + nx * half, z + nz * half)), bm.verts.new(_on_head(x - nx * half, z - nz * half))))
+        rows.append((bm.verts.new(surface(x + nx * half, z + nz * half)), bm.verts.new(surface(x - nx * half, z - nz * half))))
     for (a1, a2), (b1, b2) in zip(rows, rows[1:]):
         face = bm.faces.new((a1, b1, b2, a2))
         face.normal_update()
-        if face.normal.dot(face.calc_center_median() - HEAD_C) < 0:
+        if face.normal.y > 0:
             face.normal_flip()
 
 
 def face_adult(collection):
-    """壯年的臉：眉、眼、口的墨線小片，貼在頭的前面。"""
+    """壯年的臉：眉、眼（上眼線加瞳）、鼻、口的墨線小片，貼在頭的前面。眼在頭的中線略下、眉壓低、左右拉開。"""
     bm = bmesh.new()
     cz = HEAD_C.z
     for side in (1, -1):
-        _strip(bm, [(side * 0.012, cz + 0.026), (side * 0.028, cz + 0.032), (side * 0.045, cz + 0.026)][::1], [0.010, 0.012, 0.009])
-        _strip(bm, [(side * 0.015, cz + 0.004), (side * 0.028, cz + 0.001), (side * 0.041, cz + 0.006)], 0.0095)
-    _strip(bm, [(-0.014, cz - 0.034), (0.0, cz - 0.037), (0.014, cz - 0.034)], 0.0085)
+        _strip(bm, [(side * 0.012, cz + 0.022), (side * 0.030, cz + 0.026), (side * 0.049, cz + 0.020)], [0.009, 0.011, 0.008])
+        _strip(bm, [(side * 0.016, cz + 0.006), (side * 0.030, cz + 0.008), (side * 0.045, cz + 0.004)], 0.0085)
+        _strip(bm, [(side * 0.031, cz + 0.004), (side * 0.031, cz - 0.006)], 0.010)
+    _strip(bm, [(0.002, cz + 0.002), (0.005, cz - 0.014), (-0.002, cz - 0.020)], 0.0055)
+    _strip(bm, [(-0.014, cz - 0.037), (0.0, cz - 0.040), (0.014, cz - 0.037)], 0.0075)
     return make("face.adult", bm, collection, lambda co: {"head": 1.0})
