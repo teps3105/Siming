@@ -938,6 +938,7 @@ func activate(select: int) -> void:
 			person_requested.emit(main_person(member))
 		elif member.has("pos"):
 			fly_requested.emit(member["pos"])
+			_replay(member)
 			if expanded:
 				expanded = false
 	elif select >= 0:
@@ -946,8 +947,15 @@ func activate(select: int) -> void:
 			toggle_group(select)
 		elif entry.has("pos"):
 			fly_requested.emit(entry["pos"])
+			_replay(entry)
 			if expanded:
 				expanded = false
+
+
+## 飛往之後補放該事件的地圖奇觀（GDD 5.6）；沒有奇觀模組或不是奇觀事件時什麼都不發生。
+func _replay(record: Dictionary) -> void:
+	if is_inside_tree():
+		get_tree().call_group("spectacle", "replay", record)
 
 
 ## 第 index 張統計攤開或收起；收合的簽先展開整個清單。

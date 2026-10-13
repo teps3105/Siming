@@ -47,6 +47,9 @@ func _ready() -> void:
 		$Hud.setup(_sim, _map, _camera)
 		$Hud.title_requested.connect(func() -> void: AppFlow.enter_title(self))
 		$Hud.world_loaded.connect(func(world: SimWorld) -> void: AppFlow.enter_game(self, world, true))
+	var spectacle := Spectacle.new()
+	add_child(spectacle)
+	spectacle.setup(_sim, _map, _camera)
 	_saved_tick = _sim.world.tick()
 	_sim.advanced.connect(_auto_save)
 
