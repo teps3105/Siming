@@ -179,15 +179,42 @@ func test_gdd_8_11_walk_has_a_bob_planted_feet_alternating_shoes_and_a_calm_hem(
 		var key: String = pair[0]
 		var from: int = pair[1]
 		var step := ((FigureMotion.frame_pose("walk", from + 11)[key] as Vector2).x - (FigureMotion.frame_pose("walk", from)[key] as Vector2).x) / 11.0
-		assert_true(step > 0.02, "%s 支撐期每格往後 %s（每步前進量 %s）" % [key, step, step * 11.0])
+		assert_true(step > 0.01,"%s 支撐期每格往後 %s（每步前進量 %s）" % [key, step, step * 11.0])
 		for i in range(from, from + 11):
 			var a: Vector2 = FigureMotion.frame_pose("walk", i)[key]
 			var b: Vector2 = FigureMotion.frame_pose("walk", i + 1)[key]
 			assert_true(absf(a.y) < 0.004, "%s 第 %d 格著地" % [key, i])
 			assert_true(absf((b.x - a.x) - step) < 0.03 * absf(step) + 1e-4, "%s 第 %d 格不滑：每格 %s，應為 %s" % [key, i, b.x - a.x, step])
 	# 前後鞋尖交替：第 0 格右腳在前、第 11 格左腳在前。
-	assert_true((FigureMotion.frame_pose("walk", 0)["foot_f"] as Vector2).x < (FigureMotion.frame_pose("walk", 0)["foot_b"] as Vector2).x - 0.2, "第 0 格右腳在前")
-	assert_true((FigureMotion.frame_pose("walk", 11)["foot_b"] as Vector2).x < (FigureMotion.frame_pose("walk", 11)["foot_f"] as Vector2).x - 0.2, "第 11 格左腳在前")
+	assert_true((FigureMotion.frame_pose("walk", 0)["foot_f"] as Vector2).x < (FigureMotion.frame_pose("walk", 0)["foot_b"] as Vector2).x - 0.15, "第 0 格右腳在前")
+	assert_true((FigureMotion.frame_pose("walk", 11)["foot_b"] as Vector2).x < (FigureMotion.frame_pose("walk", 11)["foot_f"] as Vector2).x - 0.15, "第 11 格左腳在前")
+	# 鞋不脫離衣擺：每格每隻鞋的鞋跟端（最靠後的點）在衣擺內，或離衣擺邊緣不超過鞋長的四分之一。
+	for given in [{}, {"sex": CF.Sex.FEMALE}, {"age": CF.Age.ELDER}]:
+		var shoe_look := FigureActor.look_of(19, given)
+		for i in 23:
+			var shoe_pose := FigureMotion.frame_pose("walk", i)
+			var robes: Array[PackedVector2Array] = []
+			for part in [CF.ROBE, CF.SKIRT]:
+				robes.append_array(CF.pieces(shoe_look, shoe_pose, part, 0.0))
+			var shoes := CF.pieces(shoe_look, shoe_pose, CF.SHOE, 0.0)
+			assert_true(shoes.size() >= 2, "步行第 %d 格兩隻鞋都畫" % i)
+			for shoe in shoes:
+				var heel := shoe[0]
+				var toe_x := shoe[0].x
+				for point in shoe:
+					if point.x > heel.x:
+						heel = point
+					toe_x = minf(toe_x, point.x)
+				var length := heel.x - toe_x
+				var gap := INF
+				for robe in robes:
+					if Geometry2D.is_point_in_polygon(heel, robe):
+						gap = 0.0
+						break
+					for k in robe.size():
+						var nearest := Geometry2D.get_closest_point_to_segment(heel, robe[k], robe[(k + 1) % robe.size()])
+						gap = minf(gap, heel.distance_to(nearest))
+				assert_true(gap <= length * 0.25, "步行第 %d 格鞋跟離衣擺 %s，超過鞋長 %s 的四分之一" % [i, gap, length])
 	# 雙臂反向擺：兩手的前後位置在極點相反。
 	var p0 := FigureMotion.frame_pose("walk", 0)
 	assert_true(((p0["hand_f"] as Vector2).x - (p0["hand_b"] as Vector2).x) * ((FigureMotion.frame_pose("walk", 11)["hand_f"] as Vector2).x - (FigureMotion.frame_pose("walk", 11)["hand_b"] as Vector2).x) < 0.0, "兩步之間雙臂前後互換")

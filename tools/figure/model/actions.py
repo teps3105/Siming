@@ -156,27 +156,43 @@ def _leg_foot(thigh_deg, shin_deg):
     return THIGH * math.sin(t) + SHIN * math.sin(u), HIP_Z - THIGH * math.cos(t) - SHIN * math.cos(u)
 
 
+def _thigh_for(foot_x, shin_deg):
+    """小腿彎 shin_deg 時，讓腳踝落在髖後方 foot_x 的大腿角（二分法；腳踝前後位置隨大腿角單調增加）。"""
+    lo, hi = -60.0, 60.0
+    for _ in range(60):
+        mid = (lo + hi) / 2
+        if _leg_foot(mid, shin_deg)[0] < foot_x:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2
+
+
 def _walk():
     """步行（timing.md）：一步 11 格、兩步一循環 22 格；極點在第 0 與 11 格（一腿前一腿後，步幅最大，腰最低），
     過渡在第 5.5、16.5 格（腰最高）。支撐腿的腳底相對身體等速往後（線性），所以相對地面不動、不滑；
     擺動腿屈膝收腳、餘弦曲線往前，在極點輕輕落下。對側臂與腿反向擺；胸前傾約 4°，頭穩定。
     身體高低由兩腿同時著地推算（支撐腳恆貼地）。"""
     keys = {}
-    amp = 34.0
-    reach = math.sin(math.radians(amp)) * (THIGH + SHIN)
+    # 步幅（腳相對髖的最大前後距）取 0.10：袍裙遮到腳面，腳伸得比衣擺遠鞋會掉在衣擺外；
+    # 衣擺前後緣整個跟著較前、較後的腳，總寬仍在站立的 1.5 倍內。
+    reach = 0.09
     for frame in range(22):
         phi = 2 * math.pi * frame / 22
         half = (frame % 11) / 11.0
         # 兩腿各一個「支撐段」：右腿 0–11 格、左腿 11–22 格；支撐腳往後（+）等速 −reach → +reach。
         stance_x = -reach + 2 * reach * half
-        stance_t = math.degrees(math.asin(stance_x / (THIGH + SHIN)))
+        # 兩腳著地的接觸格兩膝各彎約 24°（身體最低），經過格伸直（身體最高）。
+        bend = 28 * math.cos(math.pi * half) ** 2
+        stance_s = bend
+        stance_t = _thigh_for(stance_x, stance_s)
         swing_x = reach * math.cos(math.pi * half)
-        swing_t = math.degrees(math.asin(swing_x / (THIGH + SHIN)))
-        swing_s = 42 * math.sin(math.pi * half)
+        swing_s = max(42 * math.sin(math.pi * half), bend)
+        swing_t = _thigh_for(swing_x, swing_s)
         if frame < 11:
-            t_r, s_r, t_l, s_l = stance_t, 0.0, swing_t, swing_s
+            t_r, s_r, t_l, s_l = stance_t, stance_s, swing_t, swing_s
         else:
-            t_l, s_l, t_r, s_r = stance_t, 0.0, swing_t, swing_s
+            t_l, s_l, t_r, s_r = stance_t, stance_s, swing_t, swing_s
         z_r = _leg_foot(t_r, s_r)[1]
         z_l = _leg_foot(t_l, s_l)[1]
         lift = ANKLE_Z - min(z_r, z_l)

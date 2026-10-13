@@ -509,8 +509,8 @@ static func _build(look: Dictionary, pose: Variant, time: float, fills: Array[Pa
 	# 步行：衣擺的前緣跟著較前的腳、後緣跟著較後的腳（沒有 foot_f、foot_b 就全為 0，與舊畫法相同）。
 	var step_a: float = (joints.get("foot_f", Vector2.ZERO) as Vector2).x
 	var step_b: float = (joints.get("foot_b", Vector2.ZERO) as Vector2).x
-	var hem_front := minf(step_a, step_b) * 0.22
-	var hem_back := maxf(step_a, step_b) * 0.22
+	var hem_front := minf(step_a, step_b) * 0.8
+	var hem_back := maxf(step_a, step_b) * 0.8
 	var hem_mid := (hem_front + hem_back) * 0.5
 
 	# 身後的東西先畫：背著或掛著的持物、披在背後的大氅、女子的披帛、朝前那隻手（上臂在身後）。
