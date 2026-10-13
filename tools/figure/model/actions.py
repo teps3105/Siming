@@ -71,15 +71,15 @@ def _brace():
 def _struck():
     """受雷：由迎雷姿起，被擊中身體向後猛仰、雙臂甩開、雙膝一軟，再撐住，回到立姿。0.75 秒。"""
     start, start_drop = brace_pose()
-    legs, drop = squat(20)
+    legs, drop = squat(16)
     hit = blend(legs, {"chest": (-26, 0, 0), "neck": (-14, 0, 0), "head": (-30, 0, 0), "waist": (-8, 0, 0),
                        "upper_arm_r": (-8, 0, 70), "forearm_r": (-22, 0, 0), "upper_arm_l": (-10, 0, 62), "forearm_l": (-24, 0, 0),
                        "thigh_l": (0, 0, 8), "thigh_r": (0, 0, 8)})
-    legs2, drop2 = squat(30)
+    legs2, drop2 = squat(24)
     recoil = blend(legs2, {"chest": (14, 0, 0), "neck": (6, 0, 0), "head": (10, 0, 0), "waist": (6, 0, 0),
                            "upper_arm_r": (-16, 0, 36), "forearm_r": (-34, 0, 0), "upper_arm_l": (-12, 0, 30), "forearm_l": (-30, 0, 0),
                            "thigh_l": (0, 0, 6), "thigh_r": (0, 0, 6)})
-    legs3, drop3 = squat(12)
+    legs3, drop3 = squat(10)
     brace_again = blend(legs3, {"chest": (4, 0, 0), "head": (-6, 0, 0), "upper_arm_r": (-6, 0, 16), "forearm_r": (-18, 0, 0),
                                 "upper_arm_l": (-4, 0, 14), "forearm_l": (-16, 0, 0), "thigh_l": (0, 0, 5), "thigh_r": (0, 0, 5)})
     keys = {0: (start, start_drop), 3: (hit, -drop - 0.012), 8: (recoil, -drop2), 13: (brace_again, -drop3), 18: (stand_pose(), 0.0)}
