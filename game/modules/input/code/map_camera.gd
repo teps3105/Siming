@@ -592,6 +592,18 @@ func _zoom_about(screen: Vector2, factor: float) -> void:
 
 
 ## 畫面中心橫向可見的地面寬度。
+func ground_width() -> float:
+	return _ground_width()
+
+
+## 地圖座標（含地形起伏）在螢幕上的位置；在鏡頭後方為 Vector2.INF。
+func screen_of_cell(pos: Vector2) -> Vector2:
+	var world := _map.world_position(pos, focus.x)
+	if is_position_behind(world):
+		return Vector2.INF
+	return unproject_position(world)
+
+
 func _ground_width() -> float:
 	var view := get_viewport().get_visible_rect().size
 	return MapView.view_height(z) * view.x / view.y

@@ -183,9 +183,9 @@ func test_reduced_motion_fades_instead_of_travelling() -> void:
 	assert_eq(_director.state, Director.State.STAY)
 	assert_gt(fade, 0.6, "畫面淡出得很深")
 	assert_eq(_camera.directed_fade, 0.0, "到位後淡入完畢")
-	var seat: Vector2 = _sim.world.province_info(_director.current)["seat"]
-	assert_lt(_camera.focus.distance_to(seat), 1.0)
-	assert_lt(absf(_camera.z - start_z), 0.001, "沒有拉高")
+	var spot: Vector2 = _director.target_event().get("pos", _sim.world.province_info(_director.current)["seat"])
+	assert_lt(_camera.focus.distance_to(spot), 1.0)
+	assert_lt(absf(_camera.z - minf(start_z, _camera.map_width() * 0.25)), 0.001, "沒有拉高，只降到看得見棋子的高度")
 
 
 func test_far_travel_lifts_and_takes_the_short_way_over_the_seam() -> void:
@@ -248,6 +248,17 @@ func test_arrival_height_is_one_where_figures_are_visible() -> void:
 	assert_lt(absf(_camera.z - width * 0.2), 0.5, "玩家原本就在範圍內，維持玩家的高度")
 
 
+## 事件格（世界座標）用實際相機投到螢幕的位置。
+func _screen_of(cell: Vector2) -> Vector2:
+	return _camera.unproject_position(_camera._map.world_position(cell, _camera.focus.x))
+
+
+func _assert_in_middle_third(cell: Vector2, label: String) -> void:
+	var view := Vector2(_hud.get_viewport().get_visible_rect().size)
+	var screen := _screen_of(cell)
+	assert_true(Rect2(view / 3.0, view / 3.0).has_point(screen), "%s：事件格投影 %s 在畫面中央三分之一內" % [label, screen])
+
+
 func test_camera_lands_on_the_event_cell_not_the_province_seat() -> void:
 	await _start()
 	await _quiet()
@@ -259,8 +270,32 @@ func test_camera_lands_on_the_event_cell_not_the_province_seat() -> void:
 	_sim.event_posted.emit(event)
 	assert_true(await _until_stay(20.0))
 	await frames(10)
-	assert_lt(_camera.focus.distance_to(cell), 0.5, "鏡頭焦點在事件格，不在州郡治所")
-	assert_lt(_camera.focus.distance_to(cell), 0.5, "焦點就是畫面中心，事件格在中央三分之一內")
+	_assert_in_middle_third(cell, "到位後")
+	assert_lt(_camera.z, _camera.map_width() * 0.25 + 0.5, "鏡頭高度不超過地圖寬 0.25 倍")
+
+
+func test_caption_switching_inside_the_province_pans_to_the_new_event() -> void:
+	await _start()
+	await _quiet()
+	var event: Dictionary = _events[0].duplicate()
+	event["importance"] = 3
+	var seat: Vector2 = _sim.world.province_info(int(event["province"]))["seat"]
+	event["pos"] = seat
+	_sim.event_posted.emit(event)
+	assert_true(await _until_stay(20.0))
+	await frames(10)
+	_assert_in_middle_third(seat, "第一件事")
+	var dwell := _director.dwell
+	var other: Dictionary = event.duplicate()
+	other["importance"] = 4
+	var cell := seat + Vector2(0.0, _camera.ground_width() * 0.6)
+	other["pos"] = cell
+	_sim.event_posted.emit(other)
+	await wait(4.0)
+	await frames(5)
+	assert_eq(_director.state, Director.State.STAY, "同州換事不算換鏡頭")
+	assert_gt(_director.dwell, dwell, "停留不重計")
+	_assert_in_middle_third(cell, "換句後")
 
 
 func test_near_travel_keeps_the_height() -> void:

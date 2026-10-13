@@ -11,6 +11,8 @@ signal yielded
 signal caption_changed(event: Dictionary)
 ## 「對準大事」的狀態變了（大事自動放慢用）。
 signal slow_changed(on: bool)
+## 要看的那件事換成別件了（過場途中或停留中），鏡頭該不該跟過去由接線決定。
+signal refocus(event: Dictionary)
 
 enum State { OFF, IDLE, TRAVEL, STAY, YIELDED }
 
@@ -28,6 +30,8 @@ const COOLDOWN := 30.0
 const CAPTION_MIN := 3.0
 ## 事件的重要度等級最高一級（3.3）才算大事。
 const BIG_LEVEL := 5
+## 沒有棋子演出的事件，分數打這個折扣。
+const PLAIN_WEIGHT := 0.5
 ## 沒處理到的大事保留多久（真實秒），超過就不去了。
 const BIG_KEEP := 15.0
 ## 事件記錄保留多久（真實秒）；計分只看計分窗內的。
@@ -44,6 +48,8 @@ var pace := 1
 var idle_resume := 20.0
 ## 找出演出節點的方式；預設查群組 event_stage（5.13 棋子演出）。
 var stages: Callable = _group_stages
+## 事件有沒有對應的棋子演出（5.13 字卡選事與計分用）；預設查 EventStage。
+var performs: Callable = _event_performs
 
 var state := State.OFF
 ## 目前所在（或正前往）的州郡；沒有為 -1。
@@ -64,6 +70,10 @@ var _caption: Dictionary = {}
 var _caption_age := 0.0
 var _pending_caption: Dictionary = {}
 var _target_event: Dictionary = {}
+
+
+static func _event_performs(event: Dictionary) -> bool:
+	return EventStage.duration_for(event) > 0.0
 
 
 static func _group_stages() -> Array:
@@ -103,7 +113,8 @@ func stay_max() -> float:
 func post(province: int, importance: int, payload := {}) -> void:
 	if province < 0 or importance <= 0:
 		return
-	_events.append({"t": clock, "province": province, "importance": importance, "payload": payload})
+	var weight := float(importance) * (1.0 if performs.call(payload) else PLAIN_WEIGHT)
+	_events.append({"t": clock, "province": province, "importance": importance, "weight": weight, "payload": payload})
 	if importance >= BIG_LEVEL:
 		if (state == State.STAY or state == State.TRAVEL) and province == (target if state == State.TRAVEL else current):
 			_set_slow(true)
@@ -114,21 +125,21 @@ func post(province: int, importance: int, payload := {}) -> void:
 
 
 ## 分數：計分窗內該州郡的重要度總和。
-func score(province: int) -> int:
-	var total := 0
+func score(province: int) -> float:
+	var total := 0.0
 	for e in _events:
 		if int(e["province"]) == province and clock - float(e["t"]) <= WINDOW:
-			total += int(e["importance"])
+			total += float(e["weight"])
 	return total
 
 
-## 計分窗內該州郡最值得講的事件：重要度高者，同級取新的；沒有為空字典。
+## 計分窗內該州郡最值得講的事件：重要度高者；同級有棋子演出的優先；仍同級取新的；沒有為空字典。
 func best_event(province: int) -> Dictionary:
 	var best: Dictionary = {}
 	for e in _events:
 		if int(e["province"]) != province or clock - float(e["t"]) > WINDOW:
 			continue
-		if best.is_empty() or int(e["importance"]) >= int(best["importance"]):
+		if best.is_empty() or _rank(e["payload"], int(e["importance"])) >= _rank(best["payload"], int(best["importance"])):
 			best = e
 	return {} if best.is_empty() else best["payload"]
 
@@ -163,8 +174,8 @@ func arrive() -> void:
 	dwell = 0.0
 	_release(target)
 	_big.erase(current)
-	var spoken: Dictionary = best_event(current)
-	_set_caption(spoken if not spoken.is_empty() else _target_event)
+	var spoken: Dictionary = _target_event if not _target_event.is_empty() else best_event(current)
+	_set_caption(spoken)
 
 
 ## 每幀呼叫：delta 為真實秒，running 為遊戲時間是否在走（暫停時導演不動）。
@@ -234,7 +245,7 @@ func _pick(skip: int) -> int:
 	if big >= 0 and big != skip:
 		return big
 	var best := -1
-	var best_score := 0
+	var best_score := 0.0
 	var seen := {}
 	for e in _events:
 		var province := int(e["province"])
@@ -318,10 +329,11 @@ func _prune() -> void:
 
 func _offer_caption(payload: Dictionary, importance: int) -> void:
 	if state == State.TRAVEL:
-		if _target_event.is_empty() or importance >= _importance_of(_target_event):
+		if _target_event.is_empty() or _rank(payload, importance) >= _rank(_target_event, _importance_of(_target_event)):
 			_target_event = payload
+			refocus.emit(payload)
 		return
-	if importance <= _importance_of(_caption):
+	if _rank(payload, importance) <= _rank(_caption, _importance_of(_caption)):
 		return
 	if _caption_age >= CAPTION_MIN:
 		_set_caption(payload)
@@ -329,15 +341,25 @@ func _offer_caption(payload: Dictionary, importance: int) -> void:
 		_pending_caption = payload
 
 
+## 字卡選事的排序：重要度優先，同級有棋子演出的勝過沒有的。
+func _rank(event: Dictionary, importance: int) -> int:
+	return importance * 2 + (1 if not event.is_empty() and performs.call(event) else 0)
+
+
 static func _importance_of(event: Dictionary) -> int:
 	return int(event.get("importance", 0))
 
 
 func _set_caption(event: Dictionary) -> void:
+	var changed := not event.is_empty() and state == State.STAY and not _caption.is_empty()
+	if state == State.STAY and not event.is_empty():
+		_target_event = event
 	_caption = event
 	_caption_age = 0.0
 	_pending_caption = {}
 	caption_changed.emit(event)
+	if changed:
+		refocus.emit(event)
 
 
 func _set_slow(on: bool) -> void:
