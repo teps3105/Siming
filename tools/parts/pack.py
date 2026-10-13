@@ -72,7 +72,8 @@ def main():
                                 "tint": None if fixed else spec["dye"][sub]})
         entry["_boxes"].append((off[0], off[1], off[0] + im.width, off[1] + im.height))
     for key, fits in P.HAIRS.items():   # 冠帽可搭配的髮式
-        parts[P.code_of(key)]["hairs"] = list(fits)
+        if P.code_of(key) in parts:
+            parts[P.code_of(key)]["hairs"] = list(fits)
     for e in parts.values():   # 對位參考點：各子層外框聯集的中心
         b = e.pop("_boxes")
         e["anchor"] = [round((min(t[0] for t in b) + max(t[2] for t in b)) / 2), round((min(t[1] for t in b) + max(t[3] for t in b)) / 2)]

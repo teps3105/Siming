@@ -96,6 +96,30 @@
    "output_sha256": "e6b4d0e73dfce8bc57be110810e6ed0ae526a0d1d685952f213d9a7b9ead9a51",
    "seconds": 65.4,
    "time": "2026-10-13 19:11:37"
+  },
+  {
+   "tag": "face-m2-t9",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261022,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/paint/face-m2-t4.png",
+     "e6b4d0e73dfce8bc57be110810e6ed0ae526a0d1d685952f213d9a7b9ead9a51"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像（背景是純綠色），圖2是畫風基準圖。請只做一件事：把臉上的鼻子與嘴整個去掉——鼻樑線、鼻翼、鼻孔、鼻底與鼻側的陰影塊，以及上下唇、嘴線、嘴角與下唇下方的陰影，全部消去，該處改成與周圍臉頰完全相同的平滑皮膚（同一個底色，不留任何線、點或陰影塊）；眼睛與眉毛的位置本來就沒有，保持平滑皮膚。除了鼻與口的位置，其餘全部與圖1逐像素相同：頭的形狀與外輪廓墨線、耳朵、下巴輪廓線、頸、肩、臉頰與頸側的陰影塊都不動。整張圖的構圖、縮放與位置與圖1完全一致，背景保持純綠色（#00FF00）。不加任何文字、衣服、頭髮或飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/paint/face-m2-t9.png",
+   "output_sha256": "de5cc53e2accb47295f2460565e25b223c57d327903a6f2444fc15fd6e266587",
+   "seconds": 76.4,
+   "time": "2026-10-14 00:20:50"
   }
  ],
  "collect": [
@@ -131,6 +155,17 @@
    "pixels": 402568,
    "output": "D:/Siming/.claude/worktrees/agent-a3b042e42e2297999/.shiftblame/tmp/parts/portrait/collect/face-m2.png",
    "time": "2026-10-13 19:12:24"
+  },
+  {
+   "from": "paint/face-m2-t9.png",
+   "bg": [
+    28,
+    182,
+    0
+   ],
+   "pixels": 402314,
+   "output": "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/collect/face-m2.png",
+   "time": "2026-10-14 00:21:20"
   }
  ],
  "key": [
@@ -238,6 +273,41 @@
     }
    },
    "time": "2026-10-13 19:12:26"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/face-m2.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "skin": {
+     "file": ".shiftblame/tmp/parts/portrait/key/face-m2.skin.png",
+     "pixels": 39849,
+     "dye": "skin",
+     "centers": [
+      45.2,
+      100.4,
+      135.3,
+      174.7
+     ],
+     "share": [
+      0.02,
+      0.035,
+      0.13,
+      0.814
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "shadow",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-14 00:21:20"
   }
  ],
  "check": [

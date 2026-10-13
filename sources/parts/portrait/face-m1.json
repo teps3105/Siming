@@ -85,6 +85,17 @@
    "pixels": 456689,
    "output": "D:/Siming/.claude/worktrees/agent-a3b042e42e2297999/.shiftblame/tmp/parts/portrait/collect/face-m1.png",
    "time": "2026-10-13 18:28:34"
+  },
+  {
+   "from": "paint/face-m1-t9.png",
+   "bg": [
+    7,
+    174,
+    0
+   ],
+   "pixels": 455919,
+   "output": "D:/Siming/.claude/worktrees/agent-a6797c186e6e4aa0c/.shiftblame/tmp/parts/portrait/collect/face-m1.png",
+   "time": "2026-10-14 00:21:19"
   }
  ],
  "key": [
@@ -122,6 +133,41 @@
     }
    },
    "time": "2026-10-13 18:28:34"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/face-m1.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "skin": {
+     "file": ".shiftblame/tmp/parts/portrait/key/face-m1.skin.png",
+     "pixels": 45341,
+     "dye": "skin",
+     "centers": [
+      48.4,
+      108.4,
+      143.4,
+      174.9
+     ],
+     "share": [
+      0.013,
+      0.017,
+      0.075,
+      0.895
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "shadow",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-14 00:21:19"
   }
  ],
  "check": [
