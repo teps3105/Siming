@@ -103,6 +103,18 @@ func test_narrow_slip_cuts_the_identity_but_never_the_realm_or_the_result() -> v
 	assert_true(full.begins_with("鶴微宗長老修行院"), "放得下就寫全")
 
 
+func test_seals_and_reason_marks_are_two_character_words() -> void:
+	var seals := {}
+	var table: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(Locale.UI_PATH))
+	for key: String in table:
+		if key.begins_with("seal_") or key.begins_with("reason_"):
+			assert_eq(Locale.t(key).length(), 2, "%s 是二字詞：%s" % [key, Locale.t(key)])
+		if key.begins_with("seal_"):
+			assert_false(seals.has(Locale.t(key)), "印不重複：" + Locale.t(key))
+			seals[Locale.t(key)] = true
+	assert_gt(seals.size(), 40, "字串表有事件印")
+
+
 func test_reason_mark_takes_the_first_that_holds() -> void:
 	assert_eq(EventText.reason(_event("WorldChanged", 5, 1, {"change": "ColdBegan", "era": ""})), "world")
 	assert_eq(EventText.reason(_event("PowerFounded", 3, 1)), "lead", "開宗立派")
@@ -290,7 +302,7 @@ func test_low_realm_deaths_of_one_month_merge_by_cause() -> void:
 	for entry in _rumor.shown():
 		if not _rumor.is_group(entry) and entry["reason"] == "death":
 			marked += 1
-	assert_gt(marked, 0, "不合成的身死帶「亡」標記")
+	assert_gt(marked, 0, "不合成的身死帶「隕落」標記")
 
 
 func test_person_slot_and_statistic_rows_open_the_person_card() -> void:

@@ -53,7 +53,7 @@ func test_new_events_enter_the_slip_with_their_sentence() -> void:
 	var shown := _rumor.shown()
 	assert_eq(shown.size(), 1, "重要度 3 的事件入簽")
 	assert_eq(shown[0]["line"], "沈青霜殺韓烈於青州", "一句話由 7.2 模板填成")
-	assert_eq(shown[0]["seal"], "殺", "印是 7.2 的印字")
+	assert_eq(shown[0]["seal"], "殺業", "印是 7.2 的印字")
 	_post(_event("Born", 1, 101))
 	assert_eq(_rumor.entry_count(), 1, "重要度 1 的事件不入簽")
 

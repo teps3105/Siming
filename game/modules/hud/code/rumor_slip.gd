@@ -31,6 +31,7 @@ const NOTE_IMPORTANCE := 2
 const PIN_TICKS := 360
 const FADE_SECONDS := 0.35
 const SEAL_SIZE := 22.0
+const SEAL_WIDTH := 38.0
 const PAD := 8.0
 ## 控制項四周留給柔影的空間，紙面從這裡起算。
 const SHADOW := 8.0
@@ -51,6 +52,7 @@ const TRACE_BASE := 4000000
 const MEMBER_TRACE_BASE := 5000000
 ## 原因標記的方框邊長。
 const MARK_SIZE := 16.0
+const MARK_WIDTH := 30.0
 ## 「看人物」「溯因」入口的寬度與間距。
 const SLOT_WIDTH := 44.0
 const SLOT_GAP := 4.0
@@ -710,9 +712,9 @@ func _draw_row(entry: Dictionary, rect: Rect2, index: int, note: int) -> void:
 	if hot:
 		draw_rect(slid.grow(-1.0), Color(Ink.INK, 0.2 if pressed else 0.07), true)
 		draw_rect(slid.grow(-2.0), Ink.INK if clickable else Ink.INK_LIGHT, false, 1.0)
-	# 事件印：方形朱印，世界大事用靛。
+	# 事件印：橫長方形二字朱印，世界大事用靛。
 	var seal_size := SEAL_SIZE * _unit
-	var seal_rect := Rect2(slid.position + Vector2(PAD * _unit, (slid.size.y - seal_size) * 0.5), Vector2.ONE * seal_size)
+	var seal_rect := Rect2(slid.position + Vector2(PAD * _unit, (slid.size.y - seal_size) * 0.5), Vector2(SEAL_WIDTH * _unit, seal_size))
 	draw_rect(seal_rect, Color(Ink.SILK if entry["world"] else Ink.SEAL_RED, fade), true)
 	draw_rect(seal_rect.grow(-2.0), Color(Ink.PAPER_LIGHT, 0.7 * fade), false, 1.0)
 	var glyph_size := Ink.font_size(Ink.SIZE_SECTION, _unit)
@@ -760,11 +762,11 @@ func _draw_row(entry: Dictionary, rect: Rect2, index: int, note: int) -> void:
 	var tail_size := Ink.text_size(tail, note)
 	right -= tail_size.x
 	Ink.text(self, Vector2(right, slid.position.y + (slid.size.y - tail_size.y) * 0.5), tail, note, Color(Ink.SEAL_RED if hot and clickable else Ink.INK_LIGHT, fade))
-	# 原因標記：小方框單字，至多一個。
+	# 原因標記：小方框二字，至多一個。
 	var reason: String = entry["reason"]
 	if not reason.is_empty():
 		var mark := MARK_SIZE * _unit
-		var mark_rect := Rect2(Vector2(right - 6.0 * _unit - mark, slid.position.y + (slid.size.y - mark) * 0.5), Vector2.ONE * mark)
+		var mark_rect := Rect2(Vector2(right - 6.0 * _unit - MARK_WIDTH * _unit, slid.position.y + (slid.size.y - mark) * 0.5), Vector2(MARK_WIDTH * _unit, mark))
 		var mark_color := Color(Ink.SILK if reason == "world" else Ink.SEAL_RED, fade)
 		var mark_text := Locale.t("reason_" + reason)
 		draw_rect(mark_rect, mark_color, false, 1.0)
