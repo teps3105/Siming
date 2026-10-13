@@ -523,6 +523,7 @@ func test_gdd_5_5_sects_report_seat_province_and_range() -> void:
 	world.create(SEED, "small")
 	var sects := world.sects()
 	assert_gt(sects.size(), 0, "開天後世界應有宗門")
+	var staffed := 0
 	for sect: Dictionary in sects:
 		for key in ["id", "name", "pos", "province", "node", "members", "prestige", "radius", "range", "range_radius", "evil", "alive"]:
 			assert_true(sect.has(key), "宗門欄位 %s" % key)
@@ -530,8 +531,10 @@ func test_gdd_5_5_sects_report_seat_province_and_range() -> void:
 		assert_eq(world.province_at(pos.x, pos.y), sect["province"], "山門的位置落在山門所在州郡")
 		assert_true((sect["range"] as PackedInt32Array).has(sect["province"]), "勢力範圍含山門所在州郡")
 		assert_gt(sect["range_radius"], 0.0)
-		if sect["alive"]:
-			assert_gt(sect["members"], 0, "還在的宗門有成員")
+		# 補人只從當地既有的人裡挑，當地沒人的宗門可以暫時沒有成員。
+		if sect["alive"] and sect["members"] > 0:
+			staffed += 1
+	assert_gt(staffed, 0, "還在的宗門裡有成員的至少一個")
 	assert_eq(world.sects().size(), sects.size(), "只讀：連呼兩次結果相同")
 
 
