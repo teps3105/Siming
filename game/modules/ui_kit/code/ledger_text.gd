@@ -8,6 +8,9 @@ extends RefCounted
 const NO_LINE_START := "，。、；：！？）」』】》…"
 const LINE_FACTOR := 1.35
 const DIGITS := "0123456789"
+## 緊跟數字的量詞，與數字不拆開；連接號不落行首。
+const QUANTIFIERS := "年月日歲人位世則章回州郡"
+const DASHES := "–—－~"
 
 static var _widths := {}
 
@@ -24,51 +27,128 @@ static func line_height(size: int) -> float:
 
 
 ## 折行並找出連結的範圍。links 每項有 text（要標成連結的字）與 target；各取第一次出現的位置。
-static func paragraph(text: String, links: Array[Dictionary], width: float, size: int) -> Dictionary:
+## 折行的最小單位（不拆開）：連續數字連同緊跟的量詞（「148年」）、行首禁用的標點連同前一個字、可點的連結名、
+## keep 裡指定的片段（呼叫端要整段不拆的，例如「姓名（起年–迄年）」）。單位放不下一行時依序放寬：先允許
+## keep 與連結名內部折開但括號內仍不拆，再允許括號內折開（數字與量詞仍不拆），最後才逐字折。
+static func paragraph(text: String, links: Array[Dictionary], width: float, size: int, keep: Array[String] = []) -> Dictionary:
+	var count := text.length()
+	# 連結的位置：依序往後找，同名的兩個連結（例如所在與故里同一州）各落在各自的位置。
+	var found: Array[Vector2i] = []
+	var cursor := 0
+	for link in links:
+		var word: String = link["text"]
+		var at := -1 if word.is_empty() else text.find(word, cursor)
+		if at < 0 and not word.is_empty():
+			at = text.find(word)
+		if at >= 0:
+			cursor = at + word.length()
+			found.append(Vector2i(at, at + word.length()))
+		else:
+			found.append(Vector2i(-1, -1))
+	var glue := _glue(text, found, keep)
 	var lines: Array[String] = []
 	var starts: Array[int] = []
 	var current := ""
 	var start := 0
 	var run := 0.0
-	for i in text.length():
-		var glyph := text[i]
-		var advance := glyph_width(glyph, size)
-		# 數字不從中間折開（「148年」不折成「14」「8年」）。
-		var inside_number := i > 0 and DIGITS.contains(glyph) and DIGITS.contains(text[i - 1])
-		if run + advance > width and not current.is_empty() and not NO_LINE_START.contains(glyph) and not inside_number:
+	for unit: Vector2i in _units(text, glue, 0, 0, count, width, size):
+		var piece := text.substr(unit.x, unit.y - unit.x)
+		var unit_width := Ink.text_size(piece, size).x
+		if run + unit_width > width and not current.is_empty():
 			lines.append(current)
 			starts.append(start)
 			current = ""
-			start = i
 			run = 0.0
-		current += glyph
-		run += advance
+		if current.is_empty():
+			start = unit.x
+		if unit_width <= width:
+			current += piece
+			run += unit_width
+			continue
+		# 連最小單位都比一行寬：逐字折。
+		for i in range(unit.x, unit.y):
+			var advance := glyph_width(text[i], size)
+			if run + advance > width and not current.is_empty():
+				lines.append(current)
+				starts.append(start)
+				current = ""
+				start = i
+				run = 0.0
+			current += text[i]
+			run += advance
 	if not current.is_empty() or lines.is_empty():
 		lines.append(current)
 		starts.append(start)
 	var height := line_height(size)
 	var hits: Array[Dictionary] = []
-	var cursor := 0
-	for link in links:
-		var word: String = link["text"]
-		if word.is_empty():
+	for index in links.size():
+		var span: Vector2i = found[index]
+		if span.x < 0:
 			continue
-		# 依序往後找：同名的兩個連結（例如所在與故里同一州）各落在各自的位置。
-		var at := text.find(word, cursor)
-		if at < 0:
-			at = text.find(word)
-		if at < 0:
-			continue
-		cursor = at + word.length()
 		for row in lines.size():
-			var from := maxi(at, starts[row])
-			var to := mini(at + word.length(), starts[row] + lines[row].length())
+			var from := maxi(span.x, starts[row])
+			var to := mini(span.y, starts[row] + lines[row].length())
 			if to <= from:
 				continue
 			var left := Ink.text_size(lines[row].substr(0, from - starts[row]), size).x
 			var right := Ink.text_size(lines[row].substr(0, to - starts[row]), size).x
-			hits.append({"rect": Rect2(left, row * height, right - left, height), "target": link["target"]})
+			hits.append({"rect": Rect2(left, row * height, right - left, height), "target": links[index]["target"]})
 	return {"lines": lines, "height": lines.size() * height, "size": size, "line_height": height, "hits": hits}
+
+
+## 三層「這個字黏在前一個字上」的標記：0 層最緊（含連結名與 keep 片段），1 層放開它們但括號內仍黏，2 層只留數字與標點。
+static func _glue(text: String, found: Array[Vector2i], keep: Array[String]) -> Array[PackedByteArray]:
+	var count := text.length()
+	var basic := PackedByteArray()
+	basic.resize(count)
+	for i in range(1, count):
+		var glyph := text[i]
+		var before := text[i - 1]
+		if NO_LINE_START.contains(glyph) or DASHES.contains(glyph):
+			basic[i] = 1
+		elif DIGITS.contains(glyph) and DIGITS.contains(before):
+			basic[i] = 1
+		elif QUANTIFIERS.contains(glyph) and DIGITS.contains(before):
+			basic[i] = 1
+	var inner := basic.duplicate()
+	var open := -1
+	for i in count:
+		if text[i] == "（":
+			open = i
+		elif text[i] == "）" and open >= 0:
+			for j in range(open + 1, i + 1):
+				inner[j] = 1
+			open = -1
+	var tight := inner.duplicate()
+	var spans: Array[Vector2i] = []
+	for span in found:
+		if span.x >= 0:
+			spans.append(span)
+	var cursor := 0
+	for piece in keep:
+		var at := text.find(piece, cursor)
+		if at >= 0:
+			spans.append(Vector2i(at, at + piece.length()))
+			cursor = at + piece.length()
+	for span in spans:
+		for j in range(span.x + 1, span.y):
+			tight[j] = 1
+	return [tight, inner, basic]
+
+
+## 把 [from, to) 切成折行單位：依 level 層的標記切，切出來的單位仍比一行寬就換下一層再切。
+static func _units(text: String, glue: Array[PackedByteArray], level: int, from: int, to: int, width: float, size: int) -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	var s := from
+	for i in range(from + 1, to + 1):
+		if i < to and glue[level][i] == 1:
+			continue
+		if level < glue.size() - 1 and Ink.text_size(text.substr(s, i - s), size).x > width:
+			out.append_array(_units(text, glue, level + 1, s, i, width, size))
+		else:
+			out.append(Vector2i(s, i))
+		s = i
+	return out
 
 
 ## 畫出段落。origin 為左上角；hover 為停留中的連結目標，pressed 為按住的。
