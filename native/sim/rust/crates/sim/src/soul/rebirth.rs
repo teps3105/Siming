@@ -138,6 +138,7 @@ pub fn ensure_heaven(w: &mut World) {
             marks: SoulMarks::default(),
             last_place: (0, 0),
             guide: None,
+            settled: Vec::new(),
         });
     }
 }
@@ -169,7 +170,9 @@ pub fn create_soul(w: &mut World, origin: SoulOrigin, province: ProvinceId) -> S
         marks,
         last_place: (province, 0),
         guide: None,
+        settled: Vec::new(),
     });
+    super::arm(w, w.souls.len() as SoulId - 1);
     id
 }
 

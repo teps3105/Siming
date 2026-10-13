@@ -18,10 +18,23 @@ fn eligible(p: &Person, tick: u32) -> bool {
 
 /// 結為夫妻：互設 `spouse`，寫入 `Married`（因：雙方最近事件），再由 `thread::on_marriage` 結算情緣線。回傳 `Married` 事件。
 pub fn marry(w: &mut World, a: PersonId, b: PersonId) -> EventId {
+    // 關係快照取在結親之前，才看得出成婚的緣由。
+    let rel = ledger::rel_of_persons(w, a, b);
+    let why = if rel.has(Rel::THREAD_LOVE) && rel.lives() >= 1 {
+        Why::FateTug
+    } else if rel.has(Rel::SAME_SECT) {
+        Why::SameSect
+    } else if rel.has(Rel::SAME_HOMETOWN) {
+        Why::SameHometown
+    } else {
+        Why::None
+    };
     w.persons[a as usize].spouse = Some(b);
     w.persons[b as usize].spouse = Some(a);
     let (pa, pb) = (&w.persons[a as usize], &w.persons[b as usize]);
     let mut e = NewEvent::new(EventKind::Married, MARRIED_IMPORTANCE, EventArgs::None);
+    e.why = why;
+    e.rel = Some(rel);
     e.province = Some(pa.province);
     e.cell = Some(pa.cell);
     e.souls = smallvec![pa.soul, pb.soul];
@@ -54,6 +67,39 @@ pub fn monthly_marriage(w: &mut World) {
 /// 同 [`monthly_marriage`]，但一次判定全部人（整年份；測試與工具用）。
 pub fn yearly_marriage(w: &mut World) {
     marriage_round(w, Round::All);
+}
+
+/// 事件隊列的婚配抽中：在世未婚者找同州或陸鄰、年齡差內的未婚異性（同宗門優先），挑一位結為夫妻。
+/// 回傳是否成婚；沒有候選時回傳 `false`，由呼叫端重抽下一次。
+pub(super) fn marry_now(w: &mut World, pid: PersonId) -> bool {
+    let tick = w.tick;
+    let p = &w.persons[pid as usize];
+    if !eligible(p, tick) {
+        return false;
+    }
+    let (age, gender, power, prov) = (p.age(tick), p.gender, p.power, p.province);
+    let mut cands: Vec<PersonId> = w.near_alive(prov);
+    cands.retain(|&c| {
+        let q = &w.persons[c as usize];
+        c != pid && q.gender != gender && q.age(tick).abs_diff(age) <= MARRY_AGE_GAP_MAX && eligible(q, tick)
+    });
+    if cands.is_empty() {
+        return false;
+    }
+    if power.is_some() {
+        let same: Vec<PersonId> = cands.iter().copied().filter(|&c| w.persons[c as usize].power == power).collect();
+        if !same.is_empty() {
+            cands = same;
+        }
+    }
+    let other = cands[w.rng.people.gen_range(0..cands.len())];
+    marry(w, pid, other);
+    true
+}
+
+/// 可婚配（供事件隊列判定）。
+pub(super) fn can_marry(w: &World, pid: PersonId) -> bool {
+    eligible(&w.persons[pid as usize], w.tick)
 }
 
 fn marriage_round(w: &mut World, round: Round) {

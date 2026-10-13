@@ -102,7 +102,7 @@ pub(super) fn succession(w: &mut World, di: usize) {
         let d = &mut w.dynasty.list[di];
         d.mandate = (d.mandate + MANDATE_USURP).clamp(0.0, MANDATE_MAX);
     }
-    rec(w, EventKind::Usurpation, 4, Some(cap), &[a], id, None, 0, &cause);
+    super::rec_why(w, EventKind::Usurpation, 4, Some(cap), &[a], id, None, 0, &cause, crate::model::Why::NoHeir);
     if let Some(&(b, core_b)) = cands.get(1) {
         let gap = w.persons[a as usize].attrs.talent - w.persons[b as usize].attrs.talent;
         if gap <= CIVIL_WAR_GAP && w.rng.dynasty.gen::<f32>() < CIVIL_WAR_CHANCE {

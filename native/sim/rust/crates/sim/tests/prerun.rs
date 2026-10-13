@@ -173,11 +173,11 @@ fn checks(sim: &Sim) {
 fn short_pre_run_grows_people_sects_and_keeps_their_history() {
     let run = short_run();
     let w = run.sim.world();
-    assert_eq!(w.tick, 3300 * 12);
+    assert_eq!(w.tick, 3300 * 360);
     assert!(w.persons.iter().any(|p| p.alive()));
     // 第一位修士出現的年份晚於人口達到百萬的年份（人物期才有有名之人）。
     let first_cultivator = w.ledger.events.iter().filter(|e| e.kind == EventKind::ComeOfAge).map(|e| e.tick).min();
-    assert!(first_cultivator.is_none_or(|t| t / 12 >= 3000), "修士出現在人口期內");
+    assert!(first_cultivator.is_none_or(|t| t / 360 >= 3000), "修士出現在人口期內");
     checks(&run.sim);
 }
 
@@ -185,7 +185,7 @@ fn short_pre_run_grows_people_sects_and_keeps_their_history() {
 fn counts_after(sim: &Sim, start: u32) -> BTreeMap<(EventKind, u32), u32> {
     let mut by: BTreeMap<(EventKind, u32), u32> = BTreeMap::new();
     for e in sim.world().ledger.events.iter().filter(|e| e.tick > start && e.importance >= 2) {
-        *by.entry((e.kind, (e.tick - start - 1) / 12)).or_default() += 1;
+        *by.entry((e.kind, (e.tick - start - 1) / 360)).or_default() += 1;
     }
     by
 }
@@ -237,18 +237,18 @@ fn year_step_and_month_step_agree_on_population_and_famine() {
         p.seed = seed;
         let base = Sim::new(&p).unwrap();
         let count =
-            |w: &siming_sim::World| w.ledger.events.iter().filter(|e| e.kind == EventKind::Famine && e.tick > 1500 * 12).count() as u32;
+            |w: &siming_sim::World| w.ledger.events.iter().filter(|e| e.kind == EventKind::Famine && e.tick > 1500 * 360).count() as u32;
         let total = |w: &siming_sim::World| w.provinces.iter().map(|p| p.population).sum::<f64>();
         let mut a = base.world().clone();
         genesis::grow_population(&mut a, 300, &mut |_, _| {});
         let mut b = base.world().clone();
         for _ in 0..300 * 12 {
-            b.tick += 1;
+            b.tick += 30;
             let tick = b.tick;
             let f = siming_sim::population::monthly_with(&mut b.provinces, &[], seed, Round::at(tick));
             siming_sim::ledger::record_famines(&mut b, &f);
-            if tick.is_multiple_of(12) {
-                if tick.is_multiple_of(360) {
+            if tick.is_multiple_of(360) {
+                if tick.is_multiple_of(10_800) {
                     siming_sim::evolution::shi_settle(&mut b);
                 }
                 siming_sim::cataclysm::yearly(&mut b);

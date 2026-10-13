@@ -1,0 +1,382 @@
+{
+ "part": "beard-five",
+ "paint": [
+  {
+   "tag": "beard-five-t1",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20262011,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/sources/parts/portrait/base-face-m.png",
+     "6eb81df3857716d33152534009eecf9090d5c7a2a6b3c29c3f5a48bfdca3b318"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版（背景是純綠色），圖2是畫風基準圖。請在圖1的臉上只畫「一件」五綹長髯：上唇上方左右各一撇向下彎的小髭（共兩綹），下巴正中垂下一綹最長的長鬚，下頜兩側（靠近耳朵下方的下頜線上）各垂下一綹稍短的鬚（共兩綹），合起來是五綹。中間那綹從下唇到鬚尖的長度約為下唇到下巴尖距離的 3 倍，垂在頸前與鎖骨之間，兩側兩綹約為中間那綹的三分之二長、微向外張，鬚尖都收尖；嘴唇與嘴線完全不許被蓋住，鼻子以上與兩頰上半部不畫鬍鬚。五綹各自是封閉、連續、乾淨的色塊形狀，外緣用墨線完整包住，內部只用一兩條線表示髮束走向，不畫細碎鬍鬚。【只有這一件畫成灰色】這一件是灰階稿，之後才會上色，所以這一件只用中性灰、完全沒有色相（不要棕、不要黑藍、不要泛藍的白髮）：底色是明亮的中淺灰（約 #B0B0B0，不是黑色、不是深灰），陰影塊是明顯較深的灰（約 #606060），少量近白的高光塊（約 #F2F2F2），輪廓線與髮束線條才用近黑（約 #151515），外緣一圈墨線必須完整封閉、沒有任何缺口（髮際線、眉與鬚的外緣、髮束的邊都要有墨線），墨線比色塊暗得多、在 1024 寬的圖上約 3 到 4 像素寬；底色、陰影、高光三階要一眼分得開：髮束與髮束之間、髮的下緣與髻的下側用陰影灰塊明確表示（陰影約占髮面積的三分之一），頭頂與髮束的上緣留幾條高光灰塊，不要把整件塗成同一個灰。人物其餘的地方——臉、耳、頸、肩、胸的皮膚——必須保持圖1原本的暖膚色，一點都不要變灰、不要加紋理或顆粒，整張圖其他部分與圖1完全一樣。鼻子、嘴線、下巴輪廓與頸不許動。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫的這一件，人物的頭、臉、頸、肩與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純綠色（#00FF00），純色無漸層。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/.shiftblame/tmp/parts/portrait/paint/beard-five-t1.png",
+   "output_sha256": "db36f4e844b4bad69e4a02a825265c18815518af1f04ed4be6b437c04ed7d739",
+   "seconds": 57.3,
+   "time": "2026-10-13 19:41:50"
+  },
+  {
+   "tag": "beard-five-t2",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261015,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/sources/parts/portrait/base-face-m.png",
+     "6eb81df3857716d33152534009eecf9090d5c7a2a6b3c29c3f5a48bfdca3b318"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版（背景是純綠色），圖2是畫風基準圖。請在圖1的臉上只畫「一件」五綹長髯：上唇上方左右各一撇向下彎的小髭（共兩綹），下巴正中垂下一綹最長的長鬚，兩頰各垂下一綹明顯的鬚（共兩綹，從耳朵下方的下頜角起，沿著下頜線外側向下垂到下巴的高度，寬度約為中間那綹寬度的一半，鬚尖收尖，與中間那綹之間隔著一大片光滑的皮膚、至少有一個嘴寬的距離），合起來是五綹，五綹彼此分開、一眼就能數出來。中間那綹從下唇到鬚尖的長度約為下唇到下巴尖距離的 3 倍，垂在頸前與鎖骨之間；兩頰兩綹約為中間那綹的二分之一長；嘴唇與嘴線完全不許被蓋住，鼻子以上與兩頰上半部不畫鬍鬚。五綹各自是封閉、連續、乾淨的色塊形狀，外緣用墨線完整包住，內部只用一兩條線表示髮束走向，不畫細碎鬍鬚。【只有這一件畫成灰色】這一件是灰階稿，之後才會上色，所以這一件只用中性灰、完全沒有色相（不要棕、不要黑藍、不要泛藍的白髮）：底色是明亮的中淺灰（約 #B0B0B0，不是黑色、不是深灰），陰影塊是明顯較深的灰（約 #606060），少量近白的高光塊（約 #F2F2F2），輪廓線與髮束線條才用近黑（約 #151515），外緣一圈墨線必須完整封閉、沒有任何缺口（髮際線、眉與鬚的外緣、髮束的邊都要有墨線），墨線比色塊暗得多、在 1024 寬的圖上約 3 到 4 像素寬；底色、陰影、高光三階要一眼分得開：髮束與髮束之間、髮的下緣與髻的下側用陰影灰塊明確表示（陰影約占髮面積的三分之一），頭頂與髮束的上緣留幾條高光灰塊，不要把整件塗成同一個灰。人物其餘的地方——臉、耳、頸、肩、胸的皮膚——必須保持圖1原本的暖膚色，一點都不要變灰、不要加紋理或顆粒，整張圖其他部分與圖1完全一樣。鼻子、嘴線、下巴輪廓與頸不許動。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫的這一件，人物的頭、臉、頸、肩與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純綠色（#00FF00），純色無漸層。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/.shiftblame/tmp/parts/portrait/paint/beard-five-t2.png",
+   "output_sha256": "7e7f51b0f75e2b15126b4aafb713843648c17198766484e77912490750808b64",
+   "seconds": 56.3,
+   "time": "2026-10-13 20:51:49"
+  },
+  {
+   "tag": "beard-five-t3",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261016,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/sources/parts/portrait/base-face-m.png",
+     "6eb81df3857716d33152534009eecf9090d5c7a2a6b3c29c3f5a48bfdca3b318"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版（背景是純綠色），圖2是畫風基準圖。請在圖1的臉上只畫「一件」五綹長髯：上唇上方左右各一撇向下彎的小髭（共兩綹），下巴正中垂下一綹最長的長鬚，兩頰各垂下一綹明顯的鬚（共兩綹，從耳朵下方的下頜角起，沿著下頜線外側向下垂到下巴的高度，寬度約為中間那綹寬度的三分之二（要粗，不是細線），位置在耳朵與下巴尖的正中間、離臉的外輪廓往內約一個眼寬，鬚尖收尖，與中間那綹之間隔著一大片光滑的皮膚、至少有一個嘴寬的距離），合起來是五綹，五綹彼此分開、一眼就能數出來。中間那綹從下唇到鬚尖的長度約為下唇到下巴尖距離的 3 倍，垂在頸前與鎖骨之間；兩頰兩綹約為中間那綹的二分之一長；嘴唇與嘴線完全不許被蓋住，鼻子以上與兩頰上半部不畫鬍鬚。五綹各自是封閉、連續、乾淨的色塊形狀，外緣用墨線完整包住，內部只用一兩條線表示髮束走向，不畫細碎鬍鬚。【只有這一件畫成灰色】這一件是灰階稿，之後才會上色，所以這一件只用中性灰、完全沒有色相（不要棕、不要黑藍、不要泛藍的白髮）：底色是明亮的中淺灰（約 #B0B0B0，不是黑色、不是深灰），陰影塊是明顯較深的灰（約 #606060），少量近白的高光塊（約 #F2F2F2），輪廓線與髮束線條才用近黑（約 #151515），外緣一圈墨線必須完整封閉、沒有任何缺口（髮際線、眉與鬚的外緣、髮束的邊都要有墨線），墨線比色塊暗得多、在 1024 寬的圖上約 3 到 4 像素寬；底色、陰影、高光三階要一眼分得開：髮束與髮束之間、髮的下緣與髻的下側用陰影灰塊明確表示（陰影約占髮面積的三分之一），頭頂與髮束的上緣留幾條高光灰塊，不要把整件塗成同一個灰。人物其餘的地方——臉、耳、頸、肩、胸的皮膚——必須保持圖1原本的暖膚色，一點都不要變灰、不要加紋理或顆粒，整張圖其他部分與圖1完全一樣。鼻子、嘴線、下巴輪廓與頸不許動。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫的這一件，人物的頭、臉、頸、肩與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純綠色（#00FF00），純色無漸層。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/.shiftblame/tmp/parts/portrait/paint/beard-five-t3.png",
+   "output_sha256": "a97e2f8ca8bd6254b2a2cfa0f2a71438f2f97be2613cee17d0fe1eafa2f7db25",
+   "seconds": 80.1,
+   "time": "2026-10-13 20:55:49"
+  },
+  {
+   "tag": "beard-five-t4",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261017,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/sources/parts/portrait/base-face-m.png",
+     "6eb81df3857716d33152534009eecf9090d5c7a2a6b3c29c3f5a48bfdca3b318"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版（背景是純綠色），圖2是畫風基準圖。請在圖1的臉上只畫「一件」五綹長髯：上唇上方左右各一撇向下彎的小髭（共兩綹），下巴正中垂下一綹最長的長鬚，兩頰各垂下一綹明顯的鬚（共兩綹，從耳朵下方的下頜角起，沿著下頜線外側向下垂到下巴的高度，寬度約為中間那綹寬度的三分之二（要粗，不是細線），長在臉頰下半部的皮膚上，完全落在臉的外輪廓線以內（從耳下的下頜角往內約一個眼寬處起，順著下頜線內側垂下），絕對不可以超出臉的外輪廓、不可以垂到臉外面的背景或脖子外側，鬚尖收尖，與中間那綹之間隔著一大片光滑的皮膚、至少有一個嘴寬的距離），合起來是五綹，五綹彼此分開、一眼就能數出來。中間那綹從下唇到鬚尖的長度約為下唇到下巴尖距離的 3 倍，垂在頸前與鎖骨之間；兩頰兩綹約為中間那綹的二分之一長；嘴唇與嘴線完全不許被蓋住，鼻子以上與兩頰上半部不畫鬍鬚。五綹各自是封閉、連續、乾淨的色塊形狀，外緣用墨線完整包住，內部只用一兩條線表示髮束走向，不畫細碎鬍鬚。【只有這一件畫成灰色】這一件是灰階稿，之後才會上色，所以這一件只用中性灰、完全沒有色相（不要棕、不要黑藍、不要泛藍的白髮）：底色是明亮的中淺灰（約 #B0B0B0，不是黑色、不是深灰），陰影塊是明顯較深的灰（約 #606060），少量近白的高光塊（約 #F2F2F2），輪廓線與髮束線條才用近黑（約 #151515），外緣一圈墨線必須完整封閉、沒有任何缺口（髮際線、眉與鬚的外緣、髮束的邊都要有墨線），墨線比色塊暗得多、在 1024 寬的圖上約 3 到 4 像素寬；底色、陰影、高光三階要一眼分得開：髮束與髮束之間、髮的下緣與髻的下側用陰影灰塊明確表示（陰影約占髮面積的三分之一），頭頂與髮束的上緣留幾條高光灰塊，不要把整件塗成同一個灰。人物其餘的地方——臉、耳、頸、肩、胸的皮膚——必須保持圖1原本的暖膚色，一點都不要變灰、不要加紋理或顆粒，整張圖其他部分與圖1完全一樣。鼻子、嘴線、下巴輪廓與頸不許動。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫的這一件，人物的頭、臉、頸、肩與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純綠色（#00FF00），純色無漸層。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/.shiftblame/tmp/parts/portrait/paint/beard-five-t4.png",
+   "output_sha256": "acefc9bfdf1b9f554add8bb3b3e9efa51fb3bb0256c39e515ec8481ae1082428",
+   "seconds": 59.9,
+   "time": "2026-10-13 21:11:57"
+  }
+ ],
+ "collect": [
+  {
+   "from": "paint/beard-five-t1.png",
+   "affine": [
+    [
+     0.9992700219154358,
+     -0.0004400000034365803,
+     0.821619987487793
+    ],
+    [
+     -0.00039000000106170774,
+     0.9980599880218506,
+     -0.17308999598026276
+    ]
+   ],
+   "ecc": 0.9986,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 26968,
+   "bbox": [
+    432,
+    685,
+    610,
+    1095
+   ],
+   "components": 4,
+   "output": "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/.shiftblame/tmp/parts/portrait/collect/beard-five.png",
+   "time": "2026-10-13 19:41:50"
+  },
+  {
+   "from": "paint/beard-five-t2.png",
+   "affine": [
+    [
+     1.000100016593933,
+     -3.9999998989515007e-05,
+     -0.3527500033378601
+    ],
+    [
+     -0.00014000000373926014,
+     1.0033400058746338,
+     -1.3105599880218506
+    ]
+   ],
+   "ecc": 0.99624,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 34368,
+   "bbox": [
+    339,
+    666,
+    686,
+    1095
+   ],
+   "components": 5,
+   "output": "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/.shiftblame/tmp/parts/portrait/collect/beard-five.png",
+   "time": "2026-10-13 20:53:37"
+  },
+  {
+   "from": "paint/beard-five-t3.png",
+   "affine": [
+    [
+     0.9985100030899048,
+     0.00022000000171829015,
+     -0.5388699769973755
+    ],
+    [
+     -0.0007800000021234155,
+     1.0011999607086182,
+     -0.9688299894332886
+    ]
+   ],
+   "ecc": 0.98838,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 47770,
+   "bbox": [
+    353,
+    666,
+    682,
+    1095
+   ],
+   "components": 5,
+   "output": "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/.shiftblame/tmp/parts/portrait/collect/beard-five.png",
+   "time": "2026-10-13 20:56:51"
+  },
+  {
+   "from": "paint/beard-five-t4.png",
+   "affine": [
+    [
+     0.9981899857521057,
+     -0.00011999999696854502,
+     0.7364799976348877
+    ],
+    [
+     0.0003800000122282654,
+     1.0018399953842163,
+     -3.0255300998687744
+    ]
+   ],
+   "ecc": 0.99773,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 34790,
+   "bbox": [
+    348,
+    666,
+    684,
+    1095
+   ],
+   "components": 4,
+   "output": "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/.shiftblame/tmp/parts/portrait/collect/beard-five.png",
+   "time": "2026-10-13 21:11:58"
+  }
+ ],
+ "key": [
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/beard-five.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "beard": {
+     "file": ".shiftblame/tmp/parts/portrait/key/beard-five.beard.png",
+     "pixels": 2860,
+     "dye": "hair",
+     "centers": [
+      79.7,
+      111.1,
+      132.7,
+      148.5
+     ],
+     "share": [
+      0.043,
+      0.209,
+      0.315,
+      0.433
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "shadow",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 19:41:51"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/beard-five.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "beard": {
+     "file": ".shiftblame/tmp/parts/portrait/key/beard-five.beard.png",
+     "pixels": 3686,
+     "dye": "hair",
+     "centers": [
+      76.9,
+      101.5,
+      124.7,
+      143.5
+     ],
+     "share": [
+      0.054,
+      0.233,
+      0.22,
+      0.493
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "shadow",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 20:53:37"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/beard-five.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "beard": {
+     "file": ".shiftblame/tmp/parts/portrait/key/beard-five.beard.png",
+     "pixels": 5078,
+     "dye": "hair",
+     "centers": [
+      68.0,
+      89.0,
+      104.7,
+      118.6
+     ],
+     "share": [
+      0.108,
+      0.206,
+      0.281,
+      0.405
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "shadow",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 20:56:51"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/beard-five.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "beard": {
+     "file": ".shiftblame/tmp/parts/portrait/key/beard-five.beard.png",
+     "pixels": 3741,
+     "dye": "hair",
+     "centers": [
+      77.8,
+      97.7,
+      115.1,
+      130.2
+     ],
+     "share": [
+      0.099,
+      0.278,
+      0.239,
+      0.384
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "shadow",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 21:11:58"
+  }
+ ],
+ "check": [
+  {
+   "metrics": {
+    "beard-five.beard": {
+     "edge_len": 612,
+     "bare_edge": 338,
+     "bare_ratio": 0.552,
+     "blobs": 5,
+     "specks": 2,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 2448
+    }
+   },
+   "time": "2026-10-13 19:41:51"
+  }
+ ]
+}

@@ -132,7 +132,7 @@ impl Dynasty {
     fn expire_flow(&mut self, now: Tick) {
         let (mut g, mut l, mut f) = (0u16, 0u16, 0u16);
         self.window.retain(|&(t, a, b, c)| {
-            let keep = t + 12 > now;
+            let keep = t + crate::calendar::DAYS_PER_YEAR > now;
             if !keep {
                 g = g.saturating_add(a);
                 l = l.saturating_add(b);
@@ -193,7 +193,25 @@ pub(crate) fn rec(
     n: u32,
     causes: &[EventId],
 ) -> EventId {
+    rec_why(w, kind, importance, province, persons, dynasty, other, n, causes, crate::model::Why::None)
+}
+
+/// 同 [`rec`]，另記成因。
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn rec_why(
+    w: &mut World,
+    kind: EventKind,
+    importance: u8,
+    province: Option<ProvinceId>,
+    persons: &[PersonId],
+    dynasty: DynastyId,
+    other: Option<DynastyId>,
+    n: u32,
+    causes: &[EventId],
+    why: crate::model::Why,
+) -> EventId {
     let mut e = NewEvent::new(kind, importance, EventArgs::Dynasty { dynasty, other, n });
+    e.why = why;
     e.province = province;
     for &p in persons {
         e.persons.push(p);
@@ -308,7 +326,7 @@ pub fn mandate_terms(w: &World, di: usize, famine_n: u32, broke: bool) -> Mandat
     t.aura = MANDATE_AURA_COEF * (field::get(w, FieldId::Aura, d.capital) - MANDATE_AURA_MID);
     t.famine = MANDATE_FAMINE_COEF * famine_n as f32;
     t.gain_loss = MANDATE_GAIN_COEF * d.gained as f32 + MANDATE_LOSS_COEF * d.lost as f32;
-    let years = w.tick.saturating_sub(d.founded) as f32 / 12.0;
+    let years = w.tick.saturating_sub(d.founded) as f32 / crate::calendar::DAYS_PER_YEAR as f32;
     t.cycle = (years / MANDATE_CYCLE_YEARS).min(MANDATE_CYCLE_MAX);
     if broke {
         t.broke = MANDATE_BROKE;
@@ -434,7 +452,7 @@ fn round(w: &mut World, round: Round) {
         if d.fallen.is_some() || !round.takes(seed, Domain::Dynasty, d.id as u32) {
             continue;
         }
-        if round.is_month() && tick < d.founded + 12 {
+        if round.is_month() && tick < d.founded + crate::calendar::DAYS_PER_YEAR {
             continue;
         }
         year_of(w, di);

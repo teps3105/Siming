@@ -14,13 +14,13 @@ fn populated(p: &WorldParams) -> Result<Sim, WorldGenError> {
     let g = siming_sim::worldgen::generate(p)?;
     let mut sim = Sim::from_parts(g.params, g.geo, g.provinces);
     let w = sim.world_mut();
-    w.tick = 1200;
+    w.tick = 1200 * 30;
     soul::ensure_heaven(w);
     let n = w.provinces.len() as u16;
     for i in 0..400u32 {
         let prov = (i * 7 % n as u32) as u16;
         let (_, pid) = soul::spawn_new_life(w, SoulOrigin::Primordial, prov);
-        w.persons[pid as usize].born = w.tick as i32 - ((16 + i % 30) * 12) as i32;
+        w.persons[pid as usize].born = w.tick as i32 - ((16 + i % 30) * 360) as i32;
     }
     Ok(sim)
 }
@@ -40,7 +40,7 @@ fn two_runs_same_seed_same_hash_at_every_yun_boundary() {
             b.step();
         }
         assert_eq!(a.hash(), b.hash());
-        assert_eq!(a.world().tick % YUN, 1200 % YUN);
+        assert_eq!(a.world().tick % (YUN * 30), 1200 * 30 % (YUN * 30));
     }
     // 世界確實在演化（不是兩個空世界）。
     assert!(a.world().ledger.events.len() > 400);

@@ -305,6 +305,16 @@ pub fn create(
 /// 了結（3.3 了結）：清算業力 → 寫入 `ThreadResolved`（因：建立事件、雙方最近事件、`cause`）→ 天書偵測。
 /// 司命天機（M5）與地圖奇觀（呈現層）不在此處。線已了結或已消散時回傳 `None`。
 pub fn resolve(w: &mut World, tid: ThreadId, how: Resolution, cause: Option<EventId>) -> Option<EventId> {
+    let why = match how {
+        Resolution::Revenge => Why::Avenged,
+        Resolution::Atone => Why::Repaid,
+        Resolution::Other => Why::ResolvedOther,
+    };
+    resolve_why(w, tid, how, cause, why)
+}
+
+/// 同 [`resolve`]，並指定了結的成因（寫入 `ThreadResolved` 的 `why`）。
+pub fn resolve_why(w: &mut World, tid: ThreadId, how: Resolution, cause: Option<EventId>, why: Why) -> Option<EventId> {
     let t = w.threads.get(tid as usize)?.clone();
     if !is_open(&t) {
         return None;
@@ -328,6 +338,7 @@ pub fn resolve(w: &mut World, tid: ThreadId, how: Resolution, cause: Option<Even
     let (province, cell) = place(w, t.creditor);
     let mut e =
         NewEvent::new(EventKind::ThreadResolved, if n >= 2 { 5 } else { 4 }, EventArgs::Thread { thread: tid, kind: t.kind, lives: n });
+    e.why = why;
     e.province = province;
     e.cell = cell;
     e.souls = smallvec![t.debtor, t.creditor];
@@ -340,6 +351,7 @@ pub fn resolve(w: &mut World, tid: ThreadId, how: Resolution, cause: Option<Even
     e.causes = causes;
     let eid = ledger::record(w, e);
     w.threads[tid as usize].resolved = Some((w.tick, eid));
+    settle(w, tid, eid);
     Some(eid)
 }
 
@@ -354,7 +366,23 @@ pub(crate) fn fade(w: &mut World, tid: ThreadId) {
     e.cell = cell;
     e.souls = smallvec![t.debtor, t.creditor];
     e.causes = smallvec![t.created.1];
-    ledger::record(w, e);
+    let eid = ledger::record(w, e);
+    settle(w, tid, eid);
+}
+
+/// 線已了結或消散：從雙方魂的現行名單移除，改記一筆精簡紀錄（上限 [`SETTLED_CAP`]）。
+fn settle(w: &mut World, tid: ThreadId, event: EventId) {
+    let t = &w.threads[tid as usize];
+    let (kind, d, c) = (t.kind, t.debtor, t.creditor);
+    for (me, other, debtor) in [(d, c, true), (c, d, false)] {
+        let s = &mut w.souls[me as usize];
+        s.threads.retain(|&x| x != tid);
+        if s.settled.len() >= SETTLED_CAP {
+            let k = s.settled.iter().position(|r| r.kind != ThreadKind::Mentor).unwrap_or(0);
+            s.settled.remove(k);
+        }
+        s.settled.push(Settled { other, kind, debtor, event });
+    }
 }
 
 // ── 殺業 ─────────────────────────────────────────────────
@@ -486,7 +514,7 @@ pub fn on_marriage(w: &mut World, a: PersonId, b: PersonId, cause: Option<EventI
     if let Some(tid) = open_between(w, ThreadKind::Love, sa, sb, false) {
         let t = w.threads[tid as usize].clone();
         if lives(w, &t) >= 1 {
-            resolve(w, tid, Resolution::Other, cause);
+            resolve_why(w, tid, Resolution::Other, cause, Why::WedSettled);
             return None;
         }
     }
@@ -518,6 +546,9 @@ fn kill_person(w: &mut World, killer: PersonId, victim: PersonId, cause: Option<
     };
     // 殺人事件為死亡事件的因；死亡處理（Died、魂入中陰、人際、勢力）由 people::die 負責。
     let mut ke = NewEvent::new(EventKind::Killed, 3, EventArgs::None);
+    let rel = ledger::rel_of_persons(w, killer, victim);
+    ke.why = if rel.has(Rel::THREAD_FEUD | Rel::THREAD_GRUDGE) { Why::Vendetta } else { Why::KillOther };
+    ke.rel = Some(rel);
     ke.province = Some(province);
     ke.cell = Some(cell);
     ke.souls = smallvec![ks, vs];

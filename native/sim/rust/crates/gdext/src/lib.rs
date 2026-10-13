@@ -12,7 +12,7 @@ use std::sync::mpsc::{self, Receiver, TryRecvError};
 use godot::prelude::*;
 use relief::Relief;
 use siming_sim::save::{Replay, SaveFile};
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
 use siming_sim::{calendar, Command, Era, FineGeography, Geography, Sim, WorldParams, WorldSize, NO_PROVINCE};
 
@@ -237,7 +237,10 @@ impl SimWorld {
             PROGRESS_STAGE.store(stage as u32 + 1, Ordering::Relaxed);
             PROGRESS_MILLI.store((f.clamp(0.0, 1.0) * 1000.0) as u32, Ordering::Relaxed);
         };
-        match Sim::new_with_progress(&params, &mut |_, _| {}, &mut progress) {
+        // 測試開關：`create_with` 的 `rng_seed` 指定人物落地起的亂數種子；沒指定時從作業系統取。
+        let fixed = FIXED_RNG.swap(u64::MAX, Ordering::Relaxed);
+        let fixed = (fixed != u64::MAX).then_some(fixed);
+        match Sim::new_with_progress_seeded(&params, fixed, &mut |_, _| {}, &mut progress) {
             Ok(sim) => {
                 self.adopt(sim);
                 GString::new()
@@ -250,6 +253,7 @@ impl SimWorld {
 const UNSET: u32 = u32::MAX;
 static DEFAULT_POP_YEARS: AtomicU32 = AtomicU32::new(UNSET);
 static DEFAULT_PRERUN_YEARS: AtomicU32 = AtomicU32::new(UNSET);
+static FIXED_RNG: AtomicU64 = AtomicU64::new(u64::MAX);
 static PROGRESS_STAGE: AtomicU32 = AtomicU32::new(0);
 static PROGRESS_MILLI: AtomicU32 = AtomicU32::new(0);
 
@@ -284,6 +288,9 @@ impl SimWorld {
                 "decline" => Era::Decline,
                 _ => Era::Middle,
             };
+        }
+        if let Some(n) = options.get("rng_seed").and_then(|v| v.try_to::<i64>().ok()) {
+            FIXED_RNG.store(n as u64 & (u64::MAX >> 1), Ordering::Relaxed);
         }
         let count = |key: &str| options.get(key).and_then(|v| v.try_to::<i64>().ok()).map(|n| n.clamp(0, 20_000) as u32);
         if let Some(n) = count("pop_years") {
@@ -365,7 +372,8 @@ impl SimWorld {
             Ok(file) => file,
             Err(e) => return GString::from(e.to_string().as_str()),
         };
-        match Replay::start(file, Sim::new) {
+        let origin = file.rng_origin;
+        match Replay::start(file, move |p| Sim::new_seeded(p, origin)) {
             Ok(replay) => {
                 self.replay = Some(replay);
                 GString::new()
@@ -520,7 +528,7 @@ impl SimWorld {
         };
         let w = sim.world();
         let e = &w.evolution;
-        let next_tick = (w.tick / 360 + 1) * 360;
+        let next_tick = (w.tick / 10_800 + 1) * 10_800;
         let (warmth_next, tide_next) = e.forecast(e.history_years + siming_sim::evolution::year_of(next_tick));
         d.set("warmth", e.warmth);
         d.set("tide", e.tide);
@@ -1017,6 +1025,7 @@ impl SimWorld {
             d.set("era", &GString::from(era.name.as_str()));
             d.set("year", year as i32);
             d.set("month", siming_sim::calendar::date(e.tick).month as i32);
+            set_day_and_cause(&mut d, e);
             out.push(&d);
         }
         out
@@ -1257,6 +1266,16 @@ struct CauseNode {
     parent: i32,
 }
 
+/// 事件字典的日、成因與關係：`day`（月內第幾日，1..=30）、`why`（成因代碼字串，無則空字串）、
+/// `rel`（兩方關係旗標名稱的字串陣列）、`rel_lives`（未了宿緣線已隔的世數）。
+fn set_day_and_cause(d: &mut VarDictionary, e: &siming_sim::Event) {
+    d.set("day", siming_sim::calendar::date(e.tick).day as i32);
+    d.set("why", &GString::from(e.why.code()));
+    let names: Vec<GString> = e.rel.names().into_iter().map(GString::from).collect();
+    d.set("rel", &PackedStringArray::from(names.as_slice()));
+    d.set("rel_lives", e.rel.lives() as i32);
+}
+
 fn event_by_id(w: &siming_sim::World, id: i64) -> Option<&siming_sim::Event> {
     u32::try_from(id).ok().and_then(|i| siming_sim::ledger::get(w, i))
 }
@@ -1385,6 +1404,7 @@ impl SimWorld {
         d.set("date_era", &GString::from(date_era.name.as_str()));
         d.set("year", year as i32);
         d.set("month", siming_sim::calendar::date(e.tick).month as i32);
+        set_day_and_cause(&mut d, e);
         // 可追對象：牽涉的人物與勢力編號（州郡編號為 province）。
         let person_ids: Vec<i32> = e.persons.iter().map(|&i| i as i32).collect();
         let power_ids: Vec<i32> = e.powers.iter().map(|&i| i as i32).collect();
@@ -1530,7 +1550,8 @@ fn subjects<'a>(w: &'a siming_sim::World, e: &siming_sim::Event) -> (Option<&'a 
 fn note_identities(w: &siming_sim::World, out: &mut std::collections::HashMap<siming_sim::EventId, Identity>) {
     let events = &w.ledger.events;
     let mut start = events.len();
-    while start > 0 && events[start - 1].tick == w.tick {
+    // 一步是一個月，月內事件的日各不相同：取本月（最近 30 日）寫入的全部。
+    while start > 0 && events[start - 1].tick + siming_sim::calendar::DAYS_PER_MONTH > w.tick {
         start -= 1;
     }
     for e in &events[start..] {

@@ -47,7 +47,7 @@ pub fn realm_months(path: SixPath) -> Option<(u32, u32)> {
 /// 條件：未了、強度 ≥ `WAIT_MIN_STRENGTH`，且對方處於中陰、或他道將在 `WAIT_MAX` 內期滿。
 /// 對方已超脫、期滿尚遠、在等待中或在世時不等。多條符合時取強度最高者，同強度取 ThreadId 小者。
 pub fn wait_target(w: &World, soul: &Soul, tick: Tick) -> Option<SoulId> {
-    let horizon = tick + WAIT_MAX_YEARS * 12;
+    let horizon = tick + WAIT_MAX_YEARS * crate::calendar::DAYS_PER_YEAR;
     let mut best: Option<(f32, ThreadId, SoulId)> = None;
     for &tid in &soul.threads {
         let Some(t) = w.threads.get(tid as usize) else { continue };

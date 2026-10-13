@@ -243,7 +243,7 @@ func test_gdd_8_12_part_stack_node_builds_one_view_per_layer_and_keeps_an_unchan
 
 
 ## 試驗類：畫家畫的真部件（portrait_trial），格式與佔位類相同，款數隨已入庫的部件增加。
-const TRIAL_SLOTS := ["back_hair", "face", "collar", "eyes", "brows", "beard", "front_hair"]
+const TRIAL_SLOTS := ["back_hair", "face", "collar", "eyes", "brows", "beard", "mark", "front_hair", "hat"]
 const TRIAL_TINTS := {"skin": Color("dfb182"), "hair": Color("605450"), "robe": Color("5c7080"), "trim": Color("b23a2e"), "iris": Color("466e96")}
 
 
@@ -298,3 +298,43 @@ func test_gdd_8_12_trial_stack_renders_a_non_empty_portrait_and_dye_changes_it()
 				if single.get_pixel(x, y).a > 0.0:
 					count += 1
 		assert_gt(count, 50, "單層非空：" + String(item["part"]))
+
+
+## 冠帽與髮式的搭配（8.12）：目錄的冠帽宣告可配的髮式，組合時先定髮式、再從相容的冠帽裡挑（含不戴）。
+func test_gdd_8_12_trial_hats_declare_the_hair_styles_they_fit() -> void:
+	var catalog := PartCatalog.load_class("portrait_trial")
+	var styles := PortraitRecipe.hair_styles(catalog)
+	assert_gt(styles.size(), 0, "目錄有成對的髮式")
+	for code in catalog.parts_in("hat"):
+		var fits := catalog.hairs_of(code)
+		assert_gt(fits.size(), 0, "冠帽宣告了可配的髮式：" + code)
+		for style in fits:
+			assert_true(style in styles, "宣告的髮式在目錄裡有前後髮：%s 配 %s" % [code, style])
+	assert_eq(catalog.hairs_of("portrait_trial/hat.crown0"), ["crown"], "束髮小冠只配束髮")
+	assert_false("loose" in catalog.hairs_of("portrait_trial/hat.scholar0"), "儒巾不配披髮（髮從帽緣冒出）")
+	assert_false("crown" in catalog.hairs_of("portrait_trial/hat.scholar0"), "儒巾不配束髮（髻從帽頂冒出）")
+	assert_false("topknot" in catalog.hairs_of("portrait_trial/hat.straw0"), "斗笠不配髮髻（髻從笠頂冒出）")
+	assert_false("crown" in catalog.hairs_of("portrait_trial/hat.straw0"), "斗笠不配束髮")
+
+
+func test_gdd_8_12_trial_pairing_never_mixes_incompatible_hair_and_hat_or_goes_bald() -> void:
+	var catalog := PartCatalog.load_class("portrait_trial")
+	var seen_hat := {}
+	var seen_none := false
+	var seen_hair := {}
+	for seed_value in 400:
+		var look := PortraitRecipe.pair_hair_hat(catalog, seed_value)
+		var style: String = look["hair"]
+		assert_true(style in PortraitRecipe.hair_styles(catalog), "髮式是目錄裡成對的款（沒有光頭）：" + style)
+		seen_hair[style] = true
+		var hat: String = look["hat"]
+		if hat.is_empty():
+			seen_none = true
+		else:
+			assert_true(catalog.has_part(hat), "冠帽在目錄裡：" + hat)
+			assert_true(style in catalog.hairs_of(hat), "冠帽 %s 與髮式 %s 相容" % [hat, style])
+			seen_hat[hat] = true
+		assert_eq(PortraitRecipe.pair_hair_hat(catalog, seed_value), look, "同一種子同一結果")
+	assert_true(seen_none, "也有不戴的")
+	assert_eq(seen_hat.size(), catalog.parts_in("hat").size(), "每一款冠帽都挑得到")
+	assert_eq(seen_hair.size(), PortraitRecipe.hair_styles(catalog).size(), "每一款髮式都挑得到")

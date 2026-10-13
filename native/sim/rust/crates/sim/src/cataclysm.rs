@@ -49,22 +49,16 @@ pub fn load(w: &World) -> f64 {
     pop / 1.0e6 * CATA_W_POP + living / 1.0e3 * CATA_W_NOTABLE + open / 1.0e4 * CATA_W_THREAD
 }
 
-/// 新宿緣線在大劫之後的一段時間不易長出：確定性地（不耗亂數）以建線序號與時刻擲骰。
-pub fn thread_allowed(w: &World) -> bool {
+/// 新宿緣線在大劫之後的一段時間不易長出：從演化亂數流擲骰。
+pub fn thread_allowed(w: &mut World) -> bool {
     let year = year_of(w.tick);
     if year >= w.calamity.slow_until {
         return true;
     }
     let left = f64::from(w.calamity.slow_until - year) / f64::from(CATA_SLOW_YEARS + CATA_DURATION_YEARS);
     let rate = 1.0 - CATA_SLOW_THREAD_CUT * left.min(1.0);
-    let h = mix(w.params.seed ^ (w.threads.len() as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ (u64::from(w.tick) << 20));
-    ((h >> 40) as f64 / (1u64 << 24) as f64) < rate
-}
-
-fn mix(mut z: u64) -> u64 {
-    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-    z ^ (z >> 31)
+    use rand::Rng;
+    w.rng.evolution.gen::<f64>() < rate
 }
 
 fn open_era_now(w: &mut World, year: u32, kind: EraKind, change: WorldChange) {
@@ -96,6 +90,7 @@ pub fn yearly(w: &mut World) {
 }
 
 fn strike(w: &mut World, year: u32, ratio: f64) {
+    use rand::Rng;
     let sev = ratio.clamp(1.0, 1.5);
     w.calamity.history.push((year, (ratio * 1000.0) as u32));
     w.calamity.ends = Some(year + CATA_DURATION_YEARS);
@@ -126,8 +121,7 @@ fn strike(w: &mut World, year: u32, ratio: f64) {
     // 在世有名之人：不分境界，按機率身隕。
     let ids: Vec<PersonId> = w.alive_ids.to_vec();
     for pid in ids {
-        let h = mix(w.params.seed ^ (u64::from(year) << 32) ^ u64::from(pid) ^ 0xCA7A);
-        if ((h >> 40) as f64 / (1u64 << 24) as f64) < CATA_DEATH * sev && w.persons.get(pid as usize).is_some_and(|p| p.alive()) {
+        if w.rng.evolution.gen::<f64>() < CATA_DEATH * sev && w.persons.get(pid as usize).is_some_and(|p| p.alive()) {
             crate::people::die(w, pid, DeathCause::Kalpa, None, &[]);
         }
     }

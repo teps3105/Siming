@@ -73,7 +73,7 @@ fn person(w: &mut World, province: ProvinceId, role: Role, talent: f32, virtue: 
     let (_, pid) = soul::spawn_new_life(w, SoulOrigin::New, province);
     let tick = w.tick as i32;
     let p = &mut w.persons[pid as usize];
-    p.born = tick - 30 * 12;
+    p.born = tick - 30 * 360;
     p.role = role;
     p.path = PathState::Mortal;
     p.attrs.talent = talent;
@@ -150,9 +150,9 @@ fn gdd_3_7_mandate_cycle_term_caps_at_three() {
     let di = dynasty(&mut w, 0, &[0, 1]);
     let r = w.dynasty.list[di].ruler.unwrap();
     w.persons[r as usize].attrs.virtue = 5.0;
-    w.tick = 50 * 12;
+    w.tick = 50 * 360;
     assert!((mandate_delta(&w, di, 0, false) + 0.5).abs() < 1e-5);
-    w.tick = 900 * 12;
+    w.tick = 900 * 360;
     assert!((mandate_delta(&w, di, 0, false) + 3.0).abs() < 1e-5);
 }
 
@@ -165,7 +165,7 @@ fn gdd_3_7_mandate_clamped_to_0_100() {
     w.provinces[0].righteous = 1.0;
     w.provinces[1].righteous = 1.0;
     w.dynasty.list[di].mandate = 99.0;
-    w.tick = 12;
+    w.tick = 12 * 30;
     yearly(&mut w, &[]);
     assert_eq!(w.dynasty.list[di].mandate, 100.0);
 }
@@ -206,7 +206,7 @@ fn gdd_3_7_collapse_at_zero_mandate() {
         d.mandate = 0.1;
     }
     w.persons[ruler as usize].attrs.virtue = 0.0;
-    w.tick = 12;
+    w.tick = 12 * 30;
     yearly(&mut w, &[]);
     let d = &w.dynasty.list[di];
     assert!(d.fallen.is_some());
@@ -230,7 +230,7 @@ fn gdd_3_7_succession_eldest_heir() {
     w.dynasty.list[di].heirs = vec![young, old];
     w.dynasty.list[di].decree = Decree::BanTao;
     kill(&mut w, ruler);
-    w.tick = 12;
+    w.tick = 12 * 30;
     yearly(&mut w, &[]);
     let d = &w.dynasty.list[di];
     assert_eq!(d.ruler, Some(old));
@@ -349,7 +349,7 @@ fn gdd_3_7_secession_roll_below_20() {
     let ruler = w.dynasty.list[di].ruler.unwrap();
     w.persons[ruler as usize].attrs.virtue = 10.0;
     for year in 1..=20u32 {
-        w.tick = year * 12;
+        w.tick = year * 360;
         w.dynasty.list[di].mandate = 1.0;
         realm::unrest(&mut w, di, false);
     }
@@ -481,11 +481,11 @@ fn gdd_3_7_policy_set_on_accession_and_fixed_while_reigning() {
     // 在位期間改變道緣不改國策。
     let rs = w.persons[ruler as usize].soul as usize;
     w.souls[rs].affinity = [0.1, 0.1, 0.1, 0.7];
-    w.tick = 12;
+    w.tick = 12 * 30;
     yearly(&mut w, &[]);
     assert_eq!(w.dynasty.list[di].policy, Policy::Tao);
     kill(&mut w, ruler);
-    w.tick = 24;
+    w.tick = 24 * 30;
     yearly(&mut w, &[]);
     assert_eq!(w.dynasty.list[di].policy, Policy::Ru);
 }
@@ -780,13 +780,13 @@ fn gdd_3_7_high_years_counter() {
     w.provinces[0].righteous = 0.5;
     w.provinces[1].righteous = 0.5;
     w.dynasty.list[di].mandate = 95.0;
-    w.tick = 12;
+    w.tick = 12 * 30;
     yearly(&mut w, &[]);
     assert_eq!(w.dynasty.list[di].high_years, 1);
     w.dynasty.list[di].mandate = 50.0;
     w.provinces[0].righteous = 0.0;
     w.provinces[1].righteous = 0.0;
-    w.tick = 24;
+    w.tick = 24 * 30;
     yearly(&mut w, &[]);
     assert_eq!(w.dynasty.list[di].high_years, 0);
 }
@@ -796,7 +796,7 @@ fn gdd_3_7_prestige_formula() {
     let mut w = line(3);
     let di = dynasty(&mut w, 0, &[0, 1, 2]);
     w.dynasty.list[di].prestige_mod = 20.0;
-    w.tick = 12;
+    w.tick = 12 * 30;
     yearly(&mut w, &[]);
     let d = &w.dynasty.list[di];
     assert!((d.prestige - (3.0 * 10.0 + d.mandate)).abs() < 1e-4);
@@ -808,7 +808,7 @@ fn gdd_3_7_lost_province_leaves_dynasty() {
     let mut w = line(3);
     let di = dynasty(&mut w, 0, &[0, 1, 2]);
     w.provinces[0].lost = true;
-    w.tick = 12;
+    w.tick = 12 * 30;
     yearly(&mut w, &[]);
     let d = &w.dynasty.list[di];
     assert_eq!(d.provinces, vec![1, 2]);
@@ -823,7 +823,7 @@ fn gdd_3_7_yearly_founding_needs_pop_talent_and_free_land() {
     person(&mut w, 0, Role::Commoner, 7.9, 5.0);
     let hero = person(&mut w, 4, Role::Commoner, 9.0, 5.0);
     for y in 1..=400u32 {
-        w.tick = y * 12;
+        w.tick = y * 360;
         realm::yearly_found(&mut w, crate::schedule::Round::All);
         if !w.dynasty.list.is_empty() {
             break;
@@ -841,7 +841,7 @@ fn gdd_3_7_yearly_founding_needs_pop_talent_and_free_land() {
     w.provinces[1].population = 49_999.0;
     person(&mut w, 1, Role::Commoner, 9.5, 5.0);
     for y in 1..=400u32 {
-        w.tick = y * 12;
+        w.tick = y * 360;
         realm::yearly_found(&mut w, crate::schedule::Round::All);
     }
     assert!(w.dynasty.list.is_empty());
@@ -905,7 +905,7 @@ fn gdd_3_7_determinism_two_runs_same_state() {
         }
         w.dynasty.list[di].mandate = 30.0;
         for y in 1..=60u32 {
-            w.tick = y * 12;
+            w.tick = y * 360;
             yearly(&mut w, &[]);
         }
         crate::hash::world_hash(&w)
@@ -926,7 +926,7 @@ fn gdd_3_7_each_dynasty_settles_exactly_once_per_year_in_monthly_rounds() {
     super::probe_start();
     let start = w.tick;
     for _ in 0..36 {
-        w.tick += 1;
+        w.tick += 30;
         monthly(&mut w);
     }
     let records = super::probe_take();
@@ -935,11 +935,11 @@ fn gdd_3_7_each_dynasty_settles_exactly_once_per_year_in_monthly_rounds() {
         let month = crate::schedule::judge_month(w.params.seed, crate::schedule::Domain::Dynasty, di as u32);
         assert!(ticks.iter().all(|&t| crate::schedule::month_of(t) == month), "{ticks:?}");
         // 36 個月內：新生王朝要滿 12 個月才開始，第 12–36 個月之間的判定月各一次。
-        let expected = (start + 12..=start + 36).filter(|&t| crate::schedule::month_of(t) == month).count();
+        let expected = (12..=36).map(|k| start + k * 30).filter(|&t| crate::schedule::month_of(t) == month).count();
         assert_eq!(ticks.len(), expected, "王朝 {di} 的結算 tick {ticks:?}");
         assert!((1..=3).contains(&ticks.len()));
         let gaps: Vec<_> = ticks.windows(2).map(|p| p[1] - p[0]).collect();
-        assert!(gaps.iter().all(|&g| g == 12), "{gaps:?}");
+        assert!(gaps.iter().all(|&g| g == 360), "{gaps:?}");
     }
 }
 
@@ -948,15 +948,15 @@ fn gdd_3_7_each_dynasty_settles_exactly_once_per_year_in_monthly_rounds() {
 fn gdd_3_7_famine_and_flow_terms_roll_over_twelve_months() {
     let mut w = line(3);
     let di = dynasty(&mut w, 0, &[0, 1, 2]);
-    w.tick = 1000;
-    w.dynasty.list[di].note_flow(1000, 1, 0, 0);
+    w.tick = 1000 * 30;
+    w.dynasty.list[di].note_flow(1000 * 30, 1, 0, 0);
     super::on_famines(&mut w, &[(1, 100), (2, 100)]);
     assert_eq!(w.dynasty.list[di].famine, 2);
     assert_eq!(w.dynasty.list[di].gained, 1);
-    w.tick = 1011;
-    w.dynasty.list[di].expire_flow(1011);
+    w.tick = 1011 * 30;
+    w.dynasty.list[di].expire_flow(1011 * 30);
     assert_eq!((w.dynasty.list[di].famine, w.dynasty.list[di].gained), (2, 1), "第 12 個月仍在窗口內");
-    w.tick = 1012;
-    w.dynasty.list[di].expire_flow(1012);
+    w.tick = 1012 * 30;
+    w.dynasty.list[di].expire_flow(1012 * 30);
     assert_eq!((w.dynasty.list[di].famine, w.dynasty.list[di].gained, w.dynasty.list[di].lost), (0, 0, 0));
 }

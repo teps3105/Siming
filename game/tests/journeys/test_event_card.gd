@@ -51,6 +51,9 @@ func _deep_event() -> Dictionary:
 		var event: Dictionary = _stream[id]
 		if int(event["importance"]) < 3 or not event.has("pos") or not EventText.category(event).is_empty():
 			continue
+		# 世界每次開出的演變都不同：要選有人物可開人物卡的事件。
+		if int(event["a_person"]) < 0 and (event["persons"] as PackedInt32Array).is_empty():
+			continue
 		for node: Dictionary in _sim.world.event_causes(id, 6):
 			if int(node["level"]) >= 2:
 				return event

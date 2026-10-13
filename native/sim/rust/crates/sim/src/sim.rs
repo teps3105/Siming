@@ -2,6 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::calendar::{Day, DAYS_PER_MONTH};
 use crate::model::*;
 use crate::rng::RngStreams;
 use crate::types::{FineGeography, Geography, Province, ProvinceId, Tick, WorldGenError, WorldParams};
@@ -52,6 +53,8 @@ pub struct World {
     /// 在世者依判定月分的 12 桶（效能快取，GDD 6.8；不納入雜湊與存檔）。`people::spawn`、`people::die` 同步維護；
     /// 與 `alive_ids` 對不上時（測試直接改了 `alive_ids`）下次使用時重建。
     pub alive_months: AliveMonths,
+    /// 在世者依所在州郡分桶的索引快取，最多隔一個月重建一次（見 [`World::near_alive`]）。
+    pub prov_index: ProvIndex,
     /// 宿緣線依債務方判定月分的 12 桶（效能快取，GDD 6.8；不納入雜湊與存檔）。宿緣只增不減、債務方建線後不變，
     /// 所以只需追加新線；線數比已建的少時（測試換了線表）重建。
     pub thread_months: ThreadMonths,
@@ -60,6 +63,11 @@ pub struct World {
     /// 天地負荷與大劫的狀態（GDD 3.11）。
     pub calamity: crate::cataclysm::Calamity,
     pub rng: RngStreams,
+    /// 待發生事件隊列（事件驅動引擎）。
+    pub queue: crate::queue::EventQueue,
+    /// 全部子流上次重設用的種子；`None` 表示仍是世界種子決定的初始狀態（人物落地之前）。
+    /// 讀檔重播的過渡期用它重建同一個世界；快照存檔上線後不再需要。
+    pub rng_origin: Option<u64>,
 }
 
 /// 在世者依判定月分桶（桶內升冪）。`total` 為桶內人數總和，`usize::MAX` 表示失效。
@@ -75,6 +83,17 @@ impl Default for AliveMonths {
         Self { seed: 0, total: usize::MAX, by_month: Default::default() }
     }
 }
+
+/// 在世者依所在州郡分桶（桶內 ID 升冪）的快取。是由世界狀態導出的，不進存檔與雜湊；
+/// 最多隔 [`PROV_INDEX_TTL`] 日重建，使用端須自行核對人物仍在世、仍在該州。
+#[derive(Debug, Clone, Default)]
+pub struct ProvIndex {
+    built: Option<Tick>,
+    by_province: Vec<Vec<PersonId>>,
+}
+
+/// 州郡索引的有效日數。
+pub const PROV_INDEX_TTL: Tick = DAYS_PER_MONTH;
 
 /// 宿緣線依債務方判定月分桶（桶內 ThreadId 升冪）。
 #[derive(Debug, Clone, Default)]
@@ -116,10 +135,13 @@ impl World {
             thread_stamp: Vec::new(),
             range_cache: Default::default(),
             alive_months: Default::default(),
+            prov_index: Default::default(),
             thread_months: Default::default(),
             settlements: Vec::new(),
             calamity: Default::default(),
             rng,
+            queue: Default::default(),
+            rng_origin: None,
         }
     }
 
@@ -186,9 +208,43 @@ impl World {
                         .push(tm.built as ThreadId);
                     tm.built += 1;
                 }
-                tm.by_month[m as usize % 12].clone()
+                // 已了結的線不會再開，順手從桶裡剔除，桶的大小只隨未了的線而定。
+                let threads = &self.threads;
+                let bucket = &mut tm.by_month[m as usize % 12];
+                bucket.retain(|&t| crate::thread::is_open(&threads[t as usize]));
+                bucket.clone()
             }
         }
+    }
+
+    /// 本州與陸鄰的在世者（升冪，含自己；索引最多舊一個月，所在州郡已核對、死者已排除）。
+    pub fn near_alive(&mut self, province: crate::types::ProvinceId) -> Vec<PersonId> {
+        let stale = self.prov_index.built.is_none_or(|b| self.tick >= b + PROV_INDEX_TTL || self.tick < b)
+            || self.prov_index.by_province.len() != self.provinces.len();
+        if stale {
+            let mut v: Vec<Vec<PersonId>> = vec![Vec::new(); self.provinces.len()];
+            for &i in &self.alive_ids {
+                if let Some(b) = v.get_mut(self.persons[i as usize].province as usize) {
+                    b.push(i);
+                }
+            }
+            self.prov_index = ProvIndex { built: Some(self.tick), by_province: v };
+        }
+        let mut out = Vec::new();
+        let mut add = |prov: crate::types::ProvinceId, w: &World| {
+            if let Some(b) = w.prov_index.by_province.get(prov as usize) {
+                out.extend(b.iter().copied().filter(|&id| w.persons[id as usize].alive() && w.persons[id as usize].province == prov));
+            }
+        };
+        add(province, self);
+        if let Some(p) = self.provinces.get(province as usize) {
+            for &n in &p.neighbors {
+                add(n, self);
+            }
+        }
+        out.sort_unstable();
+        out.dedup();
+        out
     }
 
     /// 在世者中本輪輪到判定月者（升冪）。等價於 [`World::alive_snapshot`] 再以
@@ -208,13 +264,18 @@ impl World {
 
 /// 觸發條件（GDD 6.3）。
 pub fn is_yearly(tick: Tick) -> bool {
-    tick.is_multiple_of(12)
+    tick.is_multiple_of(crate::calendar::DAYS_PER_YEAR)
 }
 pub fn is_quarterly(tick: Tick) -> bool {
-    tick.is_multiple_of(3)
+    tick.is_multiple_of(3 * DAYS_PER_MONTH)
 }
 pub fn is_shi(tick: Tick) -> bool {
-    tick.is_multiple_of(360)
+    tick.is_multiple_of(30 * crate::calendar::DAYS_PER_YEAR)
+}
+
+/// `tick` 之後的第一個月底（月步進結算日）。
+pub fn next_month_end(tick: Tick) -> Tick {
+    (tick / DAYS_PER_MONTH + 1) * DAYS_PER_MONTH
 }
 
 pub struct Sim {
@@ -225,12 +286,31 @@ pub struct Sim {
     log: Vec<(Tick, Command)>,
     /// `drain_events` 尚未取走的事件（GDD 6.3 事件輸出）。
     pending: Vec<EventId>,
+    /// 測試與除錯用：指定人物落地時的亂數種子。`None`（預設）從作業系統取。
+    fixed_rng: Option<u64>,
+}
+
+/// [`Sim::advance_until`] 的停止條件。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Until {
+    /// 下一件重要度不小於 k 的事件。
+    Importance(u8),
+    /// 下一件牽涉指定魂的事件。
+    Soul(SoulId),
+    /// 再過這麼多年。
+    Years(u32),
 }
 
 impl Sim {
     /// GDD 4.6 開天：世界生成 → 開天 → 預跑。
     pub fn new(params: &WorldParams) -> Result<Self, WorldGenError> {
         Self::new_with_diag(params, &mut |_, _| {})
+    }
+
+    /// 同 [`Sim::new`]，但人物落地起的亂數種子由呼叫端指定（`None` 同 [`Sim::new`]，從作業系統取）。
+    /// 測試與除錯用：同種子、同亂數種子得到同一個世界。
+    pub fn new_seeded(params: &WorldParams, rng_seed: Option<u64>) -> Result<Self, WorldGenError> {
+        Self::new_with_progress_seeded(params, rng_seed, &mut |_, _| {}, &mut |_, _| {})
     }
 
     /// 同 [`Sim::new`]，但世界生成每次品質檢查失敗時回呼 `diag(種子, 原因)`（工具用）。
@@ -244,8 +324,19 @@ impl Sim {
         diag: &mut dyn FnMut(u64, &str),
         progress: &mut dyn FnMut(crate::genesis::Stage, f32),
     ) -> Result<Self, WorldGenError> {
+        Self::new_with_progress_seeded(params, None, diag, progress)
+    }
+
+    /// 同 [`Sim::new_with_progress`]，人物落地起的亂數種子由呼叫端指定（見 [`Sim::new_seeded`]）。
+    pub fn new_with_progress_seeded(
+        params: &WorldParams,
+        rng_seed: Option<u64>,
+        diag: &mut dyn FnMut(u64, &str),
+        progress: &mut dyn FnMut(crate::genesis::Stage, f32),
+    ) -> Result<Self, WorldGenError> {
         let g = crate::worldgen::generate_with(params, diag)?;
         let mut sim = Self::from_parts(g.params, g.geo, g.provinces);
+        sim.fixed_rng = rng_seed;
         sim.world.fine = g.fine;
         crate::evolution::prepare_aura(&mut sim.world);
         crate::landform::prepare(&mut sim.world);
@@ -256,28 +347,102 @@ impl Sim {
 
     /// 以既有的世界資料建立（測試、開發工具用；不執行開天）。
     pub fn from_parts(params: WorldParams, geo: Geography, provinces: Vec<Province>) -> Self {
-        Self { world: World::empty(params, geo, provinces), queued: Vec::new(), log: Vec::new(), pending: Vec::new() }
+        Self { world: World::empty(params, geo, provinces), queued: Vec::new(), log: Vec::new(), pending: Vec::new(), fixed_rng: None }
     }
 
-    /// 推進一個月（GDD 6.3）。M2 範圍以外的步驟為空操作。
+    /// 人物落地時重設全部亂數子流（開天用）：有指定固定種子用它，否則從作業系統取。
+    pub fn reseed_rng(&mut self) {
+        let k = self.fixed_rng.unwrap_or_else(crate::rng::os_seed);
+        self.world.rng.reseed(k);
+        self.world.rng_origin = Some(k);
+    }
+
+    /// 測試與除錯用：目前指定的固定亂數種子。
+    pub fn fixed_rng(&self) -> Option<u64> {
+        self.fixed_rng
+    }
+
+    /// 推進一個月（30 日）：等於 `advance_to` 下個月的最後一日。
     pub fn step(&mut self) {
+        self.advance_to(next_month_end(self.world.tick));
+    }
+
+    /// 推進到第 `target` 日（含）：依時刻先後執行月步進與隊列裡到期的事件，同日先月步進再隊列。
+    /// 月步進是尚未移植的舊規則（GDD 6.3），每月最後一日結算一次；規則移植到隊列後，它會逐步縮小。
+    pub fn advance_to(&mut self, target: Day) {
+        loop {
+            let month_day = next_month_end(self.world.tick);
+            let queued = self.world.queue.peek_day();
+            match queued {
+                Some(qd) if qd < month_day && qd <= target => self.run_queued(qd),
+                _ if month_day <= target => self.month_step(),
+                _ => break,
+            }
+        }
+        if self.world.tick < target {
+            self.world.tick = target;
+        }
+        self.pending.extend(crate::ledger::take_new(&mut self.world));
+    }
+
+    /// 取出並執行一件到期的隊列事件。
+    fn run_queued(&mut self, qd: Day) {
+        let Some((day, action)) = self.world.queue.pop_due(qd) else { return };
+        self.world.tick = self.world.tick.max(day);
+        match action {
+            crate::queue::Action::Marker(_) => self.world.queue.fired += 1,
+            crate::queue::Action::Person(pid, act) => crate::people::events::fire(&mut self.world, pid, act),
+            crate::queue::Action::Soul(sid) => crate::soul::fire(&mut self.world, sid),
+        }
+    }
+
+    /// 推進到停止條件成立或超過 `max_days` 日；回傳使條件成立的事件（因果帳 ID），沒有則 `None`。
+    /// 逐個時間單位（一次月步進或一件隊列事件）推進並檢查新寫入的事件。
+    pub fn advance_until(&mut self, cond: Until, max_days: Day) -> Option<EventId> {
+        let start_day = self.world.tick;
+        let deadline = match cond {
+            Until::Years(n) => start_day + n * crate::calendar::DAYS_PER_YEAR,
+            _ => start_day + max_days,
+        };
+        let mut seen = self.world.ledger.events.len();
+        while self.world.tick < deadline {
+            let month_day = next_month_end(self.world.tick);
+            let next = self.world.queue.peek_day().map_or(month_day, |q| q.min(month_day)).min(deadline);
+            self.advance_to(next);
+            let w = &self.world;
+            for id in seen..w.ledger.events.len() {
+                let e = &w.ledger.events[id];
+                let hit = match cond {
+                    Until::Importance(k) => e.importance >= k,
+                    Until::Soul(s) => e.souls.contains(&s),
+                    Until::Years(_) => false,
+                };
+                if hit {
+                    return Some(id as EventId);
+                }
+            }
+            seen = w.ledger.events.len();
+        }
+        None
+    }
+
+    /// 月步進（GDD 6.3）：尚未移植到隊列的舊規則。
+    fn month_step(&mut self) {
         let w = &mut self.world;
         // 1
-        w.tick += 1;
+        w.tick = next_month_end(w.tick);
         let tick = w.tick;
         // 2 指令
         for cmd in std::mem::take(&mut self.queued) {
             crate::command::apply(w, &cmd);
             self.log.push((tick, cmd));
         }
-        // 3 到期處理（含開局保證的強制突破）
-        let any_forced = crate::people::monthly_due(w);
-        if any_forced {
-            crate::dao::monthly_forced(w);
-        }
+        // 3 個人規則（壽終、入道、遊歷、婚配、修煉突破）已改走事件隊列（`people::events`）。
         // 4 軍隊（M3）
-        // 5 中陰、他道、等待、出生
-        crate::soul::monthly(w);
+        // 5 中陰、他道、等待、出生：魂的狀態到期事件走隊列（`soul::fire`）；餓鬼、地獄的衰減每年一次。
+        if is_yearly(tick) {
+            crate::soul::yearly_decay(w);
+        }
         // 6 每季：氣場擴散（M4）
         // 個人、宗門、州郡、王朝的年度判定各在自己的判定月（`schedule`），每月都跑；
         // 只有補魂與天地演變、因果帳修剪留在年底月（第 12 月）。同一個月內各步的相對順序維持不變。
@@ -288,15 +453,7 @@ impl Sim {
         crate::ledger::record_famines(w, &famines);
         crate::dynasty::on_famines(w, &famines);
         // 8、9 氣場與勢力的年度效果（M3、M4）
-        // 10 年齡與壽元：年齡由 tick 與出生月即時算出（滿一歲落在出生月），壽元已盡者在滿壽元的那個月死亡。
-        crate::people::monthly_aging(w);
-        // 11 依身分行動
-        crate::dao::monthly_personal(w);
-        crate::people::monthly_travel(w);
-        // 12 入道
-        crate::people::monthly_coming_of_age(w);
-        // 13 婚配
-        crate::people::monthly_marriage(w);
+        // 10–13 壽終、修煉突破、遊歷、入道、婚配：事件隊列。
         if yearly {
             //    補魂（GDD 3.4 來源第 3 項）
             crate::soul::yearly_refill(w);

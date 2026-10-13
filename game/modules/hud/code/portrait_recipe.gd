@@ -124,7 +124,7 @@ static func from_person(info: Dictionary) -> Dictionary:
 	var hair_name: String = HAIRS[look["hair"]]
 	var items: Array[Dictionary] = []
 	items.append(_item("back_hair." + hair_name, ["hair"], tints))
-	items.append(_item("collar.%s_%s" % [SCHOOLS[look["school"]], WEALTH[look["wealth"]]], ["robe", "trim"], tints))
+	items.append(_item("collar.%s_%s" % [SCHOOLS[look["school"]], WEALTH[look["wealth"]]], ["robe", "trim", "gold"], tints))
 	items.append(_item("face.%s%d" % [sex_letter, _pick(id, 1, 3)], ["skin"], tints, shrink))
 	if life_stage == Stage.ELDER:
 		items.append(_item("wrinkle.%d" % _pick(id, 5, 2), [], tints, shrink))
@@ -163,6 +163,32 @@ static func _item(code: String, channels: Array, tints: Dictionary, scale := 1.0
 	if scale != 1.0:
 		item["scale"] = scale
 	return item
+
+
+## 目錄裡前髮與後髮成對的髮式（款名是代號末段）。有髮才算：光頭只留給規格裡本來就該光頭的身分（僧），不在這裡。
+static func hair_styles(catalog: PartCatalog) -> Array[String]:
+	var back := {}
+	for code in catalog.parts_in("back_hair"):
+		back[code.get_slice(".", 1)] = true
+	var out: Array[String] = []
+	for code in catalog.parts_in("front_hair"):
+		var style := code.get_slice(".", 1)
+		if back.has(style):
+			out.append(style)
+	out.sort()
+	return out
+
+
+## 先定髮式、再只從相容的冠帽裡挑（含不戴）：回 {hair: 款名, hat: 部件代號或空字串}。冠帽相容與否由目錄的 `hairs` 宣告。
+static func pair_hair_hat(catalog: PartCatalog, seed_value: int) -> Dictionary:
+	var styles := hair_styles(catalog)
+	var style := styles[_pick(seed_value, 8, styles.size())]
+	var fits: Array[String] = [""]
+	for code in catalog.parts_in("hat"):
+		if style in catalog.hairs_of(code):
+			fits.append(code)
+	fits.sort()
+	return {"hair": style, "hat": fits[_pick(seed_value, 9, fits.size())]}
 
 
 ## 這一串的部件代號（依序），測試與除錯用。

@@ -4,7 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 
-/// 模擬的一步 = 一個月（GDD 2.6）。
+/// 模擬時刻 = 自開天起的日數（一月 30 日、一年 360 日；GDD 2.6）。月步進在每月最後一日結算。
 pub type Tick = u32;
 
 /// 州郡 ID；海、湖格以 [`NO_PROVINCE`] 表示。

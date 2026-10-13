@@ -228,7 +228,7 @@ fn dynasty_stats(w: &siming_sim::World, lo: u32, hi: u32, samples: &[u32]) -> Dy
     let ban = count(K::BanTao);
     let list = &w.dynasty.list;
     let alive: Vec<&siming_sim::dynasty::Dynasty> = list.iter().filter(|d| d.fallen.is_none()).collect();
-    let fallen: Vec<f64> = list.iter().filter_map(|d| d.fallen.map(|t| (t - d.founded) as f64 / 12.0)).collect();
+    let fallen: Vec<f64> = list.iter().filter_map(|d| d.fallen.map(|t| (t - d.founded) as f64 / 360.0)).collect();
     let mean_life = if fallen.is_empty() { f64::NAN } else { fallen.iter().sum::<f64>() / fallen.len() as f64 };
     let mean_n = samples.iter().map(|&v| v as f64).sum::<f64>() / samples.len().max(1) as f64;
     let (smin, smax) = (samples.iter().copied().min().unwrap_or(0), samples.iter().copied().max().unwrap_or(0));
@@ -436,9 +436,9 @@ fn evolve(seed: u64, yun: u32, era: EraArg) -> Result<(), String> {
     };
     line(&s);
     let known = s.world().eras.len();
-    while s.world().tick < yun * MONTHS_PER_YUN {
+    while s.world().tick < yun * MONTHS_PER_YUN * 30 {
         s.step();
-        if s.world().tick % MONTHS_PER_SHI == 1 {
+        if s.world().tick % (MONTHS_PER_SHI * 30) == 30 {
             // 結算在每世最後一個月；下一個月印，新紀元已是元年。
             line(&s);
         }
@@ -465,7 +465,7 @@ fn sim(seed: u64, yun: u32, report: Option<PathBuf>) -> Result<(), String> {
     let mut prev_book: std::collections::BTreeMap<BookEntryKind, u32> = Default::default();
     let mut worst_all = (0u128, 0u32);
     for y in 0..yun {
-        let (lo, hi) = (s.world().tick, s.world().tick + MONTHS_PER_YUN);
+        let (lo, hi) = (s.world().tick, s.world().tick + MONTHS_PER_YUN * 30);
         let ty = Instant::now();
         let (mut worst_yearly, mut worst_tick) = (0u128, 0u32);
         let (mut sum_yearly, mut n_yearly, mut sum_month, mut n_month) = (0u128, 0u32, 0u128, 0u32);
@@ -486,13 +486,13 @@ fn sim(seed: u64, yun: u32, report: Option<PathBuf>) -> Result<(), String> {
                     (Some(a), Some(b)) => (b.saturating_sub(a) / 1000) as u128,
                     _ => ts.elapsed().as_micros(),
                 };
-                let mi = ((s.world().tick - 1) % 12) as usize;
+                let mi = ((s.world().tick - 1) / 30 % 12) as usize;
                 by_month_us[mi] += us;
                 by_month_n[mi] += 1;
                 if us > worst_any.0 {
                     worst_any = (us, s.world().tick);
                 }
-                if s.world().tick % 12 == 0 {
+                if s.world().tick % 360 == 0 {
                     sum_yearly += us;
                     n_yearly += 1;
                     yearly_us.push(us);
@@ -714,7 +714,7 @@ fn dynasty_probe(seed: u64, yun: u32) -> Result<(), String> {
     // (崩潰 tick, 各抽樣 tick)；本次推演才崩潰者才抽樣。
     let mut pending: Vec<(u32, Vec<u32>)> = Vec::new();
     let mut samples: Vec<Vec<(u32, u32)>> = vec![Vec::new(); offsets.len()];
-    let end = yun * MONTHS_PER_YUN;
+    let end = yun * MONTHS_PER_YUN * 30;
     println!("種子 {}　開局無主大州/有人才 {:?}", s.world().params.seed, measure(&s));
     while s.world().tick < end {
         s.step();
@@ -728,7 +728,7 @@ fn dynasty_probe(seed: u64, yun: u32) -> Result<(), String> {
             .collect();
         for (id, f) in fresh {
             known_fallen.insert(id);
-            pending.push((f, offsets.iter().map(|o| f + o * 12).collect()));
+            pending.push((f, offsets.iter().map(|o| f + o * 360).collect()));
         }
         let tick = w.tick;
         let due: Vec<usize> =
@@ -763,7 +763,7 @@ fn dynasty_probe(seed: u64, yun: u32) -> Result<(), String> {
     let mut per_dyn: Vec<[f64; 10]> = Vec::new();
     for d in w.dynasty.list.iter().filter(|d| d.fallen.is_some()) {
         let fall = d.fallen.unwrap();
-        let rows: Vec<_> = records.iter().filter(|(t, id, _)| *id == d.id && *t <= fall && *t + 50 * 12 > fall).collect();
+        let rows: Vec<_> = records.iter().filter(|(t, id, _)| *id == d.id && *t <= fall && *t + 50 * 360 > fall).collect();
         if rows.is_empty() {
             continue;
         }

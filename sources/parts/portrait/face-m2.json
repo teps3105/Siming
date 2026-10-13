@@ -1,0 +1,275 @@
+{
+ "part": "face-m2",
+ "paint": [
+  {
+   "tag": "face-m2-t1",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261014,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a3b042e42e2297999/sources/parts/portrait/base-m.png",
+     "7be124b36c6dc146ad44c45f3ae1ff87ccf58c4e6864c47da8a95eefee2e3a86"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a3b042e42e2297999/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像，身上穿著圓領內衫，背景是米色；圖2是畫風基準圖。請做四件事：一、把圓領內衫整件去掉，露出赤裸的頸、鎖骨與雙肩；肩要畫得窄而斜（溜肩）：肩的外緣從頸側斜斜向外下方，在畫面下緣處左右兩端各離畫面邊緣約一個頭寬的四分之一，肩外側到畫面邊緣之間是純綠背景；肩一路畫到畫面下緣，胸肩的皮膚完整連續，沒有任何衣服、衣領或領口線；皮膚用與頭臉相同的底色加一階硬邊陰影。二、把整個背景改成純綠色（#00FF00），純色、沒有漸層、沒有紙紋，人物外輪廓以外全部是這個綠。三、把臉型改成「方闊臉」：下頜寬而有稜角，下巴方平，兩頰向外張開，整張臉比圖1寬約一成、臉長不變，顴骨與下頜骨明顯；脖子粗壯。四、五官（鼻、口、耳）仍是圖1那種畫法、仍然沒有眼睛與眉毛（眼眶位置只有平坦的皮膚），光頭，頭頂位置、耳朵高度與頭的整體大小與圖1相同，外輪廓墨線保持封閉、粗細與圖1一致。不加衣服、不加頭髮、不加文字。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。",
+   "output": "D:/Siming/.claude/worktrees/agent-a3b042e42e2297999/.shiftblame/tmp/parts/portrait/paint/face-m2-t1.png",
+   "output_sha256": "df362bdb01fa5bd4628b30f95aa9d0ae5d744edba3ed5fae74e39376abe909da",
+   "seconds": 59.8,
+   "time": "2026-10-13 18:01:53"
+  },
+  {
+   "tag": "face-m2-t2",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261015,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a3b042e42e2297999/sources/parts/portrait/base-m.png",
+     "7be124b36c6dc146ad44c45f3ae1ff87ccf58c4e6864c47da8a95eefee2e3a86"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a3b042e42e2297999/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像，身上穿著圓領內衫，背景是米色；圖2是畫風基準圖。請做四件事：一、把圓領內衫整件去掉，露出赤裸的頸、鎖骨與雙肩；肩要畫得很窄、很斜（極端溜肩）：整個肩膀像一個窄的梯形，頸根到肩外緣的水平距離只有約半個頭寬，肩線陡斜向外下方，到畫面下緣處左右兩端各離畫面邊緣約半個頭寬，肩外側到畫面邊緣之間是純綠背景；肩一路畫到畫面下緣，胸肩的皮膚完整連續，沒有任何衣服、衣領或領口線；皮膚用與頭臉相同的底色加一階硬邊陰影。二、把整個背景改成純綠色（#00FF00），純色、沒有漸層、沒有紙紋，人物外輪廓以外全部是這個綠。三、把臉型改成「方闊臉」：下頜寬而有稜角，下巴方平，兩頰向外張開，整張臉比圖1寬約一成、臉長不變，顴骨與下頜骨明顯；脖子粗壯。四、五官（鼻、口、耳）仍是圖1那種畫法、仍然沒有眼睛與眉毛（眼眶位置只有平坦的皮膚），光頭，頭頂位置、耳朵高度與頭的整體大小與圖1相同，外輪廓墨線保持封閉、粗細與圖1一致。不加衣服、不加頭髮、不加文字。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。",
+   "output": "D:/Siming/.claude/worktrees/agent-a3b042e42e2297999/.shiftblame/tmp/parts/portrait/paint/face-m2-t2.png",
+   "output_sha256": "0b301cf69c3e4b2f672602abf8c2d3ef5b677fcfb4fafc71f0b9d0bfa18bb19a",
+   "seconds": 44.7,
+   "time": "2026-10-13 18:27:21"
+  },
+  {
+   "tag": "face-m2-t3",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261016,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a3b042e42e2297999/sources/parts/portrait/base-m.png",
+     "7be124b36c6dc146ad44c45f3ae1ff87ccf58c4e6864c47da8a95eefee2e3a86"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a3b042e42e2297999/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像，身上穿著圓領內衫，背景是米色；圖2是畫風基準圖。請做四件事：一、把圓領內衫整件去掉，露出赤裸的頸、鎖骨與雙肩；肩要畫得很窄、很斜（極端溜肩）：整個肩膀像一個窄的梯形，頸根到肩外緣的水平距離只有約半個頭寬，肩線陡斜向外下方，到畫面下緣處左右兩端各離畫面邊緣約半個頭寬，肩外側到畫面邊緣之間是純綠背景；肩一路畫到畫面下緣，胸肩的皮膚完整連續，沒有任何衣服、衣領或領口線；皮膚用與頭臉相同的底色加一階硬邊陰影；肩的外緣是從頸根起一條連續向外下方的斜線、末端圓潤地收進去，不是方的、不要有垂直的邊，肩外緣與畫面左右邊緣之間一定留有綠色。二、把整個背景改成純綠色（#00FF00），純色、沒有漸層、沒有紙紋，人物外輪廓以外全部是這個綠。三、把臉型改成「方闊臉」：下頜寬而有稜角，下巴方平，兩頰向外張開，整張臉比圖1寬約一成、臉長不變，顴骨與下頜骨明顯；脖子粗壯。四、五官（鼻、口、耳）仍是圖1那種畫法、仍然沒有眼睛與眉毛（眼眶位置只有平坦的皮膚），光頭，頭頂位置、耳朵高度與頭的整體大小與圖1相同，外輪廓墨線保持封閉、粗細與圖1一致。不加衣服、不加頭髮、不加文字。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。",
+   "output": "D:/Siming/.claude/worktrees/agent-a3b042e42e2297999/.shiftblame/tmp/parts/portrait/paint/face-m2-t3.png",
+   "output_sha256": "a85e531985de6bc0da3b481a370e41287fa6e6e6aea9f7224bde313725c7150f",
+   "seconds": 49.2,
+   "time": "2026-10-13 18:31:56"
+  },
+  {
+   "tag": "face-m2-t4",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261017,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a3b042e42e2297999/sources/parts/portrait/base-m.png",
+     "7be124b36c6dc146ad44c45f3ae1ff87ccf58c4e6864c47da8a95eefee2e3a86"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a3b042e42e2297999/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像，身上穿著圓領內衫，背景是米色；圖2是畫風基準圖。請做四件事：一、把圓領內衫整件去掉，露出赤裸的頸、鎖骨與雙肩；肩要畫得很窄、很斜（極端溜肩）：整個肩膀像一個窄的梯形，頸根到肩外緣的水平距離只有約半個頭寬，肩線陡斜向外下方，到畫面下緣處左右兩端各離畫面邊緣約半個頭寬，肩外側到畫面邊緣之間是純綠背景；肩一路畫到畫面下緣，胸肩的皮膚完整連續，沒有任何衣服、衣領或領口線；皮膚用與頭臉相同的底色加一階硬邊陰影；肩的外緣是從頸根起一條連續向外下方的斜線、末端圓潤地收進去，不是方的、不要有垂直的邊，肩外緣與畫面左右邊緣之間一定留有綠色。二、把整個背景改成純綠色（#00FF00），純色、沒有漸層、沒有紙紋，人物外輪廓以外全部是這個綠。三、把臉型改成「方闊臉」：下頜寬而有稜角，下巴方平，兩頰向外張開，整張臉比圖1寬約一成、臉長不變，顴骨與下頜骨明顯；脖子粗壯，但肩膀仍然很窄：肩線從頸根起比圖1內衫的肩線更低、更斜（約 25 度），肩的最外端完全落在圖1內衫肩線的內側。四、五官（鼻、口、耳）仍是圖1那種畫法、仍然沒有眼睛與眉毛（眼眶位置只有平坦的皮膚），光頭，頭頂位置、耳朵高度與頭的整體大小與圖1相同，外輪廓墨線保持封閉、粗細與圖1一致。不加衣服、不加頭髮、不加文字。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。",
+   "output": "D:/Siming/.claude/worktrees/agent-a3b042e42e2297999/.shiftblame/tmp/parts/portrait/paint/face-m2-t4.png",
+   "output_sha256": "e6b4d0e73dfce8bc57be110810e6ed0ae526a0d1d685952f213d9a7b9ead9a51",
+   "seconds": 65.4,
+   "time": "2026-10-13 19:11:37"
+  }
+ ],
+ "collect": [
+  {
+   "from": "paint/face-m2-t2.png",
+   "bg": [
+    2,
+    183,
+    0
+   ],
+   "pixels": 536537,
+   "output": "D:/Siming/.claude/worktrees/agent-a3b042e42e2297999/.shiftblame/tmp/parts/portrait/collect/face-m2.png",
+   "time": "2026-10-13 18:28:35"
+  },
+  {
+   "from": "paint/face-m2-t3.png",
+   "bg": [
+    3,
+    182,
+    0
+   ],
+   "pixels": 566538,
+   "output": "D:/Siming/.claude/worktrees/agent-a3b042e42e2297999/.shiftblame/tmp/parts/portrait/collect/face-m2.png",
+   "time": "2026-10-13 18:33:28"
+  },
+  {
+   "from": "paint/face-m2-t4.png",
+   "bg": [
+    25,
+    191,
+    0
+   ],
+   "pixels": 402568,
+   "output": "D:/Siming/.claude/worktrees/agent-a3b042e42e2297999/.shiftblame/tmp/parts/portrait/collect/face-m2.png",
+   "time": "2026-10-13 19:12:24"
+  }
+ ],
+ "key": [
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/face-m2.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "skin": {
+     "file": ".shiftblame/tmp/parts/portrait/key/face-m2.skin.png",
+     "pixels": 53108,
+     "dye": "skin",
+     "centers": [
+      55.1,
+      107.1,
+      141.4,
+      181.6
+     ],
+     "share": [
+      0.013,
+      0.027,
+      0.105,
+      0.856
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "shadow",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 18:28:35"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/face-m2.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "skin": {
+     "file": ".shiftblame/tmp/parts/portrait/key/face-m2.skin.png",
+     "pixels": 55712,
+     "dye": "skin",
+     "centers": [
+      32.0,
+      105.3,
+      142.7,
+      182.1
+     ],
+     "share": [
+      0.014,
+      0.024,
+      0.098,
+      0.864
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "shadow",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 18:33:28"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/face-m2.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "skin": {
+     "file": ".shiftblame/tmp/parts/portrait/key/face-m2.skin.png",
+     "pixels": 39867,
+     "dye": "skin",
+     "centers": [
+      38.9,
+      99.9,
+      137.5,
+      182.9
+     ],
+     "share": [
+      0.022,
+      0.038,
+      0.138,
+      0.802
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "shadow",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 19:12:26"
+  }
+ ],
+ "check": [
+  {
+   "metrics": {
+    "face-m2.skin": {
+     "edge_len": 1280,
+     "bare_edge": 316,
+     "bare_ratio": 0.247,
+     "blobs": 1,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 52341
+    }
+   },
+   "time": "2026-10-13 18:28:37"
+  },
+  {
+   "metrics": {
+    "face-m2.skin": {
+     "edge_len": 838,
+     "bare_edge": 0,
+     "bare_ratio": 0.0,
+     "blobs": 1,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 55362
+    }
+   },
+   "time": "2026-10-13 18:34:23"
+  }
+ ]
+}

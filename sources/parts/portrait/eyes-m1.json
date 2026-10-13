@@ -1,0 +1,497 @@
+{
+ "part": "eyes-m1",
+ "paint": [
+  {
+   "tag": "eyes-m1-t1",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261014,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a3b042e42e2297999/sources/parts/portrait/base-face-m.png",
+     "6eb81df3857716d33152534009eecf9090d5c7a2a6b3c29c3f5a48bfdca3b318"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a3b042e42e2297999/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版（背景是純綠色），圖2是畫風基準圖。請在圖1的臉上畫一雙眼睛，位置在鼻樑兩側、略高於耳朵中段的眼線上，兩眼左右對稱、與鼻樑等距。極細長的丹鳳眼：每隻眼又窄又長（寬約為高的五倍以上），眼尾明顯上挑，上眼瞼墨線粗而長、尾端拉出一小截，眼白是淺米白色，瞳孔是一個石青色的小圓、被上眼瞼蓋住一小半，中間一點深色、一小塊白色高光。畫法大幅概括簡化，每隻眼只用少數幾條乾淨的線，不畫睫毛叢、不畫眼影、不畫眉毛、不畫眼袋。臉的其他部分不許動。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫的這一件，人物的頭、臉、頸、肩與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純綠色（#00FF00），純色無漸層。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a3b042e42e2297999/.shiftblame/tmp/parts/portrait/paint/eyes-m1-t1.png",
+   "output_sha256": "17d5e7a0fbeb838a92f424816fb50747f8a86cca9c489c7749be22df39680f74",
+   "seconds": 95.8,
+   "time": "2026-10-13 18:07:10"
+  },
+  {
+   "tag": "eyes-m1-t2",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261688,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/sources/parts/portrait/base-face-m.png",
+     "6eb81df3857716d33152534009eecf9090d5c7a2a6b3c29c3f5a48bfdca3b318"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版（背景是純綠色），圖2是畫風基準圖。請在圖1的臉上畫一雙眼睛，位置在鼻樑兩側、略高於耳朵中段的眼線上，兩眼左右對稱、與鼻樑等距。極細長的丹鳳眼：每隻眼又窄又長（寬約為高的五倍以上），眼尾明顯上挑，上眼瞼墨線粗而長、尾端拉出一小截，眼白是淺米白色，瞳孔是一個石青色的小圓、被上眼瞼蓋住一小半，中間一點深色、一小塊白色高光。畫法大幅概括簡化，每隻眼只用少數幾條乾淨的線，不畫睫毛叢、不畫眼影、不畫眉毛、不畫眼袋。臉的其他部分不許動。兩眼左右完全對稱：兩眼大小、虹膜位置、眼白露出的量都一樣；眼白只在虹膜左右兩側各露出一小段，顏色統一的淺米白，形狀順著眼形；內眼角（靠鼻樑的那一端）不畫另外的淺色塊、陰影塊、斑點或小碎片，內眼角只收成一個乾淨的尖。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫的這一件，人物的頭、臉、頸、肩與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純綠色（#00FF00），純色無漸層。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/.shiftblame/tmp/parts/portrait/paint/eyes-m1-t2.png",
+   "output_sha256": "94ac0938d2925bd940d4610368d5ecb183ed9528c9beced6899426465a3afac2",
+   "seconds": 52.3,
+   "time": "2026-10-13 19:37:31"
+  },
+  {
+   "tag": "eyes-m1-t3",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261705,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/sources/parts/portrait/base-face-m.png",
+     "6eb81df3857716d33152534009eecf9090d5c7a2a6b3c29c3f5a48bfdca3b318"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版（背景是純綠色），圖2是畫風基準圖。請在圖1的臉上畫一雙眼睛，位置在鼻樑兩側、略高於耳朵中段的眼線上，兩眼左右對稱、與鼻樑等距。極細長的丹鳳眼：每隻眼又窄又長（寬約為高的五倍以上），眼尾明顯上挑，上眼瞼墨線粗而長、尾端拉出一小截，眼白是淺米白色，瞳孔是一個石青色的小圓、被上眼瞼蓋住一小半，中間一點深色、一小塊白色高光。畫法大幅概括簡化，每隻眼只用少數幾條乾淨的線，不畫睫毛叢、不畫眼影、不畫眉毛、不畫眼袋。臉的其他部分不許動。兩眼左右完全對稱：兩眼大小、虹膜位置、眼白露出的量都一樣；眼白只在虹膜左右兩側各露出一小段，顏色統一的淺米白，形狀順著眼形；內眼角（靠鼻樑的那一端）不畫另外的淺色塊、陰影塊、斑點或小碎片，內眼角只收成一個乾淨的尖。兩隻眼睛的眼白形狀要一模一樣（互為鏡像）：虹膜在眼的正中，左右兩側的眼白各露出一小塊且一樣大，不可以只有一邊有眼白、也不要在眼尾畫成大的三角形淺色楔塊；眼白只佔整隻眼面積的一小部分。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫的這一件，人物的頭、臉、頸、肩與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純綠色（#00FF00），純色無漸層。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/.shiftblame/tmp/parts/portrait/paint/eyes-m1-t3.png",
+   "output_sha256": "47b90e3fa427c68f076d0089bc16b6da756cc1608e2f1350eb010b4db62e0589",
+   "seconds": 76.3,
+   "time": "2026-10-13 19:54:11"
+  }
+ ],
+ "collect": [
+  {
+   "from": "paint/eyes-m1-t1.png",
+   "affine": [
+    [
+     1.000939965248108,
+     0.0002300000051036477,
+     -0.6056100130081177
+    ],
+    [
+     9.000000136438757e-05,
+     0.9998700022697449,
+     -0.009460000321269035
+    ]
+   ],
+   "ecc": 0.99646,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 2994,
+   "bbox": [
+    382,
+    562,
+    669,
+    600
+   ],
+   "components": 2,
+   "output": "D:/Siming/.claude/worktrees/agent-a3b042e42e2297999/.shiftblame/tmp/parts/portrait/collect/eyes-m1.png",
+   "time": "2026-10-13 18:08:43"
+  },
+  {
+   "from": "paint/eyes-m1-t2.png",
+   "affine": [
+    [
+     0.999809980392456,
+     -4.999999873689376e-05,
+     -0.015990000218153
+    ],
+    [
+     -0.0002099999983329326,
+     1.0008399486541748,
+     -0.7279300093650818
+    ]
+   ],
+   "ecc": 0.99879,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 3201,
+   "bbox": [
+    378,
+    547,
+    665,
+    585
+   ],
+   "components": 2,
+   "output": "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/.shiftblame/tmp/parts/portrait/collect/eyes-m1.png",
+   "time": "2026-10-13 19:37:35"
+  },
+  {
+   "from": "paint/eyes-m1-t3.png",
+   "affine": [
+    [
+     1.001420021057129,
+     -0.0004199999966658652,
+     -1.1489200592041016
+    ],
+    [
+     -0.0005099999834783375,
+     1.0012099742889404,
+     -0.6207799911499023
+    ]
+   ],
+   "ecc": 0.99767,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 4047,
+   "bbox": [
+    374,
+    538,
+    671,
+    579
+   ],
+   "components": 2,
+   "output": "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/.shiftblame/tmp/parts/portrait/collect/eyes-m1.png",
+   "time": "2026-10-13 19:54:17"
+  }
+ ],
+ "key": [
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/eyes-m1.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "iris": {
+     "file": ".shiftblame/tmp/parts/portrait/key/eyes-m1.iris.png",
+     "pixels": 55,
+     "dye": "iris",
+     "centers": [
+      48.6,
+      86.8,
+      105.4,
+      163.8
+     ],
+     "share": [
+      0.245,
+      0.415,
+      0.321,
+      0.019
+     ],
+     "levels": [
+      "ink",
+      "base",
+      "high",
+      "high"
+     ]
+    },
+    "rest": {
+     "file": ".shiftblame/tmp/parts/portrait/key/eyes-m1.rest.png",
+     "pixels": 310,
+     "dye": "定色",
+     "fixed": true
+    }
+   },
+   "time": "2026-10-13 18:08:43"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/eyes-m1.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "iris": {
+     "file": ".shiftblame/tmp/parts/portrait/key/eyes-m1.iris.png",
+     "pixels": 100,
+     "dye": "iris",
+     "centers": [
+      50.0,
+      70.6,
+      88.7
+     ],
+     "share": [
+      0.081,
+      0.36,
+      0.558
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "base"
+     ]
+    },
+    "rest": {
+     "file": ".shiftblame/tmp/parts/portrait/key/eyes-m1.rest.png",
+     "pixels": 291,
+     "dye": "定色",
+     "fixed": true
+    }
+   },
+   "time": "2026-10-13 19:37:35"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/eyes-m1.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "iris": {
+     "file": ".shiftblame/tmp/parts/portrait/key/eyes-m1.iris.png",
+     "pixels": 69,
+     "dye": "iris",
+     "centers": [
+      55.7,
+      82.8
+     ],
+     "share": [
+      0.127,
+      0.873
+     ],
+     "levels": [
+      "shadow",
+      "base"
+     ]
+    },
+    "rest": {
+     "file": ".shiftblame/tmp/parts/portrait/key/eyes-m1.rest.png",
+     "pixels": 385,
+     "dye": "定色",
+     "fixed": true
+    }
+   },
+   "time": "2026-10-13 19:54:17"
+  }
+ ],
+ "check": [
+  {
+   "metrics": {
+    "eyes-m1.iris": {
+     "edge_len": 52,
+     "bare_edge": 10,
+     "bare_ratio": 0.192,
+     "blobs": 2,
+     "specks": 2,
+     "holes": 0,
+     "high_on_edge": 0.308,
+     "pixels": 54
+    },
+    "eyes-m1.rest": {
+     "edge_len": 170,
+     "bare_edge": 43,
+     "bare_ratio": 0.253,
+     "blobs": 5,
+     "specks": 3,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 182
+    },
+    "eyes-m1.union": {
+     "edge_len": 149,
+     "bare_edge": 36,
+     "bare_ratio": 0.242,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 236
+    }
+   },
+   "time": "2026-10-13 18:09:04"
+  },
+  {
+   "metrics": {
+    "eyes-m1.iris": {
+     "edge_len": 52,
+     "bare_edge": 10,
+     "bare_ratio": 0.192,
+     "blobs": 2,
+     "specks": 2,
+     "holes": 0,
+     "high_on_edge": 0.308,
+     "pixels": 54
+    },
+    "eyes-m1.rest": {
+     "edge_len": 170,
+     "bare_edge": 43,
+     "bare_ratio": 0.253,
+     "blobs": 5,
+     "specks": 3,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 182
+    },
+    "eyes-m1.union": {
+     "edge_len": 149,
+     "bare_edge": 36,
+     "bare_ratio": 0.242,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 236
+    }
+   },
+   "time": "2026-10-13 18:34:23"
+  },
+  {
+   "metrics": {
+    "eyes-m1.iris": {
+     "edge_len": 52,
+     "bare_edge": 10,
+     "bare_ratio": 0.192,
+     "blobs": 2,
+     "specks": 2,
+     "holes": 0,
+     "high_on_edge": 0.308,
+     "pixels": 54
+    },
+    "eyes-m1.rest": {
+     "edge_len": 170,
+     "bare_edge": 43,
+     "bare_ratio": 0.253,
+     "blobs": 5,
+     "specks": 3,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 182
+    },
+    "eyes-m1.union": {
+     "edge_len": 149,
+     "bare_edge": 36,
+     "bare_ratio": 0.242,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 236
+    }
+   },
+   "time": "2026-10-13 19:04:49"
+  },
+  {
+   "metrics": {
+    "eyes-m1.iris": {
+     "edge_len": 52,
+     "bare_edge": 10,
+     "bare_ratio": 0.192,
+     "blobs": 2,
+     "specks": 2,
+     "holes": 0,
+     "high_on_edge": 0.308,
+     "pixels": 54
+    },
+    "eyes-m1.rest": {
+     "edge_len": 170,
+     "bare_edge": 43,
+     "bare_ratio": 0.253,
+     "blobs": 5,
+     "specks": 3,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 182
+    },
+    "eyes-m1.union": {
+     "edge_len": 149,
+     "bare_edge": 36,
+     "bare_ratio": 0.242,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 236
+    }
+   },
+   "time": "2026-10-13 19:24:03"
+  },
+  {
+   "metrics": {
+    "eyes-m1.iris": {
+     "edge_len": 70,
+     "bare_edge": 22,
+     "bare_ratio": 0.314,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 92
+    },
+    "eyes-m1.rest": {
+     "edge_len": 154,
+     "bare_edge": 0,
+     "bare_ratio": 0.0,
+     "blobs": 5,
+     "specks": 3,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 173
+    },
+    "eyes-m1.union": {
+     "edge_len": 148,
+     "bare_edge": 2,
+     "bare_ratio": 0.014,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 265
+    }
+   },
+   "time": "2026-10-13 19:37:35"
+  },
+  {
+   "metrics": {
+    "eyes-m1.iris": {
+     "edge_len": 57,
+     "bare_edge": 57,
+     "bare_ratio": 1.0,
+     "blobs": 2,
+     "specks": 2,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 64
+    },
+    "eyes-m1.rest": {
+     "edge_len": 184,
+     "bare_edge": 27,
+     "bare_ratio": 0.147,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 282
+    },
+    "eyes-m1.union": {
+     "edge_len": 160,
+     "bare_edge": 39,
+     "bare_ratio": 0.244,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 346
+    }
+   },
+   "time": "2026-10-13 19:54:18"
+  }
+ ]
+}

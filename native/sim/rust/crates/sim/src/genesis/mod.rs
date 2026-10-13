@@ -60,6 +60,8 @@ pub fn run_with_progress(sim: &mut Sim, progress: &mut dyn FnMut(Stage, f32)) {
     let pop_years = sim.world().params.pop_years.min(GENESIS_POP_YEARS_MAX);
     grow_population(sim.world_mut(), pop_years, progress);
     let years = sim.world().params.prerun_years.min(GENESIS_PRERUN_YEARS_MAX);
+    // 第一批人落地：從此演變不再由種子決定，亂數子流改從作業系統取（測試可指定固定種子）。
+    sim.reseed_rng();
     sim.world_mut().prerun = true;
     for k in 0..years * 12 {
         sim.step();
@@ -122,7 +124,7 @@ fn settle(w: &mut World) {
 /// `years` 年後 `tick` = `years × 12`。不逐月、無有名之人。
 pub fn grow_population(w: &mut World, years: u32, progress: &mut dyn FnMut(Stage, f32)) {
     for y in 0..years {
-        w.tick += 12;
+        w.tick += crate::calendar::DAYS_PER_YEAR;
         let famines = crate::population::yearly_with(&mut w.provinces, &[]);
         ledger::record_famines(w, &famines);
         if is_shi(w.tick) {

@@ -51,11 +51,15 @@ def split_subs(img, subs):
             m = solid & (sat > 0.28) & (val > 0.3) & (hue > 150) & (hue < 260)   # 石青、石綠
         elif how == "red":
             m = solid & (sat > 0.45) & (val > 0.35) & ((hue < 22) | (hue > 340))
+        elif how == "redg":   # 與金紋並存時的紅邊：色相放寬到 30，紅金交界的反鋸齒像素歸紅
+            m = solid & (sat > 0.45) & (val > 0.35) & ((hue < 30) | (hue > 340))
+        elif how == "gold":   # 金色紋飾：獨立染色層（gold 通道），不混進衣色
+            m = solid & (sat > 0.35) & (val > 0.4) & (hue >= 30) & (hue <= 66)
         else:
             continue
         m = m & ~taken
-        # 紅邊、瞳是小塊，去掉面積過小的雜點；剩下的歸 rest
-        if how in ("chroma", "red"):
+        # 紅邊、瞳、金紋是小塊，去掉面積過小的雜點；剩下的歸 rest
+        if how in ("chroma", "red", "redg", "gold"):
             n, lab, st, _ = cv2.connectedComponentsWithStats(m.astype(np.uint8), connectivity=8)
             for i in range(1, n):
                 if st[i, cv2.CC_STAT_AREA] < 6:
@@ -65,10 +69,34 @@ def split_subs(img, subs):
     for name, how in subs.items():
         if how == "rest":
             masks[name] = solid & ~taken
+    # 紋飾帶裡的反鋸齒雜點（衣色小點被紅、金包圍）歸給包圍它的子層：一個像素只屬於一個子層，小點不單獨染成衣色
+    if "gold" in subs.values() and "rest" in subs.values():
+        rest_name = next(n for n, h in subs.items() if h == "rest")
+        deco = [n for n, h in subs.items() if h in ("red", "redg", "gold")]
+        n, lab, st, _ = cv2.connectedComponentsWithStats(masks[rest_name].astype(np.uint8), connectivity=8)
+        ring_k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        for i in range(1, n):
+            if st[i, cv2.CC_STAT_AREA] > 24:
+                continue
+            comp = lab == i
+            ring = cv2.dilate(comp.astype(np.uint8), ring_k) > 0
+            counts = {d: int((masks[d] & ring).sum()) for d in deco}
+            around = sum(counts.values())
+            if around >= 0.6 * int((ring & ~comp).sum()):   # 一圈裡六成以上是紋飾
+                best = max(counts, key=counts.get)
+                masks[best] = masks[best] | comp
+                masks[rest_name] = masks[rest_name] & ~comp
+        # 紅邊裡偏亮的像素是紅與金的反鋸齒混色（單獨放在紅層裡會變成粉紅點），歸金紋層
+        luma_img = img[..., 0] * 0.299 + img[..., 1] * 0.587 + img[..., 2] * 0.114
+        for d in deco:
+            if d != "gold" and "gold" in masks:
+                moved = masks[d] & (luma_img > 100)
+                masks["gold"] = masks["gold"] | moved
+                masks[d] = masks[d] & ~moved
     return masks
 
 
-def to_key(img, mask):
+def to_key(img, mask, force=None):
     """把 mask 內的像素轉成連續灰階的明度鍵，回傳 (RGBA 圖, 統計)。
 
     以不透明像素的亮度做 4 群 1D k-means，找出墨線、陰影、底色、高光的中心；然後以單調分段線性曲線把亮度對到 0x00/0x55/0xAA/0xFF：
@@ -107,6 +135,8 @@ def to_key(img, mask):
             level_of[i] = "shadow"
     if darker and (gmean[darker[0]] <= INK_MAX or gmean[darker[0]] < 0.6 * gmean[base]):
         level_of[darker[0]] = "ink"
+    if force and g == 0:   # 稿只有一個明度群（沒畫墨線與陰影）：指定它落在哪一階，眉在深膚色上才不會與髮色同調而太淡
+        level_of[0] = force
     gids = [i for i in range(g + 1) if (gid == i).any()]
     mean = {i: float(vals[gid == i].mean()) for i in gids}
     # 曲線的控制點：平台兩端 (亮度, 輸出灰階)
@@ -158,8 +188,6 @@ def key(name):
     if not os.path.exists(src):
         src = P.TMP + f"collect/{name}.png"
     rgba = cv2.cvtColor(cv2.imread(src, cv2.IMREAD_UNCHANGED), cv2.COLOR_BGRA2RGBA)
-    if spec["slot"] == "face":
-        rgba = clip_face(rgba)
     img = shrink(rgba)
     masks = split_subs(img, spec["subs"])
     os.makedirs(P.TMP + "key", exist_ok=True)
@@ -172,7 +200,7 @@ def key(name):
             out[out[..., 3] == 0, :3] = 0
             stats = {"fixed": True}
         else:
-            out, stats = to_key(img, m)
+            out, stats = to_key(img, m, spec.get("force_level", {}).get(sub))
             if out is None:
                 continue
         path = P.TMP + f"key/{name}.{sub}.png"

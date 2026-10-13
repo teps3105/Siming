@@ -33,59 +33,157 @@
   {
    "id": "back_hair",
    "order": 10,
-   "count": 1
+   "count": 3
   },
   {
    "id": "face",
    "order": 20,
-   "count": 1
+   "count": 3
   },
   {
    "id": "collar",
    "order": 30,
-   "count": 1
+   "count": 6
   },
   {
    "id": "eyes",
    "order": 60,
-   "count": 1
+   "count": 4
   },
   {
    "id": "brows",
    "order": 70,
-   "count": 1
+   "count": 4
   },
   {
    "id": "beard",
    "order": 80,
-   "count": 1
+   "count": 4
+  },
+  {
+   "id": "mark",
+   "order": 90,
+   "count": 3
   },
   {
    "id": "front_hair",
    "order": 100,
-   "count": 1
+   "count": 3
+  },
+  {
+   "id": "hat",
+   "order": 110,
+   "count": 3
   }
  ],
  "parts": {
-  "portrait_trial/face.m0": {
+  "portrait_trial/face.m1": {
    "anchor": [
     160,
-    248
+    246
    ],
    "layers": [
     {
      "rect": [
       0,
       0,
-      320,
+      295,
       303
      ],
      "offset": [
-      0,
-      97
+      13,
+      94
      ],
      "mode": "keyed",
      "tint": "skin"
+    }
+   ]
+  },
+  "portrait_trial/face.m0": {
+   "anchor": [
+    161,
+    249
+   ],
+   "layers": [
+    {
+     "rect": [
+      299,
+      0,
+      312,
+      302
+     ],
+     "offset": [
+      5,
+      98
+     ],
+     "mode": "keyed",
+     "tint": "skin"
+    }
+   ]
+  },
+  "portrait_trial/face.m2": {
+   "anchor": [
+    158,
+    230
+   ],
+   "layers": [
+    {
+     "rect": [
+      615,
+      0,
+      305,
+      271
+     ],
+     "offset": [
+      6,
+      95
+     ],
+     "mode": "keyed",
+     "tint": "skin"
+    }
+   ]
+  },
+  "portrait_trial/back_hair.loose": {
+   "anchor": [
+    158,
+    228
+   ],
+   "layers": [
+    {
+     "rect": [
+      0,
+      307,
+      261,
+      235
+     ],
+     "offset": [
+      28,
+      111
+     ],
+     "mode": "keyed",
+     "tint": "hair"
+    }
+   ]
+  },
+  "portrait_trial/front_hair.loose": {
+   "anchor": [
+    162,
+    175
+   ],
+   "layers": [
+    {
+     "rect": [
+      265,
+      307,
+      131,
+      162
+     ],
+     "offset": [
+      97,
+      94
+     ],
+     "mode": "keyed",
+     "tint": "hair"
     }
    ]
   },
@@ -97,8 +195,8 @@
    "layers": [
     {
      "rect": [
-      324,
-      0,
+      400,
+      307,
       320,
       152
      ],
@@ -111,13 +209,13 @@
     },
     {
      "rect": [
-      648,
-      0,
-      149,
+      724,
+      307,
+      162,
       152
      ],
      "offset": [
-      83,
+      76,
       248
      ],
      "mode": "keyed",
@@ -125,44 +223,342 @@
     }
    ]
   },
-  "portrait_trial/front_hair.topknot": {
+  "portrait_trial/collar.dao_rich": {
    "anchor": [
-    161,
-    145
+    160,
+    324
    ],
    "layers": [
     {
      "rect": [
-      801,
       0,
-      118,
-      94
+      546,
+      320,
+      152
      ],
      "offset": [
-      102,
-      98
+      0,
+      248
+     ],
+     "mode": "keyed",
+     "tint": "robe"
+    },
+    {
+     "rect": [
+      324,
+      546,
+      152,
+      152
+     ],
+     "offset": [
+      80,
+      248
+     ],
+     "mode": "keyed",
+     "tint": "trim"
+    },
+    {
+     "rect": [
+      0,
+      858,
+      150,
+      145
+     ],
+     "offset": [
+      82,
+      255
+     ],
+     "mode": "keyed",
+     "tint": "gold"
+    }
+   ]
+  },
+  "portrait_trial/collar.ru_plain": {
+   "anchor": [
+    160,
+    324
+   ],
+   "layers": [
+    {
+     "rect": [
+      480,
+      546,
+      320,
+      152
+     ],
+     "offset": [
+      0,
+      248
+     ],
+     "mode": "keyed",
+     "tint": "robe"
+    }
+   ]
+  },
+  "portrait_trial/collar.shi_plain": {
+   "anchor": [
+    160,
+    324
+   ],
+   "layers": [
+    {
+     "rect": [
+      0,
+      702,
+      320,
+      152
+     ],
+     "offset": [
+      0,
+      248
+     ],
+     "mode": "keyed",
+     "tint": "robe"
+    }
+   ]
+  },
+  "portrait_trial/collar.none_poor": {
+   "anchor": [
+    160,
+    324
+   ],
+   "layers": [
+    {
+     "rect": [
+      324,
+      702,
+      320,
+      152
+     ],
+     "offset": [
+      0,
+      248
+     ],
+     "mode": "keyed",
+     "tint": "robe"
+    }
+   ]
+  },
+  "portrait_trial/collar.dao_poor": {
+   "anchor": [
+    160,
+    324
+   ],
+   "layers": [
+    {
+     "rect": [
+      648,
+      702,
+      320,
+      152
+     ],
+     "offset": [
+      0,
+      248
+     ],
+     "mode": "keyed",
+     "tint": "robe"
+    }
+   ]
+  },
+  "portrait_trial/mark.2": {
+   "anchor": [
+    136,
+    185
+   ],
+   "layers": [
+    {
+     "rect": [
+      154,
+      858,
+      39,
+      134
+     ],
+     "offset": [
+      116,
+      118
+     ],
+     "mode": "keyed",
+     "tint": "violet"
+    }
+   ]
+  },
+  "portrait_trial/hat.straw0": {
+   "anchor": [
+    160,
+    123
+   ],
+   "layers": [
+    {
+     "rect": [
+      197,
+      858,
+      296,
+      106
+     ],
+     "offset": [
+      12,
+      70
+     ],
+     "mode": "keyed",
+     "tint": "robe"
+    }
+   ],
+   "hairs": [
+    "loose"
+   ]
+  },
+  "portrait_trial/beard.three": {
+   "anchor": [
+    158,
+    262
+   ],
+   "layers": [
+    {
+     "rect": [
+      497,
+      858,
+      64,
+      100
+     ],
+     "offset": [
+      126,
+      212
      ],
      "mode": "keyed",
      "tint": "hair"
     }
    ]
   },
-  "portrait_trial/beard.goatee": {
+  "portrait_trial/hat.scholar0": {
    "anchor": [
-    164,
-    268
+    158,
+    118
    ],
    "layers": [
     {
      "rect": [
-      923,
+      565,
+      858,
+      131,
+      99
+     ],
+     "offset": [
+      93,
+      68
+     ],
+     "mode": "keyed",
+     "tint": "robe"
+    }
+   ],
+   "hairs": [
+    "topknot"
+   ]
+  },
+  "portrait_trial/front_hair.topknot": {
+   "anchor": [
+    162,
+    142
+   ],
+   "layers": [
+    {
+     "rect": [
+      700,
+      858,
+      125,
+      97
+     ],
+     "offset": [
+      100,
+      93
+     ],
+     "mode": "keyed",
+     "tint": "hair"
+    }
+   ]
+  },
+  "portrait_trial/front_hair.crown": {
+   "anchor": [
+    160,
+    142
+   ],
+   "layers": [
+    {
+     "rect": [
+      829,
+      858,
+      125,
+      92
+     ],
+     "offset": [
+      98,
+      96
+     ],
+     "mode": "keyed",
+     "tint": "hair"
+    }
+   ]
+  },
+  "portrait_trial/mark.1": {
+   "anchor": [
+    161,
+    202
+   ],
+   "layers": [
+    {
+     "rect": [
       0,
-      30,
+      1007,
+      102,
+      89
+     ],
+     "offset": [
+      110,
+      158
+     ],
+     "mode": "keyed",
+     "tint": "violet"
+    }
+   ]
+  },
+  "portrait_trial/mark.0": {
+   "anchor": [
+    166,
+    146
+   ],
+   "layers": [
+    {
+     "rect": [
+      106,
+      1007,
+      39,
+      69
+     ],
+     "offset": [
+      146,
+      112
+     ],
+     "mode": "keyed",
+     "tint": "violet"
+    }
+   ]
+  },
+  "portrait_trial/beard.full": {
+   "anchor": [
+    162,
+    228
+   ],
+   "layers": [
+    {
+     "rect": [
+      149,
+      1007,
+      102,
       68
      ],
      "offset": [
-      149,
-      234
+      111,
+      194
      ],
      "mode": "keyed",
      "tint": "hair"
@@ -177,14 +573,105 @@
    "layers": [
     {
      "rect": [
-      0,
-      307,
+      255,
+      1007,
       114,
       67
      ],
      "offset": [
       95,
       68
+     ],
+     "mode": "keyed",
+     "tint": "hair"
+    }
+   ]
+  },
+  "portrait_trial/back_hair.crown": {
+   "anchor": [
+    159,
+    83
+   ],
+   "layers": [
+    {
+     "rect": [
+      373,
+      1007,
+      76,
+      44
+     ],
+     "offset": [
+      121,
+      61
+     ],
+     "mode": "keyed",
+     "tint": "hair"
+    }
+   ]
+  },
+  "portrait_trial/beard.goatee": {
+   "anchor": [
+    166,
+    255
+   ],
+   "layers": [
+    {
+     "rect": [
+      453,
+      1007,
+      25,
+      40
+     ],
+     "offset": [
+      153,
+      235
+     ],
+     "mode": "keyed",
+     "tint": "hair"
+    }
+   ]
+  },
+  "portrait_trial/hat.crown0": {
+   "anchor": [
+    160,
+    82
+   ],
+   "layers": [
+    {
+     "rect": [
+      482,
+      1007,
+      93,
+      33
+     ],
+     "offset": [
+      114,
+      65
+     ],
+     "mode": "keyed",
+     "tint": "robe"
+    }
+   ],
+   "hairs": [
+    "crown"
+   ]
+  },
+  "portrait_trial/beard.moustache": {
+   "anchor": [
+    165,
+    224
+   ],
+   "layers": [
+    {
+     "rect": [
+      579,
+      1007,
+      56,
+      21
+     ],
+     "offset": [
+      137,
+      214
      ],
      "mode": "keyed",
      "tint": "hair"
@@ -199,8 +686,8 @@
    "layers": [
     {
      "rect": [
-      118,
-      307,
+      639,
+      1007,
       84,
       13
      ],
@@ -213,6 +700,158 @@
     }
    ]
   },
+  "portrait_trial/eyes.m1": {
+   "anchor": [
+    163,
+    174
+   ],
+   "layers": [
+    {
+     "rect": [
+      727,
+      1007,
+      92,
+      13
+     ],
+     "offset": [
+      117,
+      168
+     ],
+     "mode": "fixed",
+     "tint": null
+    },
+    {
+     "rect": [
+      545,
+      1100,
+      60,
+      6
+     ],
+     "offset": [
+      133,
+      175
+     ],
+     "mode": "keyed",
+     "tint": "iris"
+    }
+   ]
+  },
+  "portrait_trial/eyes.m2": {
+   "anchor": [
+    164,
+    178
+   ],
+   "layers": [
+    {
+     "rect": [
+      823,
+      1007,
+      87,
+      13
+     ],
+     "offset": [
+      120,
+      172
+     ],
+     "mode": "fixed",
+     "tint": null
+    },
+    {
+     "rect": [
+      348,
+      1100,
+      64,
+      8
+     ],
+     "offset": [
+      132,
+      176
+     ],
+     "mode": "keyed",
+     "tint": "iris"
+    }
+   ]
+  },
+  "portrait_trial/brows.3": {
+   "anchor": [
+    164,
+    170
+   ],
+   "layers": [
+    {
+     "rect": [
+      914,
+      1007,
+      87,
+      12
+     ],
+     "offset": [
+      120,
+      164
+     ],
+     "mode": "keyed",
+     "tint": "hair"
+    }
+   ]
+  },
+  "portrait_trial/brows.1": {
+   "anchor": [
+    165,
+    172
+   ],
+   "layers": [
+    {
+     "rect": [
+      0,
+      1100,
+      80,
+      11
+     ],
+     "offset": [
+      125,
+      166
+     ],
+     "mode": "keyed",
+     "tint": "hair"
+    }
+   ]
+  },
+  "portrait_trial/eyes.m3": {
+   "anchor": [
+    162,
+    178
+   ],
+   "layers": [
+    {
+     "rect": [
+      84,
+      1100,
+      83,
+      11
+     ],
+     "offset": [
+      121,
+      173
+     ],
+     "mode": "fixed",
+     "tint": null
+    },
+    {
+     "rect": [
+      416,
+      1100,
+      60,
+      8
+     ],
+     "offset": [
+      133,
+      176
+     ],
+     "mode": "keyed",
+     "tint": "iris"
+    }
+   ]
+  },
   "portrait_trial/eyes.m0": {
    "anchor": [
     164,
@@ -221,8 +860,8 @@
    "layers": [
     {
      "rect": [
-      206,
-      307,
+      171,
+      1100,
       82,
       10
      ],
@@ -235,8 +874,8 @@
     },
     {
      "rect": [
-      292,
-      307,
+      480,
+      1100,
       61,
       7
      ],
@@ -246,6 +885,28 @@
      ],
      "mode": "keyed",
      "tint": "iris"
+    }
+   ]
+  },
+  "portrait_trial/brows.2": {
+   "anchor": [
+    164,
+    170
+   ],
+   "layers": [
+    {
+     "rect": [
+      257,
+      1100,
+      87,
+      9
+     ],
+     "offset": [
+      120,
+      166
+     ],
+     "mode": "keyed",
+     "tint": "hair"
     }
    ]
   }
