@@ -33,7 +33,8 @@ fn era_stamp(w: &World, tick: siming_sim::Tick) -> (String, i32, i32) {
 }
 
 fn relation_rows(w: &World, pw: &Power, friendly: bool) -> Array<VarDictionary> {
-    let mut rows: Vec<(u32, i8)> = pw.relations.iter().map(|(&id, &v)| (id, v)).filter(|&(_, v)| if friendly { v > 0 } else { v < 0 }).collect();
+    let mut rows: Vec<(u32, i8)> =
+        pw.relations.iter().map(|(&id, &v)| (id, v)).filter(|&(_, v)| if friendly { v > 0 } else { v < 0 }).collect();
     rows.sort_by_key(|&(id, v)| (if friendly { -(v as i32) } else { v as i32 }, id));
     let mut out = Array::new();
     for (id, value) in rows.into_iter().take(RELATION_TOP) {
@@ -159,7 +160,8 @@ impl SimWorld {
                 d.set("fallen_month", 0);
             }
         }
-        let fall = w.ledger.events.iter().find(|e| e.kind == EventKind::PowerFallen && e.importance > 0 && e.powers.first() == Some(&pw.id));
+        let fall =
+            w.ledger.events.iter().find(|e| e.kind == EventKind::PowerFallen && e.importance > 0 && e.powers.first() == Some(&pw.id));
         d.set("fall_event", fall.map_or(-1, |e| e.id as i64));
         let cause = fall.and_then(|e| e.causes.first()).and_then(|&c| ledger::get(w, c));
         d.set("fall_cause", &gs(&cause.map_or(String::new(), |c| format!("{:?}", c.kind))));

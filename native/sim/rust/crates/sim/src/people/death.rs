@@ -94,10 +94,10 @@ pub fn die(w: &mut World, pid: PersonId, cause: DeathCause, liberation: Option<L
         m.disciples.retain(|&d| d != pid);
     }
     for d in disciples {
-        if let Some(d) = w.persons.get_mut(d as usize) {
-            if d.master == Some(pid) {
-                d.master = None;
-            }
+        if w.persons.get(d as usize).is_some_and(|x| x.master == Some(pid)) {
+            // 師徒解除的紀錄先寫（此時關係旗標還在），再解除。
+            ledger::note_master_ended(w, d, pid, Why::MasterDied, Some(eid));
+            w.persons[d as usize].master = None;
         }
     }
     Some(eid)

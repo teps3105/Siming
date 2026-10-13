@@ -7,7 +7,7 @@ use rand::Rng;
 use rand_chacha::ChaCha8Rng;
 use smallvec::smallvec;
 
-use super::demon::leave_sect;
+use super::demon::{leave_sect, note_departure};
 use crate::ledger::{self, NewEvent};
 use crate::model::*;
 use crate::params::*;
@@ -401,7 +401,9 @@ pub(super) fn join_rogues(w: &mut World, round: Round, ranges: &mut RangeCache) 
             }
         }
         if let Some((_, id)) = best {
+            let cause = w.persons[pid as usize].last_event;
             join_sect(w, pid, id);
+            ledger::note_sect_joined(w, pid, id, Why::RogueJoined, cause);
         }
     }
 }
@@ -549,10 +551,12 @@ fn strongest(w: &World, members: &[PersonId], skip: Option<PersonId>) -> Option<
 pub(super) fn fall_sect(w: &mut World, id: PowerId, cause: Option<EventId>) {
     let tick = w.tick;
     let members = std::mem::take(&mut w.powers[id as usize].members);
+    let mut scattered = Vec::new();
     for m in members {
         let p = &mut w.persons[m as usize];
         if p.power == Some(id) {
             p.power = None;
+            scattered.push(m);
         }
     }
     let former_leader = w.powers[id as usize].leader.take();
@@ -567,7 +571,11 @@ pub(super) fn fall_sect(w: &mut World, id: PowerId, cause: Option<EventId>) {
     } else if let Some(c) = former_leader.and_then(|l| w.persons[l as usize].last_event) {
         e.causes.push(c);
     }
-    ledger::record(w, e);
+    let fallen = ledger::record(w, e);
+    // 門人成為散修（師徒關係不變）：各記一筆離宗，以覆滅為因。
+    for m in scattered {
+        ledger::note_sect_left(w, m, id, Why::SectDestroyed, Some(fallen));
+    }
 }
 
 /// GDD 3.5 傳承：首領缺位（`None`、已死或已離宗）的宗門，由戰力最高的成員繼任；
@@ -615,7 +623,7 @@ pub(super) fn resolve_leaders_round(w: &mut World, round: Round) {
     }
 }
 
-fn split_sect(w: &mut World, parent: PowerId, second: PersonId, cause: EventId) {
+pub(super) fn split_sect(w: &mut World, parent: PowerId, second: PersonId, cause: EventId) {
     let origin = w.persons[second as usize].province;
     let Some(seat) = choose_seat(w, origin, Some(parent)) else { return };
     let followers: Vec<PersonId> = w.persons[second as usize]
@@ -625,9 +633,9 @@ fn split_sect(w: &mut World, parent: PowerId, second: PersonId, cause: EventId) 
         .filter(|&d| w.persons[d as usize].alive() && w.persons[d as usize].power == Some(parent))
         .collect();
     // 次強者脫離本宗（師徒解除，但門下徒弟隨行，故先記下再還原）
-    leave_sect(w, second);
+    let departure = leave_sect(w, second, &followers);
     let id = create_sect(w, second, seat);
-    for d in followers {
+    for &d in &followers {
         w.powers[parent as usize].members.retain(|&m| m != d);
         w.persons[d as usize].power = None;
         join_sect(w, d, id);
@@ -645,7 +653,13 @@ fn split_sect(w: &mut World, parent: PowerId, second: PersonId, cause: EventId) 
     e.persons = smallvec![second];
     e.powers = smallvec![id, parent];
     e.causes = smallvec![cause];
-    ledger::record(w, e);
+    let split = ledger::record(w, e);
+    // 掌門另立由 `SectSplit` 交代；他原有的師徒與不隨行的徒弟另記解除。隨行的徒弟離開本宗、投入新宗。
+    note_departure(w, &departure, None, Some(split));
+    for d in followers {
+        ledger::note_sect_left(w, d, parent, Why::FollowedMaster, Some(split));
+        ledger::note_sect_joined(w, d, id, Why::FollowedMaster, Some(split));
+    }
 }
 
 /// GDD 6.3 步驟 18：覆滅檢查（成員 0）→ 聲望重算 → 勢力範圍 → 修正值衰減。

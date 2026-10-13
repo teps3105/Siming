@@ -452,6 +452,19 @@ pub enum EventKind {
     Relief,
     /// GDD 3.7 禁道詔令（7.2 `BanTao`）。
     BanTao,
+    /// GDD 5.12 人物生平：散修投靠宗門、隨師遷入新宗（7.2 `SectJoined`；只供生平，不上傳聞）。
+    SectJoined,
+    /// GDD 5.12 人物生平：離開宗門（7.2 `SectLeft`；只供生平，不上傳聞）。
+    SectLeft,
+    /// GDD 5.12 人物生平：師徒關係解除（7.2 `MasterEnded`；只供生平，不上傳聞）。
+    MasterEnded,
+}
+
+impl EventKind {
+    /// 只供人物卡生平使用的紀錄：重要度 1，不進傳聞與因果圖，橋接的事件查詢不回傳。
+    pub fn is_chronicle_only(self) -> bool {
+        matches!(self, EventKind::SectJoined | EventKind::SectLeft | EventKind::MasterEnded)
+    }
 }
 
 /// GDD 3.5 天劫結果。
@@ -585,6 +598,22 @@ pub enum Why {
     Finances = 52,
     /// 無儲君，文武篡位。
     NoHeir = 53,
+    // SectJoined、SectLeft
+    /// 散修投靠宗門。
+    RogueJoined = 60,
+    /// 隨師父遷入（或遷出）：分宗時師父門下的徒弟隨行。
+    FollowedMaster = 61,
+    /// 入魔離宗。
+    LeftForDemon = 62,
+    /// 宗門覆滅，門人成為散修。
+    SectDestroyed = 63,
+    // MasterEnded
+    /// 師父身故。
+    MasterDied = 70,
+    /// 師父離宗（入魔、分宗另立），門下不隨行的徒弟失師。
+    MasterLeft = 71,
+    /// 徒弟離宗，師徒解除。
+    DiscipleLeft = 72,
 }
 
 impl Why {
@@ -610,6 +639,13 @@ impl Why {
             Why::LowMandate => "low_mandate",
             Why::Finances => "finances",
             Why::NoHeir => "no_heir",
+            Why::RogueJoined => "rogue_joined",
+            Why::FollowedMaster => "followed_master",
+            Why::LeftForDemon => "left_for_demon",
+            Why::SectDestroyed => "sect_destroyed",
+            Why::MasterDied => "master_died",
+            Why::MasterLeft => "master_left",
+            Why::DiscipleLeft => "disciple_left",
         }
     }
 }

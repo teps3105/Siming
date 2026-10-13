@@ -3,6 +3,7 @@
 use std::collections::BTreeMap;
 
 use super::*;
+use crate::ledger::{self, NewEvent};
 use crate::model::*;
 use crate::params::*;
 use crate::people;
@@ -950,4 +951,131 @@ fn gdd_6_3_monthly_round_touches_only_due_persons() {
             assert_eq!(exp(&w, id) > 0.0, due, "人 {id}");
         }
     }
+}
+
+// ── GDD 5.12 人物生平的三種紀錄：入宗門、離宗、師徒解除 ──────────────
+
+fn events_of(w: &World, k: EventKind) -> Vec<&Event> {
+    w.ledger.events.iter().filter(|e| e.kind == k).collect()
+}
+
+fn link_master(w: &mut World, disciple: PersonId, master: PersonId) {
+    w.persons[disciple as usize].master = Some(master);
+    w.persons[master as usize].disciples.push(disciple);
+}
+
+type Digest = (Vec<u32>, Vec<u32>, Why, Vec<u32>);
+
+fn digest(list: &[&Event]) -> Vec<Digest> {
+    list.iter().map(|e| (e.persons.to_vec(), e.powers.to_vec(), e.why, e.causes.to_vec())).collect()
+}
+
+#[test]
+fn rogue_joining_a_sect_is_recorded_once_and_leaves_last_event_alone() {
+    let mut w = line_world(61, 4, &[]);
+    let l = cult(&mut w, 0, 3, 0.0);
+    let s = new_sect(&mut w, 0, &[l], l);
+    let rogues: Vec<_> = (0..40).map(|_| cult(&mut w, 1, 0, 0.0)).collect();
+    // 寫入前先給每人一個最近事件，確認紀錄不改它、且以它為因。
+    let marks: Vec<_> = rogues
+        .iter()
+        .map(|&r| {
+            let mut e = NewEvent::new(EventKind::Traveled, 1, EventArgs::None);
+            e.persons.push(r);
+            ledger::record(&mut w, e)
+        })
+        .collect();
+    sect::join_rogues(&mut w, crate::schedule::Round::All, &mut sect::RangeCache::default());
+    let joined: Vec<_> = rogues.iter().copied().filter(|&r| w.persons[r as usize].power == Some(s)).collect();
+    assert!(!joined.is_empty());
+    let notes = events_of(&w, EventKind::SectJoined);
+    assert_eq!(notes.len(), joined.len(), "每個投靠的人一筆");
+    for (&r, &mark) in rogues.iter().zip(&marks) {
+        assert_eq!(w.persons[r as usize].last_event, Some(mark), "紀錄不改最近事件");
+        let mine: Vec<_> = notes.iter().filter(|e| e.persons.as_slice() == [r]).collect();
+        assert_eq!(mine.len(), usize::from(joined.contains(&r)));
+        if let Some(e) = mine.first() {
+            assert_eq!((e.why, e.importance, e.powers.to_vec(), e.causes.to_vec()), (Why::RogueJoined, 1, vec![s], vec![mark]));
+        }
+    }
+}
+
+#[test]
+fn master_death_ends_each_apprenticeship_with_the_death_as_cause() {
+    let mut w = line_world(62, 4, &[]);
+    let m = cult(&mut w, 0, 4, 0.0);
+    let (a, b) = (cult(&mut w, 0, 1, 0.0), cult(&mut w, 0, 1, 0.0));
+    link_master(&mut w, a, m);
+    link_master(&mut w, b, m);
+    let born_a = w.persons[a as usize].last_event;
+    let died = people::die(&mut w, m, DeathCause::Age, None, &[]).unwrap();
+    let ends = events_of(&w, EventKind::MasterEnded);
+    assert_eq!(ends.len(), 2);
+    for (e, d) in ends.iter().zip([a, b]) {
+        assert_eq!((e.persons.to_vec(), e.why, e.causes.to_vec()), (vec![d, m], Why::MasterDied, vec![died]));
+        assert_eq!(w.persons[d as usize].master, None);
+    }
+    assert_eq!(w.persons[a as usize].last_event, born_a, "紀錄不改最近事件");
+}
+
+#[test]
+fn falling_to_demon_records_leaving_the_sect_and_both_ends_of_the_apprenticeship() {
+    let mut w = line_world(63, 4, &[]);
+    let (top, x, y) = (cult(&mut w, 0, 5, 0.0), cult(&mut w, 0, 3, 0.0), cult(&mut w, 0, 1, 0.0));
+    let s = new_sect(&mut w, 0, &[top, x, y], top);
+    link_master(&mut w, x, top);
+    link_master(&mut w, y, x);
+    fall_to_demon(&mut w, x);
+    let fell = events_of(&w, EventKind::FellToDemon)[0].id;
+    assert_eq!(digest(&events_of(&w, EventKind::SectLeft)), vec![(vec![x], vec![s], Why::LeftForDemon, vec![fell])]);
+    let ends: Vec<_> = events_of(&w, EventKind::MasterEnded).iter().map(|e| (e.persons.to_vec(), e.why, e.causes.to_vec())).collect();
+    assert_eq!(ends, vec![(vec![x, top], Why::DiscipleLeft, vec![fell]), (vec![y, x], Why::MasterLeft, vec![fell])]);
+}
+
+#[test]
+fn a_fallen_sect_scatters_its_members_and_keeps_their_masters() {
+    let mut w = line_world(64, 4, &[]);
+    let (a, b) = (cult(&mut w, 2, 3, 0.0), cult(&mut w, 2, 2, 0.0));
+    let s = new_sect(&mut w, 2, &[a, b], a);
+    link_master(&mut w, b, a);
+    sect::fall_sect(&mut w, s, None);
+    let fallen = events_of(&w, EventKind::PowerFallen)[0].id;
+    assert_eq!(
+        digest(&events_of(&w, EventKind::SectLeft)),
+        vec![(vec![a], vec![s], Why::SectDestroyed, vec![fallen]), (vec![b], vec![s], Why::SectDestroyed, vec![fallen])]
+    );
+    assert_eq!(count(&w, EventKind::MasterEnded), 0, "師徒關係沒有變");
+    assert_eq!(w.persons[b as usize].master, Some(a));
+}
+
+#[test]
+fn schism_moves_followers_with_their_master_and_drops_only_the_rest() {
+    let mut w = line_world(65, 4, &[]);
+    let (top, second) = (cult(&mut w, 0, 5, 0.0), cult(&mut w, 0, 4, 0.0));
+    let (f1, f2) = (cult(&mut w, 0, 1, 0.0), cult(&mut w, 0, 1, 0.0));
+    let outsider = cult(&mut w, 1, 1, 0.0);
+    let parent = new_sect(&mut w, 0, &[top, second, f1, f2], top);
+    link_master(&mut w, second, top);
+    for d in [f1, f2, outsider] {
+        link_master(&mut w, d, second);
+    }
+    sect::split_sect(&mut w, parent, second, 0);
+    let split = events_of(&w, EventKind::SectSplit)[0];
+    let new = split.powers[0];
+    assert_eq!(
+        digest(&events_of(&w, EventKind::SectLeft)),
+        vec![(vec![f1], vec![parent], Why::FollowedMaster, vec![split.id]), (vec![f2], vec![parent], Why::FollowedMaster, vec![split.id])]
+    );
+    assert_eq!(
+        digest(&events_of(&w, EventKind::SectJoined)),
+        vec![(vec![f1], vec![new], Why::FollowedMaster, vec![split.id]), (vec![f2], vec![new], Why::FollowedMaster, vec![split.id])]
+    );
+    // 師徒解除只有掌門離開本宗的那一條與不隨行的徒弟；隨行者沒有。
+    let ends: Vec<_> = events_of(&w, EventKind::MasterEnded).iter().map(|e| (e.persons.to_vec(), e.why, e.causes.to_vec())).collect();
+    assert_eq!(
+        ends,
+        vec![(vec![second, top], Why::DiscipleLeft, vec![split.id]), (vec![outsider, second], Why::MasterLeft, vec![split.id])]
+    );
+    assert_eq!((w.persons[f1 as usize].master, w.persons[f2 as usize].master), (Some(second), Some(second)));
+    assert_eq!(w.persons[outsider as usize].master, None);
 }
