@@ -10,6 +10,11 @@
 - loop_start：循環動作從哪一格開始繞圈（之前的格只播一次，當作進場）；
 - events：動作內有意義的時刻（格號），例如 struck 的 hit（雷擊中）、brace 的 raised（舉臂到頂）；
 - wind：衣擺被風吹開的程度（CultivatorFigure 的 wind），[(格號, 值), ...] 之間線性內插。
+- 選用欄位（新動作才有，舊動作的匯出結果不變）：
+  azimuth：匯出投影的方位角（度，預設 45；0 是正側面，前後擺的動作用它）；
+  rigid：匯出時把 root 的俯仰（倒地）與 float（浮空高度）拆成整體剛體變換（body_roll、body_lift、body_pivot）；
+  feet：匯出雙腳位置（foot_f、foot_b）；point：[(格號, 值)]，大於 0.5 為併指前指；
+  float：[(格號, 公尺)]，浮空高度，疊在 root 的 lift 上。
 節奏依 sources/figure/direct/<動作>/timing.md 的關鍵時刻；影片標為不可信的部分（特效、失真的袖筒）不抄。
 """
 import math
@@ -118,7 +123,194 @@ def _struck():
             "wind": [(0, 0.08), (6, 0.14), (14, 0.12), (24, 0.08), (36, 0.05)]}
 
 
-ACTIONS = {"stand": _stand, "brace": _brace, "struck": _struck}
+def curve_at(points, frame):
+    """[(格號, 值), ...] 之間線性內插；超出範圍取端點。"""
+    if frame <= points[0][0]:
+        return points[0][1]
+    for (a, va), (b, vb) in zip(points, points[1:]):
+        if a <= frame <= b:
+            return va + (vb - va) * ((frame - a) / (b - a) if b != a else 0.0)
+    return points[-1][1]
+
+
+def eased(points, frames):
+    """關鍵 (格號, 值) 之間緩入緩出，展開成每格一個值的曲線。"""
+    return [(frame, _between(points, frame)) for frame in range(frames + 1)]
+
+
+def _between(points, frame):
+    if frame <= points[0][0]:
+        return points[0][1]
+    for (a, va), (b, vb) in zip(points, points[1:]):
+        if a <= frame <= b:
+            return va + (vb - va) * (_smooth((frame - a) / (b - a)) if b != a else 0.0)
+    return points[-1][1]
+
+
+HIP_Z, ANKLE_Z = 0.50, 0.05
+
+
+def _leg_foot(thigh_deg, shin_deg):
+    """一條腿（大腿 thigh_deg、小腿相對再彎 shin_deg，正值往後）的腳踝相對髖的 (往後, 高度)。"""
+    t, u = math.radians(thigh_deg), math.radians(thigh_deg + shin_deg)
+    return THIGH * math.sin(t) + SHIN * math.sin(u), HIP_Z - THIGH * math.cos(t) - SHIN * math.cos(u)
+
+
+def _walk():
+    """步行（timing.md）：一步 11 格、兩步一循環 22 格（大腿前後各 28°）；極點在第 0 與 11 格（一腿前一腿後，步幅最大，腰最低），
+    過渡在第 5.5、16.5 格（腰最高）。逐格由公式給關鍵姿勢：支撐腿以腳底為軸往後掃、擺動腿屈膝收腳再往前；
+    對側臂與腿反向擺；胸前傾約 5°，頭穩定。身體高低由兩腿同時著地推算，腳底貼地。"""
+    keys = {}
+    for frame in range(23):
+        phi = 2 * math.pi * frame / 22
+        c, sn = math.cos(phi), math.sin(phi)
+        t_r, t_l = -28 * c, 28 * c
+        s_r, s_l = 40 * max(0.0, -sn), 40 * max(0.0, sn)
+        z_r = _leg_foot(t_r, s_r)[1]
+        z_l = _leg_foot(t_l, s_l)[1]
+        lift = ANKLE_Z - min(z_r, z_l)
+        pose = blend(stand_pose(), {
+            "thigh_r": (t_r, 0, 0), "shin_r": (s_r, 0, 0), "foot_r": (-(t_r + s_r), 0, 0),
+            "thigh_l": (t_l, 0, 0), "shin_l": (s_l, 0, 0), "foot_l": (-(t_l + s_l), 0, 0),
+            "upper_arm_l": (-18 * c + 4, 0, 0), "forearm_l": (-8 - 10 * max(0.0, c), 0, 0),
+            "upper_arm_r": (18 * c + 4, 0, 0), "forearm_r": (-8 - 10 * max(0.0, -c), 0, 0),
+            "waist": (3, 0, 0), "chest": (2 - 1.2 * c * c, 0, 0), "head": (-3, 0, 0)})
+        keys[frame] = (pose, lift)
+    return {"frames": 22, "loop": True, "loop_start": 0, "keys": keys, "events": {"step_a": 0, "step_b": 11},
+            "wind": [(0, 0.08)], "azimuth": 0, "feet": True}
+
+
+def _fall():
+    """倒地（timing.md）：從立姿起。4 失力（重心後移、膝微彎、頭微仰）；8 膝軟（膝彎約 35°、胸後仰）；
+    12–15 臀坐低、整個人繞腳跟往後倒（root 後仰）、雙臂往前上方甩；18 背落地（平躺）；20 彈起一點、22 落定；
+    22 起不動（雙臂放在身側、雙腿伸直）。倒地後的靜止至 36 格。"""
+    pose0 = stand_pose()
+
+    def lie(arm_f, fore, chest, head, legs, roll):
+        sq, drop = squat(legs) if legs else ({}, 0.0)
+        pose = blend(pose0, sq, {"chest": (chest, 0, 0), "head": (head, 0, 0), "neck": (head * 0.3, 0, 0),
+                                 "upper_arm_l": (arm_f, 0, 0), "upper_arm_r": (arm_f, 0, 0),
+                                 "forearm_l": (fore, 0, 0), "forearm_r": (fore, 0, 0), "root": (roll, 0, 0)})
+        return pose, -drop
+    keys = {0: (pose0, 0.0),
+            4: lie(-8, -10, -4, -8, 10, -2),
+            8: lie(-30, -14, -12, -12, 34, -8),
+            12: lie(-62, -16, -20, -16, 24, -26),
+            15: lie(-78, -12, -18, -18, 12, -55),
+            18: lie(-70, -10, -8, -10, 0, -88),
+            20: lie(-50, -10, -4, -6, 0, -82),
+            22: lie(-5, -4, 0, 0, 0, -90),
+            36: lie(-5, -4, 0, -2, 0, -90)}
+    floats = eased([(0, 0.0), (12, 0.0), (18, 0.085), (20, 0.115), (22, 0.088), (36, 0.088)], 36)
+    return {"frames": 36, "loop": False, "loop_start": 0, "keys": keys, "events": {"buckle": 8, "land": 18, "still": 22},
+            "wind": [(0, 0.05), (12, 0.12), (18, 0.14), (24, 0.06), (36, 0.05)], "azimuth": 0, "rigid": True,
+            "float": floats}
+
+
+def _rise():
+    """浮空（timing.md 的 rise，飛升用）：0–8 立姿、重心微沉；12 腳跟離地；12–22 上升（約 0.13 身高）、雙臂外展到約 40°；
+    24–36 升到最高停住（極輕的上下晃動）；36–46 慢慢降低、袖回垂；46 腳尖著地；50 立姿。不循環，終點是立姿。"""
+    base = stand_pose()
+
+    def arms(out, head):
+        return blend(base, {"upper_arm_r": (-2, 0, out), "upper_arm_l": (-2, 0, out),
+                            "forearm_r": (-6, 0, 0), "forearm_l": (-6, 0, 0), "head": (head, 0, 0), "chest": (-head * 0.3, 0, 0)})
+    dip, drop = squat(9)
+    keys = {0: (base, 0.0),
+            8: (blend(arms(6, 0), dip), -drop),
+            12: (arms(10, -1), 0.0),
+            17: (arms(36, -3), 0.0),
+            22: (arms(52, -5), 0.0),
+            27: (arms(56, -6), 0.0),
+            32: (arms(48, -5), 0.0),
+            36: (arms(54, -5), 0.0),
+            41: (arms(32, -2), 0.0),
+            46: (arms(8, 0), 0.0),
+            50: (base, 0.0)}
+    floats = eased([(0, 0.0), (11, 0.0), (22, 0.12), (27, 0.133), (32, 0.123), (36, 0.13), (41, 0.07), (46, 0.0), (50, 0.0)], 50)
+    return {"frames": 50, "loop": False, "loop_start": 0, "keys": keys, "events": {"liftoff": 12, "apex": 24, "touch": 46},
+            "wind": [(0, 0.05), (12, 0.1), (24, 0.24), (36, 0.24), (46, 0.1), (50, 0.05)], "azimuth": 45, "rigid": True,
+            "float": floats}
+
+
+def _strike():
+    """出手（timing.md，劍不畫）：4–8 右臂抬起、手按腰；14–16 拔劍（肘後拉、手前引）；20–26 舉過頭（慢）、下盤分開；
+    26→32 劈下（6 格，最快）：手臂由頭頂掃到斜向下前方，上身前傾約 10°、蹲得最低；32 起停 2 格再收；38 劍收回身側；44 立姿。
+    右臂是畫面遠側的 _f 臂。"""
+    base = stand_pose()
+
+    def at(ua, fa, chest=0.0, head=0.0, legs=0, left=(6, -14), waist=0.0, spread=0.0):
+        sq, drop = squat(legs) if legs else ({}, 0.0)
+        pose = blend(base, sq, {"upper_arm_r": (ua, 0, 0), "forearm_r": (fa, 0, 0),
+                                "upper_arm_l": (left[0], 0, 0), "forearm_l": (left[1], 0, 0),
+                                "chest": (chest, 0, 0), "head": (head, 0, 0), "neck": (head * 0.3, 0, 0), "waist": (waist, 0, 0),
+                                "thigh_l": (0, 0, spread), "thigh_r": (0, 0, spread)})
+        return pose, -drop
+    keys = {0: (base, 0.0),
+            4: at(-30, -55, 1),
+            8: at(-22, -78, 2, 0, 0, (8, -16), 2),
+            14: at(8, -100, 2, 0, 6, (8, -16), 3, 3),
+            16: at(-14, -88, 2, 0, 8, (8, -16), 3, 4),
+            20: at(-112, -62, -2, -3, 10, (10, -18), 0, 6),
+            26: at(-174, -10, -7, -9, 14, (12, -18), -2, 8),
+            32: at(-26, -6, 12, 9, 24, (0, -20), 8, 9),
+            34: at(-22, -8, 11, 8, 24, (0, -20), 8, 9),
+            38: at(-10, -40, 4, 2, 8, (4, -16), 2, 3),
+            44: (base, 0.0)}
+    return {"frames": 44, "loop": False, "loop_start": 0, "keys": keys, "events": {"draw": 16, "raise": 26, "hit": 32},
+            "wind": [(0, 0.05), (20, 0.1), (26, 0.14), (32, 0.18), (44, 0.05)], "azimuth": 0}
+
+
+def _seal():
+    """結印（timing.md）：4–8 兩手略向前、左手（近側）提到胸前；10–16 右臂（遠側 _f）抬到肩前再向前伸直；
+    16 成訣（右手併指前指）；18–34 停住（右臂水平前伸、左手豎掌在胸前、胸前探約 5°、極輕的呼吸）；36 起右臂略落；
+    38–40 雙臂向兩側放開；44 立姿。前伸是緩慢推出，沒有爆發。"""
+    base = stand_pose()
+
+    def at(ur, fr, ul, fl, chest=0.0, head=0.0):
+        return blend(base, {"upper_arm_r": (ur, 0, 0), "forearm_r": (fr, 0, 0), "upper_arm_l": (ul, 0, 0), "forearm_l": (fl, 0, 0),
+                            "chest": (chest, 0, 0), "head": (head, 0, 0)}), 0.0
+    keys = {0: (base, 0.0),
+            5: at(-14, -22, -14, -22, 0, 0),
+            8: at(-30, -70, -22, -98, 1, 0),
+            12: at(-58, -52, -22, -104, 2, 1),
+            16: at(-88, -6, -22, -106, 4, 2),
+            24: at(-90, -4, -22, -108, 5.5, 2.5),
+            30: at(-89, -5, -22, -107, 4.5, 2),
+            34: at(-88, -6, -22, -106, 5, 2),
+            36: at(-74, -12, -22, -100, 4, 1),
+            38: at(-42, -16, -14, -50, 2, 0),
+            40: at(-12, -12, -8, -24, 1, 0),
+            44: (base, 0.0)}
+    return {"frames": 44, "loop": False, "loop_start": 0, "keys": keys, "events": {"form": 16, "release": 36},
+            "wind": [(0, 0.05), (16, 0.08), (34, 0.08), (44, 0.05)], "azimuth": 0, "point": [(0, 0), (15, 0), (16, 1), (35, 1), (36, 0)]}
+
+
+def _bow():
+    """行禮（timing.md）：6–10 雙臂向前向內抬、雙手在腹前相對；12–14 彎腰（12 約 15°、14 約 30°，頭低）；
+    14–34 停住（手合在胸前，極輕的呼吸起伏）；36–40 起身（36 約 15°）、雙臂放下；44 立姿。腰是彎曲的軸，雙腿站直。"""
+    base = stand_pose()
+
+    def at(bend, ua, fa, breath=0.0):
+        return blend(base, {"waist": (bend * 0.6 + breath, 0, 0), "chest": (bend * 0.25, 0, 0), "neck": (bend * 0.1, 0, 0), "head": (bend * 0.2, 0, 0),
+                            "upper_arm_l": (ua, 0, 0), "forearm_l": (fa, 0, 0), "upper_arm_r": (ua, 0, 0), "forearm_r": (fa, 0, 0)}), 0.0
+    keys = {0: (base, 0.0),
+            6: at(0, -10, -14),
+            8: at(0, -38, -50),
+            10: at(2, -48, -88),
+            12: at(14, -56, -96),
+            14: at(30, -62, -96),
+            24: at(30, -62, -96, 1.2),
+            34: at(30, -62, -96),
+            36: at(15, -44, -64),
+            40: at(2, -12, -24),
+            44: (base, 0.0)}
+    return {"frames": 44, "loop": False, "loop_start": 0, "keys": keys, "events": {"bend": 14, "rise": 36},
+            "wind": [(0, 0.05), (14, 0.06), (44, 0.05)], "azimuth": 0}
+
+
+ACTIONS = {"stand": _stand, "brace": _brace, "struck": _struck, "walk": _walk, "fall": _fall, "rise": _rise,
+           "strike": _strike, "seal": _seal, "bow": _bow}
 
 
 def _smooth(t):
@@ -177,6 +369,8 @@ def make_action(rig, name):
     names = [bone.name for bone in rig.pose.bones]
     for frame in range(spec["frames"] + 1):
         quats, lift = pose_at(spec["keys"], frame, names)
+        if spec.get("float"):
+            lift += curve_at(spec["float"], frame)
         apply(rig, quats, lift, frame)
     for curve in _fcurves(action):
         for point in curve.keyframe_points:

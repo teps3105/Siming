@@ -4,7 +4,8 @@ extends "res://tests/harness/suite.gd"
 
 const CF := preload("res://modules/ui_kit/code/cultivator_figure.gd")
 const ACTIONS_PATH := "res://modules/figure/resources/actions.json"
-const ACTIONS := ["stand", "brace", "struck"]
+const ACTIONS := ["stand", "brace", "struck", "walk", "fall", "rise", "strike", "seal", "bow"]
+const NEW_ACTIONS := ["walk", "fall", "rise", "strike", "seal", "bow"]
 const JOINTS := ["hip", "neck", "elbow_f", "hand_f", "elbow_b", "hand_b"]
 
 
@@ -73,6 +74,92 @@ func test_gdd_8_11_timing_notes_become_events_and_lengths() -> void:
 	assert_gt(FigureMotion.event_time("brace", "raised"), 0.2)
 	assert_true(FigureMotion.loop_start("brace") >= FigureMotion.event_time("brace", "raised") - 1e-6, "舉臂到頂之後才循環")
 	assert_eq(FigureMotion.event_time("stand", "hit"), -1.0, "沒有的事件是 −1")
+
+
+## 兩格姿勢的最大關節差（含選用的雙腳、剛體鍵）。
+func _pose_gap(a: Dictionary, b: Dictionary) -> float:
+	var gap := 0.0
+	for key in JOINTS + ["foot_f", "foot_b"]:
+		if a.has(key) or b.has(key):
+			var pa: Vector2 = a.get(key, Vector2.ZERO)
+			var pb: Vector2 = b.get(key, Vector2.ZERO)
+			gap = maxf(gap, pa.distance_to(pb))
+	for key in ["head_roll"] + FigureMotion.OPTIONAL_FLOATS:
+		gap = maxf(gap, absf(float(a.get(key, 0.0)) - float(b.get(key, 0.0))))
+	return gap
+
+
+func test_gdd_8_11_six_more_actions_exist_with_timing_note_lengths_and_events() -> void:
+	# sources/figure/direct/<動作>/timing.md：格數與事件（事件名自訂，格號照筆記的關鍵時刻）。
+	var expect := {
+		"walk": {"frames": 22, "loop": true, "events": {"step_a": 0, "step_b": 11}},
+		"fall": {"frames": 36, "loop": false, "events": {"buckle": 8, "land": 18, "still": 22}},
+		"rise": {"frames": 50, "loop": false, "events": {"liftoff": 12, "apex": 24, "touch": 46}},
+		"strike": {"frames": 44, "loop": false, "events": {"draw": 16, "raise": 26, "hit": 32}},
+		"seal": {"frames": 44, "loop": false, "events": {"form": 16, "release": 36}},
+		"bow": {"frames": 44, "loop": false, "events": {"bend": 14, "rise": 36}},
+	}
+	for action: String in NEW_ACTIONS:
+		assert_true(FigureMotion.names().has(action), "有動作 " + action)
+		assert_eq(FigureMotion.frame_count(action), expect[action]["frames"], action + " 格數")
+		assert_eq(FigureMotion.loops(action), expect[action]["loop"], action + " 是否循環")
+		var events: Dictionary = FigureMotion.events(action)
+		assert_eq(events.size(), (expect[action]["events"] as Dictionary).size(), action + " 事件數")
+		for name: String in expect[action]["events"]:
+			assert_true(absf(FigureMotion.event_time(action, name) - float(expect[action]["events"][name]) / 24.0) < 1e-6, "%s 的事件 %s 在第 %d 格" % [action, name, expect[action]["events"][name]])
+	# 筆記的節奏：劈下 4–6 格（最快）、舉劍較慢；結印停住約 16 格；行禮停住約 20 格。
+	assert_true(FigureMotion.event_time("strike", "hit") - FigureMotion.event_time("strike", "raise") <= 6.5 / 24.0, "劈下不超過 6 格")
+	assert_true(FigureMotion.event_time("bow", "rise") - FigureMotion.event_time("bow", "bend") >= 18.0 / 24.0, "行禮停住約 20 格")
+
+
+func test_gdd_8_11_walk_loops_seamlessly_and_the_other_new_actions_start_from_stand() -> void:
+	var last := FigureMotion.frame_count("walk")
+	assert_true(_pose_gap(FigureMotion.frame_pose("walk", 0), FigureMotion.frame_pose("walk", last)) < 1e-3, "步行首尾格相同，循環不跳")
+	assert_eq(FigureMotion.loop_start("walk"), 0.0, "步行從第 0 格起循環")
+	var stand := FigureMotion.frame_pose("stand", 0)
+	for action in ["fall", "rise", "strike", "seal", "bow"]:
+		assert_true(_pose_gap(FigureMotion.frame_pose(action, 0), stand) < 1e-3, action + " 第 0 格是立姿")
+	for action in ["strike", "seal", "bow", "rise"]:
+		assert_true(_pose_gap(FigureMotion.frame_pose(action, FigureMotion.frame_count(action)), stand) < 1e-3, action + " 最後一格回到立姿")
+	assert_true(_pose_gap(FigureMotion.frame_pose("struck", FigureMotion.frame_count("struck")), FigureMotion.frame_pose("fall", 0)) < 1e-3, "受雷的結尾接得上倒地的開頭")
+
+
+func test_gdd_8_11_fall_ends_lying_down_and_rise_floats_above_the_ground() -> void:
+	var stand_crown: Vector2 = FigureMotion.frame_pose("stand", 0)["anchors"]["crown"]
+	var end := FigureMotion.frame_pose("fall", FigureMotion.frame_count("fall"))
+	var lying: Vector2 = end["anchors"]["crown"]
+	assert_true(-lying.y < -stand_crown.y * 0.5, "倒地後頭頂低於站立身高的一半：%s" % lying)
+	assert_true(absf(lying.x) > 0.7, "倒地後頭在身體的後方（+x），平躺")
+	assert_true(float(end["body_roll"]) > 1.4, "倒地用整體後仰")
+	var apex := FigureMotion.pose("rise", FigureMotion.event_time("rise", "apex") + 0.2)
+	assert_true((apex["anchors"]["foot"] as Vector2).y < -0.1, "浮空時腳底離地")
+	assert_true(absf((FigureMotion.pose("rise", 0.0)["anchors"]["foot"] as Vector2).y) < 1e-6, "浮空前腳底在地面")
+	var strike_top := FigureMotion.pose("strike", FigureMotion.event_time("strike", "raise"))
+	assert_true((strike_top["hand_f"] as Vector2).y < (strike_top["neck"] as Vector2).y - 0.1, "舉劍時手高過頸")
+	var seal_hold := FigureMotion.pose("seal", 0.8)
+	assert_true(seal_hold["point"], "結印停住時右手前指")
+	assert_true((seal_hold["hand_f"] as Vector2).x < (seal_hold["neck"] as Vector2).x - 0.25, "右臂向前（−x）伸出")
+	var bow_hold := FigureMotion.pose("bow", 0.8)
+	var stand_pose := FigureMotion.frame_pose("stand", 0)
+	assert_true((bow_hold["neck"] as Vector2).x < (stand_pose["neck"] as Vector2).x - 0.1, "行禮時上身前傾（頸往 −x）")
+	var walk_a := FigureMotion.frame_pose("walk", 0)
+	var walk_b := FigureMotion.frame_pose("walk", 11)
+	assert_true(((walk_a["foot_f"] as Vector2).x - (walk_b["foot_f"] as Vector2).x) * ((walk_a["foot_b"] as Vector2).x - (walk_b["foot_b"] as Vector2).x) < 0.0, "兩步之間兩腳前後互換")
+
+
+func test_gdd_8_11_new_actions_play_every_look_without_errors_and_stay_inside_the_frame() -> void:
+	var actor := _actor(31)
+	for action: String in NEW_ACTIONS:
+		var span := FigureMotion.length(action)
+		for k in 9:
+			actor.play(action, span * k / 8.0)
+			assert_gt(actor.polygons().size(), 6, "%s 播到 %d/8 有畫出東西" % [action, k])
+		for given in [{"sex": CF.Sex.FEMALE, "wealth": CF.Wealth.POOR}, {"age": CF.Age.ELDER, "school": CF.School.SHI}, {"sex": CF.Sex.FEMALE, "wealth": CF.Wealth.RICH}]:
+			var look := FigureActor.look_of(77, given)
+			for index in FigureMotion.frame_count(action) + 1:
+				var shapes := CF.shapes(look, FigureMotion.frame_pose(action, index), index / 24.0)
+				var box := CF.bounds_of(shapes)
+				assert_true(FigureActor.FRAME.encloses(box), "%s 第 %d 格的畫面在畫框內：%s" % [action, index, box])
 
 
 func test_gdd_8_11_three_actions_have_different_poses() -> void:
