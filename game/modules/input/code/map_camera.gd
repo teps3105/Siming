@@ -48,6 +48,14 @@ var input_enabled := true:
 			_dragging = false
 			_rotating = false
 			_set_hover(-1)
+## 為真時整個畫面讓給一張全螢幕的紙（傳聞簽展開）：搖桿游標與 LT、RT 照常，平移、縮放、旋轉與地圖點選暫停。
+var modal := false:
+	set(value):
+		modal = value
+		if value and _map != null:
+			_dragging = false
+			_rotating = false
+			_set_hover(-1)
 var focus := Vector2.ZERO
 var z := 100.0
 var yaw := 0.0
@@ -177,7 +185,7 @@ func _notification(what: int) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if _map == null or not input_enabled:
+	if _map == null or not input_enabled or modal:
 		return
 	if is_flying() and _is_press(event):
 		_flight_seconds = 0.0
@@ -366,6 +374,9 @@ func _process(delta: float) -> void:
 		_apply(delta)
 		return
 	_update_pad_mouse(delta)
+	if modal:
+		_apply(delta)
+		return
 	var pan := Input.get_vector(InputActions.PAN_LEFT, InputActions.PAN_RIGHT, InputActions.PAN_UP, InputActions.PAN_DOWN)
 	if pan == Vector2.ZERO:
 		pan = _edge_push()

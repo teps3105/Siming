@@ -47,6 +47,9 @@ var guide_enabled := true
 var _paused_before_menu := false
 ## 開關選單造成的暫停與續行不算玩家動了時間。
 var _menu_switching := false
+## 傳聞簽全螢幕展開時是否已替它暫停了時間，與展開前時間是否已經暫停（器物重建時展開狀態會帶到新的簽上，不可重記）。
+var _rumor_pause_held := false
+var _paused_before_rumor := false
 
 
 func setup(sim: SimHost, map: TerrainMap, camera: MapCamera) -> void:
@@ -116,6 +119,7 @@ func _layout() -> void:
 	_place_guide()
 	_place_cards(bounds)
 	_place_rumor()
+	_rumor.fit_screen()
 	_notice.top_center = Vector2(bounds.x * 0.5, MARGIN)
 
 
@@ -229,6 +233,7 @@ func _build() -> void:
 	_rumor.setup(_unit)
 	_rumor.compact = get_viewport().get_visible_rect().size.y <= Ink.DECK_HEIGHT
 	_rumor.restore(rumors)
+	_rumor.fullscreen_changed.connect(_on_rumor_fullscreen)
 	_rumor.expanded = rumors_open
 	_rumor.fly_requested.connect(func(map_pos: Vector2) -> void: _camera.look_at_map(map_pos))
 	_rumor.person_requested.connect(func(id: int) -> void: open_person(id))
@@ -252,6 +257,24 @@ func _build() -> void:
 	_apply_device()
 
 
+## 傳聞簽全螢幕展開：模擬暫停（記下展開前的行止）、鏡頭讓出畫面；收合時行止與速度回到展開前。
+func _on_rumor_fullscreen(on: bool) -> void:
+	_camera.modal = on
+	if _sim == null:
+		return
+	if on and not _rumor_pause_held:
+		_rumor_pause_held = true
+		_paused_before_rumor = _sim.paused
+		_menu_switching = true
+		_sim.set_paused(true)
+		_menu_switching = false
+	elif not on and _rumor_pause_held:
+		_rumor_pause_held = false
+		_menu_switching = true
+		_sim.set_paused(_paused_before_rumor)
+		_menu_switching = false
+
+
 ## 引導簽在底部中央、印鈕列上方 24 px（GDD 5.7）；畫面窄到會壓住印匣的例簽時往左讓開。
 func _place_guide() -> void:
 	if _guide == null or _seals == null:
@@ -264,7 +287,7 @@ func _place_guide() -> void:
 
 ## 傳聞簽在右上角；命簿開著時讓到它左邊，左邊被天時儀與視角鈕佔住時改放在它們下方（GDD 5.7）。
 func _place_rumor() -> void:
-	if _rumor == null or _seals == null or _view == null:
+	if _rumor == null or _seals == null or _view == null or _rumor.expanded:
 		return
 	var bounds := get_viewport().get_visible_rect().size
 	var open_card := _open_card()
@@ -307,6 +330,7 @@ func event_card() -> EventCard:
 func open_person(id: int) -> void:
 	if _sim == null or id < 0 or _sim.world.person(id).is_empty():
 		return
+	_rumor.expanded = false
 	_remember_open_card()
 	_card.suspend()
 	_event_card.suspend()
@@ -320,6 +344,7 @@ func open_person(id: int) -> void:
 func open_province(id: int) -> void:
 	if _sim == null or id < 0 or id >= _sim.world.province_count():
 		return
+	_rumor.expanded = false
 	_remember_open_card()
 	_person_card.suspend()
 	_event_card.suspend()
@@ -334,6 +359,7 @@ func open_province(id: int) -> void:
 func open_event(id: int) -> void:
 	if _sim == null or id < 0:
 		return
+	_rumor.expanded = false
 	_remember_open_card()
 	_card.suspend()
 	_person_card.suspend()
@@ -421,6 +447,8 @@ func menu() -> MenuDeck:
 func open_menu() -> void:
 	if _menu != null or _sim == null:
 		return
+	# 全螢幕傳聞先收合，時間回到展開前的行止，選單才記得住開選單前的暫停狀態。
+	_rumor.expanded = false
 	_paused_before_menu = _sim.paused
 	_menu_switching = true
 	_sim.set_paused(true)
@@ -539,9 +567,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event.is_action_pressed(InputActions.RUMOR_LIST):
 		_rumor.expanded = not _rumor.expanded
-	elif _rumor.expanded and event.is_action_pressed(InputActions.CANCEL):
-		_rumor.expanded = false
-		get_viewport().set_input_as_handled()
+	elif _rumor.expanded:
+		# 全螢幕傳聞開著：只收 Esc／B 收合與 Start 開選單，其餘時間與地圖的快捷鍵都不動。
+		if event.is_action_pressed(InputActions.CANCEL):
+			_rumor.expanded = false
+			get_viewport().set_input_as_handled()
+		elif event.is_action_pressed(InputActions.MENU):
+			open_menu()
+			get_viewport().set_input_as_handled()
 	elif event.is_action_pressed(InputActions.MENU) or (event is InputEventKey and event.is_action_pressed(InputActions.CANCEL) and _open_card() == null):
 		# Esc：有卡片開著先關卡片，否則開選單；Start 一律開選單。搖桿的 B 只取消與關卡片（GDD 5.9）。
 		open_menu()

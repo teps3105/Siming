@@ -13,6 +13,31 @@ const LEAD_KINDS := ["PowerFounded", "SectSplit", "Succession", "Usurpation", "D
 const DEATH_CAUSES := ["BreakthroughFailed", "Tribulation", "ShedBody", "Smite"]
 
 
+## 傳聞簽全螢幕的篩選歸類（5.7）：每個事件種類只屬一類。
+## 大事＝世界大事與天地之變（地形、洞天、天災、魔劫量劫、妖患）；人物＝一個人的生老病死與作為；
+## 宗門＝門派的創立、更替、爭鬥與覆滅（`Succession` 王朝與宗門共用同一代號，歸宗門）；
+## 王朝＝國家的立滅、戰事、政令與賑濟；宿緣＝宿緣的結下、將盡、了結與消散。
+const FILTER_KINDS := {
+	"world": ["WorldChanged", "NodeShifted", "ProvinceLost", "LandLinked", "SeatMoved", "ForestCleared", "Desertified", "BookEntry",
+		"Famine", "Plague", "BeastAwakened", "BeastRaid", "DemonDen", "CataclysmBegan", "CataclysmEnded", "HeavenWrath",
+		"KalpaOmen", "Kalpa", "LeyDamaged", "KalpaSettled"],
+	"person": ["Born", "ComeOfAge", "Married", "Died", "WraithBorn", "Breakthrough", "Tribulation", "TribulationOmen", "Ascended", "FellToDemon",
+		"FruitAttained", "Vow", "Nirvana", "Treatise", "GreatScholar", "Sage", "Killed", "Converted", "Rebirth", "Judged", "Traveled", "Remonstrance"],
+	"sect": ["PowerFounded", "Succession", "SectSplit", "SectWar", "PowerFallen"],
+	"dynasty": ["DynastyFounded", "Annexed", "WarDeclared", "Battle", "CityFell", "Massacre", "Rebellion", "Secession", "Usurpation", "CivilWar",
+		"CapitalMoved", "DynastyChanged", "DynastyCollapsed", "Peace", "Fengshan", "Relief", "Purge", "BanTao"],
+	"karma": ["Genesis", "ThreadCreated", "ThreadOmen", "ThreadResolved", "FeudEscalated", "ThreadFaded"],
+}
+
+
+## 事件種類的篩選歸類；沒歸類的退到「大事」，不會從全螢幕的清單消失。
+static func filter_of(kind: String) -> String:
+	for cls: String in FILTER_KINDS:
+		if kind in FILTER_KINDS[cls]:
+			return cls
+	return "world"
+
+
 ## 世界大事（WorldChanged）：事件代號 change 與開啟的紀元名 era。
 static func world_line(change: String, era: String) -> String:
 	var line := Locale.t("world_" + change)
