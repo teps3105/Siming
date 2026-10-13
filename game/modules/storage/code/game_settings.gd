@@ -18,7 +18,16 @@ const DEFAULTS := {
 	"edge_scroll": false,
 	"tutorial_done": false,
 	"tutorial_step": 0,
+	# 導演模式（GDD 5.13）。節奏 0 慢、1 標準、2 快。
+	"director": true,
+	"director_pace": 1,
+	"director_idle": 20,
+	"director_slow": true,
+	"director_card": true,
+	"director_reduce": false,
 }
+## 程式覆寫的預設值（不寫入設定檔）：測試執行器用它預設關閉導演，使用者存過的值仍優先。
+static var default_overrides := {}
 
 ## 設定檔的位置；測試會改到別處。
 static var file_path := DEFAULT_PATH
@@ -33,8 +42,9 @@ static func load_file() -> void:
 static func value(key: String) -> Variant:
 	if _file == null:
 		load_file()
-	var stored: Variant = _file.get_value(SECTION, key, DEFAULTS[key])
-	return stored if typeof(stored) == typeof(DEFAULTS[key]) else DEFAULTS[key]
+	var fallback: Variant = default_overrides.get(key, DEFAULTS[key])
+	var stored: Variant = _file.get_value(SECTION, key, fallback)
+	return stored if typeof(stored) == typeof(DEFAULTS[key]) else fallback
 
 
 static func flag(key: String) -> bool:

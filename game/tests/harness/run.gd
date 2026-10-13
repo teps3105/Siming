@@ -26,6 +26,8 @@ func _main() -> void:
 		args[pair[0]] = pair[1] if pair.size() > 1 else ""
 	OS.add_logger(_log)
 	SimWorld.set_default_prerun(TEST_POP_YEARS, TEST_PRERUN_YEARS)
+	# 既有的流程測試都假設鏡頭不會自己動；導演預設關閉，只有導演自己的測試打開。
+	GameSettings.default_overrides["director"] = false
 	var results: Array[Dictionary] = []
 	var load_errors: Array[String] = []
 	var paths := _discover(ROOT)

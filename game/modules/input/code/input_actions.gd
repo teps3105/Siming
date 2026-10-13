@@ -38,6 +38,8 @@ const MODE_LINGMAI := &"map_mode_lingmai"
 const MODE_YINGUO := &"map_mode_yinguo"
 ## 星球視角與平面地圖互換：鍵盤 G、搖桿按下右搖桿。
 const VIEW_TOGGLE := &"map_view_toggle"
+## 導演模式開關（GDD 5.13）：鍵盤 F7（F6 留給地圖模式的業氣）、搖桿的 Share（Xbox 手把中間偏右的小鍵）。
+const DIRECTOR_TOGGLE := &"director_toggle"
 ## 傳聞簽（GDD 5.7）：展開近 50 則的清單、收回清單。搖桿沒有專屬鍵，以游標點簽頭（5.9）。
 const RUMOR_LIST := &"rumor_list"
 ## 天下冊（GDD 5.10）：全螢幕的統計圖紙，鍵盤 B 展開與收回。搖桿沒有專屬鍵，以游標點題簽右端的「冊」印（5.9）。
@@ -86,6 +88,7 @@ static func bindings() -> Dictionary:
 		MODE_LINGMAI: [KEY_F4],
 		MODE_YINGUO: [KEY_F5],
 		VIEW_TOGGLE: [KEY_G, "joy:%d" % JOY_BUTTON_RIGHT_STICK],
+		DIRECTOR_TOGGLE: [KEY_F7, "joy:%d" % JOY_BUTTON_MISC1],
 		RUMOR_LIST: [KEY_T],
 		ALMANAC: [KEY_B],
 		MENU_UP: [KEY_UP, KEY_W, "joy:%d" % JOY_BUTTON_DPAD_UP, "axis:%d:-1" % JOY_AXIS_LEFT_Y],
