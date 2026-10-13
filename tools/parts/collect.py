@@ -100,7 +100,7 @@ def collect(key, n=1, thr=38, min_area=250, thick=6.0, keep_skin=False):
         raw &= ~((hue > 10) & (hue < 45) & (sat > 0.18) & (val > 0.55))
     if spec.get("gray"):   # 灰階稿的件：帶彩度的像素（底版皮膚的陰影、對位殘留）不是這一件
         hs = cv2.cvtColor(warped, cv2.COLOR_RGB2HSV)
-        raw &= hs[..., 1] < 0.16 * 255
+        raw &= hs[..., 1] < spec.get("gray_sat", 0.16) * 255   # 畫家的灰有時略偏暖，款可放寬；皮膚的飽和度在 0.4 以上
     if spec.get("extract") == "color":
         # 新畫的東西與底版被它蓋住的東西明度色相相近時（灰青道袍蓋灰青內衫），相減會留洞；改取「不是膚色、不是紙色」的像素，
         # 以 7×7 開運算切掉頸輪廓之類的細線，再向外長 4 像素與原遮罩取交集，把部件自己的墨邊找回來。

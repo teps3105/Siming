@@ -34,6 +34,7 @@ PALETTES = [
     {"skin": (176, 126, 88), "hair": (122, 76, 50), "robe": (86, 128, 108), "trim": (201, 162, 70), "iris": (58, 120, 96)},
 ]
 for _p in PALETTES:
+    _p.setdefault("violet", (107, 74, 142))   # 入魔面紋
     _p.setdefault("gold", (201, 162, 70))   # 金色通道，遊戲內是 PartTint.GOLD
 
 

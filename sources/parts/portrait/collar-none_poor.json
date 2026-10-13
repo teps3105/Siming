@@ -48,6 +48,54 @@
    "output_sha256": "be9a325d392728f8ab41457959013203a529a99e96a346384c88c2232fb6bdcf",
    "seconds": 60.1,
    "time": "2026-10-13 19:55:47"
+  },
+  {
+   "tag": "collar-none_poor-t3",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261016,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/sources/parts/portrait/base-face-m.png",
+     "6eb81df3857716d33152534009eecf9090d5c7a2a6b3c29c3f5a48bfdca3b318"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版（背景是純綠色），圖2是畫風基準圖。請給圖1的人穿上一件窮苦人的粗布短衣：灰藍色的粗麻布交領短衫，領口窄而淺，交領疊成一個小的V形，衣身有兩塊顏色略深的補丁，補丁是不規則的形狀（邊緣歪斜、有缺角與凹凸，不是方形、不是矩形、不像口袋），補丁的邊緣各有一圈短短的虛線縫線；一塊又大又歪貼在左肩外側、緊靠肩線，另一塊較小、貼在畫面下緣偏右的衣襬邊上，兩塊的位置、大小與形狀都不對稱，補丁都不在胸口中間，領口與衣邊沒有任何滾邊與花紋，衣褶少而粗。衣服蓋住頸根以下的肩與胸，衣服的肩外緣必須把圖1裸露的肩完全蓋住：肩線比圖1的肩外緣略寬、略高，肩外側不露出任何皮膚，皮膚只出現在領口與頸子裡；肩線一路畫到畫面左右邊緣與下緣；衣服用兩階明暗（底色加一階硬邊陰影），衣褶只用少數幾條粗而乾淨的線。領口的內緣貼著頸子，沿著整條貼頸的邊都要有一圈完整的墨線。頭、臉、耳與頸子的皮膚不許動、不許被蓋住；V形領口露出的是頸子與鎖骨的皮膚，保持原樣；V形開口裡面只有皮膚，不畫內衫、不畫灰色塊、不畫陰影塊，領口的邊乾淨利落。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫的這一件，人物的頭、臉、頸、肩與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純綠色（#00FF00），純色無漸層。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/.shiftblame/tmp/parts/portrait/paint/collar-none_poor-t3.png",
+   "output_sha256": "4bd208de0456ed60564a017545bfa346cafe5726b1d5055659879735c0763ef4",
+   "seconds": 72.0,
+   "time": "2026-10-13 20:50:49"
+  },
+  {
+   "tag": "collar-none_poor-t4",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261017,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/sources/parts/portrait/base-face-m.png",
+     "6eb81df3857716d33152534009eecf9090d5c7a2a6b3c29c3f5a48bfdca3b318"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版（背景是純綠色），圖2是畫風基準圖。請給圖1的人穿上一件窮苦人的粗布短衣：灰藍色的粗麻布交領短衫，領口窄而淺，交領疊成一個小的V形，衣身有兩塊顏色略深的補丁，補丁是不規則的形狀（邊緣歪斜、有缺角與凹凸，不是方形、不是矩形、不像口袋），補丁的顏色是比衣身略深一點的同色系灰藍（不是黑色、不是深褐），補丁外緣只用細細的墨線，邊緣有一圈短短的虛線縫線，縫線要看得出來；一塊又大又歪貼在左肩外側、緊靠肩線，另一塊較小、貼在畫面下緣偏右的衣襬邊上，兩塊的位置、大小與形狀都不對稱，補丁都不在胸口中間，領口與衣邊沒有任何滾邊與花紋，衣褶少而粗。衣服蓋住頸根以下的肩與胸，衣服的肩外緣必須把圖1裸露的肩完全蓋住：肩線比圖1的肩外緣略寬、略高，肩外側不露出任何皮膚，皮膚只出現在領口與頸子裡；肩線一路畫到畫面左右邊緣與下緣；衣服用兩階明暗（底色加一階硬邊陰影），衣褶只用少數幾條粗而乾淨的線。領口的內緣貼著頸子，沿著整條貼頸的邊都要有一圈完整的墨線。頭、臉、耳與頸子的皮膚不許動、不許被蓋住；V形領口露出的是頸子與鎖骨的皮膚，保持原樣；V形開口裡面只有皮膚，不畫內衫、不畫灰色塊、不畫陰影塊，領口的邊乾淨利落。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫的這一件，人物的頭、臉、頸、肩與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純綠色（#00FF00），純色無漸層。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/.shiftblame/tmp/parts/portrait/paint/collar-none_poor-t4.png",
+   "output_sha256": "c4685768711cb611b0f0dd43bdb9b523749fca27b311d224f601342d98e30efa",
+   "seconds": 56.1,
+   "time": "2026-10-13 20:56:48"
   }
  ],
  "collect": [
@@ -110,6 +158,66 @@
    "components": 1,
    "output": "D:/Siming/.claude/worktrees/agent-a8e62cbb3e6288772/.shiftblame/tmp/parts/portrait/collect/collar-none_poor.png",
    "time": "2026-10-13 19:55:48"
+  },
+  {
+   "from": "paint/collar-none_poor-t3.png",
+   "affine": [
+    [
+     0.9901300072669983,
+     0.0022899999748915434,
+     -0.9557899832725525
+    ],
+    [
+     -0.0002099999983329326,
+     0.9827799797058105,
+     1.3922799825668335
+    ]
+   ],
+   "ecc": 0.99591,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 342920,
+   "bbox": [
+    0,
+    796,
+    1024,
+    1280
+   ],
+   "components": 1,
+   "output": "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/.shiftblame/tmp/parts/portrait/collect/collar-none_poor.png",
+   "time": "2026-10-13 20:53:19"
+  },
+  {
+   "from": "paint/collar-none_poor-t4.png",
+   "affine": [
+    [
+     0.9961199760437012,
+     -7.000000186963007e-05,
+     0.059859998524188995
+    ],
+    [
+     0.0006900000153109431,
+     0.9968299865722656,
+     -6.669270038604736
+    ]
+   ],
+   "ecc": 0.99875,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 346616,
+   "bbox": [
+    0,
+    795,
+    1024,
+    1280
+   ],
+   "components": 1,
+   "output": "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/.shiftblame/tmp/parts/portrait/collect/collar-none_poor.png",
+   "time": "2026-10-13 20:56:52"
   }
  ],
  "key": [
@@ -179,6 +287,76 @@
     }
    },
    "time": "2026-10-13 19:55:48"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/collar-none_poor.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "robe": {
+     "file": ".shiftblame/tmp/parts/portrait/key/collar-none_poor.robe.png",
+     "pixels": 33705,
+     "dye": "robe",
+     "centers": [
+      58.7,
+      79.3,
+      94.7,
+      110.7
+     ],
+     "share": [
+      0.058,
+      0.239,
+      0.074,
+      0.628
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "shadow",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 20:53:20"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/collar-none_poor.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "robe": {
+     "file": ".shiftblame/tmp/parts/portrait/key/collar-none_poor.robe.png",
+     "pixels": 34071,
+     "dye": "robe",
+     "centers": [
+      42.9,
+      68.7,
+      82.9,
+      108.1
+     ],
+     "share": [
+      0.022,
+      0.137,
+      0.17,
+      0.671
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "shadow",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 20:56:52"
   }
  ],
  "check": [

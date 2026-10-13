@@ -72,6 +72,78 @@
    "output_sha256": "368088dea156172452e832bbe0d0c771ab9e098f32da505c64d6a1932881ce8a",
    "seconds": 52.3,
    "time": "2026-10-13 19:36:16"
+  },
+  {
+   "tag": "back_hair-loose-complete-t1",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261101,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/.shiftblame/tmp/parts/portrait/paint/back_hair-loose-complete-in.png",
+     "d3983983da1a6fc81b1b893f40884a581f987813f3fa9090f2bca3617a527ca1"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是人物頭像的一個部件，單獨放在純綠色（#00FF00）背景上；圖2是畫風基準圖。圖1是長髮披在背後的「後髮」，是灰階稿（之後才上色，維持中性灰，不加任何色相）。中間原本被頭與頸擋住的地方是一整塊綠色空洞，所以左右兩片髮之間沒有連起來。請把它補成完整的一件：把中間的綠色空洞整個畫滿頭髮，成為一整片連續的髮幕——從頭頂一路到畫面下緣，左右兩片髮之間、頭與頸後面全部是頭髮，沒有任何綠色縫、洞或缺口；新畫的髮用與兩側相同的畫法（髮束線條順著往下、一階陰影、少量高光）；兩側原有的髮與外輪廓保持原樣，外緣仍是封閉的墨線。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊，底色純平，一階硬邊陰影，不要漸層、紙紋或顆粒。保留圖1已畫好的部分原樣（位置、大小、顏色都不動），只畫沒畫完的地方；綠色背景保持純綠，不加頭、臉、身體或任何其他東西。",
+   "output": "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/.shiftblame/tmp/parts/portrait/paint/back_hair-loose-complete-t1.png",
+   "output_sha256": "8e270f00fca2349e4ec4c072b54a09bde0e4304e488a9fe835672484accf2c03",
+   "seconds": 56.2,
+   "time": "2026-10-13 20:38:19"
+  },
+  {
+   "tag": "back_hair-loose-complete-t2",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261102,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/.shiftblame/tmp/parts/portrait/paint/back_hair-loose-complete-in.png",
+     "d3983983da1a6fc81b1b893f40884a581f987813f3fa9090f2bca3617a527ca1"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是人物頭像的一個部件，單獨放在純綠色（#00FF00）背景上；圖2是畫風基準圖。圖1是長髮披在背後的「後髮」，是灰階稿（之後才上色，維持中性灰，不加任何色相）。中間原本被頭與頸擋住的地方是一整塊綠色空洞，所以左右兩片髮之間沒有連起來。請把它補成完整的一件：把中間的綠色空洞整個畫滿頭髮，成為一整片連續的髮幕——從頭頂一路到畫面下緣，左右兩片髮之間、頭與頸後面全部是頭髮，沒有任何綠色縫、洞或缺口；新畫的髮用與兩側相同的畫法（髮束線條順著往下、一階陰影、少量高光）；兩側原有的髮與外輪廓保持原樣，外緣仍是封閉的墨線。灰階的明暗要與兩側原有的髮一致：底色是明亮的中淺灰（約 #B0B0B0），陰影塊較深（約 #606060，約占髮面積的三分之一），只有少量近白高光（約 #F2F2F2），不要整體畫暗或畫成同一個灰。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊，底色純平，一階硬邊陰影，不要漸層、紙紋或顆粒。保留圖1已畫好的部分原樣（位置、大小、顏色都不動），只畫沒畫完的地方；綠色背景保持純綠，不加頭、臉、身體或任何其他東西。",
+   "output": "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/.shiftblame/tmp/parts/portrait/paint/back_hair-loose-complete-t2.png",
+   "output_sha256": "7da3d423705e53bac35201805790b70f00d03e4f1fd5da628ebe5e93e436522f",
+   "seconds": 56.1,
+   "time": "2026-10-13 20:41:35"
+  },
+  {
+   "tag": "back_hair-loose-complete-t3",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261103,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/.shiftblame/tmp/parts/portrait/paint/back_hair-loose-complete-in.png",
+     "d3983983da1a6fc81b1b893f40884a581f987813f3fa9090f2bca3617a527ca1"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是人物頭像的一個部件，單獨放在純綠色（#00FF00）背景上；圖2是畫風基準圖。圖1是長髮披在背後的「後髮」，是灰階稿（之後才上色，維持中性灰，不加任何色相）。中間原本被頭與頸擋住的地方是一整塊綠色空洞，所以左右兩片髮之間沒有連起來。請把它補成完整的一件：把中間的綠色空洞整個畫滿頭髮，成為一整片連續的髮幕——從頭頂一路到畫面下緣，左右兩片髮之間、頭與頸後面全部是頭髮，沒有任何綠色縫、洞或缺口；新畫的髮用與兩側相同的畫法（髮束線條順著往下、一階陰影、少量高光）；兩側原有的髮與外輪廓必須與圖1逐像素相同（髮的長度、寬度、髮尾形狀、每一束髮的位置都不動），只畫中間綠色空洞的內部，外緣仍是封閉的墨線。灰階的明暗要與兩側原有的髮一致：底色是明亮的中淺灰（約 #B0B0B0），陰影塊較深（約 #606060，約占髮面積的三分之一），只有少量近白高光（約 #F2F2F2），不要整體畫暗或畫成同一個灰。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊，底色純平，一階硬邊陰影，不要漸層、紙紋或顆粒。保留圖1已畫好的部分原樣（位置、大小、顏色都不動），只畫沒畫完的地方；綠色背景保持純綠，不加頭、臉、身體或任何其他東西。",
+   "output": "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/.shiftblame/tmp/parts/portrait/paint/back_hair-loose-complete-t3.png",
+   "output_sha256": "5f2c358fa336c7b535e234fb516d0656e86c51c63dec9ce23df3bd07b06dd457",
+   "seconds": 75.9,
+   "time": "2026-10-13 20:44:11"
   }
  ],
  "check": [
@@ -352,6 +424,155 @@
     }
    },
    "time": "2026-10-13 19:36:35"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/complete/back_hair-loose.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "hair": {
+     "file": ".shiftblame/tmp/parts/portrait/key/back_hair-loose.hair.png",
+     "pixels": 44427,
+     "dye": "hair",
+     "centers": [
+      77.3,
+      96.6,
+      123.2,
+      155.3
+     ],
+     "share": [
+      0.238,
+      0.37,
+      0.354,
+      0.038
+     ],
+     "levels": [
+      "shadow",
+      "base",
+      "high",
+      "high"
+     ]
+    }
+   },
+   "time": "2026-10-13 20:39:26"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/complete/back_hair-loose.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "hair": {
+     "file": ".shiftblame/tmp/parts/portrait/key/back_hair-loose.hair.png",
+     "pixels": 41753,
+     "dye": "hair",
+     "centers": [
+      92.8,
+      147.7,
+      188.3,
+      225.5
+     ],
+     "share": [
+      0.543,
+      0.168,
+      0.252,
+      0.037
+     ],
+     "levels": [
+      "base",
+      "high",
+      "high",
+      "high"
+     ]
+    }
+   },
+   "time": "2026-10-13 20:41:40"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/complete/back_hair-loose.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "hair": {
+     "file": ".shiftblame/tmp/parts/portrait/key/back_hair-loose.hair.png",
+     "pixels": 38422,
+     "dye": "hair",
+     "centers": [
+      81.3,
+      105.5,
+      128.9,
+      156.5
+     ],
+     "share": [
+      0.197,
+      0.377,
+      0.381,
+      0.045
+     ],
+     "levels": [
+      "shadow",
+      "shadow",
+      "base",
+      "high"
+     ]
+    }
+   },
+   "time": "2026-10-13 20:44:17"
+  }
+ ],
+ "complete": [
+  {
+   "from": "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/.shiftblame/tmp/parts/portrait/paint/back_hair-loose-complete-t1.png",
+   "ecc": 0.94409,
+   "pixels_before": 189086,
+   "pixels_after": 450895,
+   "bbox": [
+    91,
+    333,
+    922,
+    1132
+   ],
+   "output": "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/.shiftblame/tmp/parts/portrait/complete/back_hair-loose.png",
+   "time": "2026-10-13 20:38:24"
+  },
+  {
+   "from": "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/.shiftblame/tmp/parts/portrait/paint/back_hair-loose-complete-t2.png",
+   "ecc": 0.89733,
+   "pixels_before": 189086,
+   "pixels_after": 423112,
+   "bbox": [
+    90,
+    334,
+    922,
+    1082
+   ],
+   "output": "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/.shiftblame/tmp/parts/portrait/complete/back_hair-loose.png",
+   "time": "2026-10-13 20:41:39"
+  },
+  {
+   "from": "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/.shiftblame/tmp/parts/portrait/paint/back_hair-loose-complete-t3.png",
+   "ecc": 0.90902,
+   "pixels_before": 189086,
+   "pixels_after": 388874,
+   "bbox": [
+    92,
+    358,
+    922,
+    1108
+   ],
+   "output": "D:/Siming/.claude/worktrees/agent-ae5fc1e3e23a6bad5/.shiftblame/tmp/parts/portrait/complete/back_hair-loose.png",
+   "time": "2026-10-13 20:44:17"
   }
  ]
 }
