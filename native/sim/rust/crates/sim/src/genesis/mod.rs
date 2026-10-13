@@ -91,6 +91,7 @@ pub fn build(w: &mut World) {
         p.population = 0.0;
         p.city_level = 0;
     }
+    crate::adepts::init(w);
     settle(w);
 }
 
@@ -127,6 +128,7 @@ pub fn grow_population(w: &mut World, years: u32, progress: &mut dyn FnMut(Stage
         w.tick += crate::calendar::DAYS_PER_YEAR;
         let famines = crate::population::yearly_with(&mut w.provinces, &[]);
         ledger::record_famines(w, &famines);
+        crate::adepts::yearly(w);
         if is_shi(w.tick) {
             crate::evolution::shi_settle(w);
         }

@@ -1,5 +1,6 @@
 //! GDD 6.1 siming-sim：模擬核心。純 Rust 函式庫，無引擎、無 IO、確定性（GDD 1.4 規則 5、6）。
 
+pub mod adepts;
 pub mod book;
 pub mod calendar;
 pub mod cataclysm;

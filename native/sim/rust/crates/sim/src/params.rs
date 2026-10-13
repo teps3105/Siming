@@ -1399,3 +1399,50 @@ pub const CATA_POP_LOSS_DEVASTATION: f64 = 0.3;
 pub const CATA_THREAD_CUT: f64 = 0.6;
 /// 7.1 `CATA_DEATH` 大劫中在世有名之人身隕的機率（不分境界）。
 pub const CATA_DEATH: f64 = 0.2;
+
+// ── 門人（GDD 3.4「凡人、門人與出頭」、6.10 #93）──────────────────────────
+
+/// 7.1 `ADEPT_RATE_BASE` 入道率基準 0.3%（靈潮 1.0）。
+pub const ADEPT_RATE_BASE: f64 = 0.003;
+/// 7.1 `ADEPT_RATE_MAX` 入道率上限 1%（靈潮最高值 `EVO_TIDE_MAX`）。
+pub const ADEPT_RATE_MAX: f64 = 0.01;
+/// 7.1 `ADEPT_RATE_MIN` 入道率下限 0.03%（靈潮最低值 `EVO_TIDE_MIN`）。
+pub const ADEPT_RATE_MIN: f64 = 0.0003;
+/// 7.1 `ADEPT_YEARS` 門人的修行年限 20 年：每年向目標靠近 1/20。
+pub const ADEPT_YEARS: f64 = 20.0;
+/// 7.1 `ADEPT_NOURISH_BASE` 養分基準：1,500 個凡人養一個門人。
+pub const ADEPT_NOURISH_BASE: f64 = 1500.0;
+/// 7.1 `ADEPT_DEMON_EAT` 魔道門人每年消耗本州凡人的人數（每個門人）。
+pub const ADEPT_DEMON_EAT: f64 = 0.5;
+/// 7.1 `ADEPT_COEF_MIN` 世局係數單項下限。
+pub const ADEPT_COEF_MIN: f64 = 0.5;
+/// 7.1 `ADEPT_COEF_MAX` 世局係數單項上限。
+pub const ADEPT_COEF_MAX: f64 = 2.0;
+/// 7.1 `ADEPT_TOP_BOOST` 出了超脫者或在世最高境界者的一門，全世界該門係數乘上此值。
+pub const ADEPT_TOP_BOOST: f64 = 1.5;
+/// 7.1 `ADEPT_TOP_YEARS` 上項加成持續一運（年）。
+pub const ADEPT_TOP_YEARS: u32 = 360;
+/// 7.1 `ADEPT_PRESTIGE_REF` 道門係數：本州與陸鄰道門宗門的聲望合計達此值，聲望項為 2。
+pub const ADEPT_PRESTIGE_REF: f64 = 100.0;
+/// 7.1 `ADEPT_FULL_PULL` 道門係數：宗門名額全滿時名額項為 `1 − 此值`。
+pub const ADEPT_FULL_PULL: f64 = 0.5;
+/// 7.1 `ADEPT_DECLINE_BUDDHA` 佛門係數：末法時 1.5。
+pub const ADEPT_DECLINE_BUDDHA: f64 = 1.5;
+/// 7.1 `ADEPT_POST_CATA_YEARS` 「量劫剛過」：大劫降下後這麼多年內。
+pub const ADEPT_POST_CATA_YEARS: u32 = 30;
+/// 7.1 `ADEPT_POST_CATA_BUDDHA` 佛門係數：量劫剛過時 1.5。
+pub const ADEPT_POST_CATA_BUDDHA: f64 = 1.5;
+/// 7.1 `ADEPT_TURMOIL_WAR` 戰亂度：所屬王朝在交戰時至少為此值（另取殘破度，兩者較大者）。
+pub const ADEPT_TURMOIL_WAR: f64 = 0.5;
+/// 7.1 `ADEPT_UNOWNED_RU` 儒門係數：無主之地 0.8。
+pub const ADEPT_UNOWNED_RU: f64 = 0.8;
+/// 7.1 `ADEPT_PEACE_RU` 儒門係數：有主且不在交戰時 `1 + 此值 × 天命 / 100`。
+pub const ADEPT_PEACE_RU: f64 = 0.5;
+/// 7.1 `ADEPT_TURBID_NEUTRAL` 魔門係數：濁氣項在此濁氣為 1。
+pub const ADEPT_TURBID_NEUTRAL: f64 = 0.1;
+/// 7.1 `ADEPT_TURBID_SLOPE` 魔門係數：濁氣每高 1，濁氣項加此值。
+pub const ADEPT_TURBID_SLOPE: f64 = 3.0;
+/// 7.1 `ADEPT_FEROCITY_NEUTRAL` 魔門係數：本州在世有名之人平均戾氣在此值時戾氣項為 1。
+pub const ADEPT_FEROCITY_NEUTRAL: f64 = 3.0;
+/// 7.1 `ADEPT_FEROCITY_SPAN` 魔門係數：平均戾氣每高此值，戾氣項加 1。
+pub const ADEPT_FEROCITY_SPAN: f64 = 6.0;

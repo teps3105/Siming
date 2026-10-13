@@ -216,6 +216,8 @@ pub fn world_hash(world: &World) -> u64 {
     // 事件驅動引擎（隊列、日序、亂數重設種子）：附加在最後。
     h.write_u64(world.rng_origin.unwrap_or(0));
     feed(&mut h, &world.queue);
+    // GDD 3.4 門人（門人層新增）：附加在最後。
+    feed(&mut h, &world.adepts);
     h.finish()
 }
 
