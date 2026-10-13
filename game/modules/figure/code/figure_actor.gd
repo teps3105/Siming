@@ -12,10 +12,12 @@ const CARD_SHADER := preload("res://modules/figure/code/figure_card.gdshader")
 
 ## 從鏡頭看過去的固定俯角（度）。
 const VIEW_PITCH_DEG := 30.0
-## 畫面上的高度範圍（像素，乘介面單位）與沒夾住時的自然高度（幾格高）。
-const HEIGHT_PX_MIN := 80.0
-const HEIGHT_PX_MAX := 160.0
-const NATURAL_CELLS := 6.0
+## 棋子的世界高度（幾格高）：大小綁地面，畫面像素隨鏡頭遠近縮放。
+const NATURAL_CELLS := 2.0
+## 畫面上不到這個高度（像素，乘介面單位）就不畫。
+const MIN_SCREEN_PX := 14.0
+## 量測用覆寫（大於 0 時取代 NATURAL_CELLS；對照圖切換幾格高用）。
+static var cells_override := 0.0
 ## 保留給舊呼叫：棋子沒有朝向可轉，yaw 不再起作用。
 const DEFAULT_YAW := 0.0
 ## 鏡頭高度超過地圖寬的這個比例就不畫（與山門圖樣同一條線，5.5）。
@@ -28,6 +30,8 @@ const FRAME := Rect2(-0.55, -1.45, 1.8, 1.7)
 ## 面片貼圖的密度以幾個像素為一階（縮放時不逐像素重配貼圖）；貼圖比畫面略密，墨線約 1.6 畫面像素。
 const DENSITY_STEP := 16.0
 const DENSITY_MARGIN := 1.25
+## 貼圖密度的上限（每身高單位的貼圖像素）：畫框貼圖約 920 × 870，拉到最近也不再加密。
+const MAX_DENSITY := 512.0
 ## 累計重畫的次數與微秒（量效能用）。
 static var redraws := 0
 static var redraw_usec := 0
@@ -218,16 +222,29 @@ static func stand_basis(to_camera: Vector3, up: Vector3, screen_up: Vector3, yaw
 	return Basis(axis, yaw) * upright
 
 
-## 棋子一個身高單位的世界高度：畫面上 80–160 px（乘介面單位），自然高度為 NATURAL_CELLS 格；30° 俯角下鉛直長度在畫面上乘 cos 30°。
-static func world_height(px_per_unit: float, unit: float) -> float:
-	var natural := px_per_unit * NATURAL_CELLS * cos(deg_to_rad(VIEW_PITCH_DEG))
-	var px := clampf(natural, HEIGHT_PX_MIN * unit, HEIGHT_PX_MAX * unit)
-	return px / (px_per_unit * cos(deg_to_rad(VIEW_PITCH_DEG)))
+## 棋子一個身高單位的世界高度：固定 NATURAL_CELLS 格，不隨鏡頭變。
+static func world_height() -> float:
+	return cells_override if cells_override > 0.0 else NATURAL_CELLS
 
 
-## 貼圖的密度（每個身高單位幾個貼圖像素）：畫面上一個身高單位是 screen_px 像素，貼圖取略密的一階，墨線落在約 1.6 畫面像素。
+## 每世界單位 ppu 個畫面像素時，棋子在畫面上的高度（像素）；30° 俯角下鉛直長度在畫面上乘 cos 30°。
+static func screen_height(px_per_unit: float) -> float:
+	return world_height() * px_per_unit * cos(deg_to_rad(VIEW_PITCH_DEG))
+
+
+## screen_height 的反推：棋子在畫面上要 screen_px 像素高，每世界單位要幾個畫面像素。
+static func ppu_for_screen_px(screen_px: float) -> float:
+	return screen_px / (world_height() * cos(deg_to_rad(VIEW_PITCH_DEG)))
+
+
+## 畫面高度 screen_px 太小不畫（MIN_SCREEN_PX 乘介面單位）。
+static func too_small(screen_px: float, unit: float) -> bool:
+	return screen_px < MIN_SCREEN_PX * unit
+
+
+## 貼圖的密度（每個身高單位幾個貼圖像素）：畫面上一個身高單位是 screen_px 像素，貼圖取略密的一階，墨線落在約 1.6 畫面像素；封頂 MAX_DENSITY。
 static func texture_scale(screen_px: float) -> float:
-	return ceilf(screen_px * DENSITY_MARGIN / DENSITY_STEP) * DENSITY_STEP
+	return clampf(ceilf(screen_px * DENSITY_MARGIN / DENSITY_STEP) * DENSITY_STEP, DENSITY_STEP, MAX_DENSITY)
 
 
 ## 鏡頭下每個世界單位幾個畫面像素（垂直於視線的方向）。
@@ -249,10 +266,13 @@ func place(origin: Vector3, up: Vector3, camera: Camera3D, unit: float, hidden :
 	if camera.projection != Camera3D.PROJECTION_ORTHOGONAL:
 		to_camera = camera.global_position - origin
 	var ppu := pixels_per_unit(camera, origin)
-	_height = world_height(ppu, unit)
+	_height = world_height()
+	if too_small(screen_height(ppu), unit):
+		visible = false
+		return
 	var basis := stand_basis(to_camera, up, camera.global_basis.y, 0.0)
 	global_transform = Transform3D(basis, origin)
-	# 面片：高度方向被後仰壓扁 cos 30°，所以高度用 _height（畫面上剛好是 80–160 px）、寬度用 _height × cos 30°，棋子在畫面上不變形。
+	# 面片：高度方向被後仰壓扁 cos 30°，所以高度用 _height（NATURAL_CELLS 格）、寬度用 _height × cos 30°，棋子在畫面上不變形。
 	var width := _height * cos(deg_to_rad(VIEW_PITCH_DEG))
 	var mirror := -1.0 if face_right else 1.0
 	_card.scale = Vector3(FRAME.size.x * width * mirror, FRAME.size.y * _height, 1.0)

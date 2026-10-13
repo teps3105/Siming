@@ -6,8 +6,8 @@ extends Node
 ## 玩家用快捷鍵切換導演模式，帶新的開關狀態。
 signal toggled(on: bool)
 
-## 到位的高度上限（地圖寬的比例）：棋子看得見的高度（5.6）；玩家原本更低則維持。
-const LANDING_FRAC := 0.25
+## 到位時棋子在畫面上的高度（像素，乘介面單位）：由此反推鏡頭高度（5.6）；玩家原本更低則維持。
+const LANDING_FIGURE_PX := 64.0
 ## 停留中換了要看的事，新事件的投影落在畫面中央這個比例的矩形外就平移過去（5.13：事件要在中央三分之一內）。
 const REFOCUS_FRAC := 0.35
 
@@ -98,7 +98,15 @@ func _on_go(province: int, _big: bool) -> void:
 
 func _fly_to(spot: Vector2) -> void:
 	_dest = spot
-	_camera.direct_to(spot, minf(_camera.z, _camera.map_width() * LANDING_FRAC), GameSettings.flag("director_reduce"))
+	_camera.direct_to(spot, minf(_camera.z, landing_height()), GameSettings.flag("director_reduce"))
+
+
+## 棋子在畫面上約 LANDING_FIGURE_PX 像素高的鏡頭高度，不低於鏡頭允許的最低高度（到了下限棋子仍不足就照下限）。
+func landing_height() -> float:
+	var view := get_viewport().get_visible_rect().size
+	var unit := Ink.layout_unit(view, GameSettings.ui_scale())
+	var ppu := FigureActor.ppu_for_screen_px(LANDING_FIGURE_PX * unit)
+	return maxf(view.y / ppu / MapView.view_height(1.0), MapView.z_range(_camera.map_width()).x)
 
 
 ## 要看的事換成同州的另一件：過場途中改去新事件格；停留中新事件的投影不在畫面中央就平移過去（不算換鏡頭，停留不重計）。
