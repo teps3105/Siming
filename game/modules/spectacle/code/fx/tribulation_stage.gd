@@ -14,6 +14,8 @@ const CLOUD_HEIGHT := 1.5
 ## 雷的單位高度：StormFX 以「高 4」為本來的比例。
 const BOLT_NATIVE_HEIGHT := 4.0
 const STEP := 0.03
+## 受雷縮時時，留給站起來的餘裕（秒）。
+const STRUCK_MARGIN := 0.1
 
 var _clouds: Array[MeshInstance3D] = []
 var _underglow: MeshInstance3D
@@ -62,17 +64,22 @@ func _build_figure() -> void:
 	_figure.setup(FigureActor.look_of(person if person >= 0 else _seed, item.get("given", {})))
 
 
-## 此刻小人該做的動作與動作內的時間：劫雲聚攏時迎雷，每道落雷各受雷一次，其餘站著。
+## 此刻棋子該做的動作與動作內的時間：劫雲聚攏時迎雷，每道落雷各受雷一次，其餘站著。
+## 受雷從動作資料的 hit 事件（雷擊中）那一格起播——雷落下的瞬間棋子正在受擊；之後的後仰、反彈、撐起接著播。
+## 最後一道雷落得晚、剩下的時間不夠播完時，把受雷縮時到奇觀結束前一點點播完，不停在半空。
 func figure_action(age: float) -> Dictionary:
 	if age < BOLT_START:
 		return {"action": "brace", "time": age}
-	var struck := _figure.action_length("struck") if _figure != null else 0.75
+	var hit := FigureMotion.event_time("struck", "hit")
+	var remaining := FigureMotion.length("struck") - hit
 	var latest := -1.0
 	for bolt: Dictionary in _bolts:
 		if float(bolt["time"]) <= age:
 			latest = float(bolt["time"])
-	if latest >= 0.0 and age - latest < struck:
-		return {"action": "struck", "time": age - latest}
+	if latest >= 0.0:
+		var rate := maxf(1.0, remaining / maxf(END - latest - STRUCK_MARGIN, 0.1))
+		if (age - latest) * rate < remaining:
+			return {"action": "struck", "time": hit + (age - latest) * rate}
 	return {"action": "stand", "time": age}
 
 

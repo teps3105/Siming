@@ -1,119 +1,158 @@
 class_name FigureActor
 extends Node3D
-## 地圖上的一個 3D 小人（8.11）：一副骨架、一套依樣子顯示或隱藏的部件、一組動作。
-## 樣子取自 CultivatorFigure.traits() 的結果（look），動作取樣自 figure.glb 的動畫資料，由 play() 依奇觀的 age 擺出，
-## 不用 AnimationPlayer 自己走時間、不讀引擎時間：暫停時停住，同一個 look 與 age 擺出的骨頭變換相同。
-## 位置與姿態由 place() 依鏡頭擺：腳底在地表，往畫面上方後仰，從鏡頭看過去恆為 30° 俯角的立姿。
+## 地圖上的一個人物（8.11）：2D 棋子立在 3D 場景裡一塊後仰的面片上。
+## 造型是封面那套 CultivatorFigure（look 取自 CultivatorFigure.traits()），姿勢是 FigureMotion 的動作資料
+## （3D 骨架設計、逐格取樣成關節）。棋子畫進一個 SubViewport，貼到面片上；只在姿勢換格（24 格/秒）或畫面密度換階時重畫。
+## play() 依奇觀的 age 擺姿勢，不讀引擎時間：暫停時停住，同一個 look 與 age 畫出相同的多邊形。
+## 位置與姿態由 place() 依鏡頭擺：腳底在地表，往畫面上方後仰，從鏡頭看過去恆為 30° 俯角的立牌；
+## 棋子永遠正對鏡頭、鏡頭轉動時不轉身；朝左（原朝向）或朝右（鏡像）由 face_right 決定。
 
-const FIGURE := preload("res://modules/figure/assets/figure.glb")
-const INK_SHADER := preload("res://modules/figure/code/figure_ink.gdshader")
 const CF := preload("res://modules/ui_kit/code/cultivator_figure.gd")
+const CARD_SHADER := preload("res://modules/figure/code/figure_card.gdshader")
 
-const INK := Color("2B2620")
-## 墨線寬（螢幕像素，乘介面單位）。
-const OUTLINE_PX := 1.5
 ## 從鏡頭看過去的固定俯角（度）。
 const VIEW_PITCH_DEG := 30.0
 ## 畫面上的高度範圍（像素，乘介面單位）與沒夾住時的自然高度（幾格高）。
 const HEIGHT_PX_MIN := 80.0
 const HEIGHT_PX_MAX := 160.0
 const NATURAL_CELLS := 6.0
-## 預設朝向：繞自身上軸，轉向畫面左前。
-const DEFAULT_YAW := -0.7
+## 保留給舊呼叫：棋子沒有朝向可轉，yaw 不再起作用。
+const DEFAULT_YAW := 0.0
 ## 鏡頭高度超過地圖寬的這個比例就不畫（與山門圖樣同一條線，5.5）。
 const MAX_CAMERA_FRACTION := 0.4
-## 沿視線把人物拉近鏡頭多少倍人高，後仰的人物才不被身後的地形蓋住（著色器只改深度，不改畫面位置）；量測用，可改。
+## 沿視線把棋子拉近鏡頭多少倍人高，後仰的面片才不被身後的地形蓋住（著色器只改深度，不改畫面位置）；量測用，可改。
 static var depth_pull_factor := 2.0
-## 基準身形：骨架建模時的幾頭身與半肩寬、半腰寬。
-const BASE_HEADS := 7.0
-const BASE_SHOULDER := 0.105
-const BASE_GIRTH := 0.09
-## 動作是否循環（8.11 的動作表）。
-const LOOPS := {"stand": true, "walk": true, "sit": true, "brace": true, "rise": true}
-const HAIR_NAMES := ["topknot", "crown", "loose", "hat", "twin_buns", "high_bun", "shaven", "scholar_cap"]
-const WHISKER_NAMES := ["", "moustache", "goatee", "three", "five", "full"]
-const PROP_NAMES := ["", "sword_back", "whisk", "gourd", "staff", "fan", "flute", "lotus", "basket", "tablet", "beads", "scroll"]
-## 檔案裡還沒有的部件以這幾個代用（鬚、持物、大氅沒有代用，不顯示）。
-const SUBSTITUTES := {"robe": "robe.male_regular", "hair": "hair.topknot", "face": "face.adult"}
+## 畫框（身高為 1 的座標）：涵蓋雙臂過頭、甩開與風吹的大氅袖擺髮帶；實測 160 種樣子 × 三個動作的範圍是
+## x −0.38 到 1.11、y −1.41 到 0.02（tests/harness/figure_extent.gd），人朝 −x、衣擺飄向身後（+x），所以畫框偏右。
+const FRAME := Rect2(-0.45, -1.45, 1.6, 1.5)
+## 面片貼圖的密度以幾個像素為一階（縮放時不逐像素重配貼圖）；貼圖比畫面略密，墨線約 1.6 畫面像素。
+const DENSITY_STEP := 16.0
+const DENSITY_MARGIN := 1.25
+## 累計重畫的次數與微秒（量效能用）。
+static var redraws := 0
+static var redraw_usec := 0
 
-## 這個人現在的 look 想顯示、但檔案裡還沒有的部件。
-var missing: Array[String] = []
-## 實際顯示的部件（檔案裡的名稱）。
-var shown: Array[String] = []
+## 朝右（左右鏡像）。預設朝左，是棋子的原朝向。
+var face_right := false
 
 var _look := {}
-var _model: Node
-var _skeleton: Skeleton3D
-var _animations: AnimationPlayer
-var _parts := {}
-var _inks: Array[ShaderMaterial] = []
-var _fills: Array[ShaderMaterial] = []
 var _action := "stand"
 var _age := 0.0
+var _pose := {}
+var _time := 0.0
 var _height := 1.0
+var _density := 0.0
+var _key := ""
+var _viewport: SubViewport
+var _canvas: CardCanvas
+var _card: MeshInstance3D
+var _material: ShaderMaterial
+
+
+class CardCanvas:
+	extends Control
+
+	var look := {}
+	var pose := {}
+	var time := 0.0
+	var density := 100.0
+
+	func _draw() -> void:
+		if look.is_empty():
+			return
+		var start := Time.get_ticks_usec()
+		CF.draw(self, Vector2(-FRAME.position.x, -FRAME.position.y) * density, density, -1.0, look, pose, time, Color(Ink.INK, 0.94))
+		FigureActor.redraws += 1
+		FigureActor.redraw_usec += Time.get_ticks_usec() - start
 
 
 func _ready() -> void:
-	_load_model()
+	_ensure_nodes()
 
 
-## 套上樣子：顯示該顯示的部件、設各部件的顏色。身形（骨頭縮放）在每次 play() 疊上。
+func _ensure_nodes() -> void:
+	if _viewport != null:
+		return
+	_viewport = SubViewport.new()
+	_viewport.transparent_bg = true
+	_viewport.disable_3d = true
+	_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	_viewport.size = Vector2i(64, 64)
+	add_child(_viewport)
+	_canvas = CardCanvas.new()
+	_viewport.add_child(_canvas)
+	_material = ShaderMaterial.new()
+	_material.shader = CARD_SHADER
+	# 劫雲是半透明粒子、依距離排序，雲底會蓋住頭部；棋子排在雲之後畫，人物始終讀得清楚（地形與近處的雷仍照深度）。
+	_material.render_priority = 8
+	_material.set_shader_parameter("card_texture", _viewport.get_texture())
+	_card = MeshInstance3D.new()
+	_card.mesh = QuadMesh.new()
+	_card.material_override = _material
+	_card.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_card)
+
+
+## 套上樣子（CultivatorFigure.traits() 的結果）。
 func setup(look: Dictionary) -> void:
+	_ensure_nodes()
 	_look = look
-	_load_model()
-	missing.clear()
-	shown.clear()
-	var wanted := parts_for(look)
-	for node: MeshInstance3D in _parts.values():
-		node.visible = false
-	for name in wanted:
-		var key := _key(name)
-		if not _parts.has(key):
-			missing.append(name)
-			var substitute: String = SUBSTITUTES.get(name.get_slice(".", 0), "")
-			if substitute == "":
-				continue
-			key = _key(substitute)
-			name = substitute
-			if not _parts.has(key) or shown.has(name):
-				continue
-		(_parts[key] as MeshInstance3D).visible = true
-		shown.append(name)
-	_paint(look)
+	_key = ""
 	play(_action, _age)
 
 
-## look 想顯示的部件名稱（規格的完整部件表，不論檔案裡有沒有）。
-static func parts_for(look: Dictionary) -> Array[String]:
-	var out: Array[String] = ["body.base"]
-	var female: bool = int(look.get("sex", CF.Sex.MALE)) == CF.Sex.FEMALE and int(look.get("school", 0)) != CF.School.SHI
-	var sleeve := float(look.get("sleeve", 0.12))
-	var width := "narrow" if sleeve < 0.07 else ("regular" if sleeve < 0.17 else "wide")
-	out.append("robe.%s_%s" % ["female" if female else "male", width])
-	if bool(look.get("cape", false)):
-		out.append("cape.cloak")
-	var hair := int(look.get("hair", 0))
-	if hair != CF.Hair.SHAVEN:
-		out.append("hair." + HAIR_NAMES[clampi(hair, 0, HAIR_NAMES.size() - 1)])
-	var whiskers := int(look.get("whiskers", 0))
-	if whiskers > 0:
-		out.append("beard." + WHISKER_NAMES[clampi(whiskers, 0, WHISKER_NAMES.size() - 1)])
-	var prop := int(look.get("prop", 0))
-	if prop > 0:
-		out.append("prop." + PROP_NAMES[clampi(prop, 0, PROP_NAMES.size() - 1)])
-	var age := int(look.get("age", CF.Age.ADULT))
-	out.append("face." + ("young" if age == CF.Age.CHILD else ("old" if age == CF.Age.ELDER else "adult")))
-	return out
+## 擺出 action 在奇觀時間 age 的姿勢（循環動作取餘，不循環的停在最後一格）。
+func play(action: String, age: float) -> void:
+	_action = action
+	_age = age
+	_time = floorf(age * FigureMotion.fps()) / FigureMotion.fps()
+	_pose = FigureMotion.pose(action, _time)
+	_redraw()
 
 
-## 鏡頭高度超過地圖寬的 MAX_CAMERA_FRACTION 就不畫。
-static func too_far(camera_z: float, map_width: float) -> bool:
-	return camera_z > MAX_CAMERA_FRACTION * map_width
+## 這個 look 在目前姿勢與時間的剪影多邊形（測試與診斷用）。
+func polygons() -> Array[PackedVector2Array]:
+	return CF.shapes(_look, _pose, _time)
 
 
-## 一個人的 look：已知的欄位（given）照用，其餘由種子決定。
-static func look_of(figure_seed: int, given := {}) -> Dictionary:
-	return CF.traits(figure_seed, given)
+## 目前姿勢的關節（CultivatorFigure 的姿勢字典，帶 anchors）。
+func pose() -> Dictionary:
+	return _pose
+
+
+## 目前姿勢的定位點（棋子座標：身高為 1、腳下為原點、−y 向上、人朝 −x）：crown 頭頂、foot 腳底、palm_f / palm_b 兩掌心。
+func anchor(anchor_name: String) -> Vector2:
+	return (_pose.get("anchors", {}) as Dictionary).get(anchor_name, Vector2.ZERO)
+
+
+## 動作的長度（秒）。
+func action_length(action: String) -> float:
+	return FigureMotion.length(action)
+
+
+## 動作內的事件時間（秒），沒有是 −1。
+func event_time(action: String, event: String) -> float:
+	return FigureMotion.event_time(action, event)
+
+
+## 面片目前在水平方向的縮放（負的是朝右的鏡像）。
+func card_scale_x() -> float:
+	return _card.scale.x if _card != null else 0.0
+
+
+func _redraw() -> void:
+	if _canvas == null or _look.is_empty() or _density <= 0.0:
+		return
+	var key := "%s|%.4f|%s" % [_action, _time, _density]
+	if key == _key:
+		return
+	_key = key
+	_canvas.look = _look
+	_canvas.pose = _pose
+	_canvas.time = _time
+	_canvas.density = _density
+	_canvas.queue_redraw()
+	_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
 
 
 ## 事件當事人（橋接 person(id) 的字典）換成 traits() 的 given：只給得出的欄位，其餘由種子決定。
@@ -131,165 +170,22 @@ static func given_from_person(info: Dictionary) -> Dictionary:
 	return given
 
 
-## 從 look 的鍵名取得穩定的部件鍵（匯入時節點名稱的「.」會換成「_」）。
-static func _key(part: String) -> String:
-	return part.replace(".", "_")
+## 一個人的 look：已知的欄位（given）照用，其餘由種子決定。
+static func look_of(figure_seed: int, given := {}) -> Dictionary:
+	return CF.traits(figure_seed, given)
 
 
-func _load_model() -> void:
-	if _model != null:
-		return
-	_model = FIGURE.instantiate()
-	add_child(_model)
-	_skeleton = _model.find_children("*", "Skeleton3D", true, false)[0]
-	var players := _model.find_children("*", "AnimationPlayer", true, false)
-	_animations = players[0] if not players.is_empty() else null
-	for node in _skeleton.find_children("*", "MeshInstance3D", true, false):
-		_parts[str(node.name)] = node
-		node.visible = false
-		node.set_meta("part", str(node.name))
-
-
-## 檔案裡的部件鍵（測試與診斷用）。
-func part_names() -> PackedStringArray:
-	return PackedStringArray(_parts.keys())
-
-
-func skeleton() -> Skeleton3D:
-	return _skeleton
-
-
-func animation_names() -> PackedStringArray:
-	return _animations.get_animation_list() if _animations != null else PackedStringArray()
-
-
-## 動作的長度（秒）。
-func action_length(action: String) -> float:
-	var anim := _animations.get_animation(action) if _animations != null and _animations.has_animation(action) else null
-	return anim.length if anim != null else 0.0
-
-
-func _paint(look: Dictionary) -> void:
-	_inks.clear()
-	_fills.clear()
-	var palette: Dictionary = look.get("colors", {})
-	for key: String in _parts:
-		var node := _parts[key] as MeshInstance3D
-		var material := ShaderMaterial.new()
-		material.shader = INK_SHADER
-		var kind := key.get_slice("_", 0)
-		material.set_shader_parameter("ink_color", INK)
-		match kind:
-			"body":
-				material.set_shader_parameter("base_color", palette.get(CF.SKIN, Color.WHITE))
-				material.set_shader_parameter("accent_color", palette.get(CF.SHOE, INK))
-				material.set_shader_parameter("shade_threshold", -0.3)
-			"robe":
-				material.set_shader_parameter("base_color", palette.get(CF.ROBE, Color.WHITE))
-				material.set_shader_parameter("accent_color", palette.get(CF.TRIM, Color.WHITE))
-				material.set_shader_parameter("sash_color", palette.get(CF.SASH, Color.WHITE))
-				material.set_shader_parameter("shade_threshold", 0.05)
-			"hair", "beard":
-				material.set_shader_parameter("base_color", palette.get(CF.HAIR if kind == "hair" else CF.BEARD, INK))
-				material.set_shader_parameter("accent_color", palette.get(CF.HAIR, INK))
-				material.set_shader_parameter("shade_threshold", 0.0)
-			"face":
-				material.set_shader_parameter("flat_ink", true)
-		var shell: ShaderMaterial = null
-		if kind != "face":
-			shell = ShaderMaterial.new()
-			shell.shader = INK_SHADER
-			shell.set_shader_parameter("ink_color", INK)
-			shell.set_shader_parameter("outline_px", OUTLINE_PX)
-			material.next_pass = shell
-			_inks.append(shell)
-		_fills.append(material)
-		node.material_override = material
-
-
-## 擺出 action 在奇觀時間 age 的姿勢（循環動作取餘，不循環的停在最後一格），再疊上 look 的身形。
-func play(action: String, age: float) -> void:
-	_action = action
-	_age = age
-	if _skeleton == null:
-		return
-	var anim: Animation = null
-	if _animations != null and _animations.has_animation(action):
-		anim = _animations.get_animation(action)
-	for i in _skeleton.get_bone_count():
-		_skeleton.set_bone_pose(i, _skeleton.get_bone_rest(i))
-	if anim != null:
-		var t := fposmod(age, anim.length) if LOOPS.get(action, false) else clampf(age, 0.0, anim.length)
-		for track in anim.get_track_count():
-			var path := anim.track_get_path(track)
-			if path.get_subname_count() == 0:
-				continue
-			var bone := _skeleton.find_bone(path.get_subname(0))
-			if bone < 0:
-				continue
-			match anim.track_get_type(track):
-				Animation.TYPE_POSITION_3D:
-					_skeleton.set_bone_pose_position(bone, anim.position_track_interpolate(track, t))
-				Animation.TYPE_ROTATION_3D:
-					_skeleton.set_bone_pose_rotation(bone, anim.rotation_track_interpolate(track, t))
-				Animation.TYPE_SCALE_3D:
-					_skeleton.set_bone_pose_scale(bone, anim.scale_track_interpolate(track, t))
-	_apply_shape()
-	for material in _fills:
-		material.set_shader_parameter("age", age)
-	for material in _inks:
-		material.set_shader_parameter("age", age)
-
-
-## 身形：heads 縮放頭骨、stature 縮放根、shoulder 移動肩、girth 縮放腰的橫向與前後、stoop 轉胸與頸。
-func _apply_shape() -> void:
-	if _look.is_empty():
-		return
-	var heads := float(_look.get("heads", BASE_HEADS))
-	var girth := float(_look.get("girth", BASE_GIRTH)) / BASE_GIRTH
-	var shoulder := float(_look.get("shoulder", BASE_SHOULDER))
-	var stoop := float(_look.get("stoop", 0.0))
-	_scale_bone("root", Vector3.ONE * float(_look.get("stature", 1.0)))
-	_scale_bone("head", Vector3.ONE * (BASE_HEADS / heads))
-	_scale_bone("waist", Vector3(girth, 1.0, girth))
-	for tag in ["_l", "_r"]:
-		var bone := _skeleton.find_bone("shoulder" + tag)
-		if bone >= 0:
-			var side := 1.0 if tag == "_l" else -1.0
-			var pose := _skeleton.get_bone_pose_position(bone)
-			pose.x += side * (shoulder / girth - BASE_SHOULDER)
-			_skeleton.set_bone_pose_position(bone, pose)
-	_turn_bone("chest", Vector3.RIGHT, deg_to_rad(14.0) * stoop)
-	_turn_bone("neck", Vector3.RIGHT, deg_to_rad(10.0) * stoop)
-
-
-func _scale_bone(bone_name: String, scale: Vector3) -> void:
-	var bone := _skeleton.find_bone(bone_name)
-	if bone >= 0:
-		_skeleton.set_bone_pose_scale(bone, _skeleton.get_bone_pose_scale(bone) * scale)
-
-
-func _turn_bone(bone_name: String, axis: Vector3, angle: float) -> void:
-	var bone := _skeleton.find_bone(bone_name)
-	if bone >= 0:
-		_skeleton.set_bone_pose_rotation(bone, Quaternion(axis, angle) * _skeleton.get_bone_pose_rotation(bone))
-
-
-## 全部骨頭的姿勢（相對父骨頭）串成的字串，測試比對「同一個 look 與 age 兩次擺出相同」用。
-func pose_signature() -> String:
-	var parts := PackedStringArray()
-	for i in _skeleton.get_bone_count():
-		var p := _skeleton.get_bone_pose(i)
-		parts.append("%s:%s:%s" % [p.origin, p.basis.get_rotation_quaternion(), p.basis.get_scale()])
-	return "|".join(parts)
+## 鏡頭高度超過地圖寬的 MAX_CAMERA_FRACTION 就不畫。
+static func too_far(camera_z: float, map_width: float) -> bool:
+	return camera_z > MAX_CAMERA_FRACTION * map_width
 
 
 # ── 在地圖上 ──────────────────────────────────────────────────
 
-## 人物朝上的軸與朝向的基底（單位長，不含大小）：
+## 棋子朝上的軸與朝向的基底（單位長，不含大小）：
 ## to_camera 是腳底指向鏡頭的單位向量（正交鏡頭是鏡頭後向軸；透視鏡頭是腳底到鏡頭的連線），up 是地表向上（星球視角是球面法線），
 ## screen_up 是畫面上方的方向。以鏡頭右軸為轉軸，把 up 在「視線與畫面上方」的平面內轉到與視線夾 (90° − 30°)，
-## 從鏡頭看恆為 30° 俯角的立姿；up 離開這個平面的分量（星球曲率）原樣保留。朝向（繞自身上軸）轉完後再套上，鏡頭正俯視時仍有定義。
+## 從鏡頭看恆為 30° 俯角的立牌；up 離開這個平面的分量（星球曲率）原樣保留。yaw 是繞自身上軸的額外轉動，棋子不用（0）。
 static func stand_basis(to_camera: Vector3, up: Vector3, screen_up: Vector3, yaw := DEFAULT_YAW) -> Basis:
 	var v := to_camera.normalized()
 	var su := (screen_up - v * screen_up.dot(v)).normalized()
@@ -306,11 +202,16 @@ static func stand_basis(to_camera: Vector3, up: Vector3, screen_up: Vector3, yaw
 	return Basis(axis, yaw) * upright
 
 
-## 人物的高度（世界單位）：畫面上 80–160 px（乘介面單位），自然高度為 NATURAL_CELLS 格；30° 俯角下鉛直長度在畫面上乘 cos 30°。
+## 棋子一個身高單位的世界高度：畫面上 80–160 px（乘介面單位），自然高度為 NATURAL_CELLS 格；30° 俯角下鉛直長度在畫面上乘 cos 30°。
 static func world_height(px_per_unit: float, unit: float) -> float:
 	var natural := px_per_unit * NATURAL_CELLS * cos(deg_to_rad(VIEW_PITCH_DEG))
 	var px := clampf(natural, HEIGHT_PX_MIN * unit, HEIGHT_PX_MAX * unit)
 	return px / (px_per_unit * cos(deg_to_rad(VIEW_PITCH_DEG)))
+
+
+## 貼圖的密度（每個身高單位幾個貼圖像素）：畫面上一個身高單位是 screen_px 像素，貼圖取略密的一階，墨線落在約 1.6 畫面像素。
+static func texture_scale(screen_px: float) -> float:
+	return ceilf(screen_px * DENSITY_MARGIN / DENSITY_STEP) * DENSITY_STEP
 
 
 ## 鏡頭下每個世界單位幾個畫面像素（垂直於視線的方向）。
@@ -322,8 +223,9 @@ static func pixels_per_unit(camera: Camera3D, at: Vector3) -> float:
 	return height / (2.0 * distance * tan(deg_to_rad(camera.fov) * 0.5))
 
 
-## 依鏡頭把人物擺在 origin（地表上的腳底）。hidden 為真（鏡頭拉得太遠）就不畫。
-func place(origin: Vector3, up: Vector3, camera: Camera3D, unit: float, hidden := false, yaw := DEFAULT_YAW) -> void:
+## 依鏡頭把棋子擺在 origin（地表上的腳底）。hidden 為真（鏡頭拉得太遠）就不畫。
+func place(origin: Vector3, up: Vector3, camera: Camera3D, unit: float, hidden := false, _yaw := DEFAULT_YAW) -> void:
+	_ensure_nodes()
 	visible = not hidden
 	if hidden or camera == null:
 		return
@@ -332,10 +234,19 @@ func place(origin: Vector3, up: Vector3, camera: Camera3D, unit: float, hidden :
 		to_camera = camera.global_position - origin
 	var ppu := pixels_per_unit(camera, origin)
 	_height = world_height(ppu, unit)
-	var basis := stand_basis(to_camera, up, camera.global_basis.y, yaw)
-	global_transform = Transform3D(basis.scaled(Vector3.ONE * _height), origin)
-	for material in _fills:
-		material.set_shader_parameter("depth_pull", _height * depth_pull_factor)
-	for material in _inks:
-		material.set_shader_parameter("depth_pull", _height * depth_pull_factor)
-		material.set_shader_parameter("outline_px", OUTLINE_PX * unit)
+	var basis := stand_basis(to_camera, up, camera.global_basis.y, 0.0)
+	global_transform = Transform3D(basis, origin)
+	# 面片：高度方向被後仰壓扁 cos 30°，所以高度用 _height（畫面上剛好是 80–160 px）、寬度用 _height × cos 30°，棋子在畫面上不變形。
+	var width := _height * cos(deg_to_rad(VIEW_PITCH_DEG))
+	var mirror := -1.0 if face_right else 1.0
+	_card.scale = Vector3(FRAME.size.x * width * mirror, FRAME.size.y * _height, 1.0)
+	_card.position = Vector3(FRAME.get_center().x * width * mirror, -FRAME.get_center().y * _height, 0.0)
+	_material.set_shader_parameter("depth_pull", _height * depth_pull_factor)
+	var screen_px := _height * ppu * cos(deg_to_rad(VIEW_PITCH_DEG))
+	var density := texture_scale(screen_px)
+	if not is_equal_approx(density, _density):
+		_density = density
+		_viewport.size = Vector2i(ceili(FRAME.size.x * density), ceili(FRAME.size.y * density))
+		_canvas.size = Vector2(_viewport.size)
+		_key = ""
+	_redraw()

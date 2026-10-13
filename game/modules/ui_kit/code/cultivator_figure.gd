@@ -273,7 +273,7 @@ static func _palette(rng: RandomNumberGenerator, look: Dictionary) -> Dictionary
 
 
 ## 這名修士擺這個姿勢時的剪影：一組實心多邊形（成人身高為 1 的座標，未乘 stature）。
-static func shapes(look: Dictionary, pose: Pose, time := 0.0) -> Array[PackedVector2Array]:
+static func shapes(look: Dictionary, pose: Variant, time := 0.0) -> Array[PackedVector2Array]:
 	var fills: Array[PackedVector2Array] = []
 	var lines: Array[PackedVector2Array] = []
 	_build(look, pose, time, fills, lines, [], [])
@@ -281,7 +281,7 @@ static func shapes(look: Dictionary, pose: Pose, time := 0.0) -> Array[PackedVec
 
 
 ## 剪影裡面的線（衣領、腰帶、衣褶、袖口、袈裟、扇骨）：一組折線。
-static func folds(look: Dictionary, pose: Pose, time := 0.0) -> Array[PackedVector2Array]:
+static func folds(look: Dictionary, pose: Variant, time := 0.0) -> Array[PackedVector2Array]:
 	var fills: Array[PackedVector2Array] = []
 	var lines: Array[PackedVector2Array] = []
 	_build(look, pose, time, fills, lines, [], [])
@@ -299,7 +299,7 @@ static func bounds_of(polygons: Array[PackedVector2Array]) -> Rect2:
 
 ## 畫在 canvas 上：at 是腳下（坐處），height 是成人站立身高的像素，facing 為 −1 時朝左、1 時朝右；
 ## ink 是線的墨色，alpha 是整個人的不透明度。
-static func draw(canvas: CanvasItem, at: Vector2, height: float, facing: float, look: Dictionary, pose: Pose, time: float, ink: Color, alpha := 1.0) -> void:
+static func draw(canvas: CanvasItem, at: Vector2, height: float, facing: float, look: Dictionary, pose: Variant, time: float, ink: Color, alpha := 1.0) -> void:
 	var grow: float = height * look["stature"]
 	canvas.draw_set_transform(at, 0.0, Vector2(-grow * facing, grow))
 	# 輪廓線約身高的 0.9%，至少 1.6 像素（座標已放大 grow 倍）。
@@ -308,7 +308,7 @@ static func draw(canvas: CanvasItem, at: Vector2, height: float, facing: float, 
 
 
 ## 以 canvas 目前的座標畫（身高為 1）：stroke 是輪廓線寬，衣紋細一些。
-static func paint(canvas: CanvasItem, look: Dictionary, pose: Pose, time: float, ink: Color, stroke: float, alpha := 1.0) -> void:
+static func paint(canvas: CanvasItem, look: Dictionary, pose: Variant, time: float, ink: Color, stroke: float, alpha := 1.0) -> void:
 	var fills: Array[PackedVector2Array] = []
 	var lines: Array[PackedVector2Array] = []
 	var bands: Array = []
@@ -337,7 +337,7 @@ static func paint(canvas: CanvasItem, look: Dictionary, pose: Pose, time: float,
 
 
 ## 這個人某個部位的色塊（由後往前）：看剪影裡哪一塊是裙、哪一塊是披帛用。
-static func pieces(look: Dictionary, pose: Pose, part: int, time := 0.0) -> Array[PackedVector2Array]:
+static func pieces(look: Dictionary, pose: Variant, part: int, time := 0.0) -> Array[PackedVector2Array]:
 	var fills: Array[PackedVector2Array] = []
 	var cuts: Array = []
 	_build(look, pose, time, fills, [], [], cuts)
@@ -349,7 +349,7 @@ static func pieces(look: Dictionary, pose: Pose, part: int, time := 0.0) -> Arra
 
 
 ## 這個人由後往前的每一層：[層次, 部位]。
-static func layers(look: Dictionary, pose: Pose, time := 0.0) -> Array:
+static func layers(look: Dictionary, pose: Variant, time := 0.0) -> Array:
 	var cuts: Array = []
 	_build(look, pose, time, [], [], [], cuts)
 	var found: Array = []
@@ -463,8 +463,8 @@ static func _pick(rng: RandomNumberGenerator, pool: Array) -> int:
 	return pool[rng.randi_range(0, pool.size() - 1)]
 
 
-static func _build(look: Dictionary, pose: Pose, time: float, fills: Array[PackedVector2Array], lines: Array[PackedVector2Array], bands: Array, cuts: Array) -> void:
-	var joints: Dictionary = POSES[pose]
+static func _build(look: Dictionary, pose: Variant, time: float, fills: Array[PackedVector2Array], lines: Array[PackedVector2Array], bands: Array, cuts: Array) -> void:
+	var joints: Dictionary = pose if pose is Dictionary else POSES[pose]
 	var seated: bool = joints["seated"]
 	var female: bool = look["sex"] == Sex.FEMALE
 	var poor: bool = look["wealth"] == Wealth.POOR
@@ -489,7 +489,7 @@ static func _build(look: Dictionary, pose: Pose, time: float, fills: Array[Packe
 	var elbow_b: Vector2 = joints["elbow_b"] + lean * 0.6
 	var hand_f: Vector2 = joints["hand_f"] + lean * 0.3
 	var hand_b: Vector2 = joints["hand_b"] + lean * 0.3
-	var blowing: bool = look["prop"] == Prop.FLUTE and pose == Pose.STAND
+	var blowing: bool = look["prop"] == Prop.FLUTE and pose is int and pose == Pose.STAND
 	if blowing:
 		# 站著拿笛的人把笛橫在嘴邊吹：兩手抬到臉前，不垂在腰間（垂著的一管看起來像佩劍）。
 		hand_f = head + Vector2(-radius * 1.25, radius * 0.6)
@@ -669,6 +669,7 @@ static func _build(look: Dictionary, pose: Pose, time: float, fills: Array[Packe
 
 	# 頸、頭（七分面與五官）、鬚、髮。
 	_stage(cuts, Layer.FACE)
+	var neck_at := fills.size()
 	fills.append(_limb(head + Vector2(0.03, radius * 0.5), neck + Vector2(0.004, 0.03), radius * 0.4, radius * 0.5))
 	_cut(cuts, fills, lines, bands, SKIN, Layer.NECK)
 	# 衣領圍在頸根外面：遠側的一襟先畫，近側的一襟自頸後繞到身前壓在它上面，交成「y」。
@@ -681,6 +682,7 @@ static func _build(look: Dictionary, pose: Pose, time: float, fills: Array[Packe
 		neck + Vector2(-s * 0.34, 0.09), neck + Vector2(-0.01, 0.033), neck + Vector2(0.01, 0.018), neck + Vector2(0.022, 0.0),
 	]))
 	_cut(cuts, fills, lines, bands, collar, Layer.COLLAR)
+	var head_from := [fills.size(), lines.size(), bands.size()]
 	_face(fills, lines, bands, look, head, radius, tilt)
 	_cut(cuts, fills, lines, bands, SKIN)
 	if dress and not poor and look["age"] != Age.CHILD:
@@ -690,6 +692,7 @@ static func _build(look: Dictionary, pose: Pose, time: float, fills: Array[Packe
 	_whiskers(fills, lines, bands, cuts, look, head, radius, tilt, sway)
 	_stage(cuts, Layer.HEADWEAR)
 	_hair(fills, lines, bands, cuts, look, head, radius, time, w, tilt)
+	_roll_head(fills, lines, bands, neck_at, head_from, neck, float(joints.get("head_roll", 0.0)))
 
 	# 身前的東西最後畫：朝前那隻手的前臂與袖（橫在身前）、靠外那隻手與它拿的東西、朝前那隻手拿的東西。
 	_stage(cuts, Layer.FOREARM)
@@ -705,6 +708,25 @@ static func _build(look: Dictionary, pose: Pose, time: float, fills: Array[Packe
 	_stage(cuts, Layer.FRONT_PROP)
 	_front_prop(fills, lines, look, hand_f, time)
 	_cut(cuts, fills, lines, bands, PROP)
+
+
+## 頭整個繞頸根轉 roll 弧度（正值是頭往後仰、臉朝上）：頸、臉、鬚、髮、冠帽一起轉，衣領不動。
+## 姿勢字典帶 head_roll 才會用到（3D 動作的後仰，超出 tilt 這種個人習慣的小傾斜）。
+static func _roll_head(fills: Array[PackedVector2Array], lines: Array[PackedVector2Array], bands: Array, neck_at: int, from: Array, pivot: Vector2, roll: float) -> void:
+	if is_zero_approx(roll):
+		return
+	var turn := func(shape: PackedVector2Array) -> PackedVector2Array:
+		var out := PackedVector2Array()
+		for point in shape:
+			out.append((point - pivot).rotated(roll) + pivot)
+		return out
+	fills[neck_at] = turn.call(fills[neck_at])
+	for i in range(from[0], fills.size()):
+		fills[i] = turn.call(fills[i])
+	for i in range(from[1], lines.size()):
+		lines[i] = turn.call(lines[i])
+	for i in range(from[2], bands.size()):
+		bands[i][0] = turn.call(bands[i][0])
 
 
 ## 七分面：臉的輪廓是一個多邊形，眉、眼、鼻、口各一兩筆線。tilt 是頭的傾斜。
@@ -789,7 +811,7 @@ static func _arm(fills: Array[PackedVector2Array], lines: Array[PackedVector2Arr
 		outline.append(shoulder + low_u * 0.045)
 		edge.push_front(shoulder.lerp(elbow, 0.35) - low_u * 0.038)
 		edge.append(shoulder + low_u * 0.045)
-	fills.append(smooth_outline(outline))
+	fills.append(_simple(smooth_outline(outline)))
 	lines.append(smooth_path(edge))
 	# 袖口一道弧，肘彎一道褶。
 	lines.append(PackedVector2Array([wrist - low_f * 0.02 - along * 0.012, wrist + low_f * 0.008 + drop * 0.5 - along * 0.022, wrist + low_f * 0.026 + drop * 0.95 - along * 0.008]))
@@ -799,6 +821,30 @@ static func _arm(fills: Array[PackedVector2Array], lines: Array[PackedVector2Arr
 	if sleeve > 0.085:
 		bands.append([PackedVector2Array([wrist - low_f * 0.016 - along * 0.004, wrist + low_f * 0.008 + drop * 0.5 - along * 0.012, wrist + low_f * 0.022 + drop * 0.9]), TRIM, 0.016])
 	_cut(cuts, fills, lines, bands, ROBE + OPEN)
+
+
+## 輪廓自己交叉時（手臂大幅甩開、折回，袖子垂下的一側與上臂對不上）三角化會失敗，整塊畫不出來：
+## 交叉的輪廓取聯集（Clipper 的正向填充），留面積最大的那一塊外輪廓；本來就沒交叉的原樣不動。
+static func _simple(shape: PackedVector2Array) -> PackedVector2Array:
+	if not Geometry2D.triangulate_polygon(shape).is_empty():
+		return shape
+	var best := PackedVector2Array()
+	var best_area := 0.0
+	for piece in Geometry2D.offset_polygon(shape, 0.0005):
+		var area := absf(_area(piece))
+		if area > best_area and not Geometry2D.is_polygon_clockwise(piece):
+			best = piece
+			best_area = area
+	return best if not best.is_empty() else Geometry2D.convex_hull(shape)
+
+
+static func _area(shape: PackedVector2Array) -> float:
+	var total := 0.0
+	for i in shape.size():
+		var a := shape[i]
+		var b := shape[(i + 1) % shape.size()]
+		total += a.x * b.y - b.x * a.y
+	return total * 0.5
 
 
 ## 手臂朝 direction 伸時，袖子垂下來的那一側；手臂接近直直垂著時取身後那一邊。
