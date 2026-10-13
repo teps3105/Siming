@@ -11,6 +11,7 @@ pub mod era;
 pub mod evolution;
 pub mod field;
 pub mod flora;
+pub mod funnel;
 pub mod genesis;
 pub mod hash;
 mod hash_ser;

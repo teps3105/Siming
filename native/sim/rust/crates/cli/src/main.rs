@@ -24,6 +24,13 @@ enum SizeArg {
 }
 
 #[derive(Clone, Copy, ValueEnum)]
+enum FunnelSize {
+    Small,
+    Medium,
+    Large,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
 enum EraArg {
     Ancient,
     Middle,
@@ -70,6 +77,26 @@ enum Cmd {
         #[arg(long)]
         yun: u32,
     },
+    /// 成道漏斗統計（只讀世界與事件帳，不改規則）：觀察期內結束的每一世在哪一關被淘汰
+    Funnel {
+        /// 世界種子；人物期亂數種子預設同此值（固定，同參數兩次輸出相同）
+        #[arg(long)]
+        seed: u64,
+        /// 觀察期長度（年），自預熱結束起算
+        #[arg(long, default_value_t = 720)]
+        years: u32,
+        #[arg(long, value_enum, default_value = "medium")]
+        size: FunnelSize,
+        /// 預熱年數：開天與預跑完成後再跑這麼多年，其間出生者不計入母體
+        #[arg(long, default_value_t = 60)]
+        warmup: u32,
+        /// 人物期亂數種子（預設取 --seed）
+        #[arg(long)]
+        rng: Option<u64>,
+        /// 另存 JSON
+        #[arg(long)]
+        json: Option<PathBuf>,
+    },
     /// 無頭跑 N 運，每世印一行天地的慢變量：寒暖、海平面偏移、靈潮（GDD 2.8）
     Evolve {
         #[arg(long)]
@@ -94,6 +121,7 @@ fn main() {
             gen(seed, size, land, relief, humidity, era, layer, scale, out)
         }
         Cmd::Sim { seed, yun, report } => sim(seed, yun, report),
+        Cmd::Funnel { seed, years, size, warmup, rng, json } => funnel(seed, years, size, warmup, rng, json),
         Cmd::DynastyProbe { seed, yun } => dynasty_probe(seed, yun),
         Cmd::Evolve { seed, yun, era, seeds: None } => evolve(seed, yun, era),
         Cmd::Evolve { seed, yun, era, seeds: Some(n) } => evolve_survey(seed, yun, era, n),
@@ -451,6 +479,56 @@ fn evolve(seed: u64, yun: u32, era: EraArg) -> Result<(), String> {
     let events = s.world().ledger.events.iter().filter(|e| e.kind == siming_sim::EventKind::WorldChanged).count();
     println!("因果帳裡的世界大事 {events} 筆");
     Ok(())
+}
+
+/// 成道漏斗：開天預跑後先預熱，再逐月推進並由觀察者掃新事件，最後輸出文字表（與 JSON）。
+fn funnel(seed: u64, years: u32, size: FunnelSize, warmup: u32, rng: Option<u64>, json_out: Option<PathBuf>) -> Result<(), String> {
+    use siming_sim::funnel::Observer;
+    let t0 = Instant::now();
+    let mut params = WorldParams::new(seed);
+    params.size = match size {
+        FunnelSize::Small => WorldSize::Small,
+        FunnelSize::Medium => WorldSize::Medium,
+        FunnelSize::Large => WorldSize::Large,
+    };
+    let rng_seed = rng.unwrap_or(seed);
+    let mut s = Sim::new_seeded(&params, Some(rng_seed)).map_err(|e| e.to_string())?;
+    let setup_s = t0.elapsed().as_secs_f64();
+    let mut obs = Observer::new(s.world(), warmup);
+    let t1 = Instant::now();
+    for _ in 0..(warmup + years) * 12 {
+        s.step();
+        s.drain_events();
+        obs.observe(s.world());
+    }
+    let run_s = t1.elapsed().as_secs_f64();
+    let meta = json!({
+        "世界種子": s.world().params.seed,
+        "人物期亂數種子": rng_seed,
+        "尺寸": format!("{:?}", s.world().params.size),
+        "觀察期（年）": years,
+        "預熱（年）": warmup,
+        "母體起點（tick）": obs.start_tick,
+        "期末（tick）": s.world().tick,
+        "期末世界雜湊": format!("{:016x}", s.hash()),
+        "開天加預跑耗時（秒）": (setup_s * 10.0).round() / 10.0,
+        "預熱加觀察耗時（秒）": (run_s * 10.0).round() / 10.0,
+    });
+    let report = obs.report(s.world(), meta);
+    print!("{}", report.to_text());
+    let bad = report.check();
+    if !bad.is_empty() {
+        eprintln!("總數核對不一致：{bad:?}");
+    }
+    if let Some(path) = json_out {
+        let text = serde_json::to_string_pretty(&report.to_json()).map_err(|e| e.to_string())?;
+        std::fs::write(&path, text).map_err(|e| format!("{}：{e}", path.display()))?;
+    }
+    if bad.is_empty() {
+        Ok(())
+    } else {
+        Err("總數核對不一致".into())
+    }
 }
 
 fn sim(seed: u64, yun: u32, report: Option<PathBuf>) -> Result<(), String> {
