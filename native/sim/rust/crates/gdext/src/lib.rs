@@ -1016,6 +1016,7 @@ impl SimWorld {
             d.set("era", &GString::from(era.name.as_str()));
             d.set("year", year as i32);
             d.set("month", siming_sim::calendar::date(e.tick).month as i32);
+            set_day_and_cause(&mut d, e);
             out.push(&d);
         }
         out
@@ -1255,6 +1256,16 @@ struct CauseNode {
     parent: i32,
 }
 
+/// 事件字典的日、成因與關係：`day`（月內第幾日，1..=30）、`why`（成因代碼字串，無則空字串）、
+/// `rel`（兩方關係旗標名稱的字串陣列）、`rel_lives`（未了宿緣線已隔的世數）。
+fn set_day_and_cause(d: &mut VarDictionary, e: &siming_sim::Event) {
+    d.set("day", siming_sim::calendar::date(e.tick).day as i32);
+    d.set("why", &GString::from(e.why.code()));
+    let names: Vec<GString> = e.rel.names().into_iter().map(GString::from).collect();
+    d.set("rel", &PackedStringArray::from(names.as_slice()));
+    d.set("rel_lives", e.rel.lives() as i32);
+}
+
 fn event_by_id(w: &siming_sim::World, id: i64) -> Option<&siming_sim::Event> {
     u32::try_from(id).ok().and_then(|i| siming_sim::ledger::get(w, i))
 }
@@ -1368,6 +1379,7 @@ impl SimWorld {
         d.set("date_era", &GString::from(date_era.name.as_str()));
         d.set("year", year as i32);
         d.set("month", siming_sim::calendar::date(e.tick).month as i32);
+        set_day_and_cause(&mut d, e);
         // 可追對象：牽涉的人物與勢力編號（州郡編號為 province）。
         let person_ids: Vec<i32> = e.persons.iter().map(|&i| i as i32).collect();
         let power_ids: Vec<i32> = e.powers.iter().map(|&i| i as i32).collect();

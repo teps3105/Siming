@@ -288,6 +288,7 @@ pub fn found_sect(w: &mut World, founder: PersonId, seat: Seat) -> PowerId {
     let id = create_sect(w, founder, seat);
     let p = &w.persons[founder as usize];
     let mut e = NewEvent::new(EventKind::PowerFounded, FOUNDED_IMPORTANCE, EventArgs::Sect { node: seat.node });
+    e.why = Why::SelfFounded;
     e.province = Some(seat.province);
     e.cell = Some(seat.cell);
     e.souls = smallvec![p.soul];

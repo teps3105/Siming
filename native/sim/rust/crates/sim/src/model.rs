@@ -562,8 +562,6 @@ pub enum Why {
     // PowerFounded
     /// 自立：散修自行創宗。
     SelfFounded = 20,
-    /// 出走：自原宗門分出。
-    Exodus = 21,
     // Married
     /// 前世宿緣牽引：兩魂有未了、已隔世的情緣線。
     FateTug = 30,
@@ -583,10 +581,37 @@ pub enum Why {
     // Rebellion、Secession、Usurpation 的主因
     /// 天命低。
     LowMandate = 50,
-    /// 饑荒。
-    Famine = 51,
-    /// 財政。
+    /// 國庫不足，武將叛離。
     Finances = 52,
+    /// 無儲君，文武篡位。
+    NoHeir = 53,
+}
+
+impl Why {
+    /// 給介面與文件用的代碼字串（對照見 `docs/7-附錄/7.2-事件總表.md`）。
+    pub fn code(self) -> &'static str {
+        match self {
+            Why::None => "",
+            Why::Vendetta => "vendetta",
+            Why::SlayDemon => "slay_demon",
+            Why::DemonAssassin => "demon_assassin",
+            Why::SectWarDeath => "sect_war_death",
+            Why::KillOther => "kill_other",
+            Why::SinDemon => "sin_demon",
+            Why::PastLifeMark => "past_life_mark",
+            Why::SelfFounded => "self_founded",
+            Why::FateTug => "fate_tug",
+            Why::SameSect => "same_sect",
+            Why::SameHometown => "same_hometown",
+            Why::Repaid => "repaid",
+            Why::Avenged => "avenged",
+            Why::WedSettled => "wed_settled",
+            Why::ResolvedOther => "resolved_other",
+            Why::LowMandate => "low_mandate",
+            Why::Finances => "finances",
+            Why::NoHeir => "no_heir",
+        }
+    }
 }
 
 /// 事件兩方關係的位元旗標快照（事件有兩方時記錄；查不到的位元留空）。
@@ -607,6 +632,23 @@ impl Rel {
     pub const THREAD_GRUDGE: u16 = 1 << 9;
     /// 未了宿緣線已隔的世數（取最多者，上限 7）：第 10–12 位。
     pub const LIVES_SHIFT: u16 = 10;
+
+    /// 成立的關係旗標名稱（不含世數；介面用）。
+    pub fn names(self) -> Vec<&'static str> {
+        const TABLE: [(u16, &str); 10] = [
+            (Rel::MASTER_DISCIPLE, "master_disciple"),
+            (Rel::SAME_SECT, "same_sect"),
+            (Rel::SPOUSES, "spouses"),
+            (Rel::PARENT_CHILD, "parent_child"),
+            (Rel::SAME_HOMETOWN, "same_hometown"),
+            (Rel::THREAD_FEUD, "thread_feud"),
+            (Rel::THREAD_GRACE, "thread_grace"),
+            (Rel::THREAD_LOVE, "thread_love"),
+            (Rel::THREAD_MENTOR, "thread_mentor"),
+            (Rel::THREAD_GRUDGE, "thread_grudge"),
+        ];
+        TABLE.iter().filter(|(b, _)| self.has(*b)).map(|(_, n)| *n).collect()
+    }
 
     pub fn has(self, flag: u16) -> bool {
         self.0 & flag != 0

@@ -193,7 +193,25 @@ pub(crate) fn rec(
     n: u32,
     causes: &[EventId],
 ) -> EventId {
+    rec_why(w, kind, importance, province, persons, dynasty, other, n, causes, crate::model::Why::None)
+}
+
+/// 同 [`rec`]，另記成因。
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn rec_why(
+    w: &mut World,
+    kind: EventKind,
+    importance: u8,
+    province: Option<ProvinceId>,
+    persons: &[PersonId],
+    dynasty: DynastyId,
+    other: Option<DynastyId>,
+    n: u32,
+    causes: &[EventId],
+    why: crate::model::Why,
+) -> EventId {
     let mut e = NewEvent::new(kind, importance, EventArgs::Dynasty { dynasty, other, n });
+    e.why = why;
     e.province = province;
     for &p in persons {
         e.persons.push(p);
