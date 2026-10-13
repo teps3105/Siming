@@ -1,0 +1,332 @@
+{
+ "part": "hair_front-bun",
+ "paint": [
+  {
+   "tag": "hair_front-bun-t1",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261014,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/sources/parts/portrait/base-m.png",
+     "7be124b36c6dc146ad44c45f3ae1ff87ccf58c4e6864c47da8a95eefee2e3a86"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版，圖2是畫風基準圖。請在圖1的頭上畫「前髮」：貼著頭皮的整齊黑髮，覆蓋頭頂與前額，髮際線在額頭上方三分之一處，兩鬢收在耳朵前上方，耳朵完整露出。只畫貼著頭皮的這一層髮，不畫髮髻、不畫髮簪、不畫垂到頭外面去的髮。髮束用少數幾條乾淨的線表示，不畫細碎髮絲。整片頭髮的外緣用墨線包成一圈封閉的形狀。顏色用中等明度的暖灰褐色（明顯比墨線亮），只加一階較深的硬邊陰影與少量淺色高光塊。眉眼口鼻、耳朵、臉與頸不許被蓋住。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細，線色近墨色），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫或改動的這一件，人物的頭、臉、頸、背景與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純色宣紙色。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/.shiftblame/tmp/parts/portrait/paint/hair_front-bun-t1.png",
+   "output_sha256": "73f414631b02b66a6b1af5056ea797fd72ff3b1d454034840238012ec85745e8",
+   "seconds": 196.0,
+   "time": "2026-10-13 16:14:57"
+  },
+  {
+   "tag": "hair_front-bun-t2",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261015,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/sources/parts/portrait/base-m.png",
+     "7be124b36c6dc146ad44c45f3ae1ff87ccf58c4e6864c47da8a95eefee2e3a86"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版，圖2是畫風基準圖。請在圖1的頭上畫「前髮」：貼著頭皮的整齊頭髮，覆蓋頭頂與前額，髮際線在額頭上方三分之一處，兩鬢收在耳朵前上方，耳朵完整露出。只畫貼著頭皮的這一層髮，不畫髮髻、不畫髮簪、不畫垂到頭外面去的髮。髮束用少數幾條乾淨的線表示，不畫細碎髮絲。整片頭髮的外緣用墨線包成一圈封閉的形狀。顏色不要畫成黑色：底色用淺中度的灰褐色（約 #8C7B6A，一眼看去是灰褐而不是黑），一階較深的硬邊陰影塊（約 #5E5145），少量淺色高光塊（約 #B5A692）；只有輪廓線與髮束線條用近黑的墨色。眉眼口鼻、耳朵、臉與頸不許被蓋住。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細，線色近墨色），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫或改動的這一件，人物的頭、臉、頸、背景與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純色宣紙色。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/.shiftblame/tmp/parts/portrait/paint/hair_front-bun-t2.png",
+   "output_sha256": "4f026e1ea937fd9294da61617dc7d06a908b471293e083b956b9f870b6e40ce2",
+   "seconds": 310.6,
+   "time": "2026-10-13 16:38:35"
+  }
+ ],
+ "collect": [
+  {
+   "from": "paint/hair_front-bun-t1.png",
+   "affine": [
+    [
+     0.9974200129508972,
+     -0.0001500000071246177,
+     1.0976200103759766
+    ],
+    [
+     -0.00013000000035390258,
+     0.99795001745224,
+     1.971690058708191
+    ]
+   ],
+   "ecc": 0.99954,
+   "thr": 38,
+   "min_area": 250,
+   "pixels": 50538,
+   "bbox": [
+    322,
+    313,
+    707,
+    605
+   ],
+   "components": 1,
+   "output": "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/.shiftblame/tmp/parts/portrait/collect/hair_front-bun.png",
+   "time": "2026-10-13 16:15:54"
+  },
+  {
+   "from": "paint/hair_front-bun-t1.png",
+   "affine": [
+    [
+     0.9974200129508972,
+     -0.0001500000071246177,
+     1.0976200103759766
+    ],
+    [
+     -0.00013000000035390258,
+     0.99795001745224,
+     1.971690058708191
+    ]
+   ],
+   "ecc": 0.99954,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 49589,
+   "bbox": [
+    322,
+    313,
+    707,
+    603
+   ],
+   "components": 1,
+   "output": "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/.shiftblame/tmp/parts/portrait/collect/hair_front-bun.png",
+   "time": "2026-10-13 16:20:49"
+  },
+  {
+   "from": "paint/hair_front-bun-t2.png",
+   "affine": [
+    [
+     0.9937700033187866,
+     0.0021100000012665987,
+     -0.7771000266075134
+    ],
+    [
+     -0.000859999970998615,
+     0.986810028553009,
+     4.908120155334473
+    ]
+   ],
+   "ecc": 0.99825,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 56533,
+   "bbox": [
+    302,
+    316,
+    729,
+    611
+   ],
+   "components": 1,
+   "output": "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/.shiftblame/tmp/parts/portrait/collect/hair_front-bun.png",
+   "time": "2026-10-13 16:43:12"
+  }
+ ],
+ "key": [
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/hair_front-bun.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 90,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "hair": {
+     "file": ".shiftblame/tmp/parts/portrait/key/hair_front-bun.hair.png",
+     "pixels": 5088,
+     "dye": "髮色",
+     "centers": [
+      43.7,
+      59.0,
+      111.8,
+      176.6
+     ],
+     "share": [
+      0.259,
+      0.699,
+      0.024,
+      0.018
+     ],
+     "levels": [
+      "ink",
+      "base",
+      "high",
+      "high"
+     ]
+    }
+   },
+   "time": "2026-10-13 16:16:26"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/hair_front-bun.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 90,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "hair": {
+     "file": ".shiftblame/tmp/parts/portrait/key/hair_front-bun.hair.png",
+     "pixels": 5004,
+     "dye": "髮色",
+     "centers": [
+      43.1,
+      58.9,
+      107.9,
+      186.1
+     ],
+     "share": [
+      0.27,
+      0.708,
+      0.014,
+      0.008
+     ],
+     "levels": [
+      "ink",
+      "base",
+      "high",
+      "high"
+     ]
+    }
+   },
+   "time": "2026-10-13 16:24:36"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/hair_front-bun.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 90,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "hair": {
+     "file": ".shiftblame/tmp/parts/portrait/key/hair_front-bun.hair.png",
+     "pixels": 5004,
+     "dye": "髮色",
+     "centers": [
+      43.1,
+      58.9,
+      107.9,
+      186.1
+     ],
+     "share": [
+      0.27,
+      0.708,
+      0.014,
+      0.008
+     ],
+     "levels": [
+      "ink",
+      "base",
+      "high",
+      "high"
+     ]
+    }
+   },
+   "time": "2026-10-13 16:25:03"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/hair_front-bun.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 90,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "hair": {
+     "file": ".shiftblame/tmp/parts/portrait/key/hair_front-bun.hair.png",
+     "pixels": 5744,
+     "dye": "髮色",
+     "centers": [
+      48.9,
+      71.4,
+      120.3,
+      210.0
+     ],
+     "share": [
+      0.386,
+      0.579,
+      0.018,
+      0.017
+     ],
+     "levels": [
+      "ink",
+      "base",
+      "high",
+      "high"
+     ]
+    }
+   },
+   "time": "2026-10-13 16:47:42"
+  }
+ ],
+ "check": [
+  {
+   "metrics": {
+    "hair_front-bun.hair": {
+     "edge_len": 509,
+     "bare_edge": 79,
+     "bare_ratio": 0.155,
+     "blobs": 1,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.002,
+     "pixels": 4699
+    }
+   },
+   "time": "2026-10-13 16:36:21"
+  },
+  {
+   "metrics": {
+    "hair_front-bun.hair": {
+     "edge_len": 509,
+     "bare_edge": 79,
+     "bare_ratio": 0.155,
+     "blobs": 1,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.002,
+     "pixels": 4699
+    }
+   },
+   "time": "2026-10-13 16:36:51"
+  },
+  {
+   "metrics": {
+    "hair_front-bun.hair": {
+     "edge_len": 585,
+     "bare_edge": 124,
+     "bare_ratio": 0.212,
+     "blobs": 5,
+     "specks": 4,
+     "holes": 0,
+     "high_on_edge": 0.055,
+     "pixels": 5368
+    }
+   },
+   "time": "2026-10-13 16:47:48"
+  }
+ ]
+}

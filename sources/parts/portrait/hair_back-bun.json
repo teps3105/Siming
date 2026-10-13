@@ -1,0 +1,234 @@
+{
+ "part": "hair_back-bun",
+ "paint": [
+  {
+   "tag": "hair_back-bun-t1",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261014,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/sources/parts/portrait/base-m.png",
+     "7be124b36c6dc146ad44c45f3ae1ff87ccf58c4e6864c47da8a95eefee2e3a86"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版，圖2是畫風基準圖。請在圖1的頭後面畫「後髮」：頭頂偏後挽起的一個圓髻，髻上橫插一支簡單的木簪。髻從頭頂後方露出來，頭頂以上整個髻都看得見。頭本身（光頭的頭皮、額、臉、耳）完全不要被蓋住、不要畫髮際線，仍然是光頭；頭髮只畫在頭的後面、頭的輪廓線之外。髮束用少數幾條乾淨的線表示。顏色用中等明度的暖灰褐色（明顯比墨線亮），只加一階較深的硬邊陰影與少量淺色高光塊；髮簪用深木色，也畫在頭後面。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細，線色近墨色），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫或改動的這一件，人物的頭、臉、頸、背景與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純色宣紙色。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/.shiftblame/tmp/parts/portrait/paint/hair_back-bun-t1.png",
+   "output_sha256": "c92cbf62c2e7cb441e0a9230e8a1e53352325a3cc257654aadc607a14d3238ac",
+   "seconds": 243.6,
+   "time": "2026-10-13 16:19:14"
+  },
+  {
+   "tag": "hair_back-bun-t2",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261015,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/sources/parts/portrait/base-m.png",
+     "7be124b36c6dc146ad44c45f3ae1ff87ccf58c4e6864c47da8a95eefee2e3a86"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版，圖2是畫風基準圖。請在圖1的頭後面畫「後髮」：頭頂偏後挽起的一個圓髻，髻上橫插一支簡單的木簪。髻從頭頂後方露出來，頭頂以上整個髻都看得見。頭本身（光頭的頭皮、額、臉、耳）完全不要被蓋住、不要畫髮際線，仍然是光頭；頭髮只畫在頭的後面、頭的輪廓線之外。髮束用少數幾條乾淨的線表示。顏色不要畫成黑色：底色用淺中度的灰褐色（約 #8C7B6A，一眼看去是灰褐而不是黑），一階較深的硬邊陰影塊（約 #5E5145），少量淺色高光塊（約 #B5A692）；只有輪廓線與髮束線條用近黑的墨色；髮簪用深木色，也畫在頭後面。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細，線色近墨色），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫或改動的這一件，人物的頭、臉、頸、背景與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純色宣紙色。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/.shiftblame/tmp/parts/portrait/paint/hair_back-bun-t2.png",
+   "output_sha256": "8bdd91e096167c58f8e586fbed8c2e654eec3ba7592d8984862619e03850bd35",
+   "seconds": 217.8,
+   "time": "2026-10-13 16:42:26"
+  },
+  {
+   "tag": "hair_back-bun-complete-t1",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261101,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/.shiftblame/tmp/parts/portrait/paint/hair_back-bun-complete-in.png",
+     "7c809054773b23a38944bb5fac0fc12299c461ede9755c2c19636d14e6533159"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是人物頭像的一個部件，單獨放在中性灰色背景上；圖2是畫風基準圖。圖1是一個髮髻加一支木簪。髻的下半部原本被頭擋住，所以下緣是被切平的，邊上沒有輪廓線，還帶著一條細弧線的殘邊。請把它畫成完整獨立的一件：髻的下方接著一塊圓潤的髮根，往下收成一個圓弧底，整個髮髻的外緣用墨線包成一圈封閉的形狀；簪完整、穿過髻；去掉那條細弧線和所有碎屑與斑點。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊，底色純平，一階硬邊陰影，不要漸層、紙紋或顆粒。保留圖1已畫好的部分原樣（位置、大小、顏色都不動），只畫沒畫完的地方；灰色背景保持純灰，不加頭、臉、身體或任何其他東西。",
+   "output": "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/.shiftblame/tmp/parts/portrait/paint/hair_back-bun-complete-t1.png",
+   "output_sha256": "0c503c494f89abd849f3d20e8ec650dee3c193abf3c8c795f165cda282744eac",
+   "seconds": 78.8,
+   "time": "2026-10-13 16:45:52"
+  }
+ ],
+ "collect": [
+  {
+   "from": "paint/hair_back-bun-t1.png",
+   "affine": [
+    [
+     0.9938200116157532,
+     -0.0019000000320374966,
+     5.33568000793457
+    ],
+    [
+     7.999999797903001e-05,
+     1.0010600090026855,
+     2.091020107269287
+    ]
+   ],
+   "ecc": 0.99854,
+   "thr": 38,
+   "min_area": 250,
+   "pixels": 27978,
+   "bbox": [
+    320,
+    203,
+    700,
+    532
+   ],
+   "components": 3,
+   "output": "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/.shiftblame/tmp/parts/portrait/collect/hair_back-bun.png",
+   "time": "2026-10-13 16:19:38"
+  },
+  {
+   "from": "paint/hair_back-bun-t1.png",
+   "affine": [
+    [
+     0.9938200116157532,
+     -0.0019000000320374966,
+     5.33568000793457
+    ],
+    [
+     7.999999797903001e-05,
+     1.0010600090026855,
+     2.091020107269287
+    ]
+   ],
+   "ecc": 0.99854,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 23872,
+   "bbox": [
+    320,
+    203,
+    677,
+    400
+   ],
+   "components": 1,
+   "output": "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/.shiftblame/tmp/parts/portrait/collect/hair_back-bun.png",
+   "time": "2026-10-13 16:20:47"
+  },
+  {
+   "from": "paint/hair_back-bun-t2.png",
+   "affine": [
+    [
+     0.9947299957275391,
+     -0.00406000018119812,
+     11.56980037689209
+    ],
+    [
+     -0.0002699999895412475,
+     0.9862300157546997,
+     6.594840049743652
+    ]
+   ],
+   "ecc": 0.99869,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 6.0,
+   "keep_skin": false,
+   "pixels": 24372,
+   "bbox": [
+    309,
+    197,
+    664,
+    361
+   ],
+   "components": 1,
+   "output": "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/.shiftblame/tmp/parts/portrait/collect/hair_back-bun.png",
+   "time": "2026-10-13 16:43:26"
+  }
+ ],
+ "complete": [
+  {
+   "from": "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/.shiftblame/tmp/parts/portrait/paint/hair_back-bun-complete-t1.png",
+   "ecc": -1.0,
+   "pixels_before": 23266,
+   "pixels_after": 91239,
+   "bbox": [
+    302,
+    197,
+    709,
+    665
+   ],
+   "output": "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/.shiftblame/tmp/parts/portrait/complete/hair_back-bun.png",
+   "time": "2026-10-13 16:46:30"
+  }
+ ],
+ "key": [
+  {
+   "source": ".shiftblame/tmp/parts/portrait/complete/hair_back-bun.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 90,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "hair": {
+     "file": ".shiftblame/tmp/parts/portrait/key/hair_back-bun.hair.png",
+     "pixels": 9128,
+     "dye": "髮色",
+     "centers": [
+      44.7,
+      59.8,
+      96.9
+     ],
+     "share": [
+      0.127,
+      0.844,
+      0.028
+     ],
+     "levels": [
+      "ink",
+      "base",
+      "high"
+     ]
+    }
+   },
+   "time": "2026-10-13 16:47:43"
+  }
+ ],
+ "check": [
+  {
+   "metrics": {
+    "hair_back-bun.hair": {
+     "edge_len": 764,
+     "bare_edge": 301,
+     "bare_ratio": 0.394,
+     "blobs": 2,
+     "specks": 1,
+     "holes": 0,
+     "high_on_edge": 0.075,
+     "pixels": 8646
+    }
+   },
+   "time": "2026-10-13 16:47:48"
+  }
+ ]
+}

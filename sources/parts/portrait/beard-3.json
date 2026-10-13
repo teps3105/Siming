@@ -1,0 +1,169 @@
+{
+ "part": "beard-3",
+ "paint": [
+  {
+   "tag": "beard-3-t1",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261014,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/sources/parts/portrait/base-m.png",
+     "7be124b36c6dc146ad44c45f3ae1ff87ccf58c4e6864c47da8a95eefee2e3a86"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版，圖2是畫風基準圖。請在圖1的臉上畫「三綹長鬚」：下唇正下方一綹較長的中鬚，兩頰近下頷處各一綹較短的側鬚，三綹都順著下巴往下垂，最長的垂到下巴下方約一個嘴寬。每一綹是一個封閉、乾淨的色塊形狀（尖端收細），外緣用墨線包住，內部只用一兩條線表示髮束走向，不畫細碎鬍鬚。顏色不要畫成黑色：底色用淺中度的灰褐色（約 #8C7B6A，一眼看去是灰褐而不是黑），一階較深的硬邊陰影塊（約 #5E5145），少量淺色高光塊（約 #B5A692）；只有輪廓線與髮束線條用近黑的墨色。嘴唇與鼻子不許被蓋住，頸與衣服不許動。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細，線色近墨色），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫或改動的這一件，人物的頭、臉、頸、背景與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純色宣紙色。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/.shiftblame/tmp/parts/portrait/paint/beard-3-t1.png",
+   "output_sha256": "915fb611a51fabcabb1ecd6f64efde4abf118adaed2559064b1e455482ca74df",
+   "seconds": 186.4,
+   "time": "2026-10-13 16:28:55"
+  },
+  {
+   "tag": "beard-3-t2",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261015,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/sources/parts/portrait/base-m.png",
+     "7be124b36c6dc146ad44c45f3ae1ff87ccf58c4e6864c47da8a95eefee2e3a86"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版，圖2是畫風基準圖。請在圖1的臉上畫「三綹長鬚」：下唇正下方一綹較長的中鬚，兩頰近下頷處各一綹較短的側鬚，三綹都順著下巴往下垂，三綹都很短：最長的中鬚末端只比下巴下緣低約一個鼻子的高度，側鬚只到下頷角附近。上唇上方與人中不畫任何鬍鬚（不要八字鬚），嘴唇完全露出。每一綹是一個封閉、乾淨的色塊形狀（尖端收細），外緣用墨線包住，內部只用一兩條線表示髮束走向，不畫細碎鬍鬚；三綹之間露出下巴的皮膚。顏色不要畫成黑色：底色用淺中度的灰褐色（約 #8C7B6A，一眼看去是灰褐而不是黑），一階較深的硬邊陰影塊（約 #5E5145），少量淺色高光塊（約 #B5A692）；只有輪廓線與髮束線條用近黑的墨色。嘴唇與鼻子不許被蓋住，頸與衣服不許動。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細，線色近墨色），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫或改動的這一件，人物的頭、臉、頸、背景與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純色宣紙色。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/.shiftblame/tmp/parts/portrait/paint/beard-3-t2.png",
+   "output_sha256": "69bba555bcb0ae59a95aae70c194c6dcba267982ce35467ed2680e65eeb4c039",
+   "seconds": 97.7,
+   "time": "2026-10-13 16:44:21"
+  }
+ ],
+ "collect": [
+  {
+   "from": "paint/beard-3-t1.png",
+   "affine": [
+    [
+     0.9975900053977966,
+     -4.999999873689376e-05,
+     0.6723799705505371
+    ],
+    [
+     -0.0003699999942909926,
+     0.9993399977684021,
+     0.606249988079071
+    ]
+   ],
+   "ecc": 0.99814,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 5.0,
+   "keep_skin": false,
+   "pixels": 32846,
+   "bbox": [
+    362,
+    693,
+    664,
+    1091
+   ],
+   "components": 3,
+   "output": "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/.shiftblame/tmp/parts/portrait/collect/beard-3.png",
+   "time": "2026-10-13 16:29:33"
+  },
+  {
+   "from": "paint/beard-3-t2.png",
+   "affine": [
+    [
+     1.0005099773406982,
+     -0.00013000000035390258,
+     -1.2450200319290161
+    ],
+    [
+     -0.0006600000197067857,
+     0.9991899728775024,
+     -0.36834999918937683
+    ]
+   ],
+   "ecc": 0.99676,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 5.0,
+   "keep_skin": false,
+   "pixels": 16102,
+   "bbox": [
+    377,
+    693,
+    664,
+    995
+   ],
+   "components": 3,
+   "output": "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/.shiftblame/tmp/parts/portrait/collect/beard-3.png",
+   "time": "2026-10-13 16:46:44"
+  }
+ ],
+ "key": [
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/beard-3.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 90,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "beard": {
+     "file": ".shiftblame/tmp/parts/portrait/key/beard-3.beard.png",
+     "pixels": 1742,
+     "dye": "髮色",
+     "centers": [
+      44.2,
+      65.6,
+      98.5,
+      220.1
+     ],
+     "share": [
+      0.313,
+      0.599,
+      0.061,
+      0.026
+     ],
+     "levels": [
+      "ink",
+      "base",
+      "high",
+      "high"
+     ]
+    }
+   },
+   "time": "2026-10-13 16:47:44"
+  }
+ ],
+ "check": [
+  {
+   "metrics": {
+    "beard-3.beard": {
+     "edge_len": 415,
+     "bare_edge": 132,
+     "bare_ratio": 0.318,
+     "blobs": 3,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.084,
+     "pixels": 1442
+    }
+   },
+   "time": "2026-10-13 16:47:48"
+  }
+ ]
+}

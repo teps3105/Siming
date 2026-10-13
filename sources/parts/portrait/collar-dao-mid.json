@@ -1,0 +1,324 @@
+{
+ "part": "collar-dao-mid",
+ "paint": [
+  {
+   "tag": "collar-dao-mid-t1",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261014,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/sources/parts/portrait/base-m.png",
+     "7be124b36c6dc146ad44c45f3ae1ff87ccf58c4e6864c47da8a95eefee2e3a86"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版，圖2是畫風基準圖。請把圖1身上的素色圓領內衫換成一件道士的交領右衽道袍：衣身是灰青色，交領在胸前交疊成一個深的V形，領口、衣襟與袖口肩線滾一道朱紅色細邊。衣服覆蓋圖1原本內衫的全部範圍，肩線一路畫到畫面左右邊緣與下緣；道袍用兩階明暗（底色加一階硬邊陰影），衣褶只用少數幾條粗而乾淨的線。頭、臉、耳與頸子的皮膚不許動、不許被蓋住；V形領口露出的是頸子與鎖骨的皮膚，保持原樣。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細，線色近墨色），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫或改動的這一件，人物的頭、臉、頸、背景與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純色宣紙色。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/.shiftblame/tmp/parts/portrait/paint/collar-dao-mid-t1.png",
+   "output_sha256": "f4a36f236283b07d57ad7bbdc695d42b0de63ea0d4142d01314f7233ef5d1b7c",
+   "seconds": 246.6,
+   "time": "2026-10-13 16:33:08"
+  }
+ ],
+ "collect": [
+  {
+   "from": "paint/collar-dao-mid-t1.png",
+   "affine": [
+    [
+     0.9957000017166138,
+     -0.0020699999295175076,
+     1.5722299814224243
+    ],
+    [
+     0.003710000077262521,
+     0.9909899830818176,
+     -4.812779903411865
+    ]
+   ],
+   "ecc": 0.96274,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 8.0,
+   "keep_skin": true,
+   "pixels": 171322,
+   "bbox": [
+    0,
+    795,
+    1024,
+    1280
+   ],
+   "components": 12,
+   "output": "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/.shiftblame/tmp/parts/portrait/collect/collar-dao-mid.png",
+   "time": "2026-10-13 16:33:32"
+  },
+  {
+   "from": "paint/collar-dao-mid-t1.png",
+   "affine": [
+    [
+     0.9957000017166138,
+     -0.0020699999295175076,
+     1.5722299814224243
+    ],
+    [
+     0.003710000077262521,
+     0.9909899830818176,
+     -4.812779903411865
+    ]
+   ],
+   "ecc": 0.96274,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 8.0,
+   "keep_skin": true,
+   "pixels": 331735,
+   "bbox": [
+    0,
+    795,
+    1024,
+    1280
+   ],
+   "components": 2,
+   "output": "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/.shiftblame/tmp/parts/portrait/collect/collar-dao-mid.png",
+   "time": "2026-10-13 16:34:41"
+  },
+  {
+   "from": "paint/collar-dao-mid-t1.png",
+   "affine": [
+    [
+     0.9957000017166138,
+     -0.0020699999295175076,
+     1.5722299814224243
+    ],
+    [
+     0.003710000077262521,
+     0.9909899830818176,
+     -4.812779903411865
+    ]
+   ],
+   "ecc": 0.96274,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 8.0,
+   "keep_skin": true,
+   "pixels": 354758,
+   "bbox": [
+    0,
+    795,
+    1024,
+    1280
+   ],
+   "components": 1,
+   "output": "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/.shiftblame/tmp/parts/portrait/collect/collar-dao-mid.png",
+   "time": "2026-10-13 16:35:39"
+  }
+ ],
+ "key": [
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/collar-dao-mid.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 90,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "trim": {
+     "file": ".shiftblame/tmp/parts/portrait/key/collar-dao-mid.trim.png",
+     "pixels": 2511,
+     "dye": "緣邊色",
+     "centers": [
+      null,
+      87.6
+     ],
+     "share": [
+      0.0,
+      1.0
+     ],
+     "levels": [
+      "ink",
+      "base"
+     ]
+    },
+    "cloth": {
+     "file": ".shiftblame/tmp/parts/portrait/key/collar-dao-mid.cloth.png",
+     "pixels": 32334,
+     "dye": "衣色",
+     "centers": [
+      47.8,
+      82.2,
+      104.5,
+      139.1
+     ],
+     "share": [
+      0.025,
+      0.048,
+      0.436,
+      0.492
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "shadow",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 16:35:46"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/collar-dao-mid.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 90,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "trim": {
+     "file": ".shiftblame/tmp/parts/portrait/key/collar-dao-mid.trim.png",
+     "pixels": 2511,
+     "dye": "緣邊色",
+     "centers": [
+      null,
+      87.6
+     ],
+     "share": [
+      0.0,
+      1.0
+     ],
+     "levels": [
+      "ink",
+      "base"
+     ]
+    },
+    "cloth": {
+     "file": ".shiftblame/tmp/parts/portrait/key/collar-dao-mid.cloth.png",
+     "pixels": 32334,
+     "dye": "衣色",
+     "centers": [
+      47.8,
+      82.2,
+      104.5,
+      139.1
+     ],
+     "share": [
+      0.025,
+      0.048,
+      0.436,
+      0.492
+     ],
+     "levels": [
+      "ink",
+      "shadow",
+      "shadow",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 16:47:46"
+  }
+ ],
+ "check": [
+  {
+   "metrics": {
+    "collar-dao-mid.cloth": {
+     "edge_len": 1674,
+     "bare_edge": 1040,
+     "bare_ratio": 0.621,
+     "blobs": 17,
+     "specks": 14,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 32002
+    },
+    "collar-dao-mid.trim": {
+     "edge_len": 1416,
+     "bare_edge": 1404,
+     "bare_ratio": 0.992,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 2502
+    }
+   },
+   "time": "2026-10-13 16:36:21"
+  },
+  {
+   "metrics": {
+    "collar-dao-mid.cloth": {
+     "edge_len": 1674,
+     "bare_edge": 1040,
+     "bare_ratio": 0.621,
+     "blobs": 17,
+     "specks": 14,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 32002
+    },
+    "collar-dao-mid.trim": {
+     "edge_len": 1416,
+     "bare_edge": 1404,
+     "bare_ratio": 0.992,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 2502
+    },
+    "collar-dao-mid.union": {
+     "edge_len": 646,
+     "bare_edge": 132,
+     "bare_ratio": 0.204,
+     "blobs": 1,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 34504
+    }
+   },
+   "time": "2026-10-13 16:36:51"
+  },
+  {
+   "metrics": {
+    "collar-dao-mid.cloth": {
+     "edge_len": 1674,
+     "bare_edge": 1040,
+     "bare_ratio": 0.621,
+     "blobs": 17,
+     "specks": 14,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 32002
+    },
+    "collar-dao-mid.trim": {
+     "edge_len": 1416,
+     "bare_edge": 1404,
+     "bare_ratio": 0.992,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 2502
+    },
+    "collar-dao-mid.union": {
+     "edge_len": 646,
+     "bare_edge": 132,
+     "bare_ratio": 0.204,
+     "blobs": 1,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 34504
+    }
+   },
+   "time": "2026-10-13 16:47:48"
+  }
+ ]
+}

@@ -1,0 +1,255 @@
+{
+ "version": 1,
+ "class": "portrait",
+ "size": [
+  320,
+  400
+ ],
+ "ink": "#2B2620",
+ "key_levels": {
+  "ink": 0,
+  "shadow": 90,
+  "base": 170,
+  "high": 255
+ },
+ "slots": [
+  "hair_back",
+  "collar",
+  "face",
+  "wrinkle",
+  "mouth",
+  "eyes",
+  "brows",
+  "beard",
+  "mark",
+  "hair_front",
+  "cap"
+ ],
+ "anchors": {
+  "m": {
+   "cx": 160,
+   "top_y": 98,
+   "eye_y": 185,
+   "nose_y": 211,
+   "mouth_y": 226,
+   "chin_y": 261,
+   "neck_y": 310,
+   "ears": {
+    "l": [
+     98,
+     165,
+     211
+    ],
+    "r": [
+     221,
+     165,
+     211
+    ]
+   },
+   "head_w": [
+    103,
+    218
+   ]
+  },
+  "f": {
+   "cx": 160,
+   "top_y": 96,
+   "eye_y": 185,
+   "nose_y": 208,
+   "mouth_y": 222,
+   "chin_y": 254,
+   "neck_y": 282,
+   "ears": {
+    "l": [
+     100,
+     171,
+     207
+    ],
+    "r": [
+     220,
+     171,
+     207
+    ]
+   },
+   "head_w": [
+    105,
+    215
+   ]
+  }
+ },
+ "atlases": [
+  {
+   "file": "atlas0.png",
+   "size": [
+    1024,
+    256
+   ]
+  }
+ ],
+ "parts": {
+  "collar.dao-mid": {
+   "slot": "collar",
+   "sex": "m",
+   "layers": [
+    {
+     "sub": "cloth",
+     "mode": "key",
+     "dye": "衣色",
+     "atlas": 0,
+     "rect": [
+      0,
+      0,
+      320,
+      152
+     ],
+     "offset": [
+      0,
+      248
+     ]
+    },
+    {
+     "sub": "trim",
+     "mode": "key",
+     "dye": "緣邊色",
+     "atlas": 0,
+     "rect": [
+      322,
+      0,
+      147,
+      152
+     ],
+     "offset": [
+      84,
+      248
+     ]
+    }
+   ]
+  },
+  "hair_back.bun": {
+   "slot": "hair_back",
+   "sex": "m",
+   "layers": [
+    {
+     "sub": "hair",
+     "mode": "key",
+     "dye": "髮色",
+     "atlas": 0,
+     "rect": [
+      471,
+      0,
+      128,
+      147
+     ],
+     "offset": [
+      94,
+      61
+     ]
+    }
+   ]
+  },
+  "beard.3": {
+   "slot": "beard",
+   "sex": "m",
+   "layers": [
+    {
+     "sub": "beard",
+     "mode": "key",
+     "dye": "髮色",
+     "atlas": 0,
+     "rect": [
+      601,
+      0,
+      91,
+      95
+     ],
+     "offset": [
+      117,
+      216
+     ]
+    }
+   ]
+  },
+  "hair_front.bun": {
+   "slot": "hair_front",
+   "sex": "m",
+   "layers": [
+    {
+     "sub": "hair",
+     "mode": "key",
+     "dye": "髮色",
+     "atlas": 0,
+     "rect": [
+      694,
+      0,
+      134,
+      93
+     ],
+     "offset": [
+      94,
+      98
+     ]
+    }
+   ]
+  },
+  "brows.a": {
+   "slot": "brows",
+   "sex": "m",
+   "layers": [
+    {
+     "sub": "brow",
+     "mode": "key",
+     "dye": "髮色",
+     "atlas": 0,
+     "rect": [
+      830,
+      0,
+      83,
+      16
+     ],
+     "offset": [
+      122,
+      162
+     ]
+    }
+   ]
+  },
+  "eyes.a": {
+   "slot": "eyes",
+   "sex": "m",
+   "layers": [
+    {
+     "sub": "rest",
+     "mode": "fixed",
+     "dye": "定色",
+     "atlas": 0,
+     "rect": [
+      915,
+      0,
+      82,
+      11
+     ],
+     "offset": [
+      123,
+      175
+     ]
+    },
+    {
+     "sub": "iris",
+     "mode": "key",
+     "dye": "瞳色",
+     "atlas": 0,
+     "rect": [
+      0,
+      154,
+      56,
+      6
+     ],
+     "offset": [
+      136,
+      178
+     ]
+    }
+   ]
+  }
+ }
+}

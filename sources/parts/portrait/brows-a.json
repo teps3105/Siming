@@ -1,0 +1,168 @@
+{
+ "part": "brows-a",
+ "paint": [
+  {
+   "tag": "brows-a-t1",
+   "model": "qwen_image_2.1_int8_convrot",
+   "workflow": "sources/parts/workflows/qwen-edit.api.json",
+   "seed": 20261014,
+   "steps": 25,
+   "cfg": 1.0,
+   "sampler": "euler/simple",
+   "inputs": {
+    "image_1": [
+     "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/sources/parts/portrait/base-m.png",
+     "7be124b36c6dc146ad44c45f3ae1ff87ccf58c4e6864c47da8a95eefee2e3a86"
+    ],
+    "image_2": [
+     "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/sources/parts/portrait/style.png",
+     "a2f5d128e8e87066789b7048050601fd9e8885c5bddb346369e628fdd37f1462"
+    ]
+   },
+   "prompt": "圖1是一張光頭素臉的頭肩半身像底版，圖2是畫風基準圖。請在圖1的臉上畫一對眉毛，位置在眼睛上方約一指寬處、額頭下緣，左右對稱。略斜向上揚的劍眉，粗細均勻、末端收尖，是兩個封閉的色塊形狀，外緣用細墨線包住。顏色不要畫成黑色：底色用淺中度的灰褐色（約 #8C7B6A，一眼看去是灰褐而不是黑），一階較深的硬邊陰影塊（約 #5E5145），少量淺色高光塊（約 #B5A692）；只有輪廓線與髮束線條用近黑的墨色。不畫眼睛，臉的其他部分不許動。整張圖的構圖、縮放、位置與圖1完全一致：不要放大縮小，不要平移，不要裁切。畫風與圖2一致：賽璐璐水墨平塗，墨線勾邊（外輪廓粗、內部細，線色近墨色），底色純平，只加一階硬邊陰影，不用漸層、不用柔光、不要紙紋或顆粒。除了上面要求新畫或改動的這一件，人物的頭、臉、頸、背景與圖1逐像素相同，只做上面說的這一件事。背景保持圖1的純色宣紙色。不加任何文字、印章、邊框，不加其他飾品。",
+   "output": "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/.shiftblame/tmp/parts/portrait/paint/brows-a-t1.png",
+   "output_sha256": "81ff834ed3d12dfeaf22684d886d3df9f000024c13a892115249285caeeb4ad2",
+   "seconds": 154.4,
+   "time": "2026-10-13 16:25:43"
+  }
+ ],
+ "collect": [
+  {
+   "from": "paint/brows-a-t1.png",
+   "affine": [
+    [
+     0.9982600212097168,
+     7.999999797903001e-05,
+     0.4276599884033203
+    ],
+    [
+     -0.00013000000035390258,
+     0.999210000038147,
+     0.7218000292778015
+    ]
+   ],
+   "ecc": 0.99971,
+   "thr": 38,
+   "min_area": 250,
+   "thick": 4.0,
+   "keep_skin": false,
+   "pixels": 3515,
+   "bbox": [
+    392,
+    520,
+    655,
+    567
+   ],
+   "components": 2,
+   "output": "D:/Siming/.claude/worktrees/agent-a0f1473b7c79bec71/.shiftblame/tmp/parts/portrait/collect/brows-a.png",
+   "time": "2026-10-13 16:29:27"
+  }
+ ],
+ "key": [
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/brows-a.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 90,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "brow": {
+     "file": ".shiftblame/tmp/parts/portrait/key/brows-a.brow.png",
+     "pixels": 404,
+     "dye": "髮色",
+     "centers": [
+      null,
+      85.0
+     ],
+     "share": [
+      0.0,
+      1.0
+     ],
+     "levels": [
+      "ink",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 16:30:56"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/brows-a.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 90,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "brow": {
+     "file": ".shiftblame/tmp/parts/portrait/key/brows-a.brow.png",
+     "pixels": 404,
+     "dye": "髮色",
+     "centers": [
+      null,
+      85.0
+     ],
+     "share": [
+      0.0,
+      1.0
+     ],
+     "levels": [
+      "ink",
+      "base"
+     ]
+    }
+   },
+   "time": "2026-10-13 16:47:45"
+  }
+ ],
+ "check": [
+  {
+   "metrics": {
+    "brows-a.brow": {
+     "edge_len": 172,
+     "bare_edge": 172,
+     "bare_ratio": 1.0,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 299
+    }
+   },
+   "time": "2026-10-13 16:36:21"
+  },
+  {
+   "metrics": {
+    "brows-a.brow": {
+     "edge_len": 172,
+     "bare_edge": 172,
+     "bare_ratio": 1.0,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 299
+    }
+   },
+   "time": "2026-10-13 16:36:51"
+  },
+  {
+   "metrics": {
+    "brows-a.brow": {
+     "edge_len": 172,
+     "bare_edge": 172,
+     "bare_ratio": 1.0,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 299
+    }
+   },
+   "time": "2026-10-13 16:47:48"
+  }
+ ]
+}
