@@ -243,7 +243,7 @@ func test_gdd_8_12_part_stack_node_builds_one_view_per_layer_and_keeps_an_unchan
 
 
 ## 試驗類：畫家畫的真部件（portrait_trial），格式與佔位類相同，款數隨已入庫的部件增加。
-const TRIAL_SLOTS := ["back_hair", "face", "collar", "eyes", "brows", "beard", "front_hair", "hat"]
+const TRIAL_SLOTS := ["back_hair", "face", "collar", "eyes", "brows", "beard", "mark", "front_hair", "hat"]
 const TRIAL_TINTS := {"skin": Color("dfb182"), "hair": Color("605450"), "robe": Color("5c7080"), "trim": Color("b23a2e"), "iris": Color("466e96")}
 
 

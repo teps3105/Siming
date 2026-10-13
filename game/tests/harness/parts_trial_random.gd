@@ -35,6 +35,8 @@ func _recipe(catalog: PartCatalog, rng: RandomNumberGenerator) -> Dictionary:
 			continue
 		if slot == "beard" and rng.randi() % 3 == 0:
 			continue   # 三分之一無鬚
+		if slot == "mark" and rng.randi() % 8 != 0:
+			continue   # 面紋只有入魔者才有，八分之一
 		chosen[slot] = codes[rng.randi() % codes.size()]
 	# 先定髮式（前後髮成對），再只從相容的冠帽裡挑（含不戴）
 	var look := PortraitRecipe.pair_hair_hat(catalog, rng.randi())

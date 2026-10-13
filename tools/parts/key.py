@@ -96,7 +96,7 @@ def split_subs(img, subs):
     return masks
 
 
-def to_key(img, mask):
+def to_key(img, mask, force=None):
     """把 mask 內的像素轉成連續灰階的明度鍵，回傳 (RGBA 圖, 統計)。
 
     以不透明像素的亮度做 4 群 1D k-means，找出墨線、陰影、底色、高光的中心；然後以單調分段線性曲線把亮度對到 0x00/0x55/0xAA/0xFF：
@@ -135,6 +135,8 @@ def to_key(img, mask):
             level_of[i] = "shadow"
     if darker and (gmean[darker[0]] <= INK_MAX or gmean[darker[0]] < 0.6 * gmean[base]):
         level_of[darker[0]] = "ink"
+    if force and g == 0:   # 稿只有一個明度群（沒畫墨線與陰影）：指定它落在哪一階，眉在深膚色上才不會與髮色同調而太淡
+        level_of[0] = force
     gids = [i for i in range(g + 1) if (gid == i).any()]
     mean = {i: float(vals[gid == i].mean()) for i in gids}
     # 曲線的控制點：平台兩端 (亮度, 輸出灰階)
@@ -198,7 +200,7 @@ def key(name):
             out[out[..., 3] == 0, :3] = 0
             stats = {"fixed": True}
         else:
-            out, stats = to_key(img, m)
+            out, stats = to_key(img, m, spec.get("force_level", {}).get(sub))
             if out is None:
                 continue
         path = P.TMP + f"key/{name}.{sub}.png"

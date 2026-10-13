@@ -84,6 +84,32 @@
     }
    },
    "time": "2026-10-13 19:12:18"
+  },
+  {
+   "source": ".shiftblame/tmp/parts/portrait/collect/brows-2.png",
+   "levels": {
+    "ink": 0,
+    "shadow": 85,
+    "base": 170,
+    "high": 255
+   },
+   "subs": {
+    "brow": {
+     "file": ".shiftblame/tmp/parts/portrait/key/brows-2.brow.png",
+     "pixels": 475,
+     "dye": "hair",
+     "centers": [
+      77.1
+     ],
+     "share": [
+      1.0
+     ],
+     "levels": [
+      "shadow"
+     ]
+    }
+   },
+   "time": "2026-10-13 20:47:33"
   }
  ],
  "check": [

@@ -40,6 +40,8 @@ def main():
     os.makedirs(DEST, exist_ok=True)
     items = []
     for name, spec in P.PARTS.items():
+        if name in P.RETIRED:
+            continue
         for sub in spec["subs"]:
             path = P.TMP + f"key/{name}.{sub}.png"
             if not os.path.exists(path):
