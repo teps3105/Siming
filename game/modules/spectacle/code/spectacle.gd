@@ -121,6 +121,9 @@ func spec_of(event: Dictionary) -> Dictionary:
 		"Tribulation":
 			spec["outcome"] = str(event.get("x", "Passed"))
 			spec["bolts"] = clampi(int(event.get("n", 2)) + 1, 3, 9)
+			var who := _principal(event)
+			spec["person"] = who
+			spec["given"] = FigureActor.given_from_person(_sim.world.person(who)) if who >= 0 and _sim != null else {}
 		"ThreadResolved":
 			spec["thread_kind"] = maxi(KarmaLayer.KIND_KEYS.find(str(event.get("x", "")).to_lower()), 0)
 			var near := pos
@@ -131,6 +134,14 @@ func spec_of(event: Dictionary) -> Dictionary:
 				near = near + Vector2(FALLBACK_SPREAD, 0.0)
 			spec["ends"] = [far, near]
 	return spec
+
+
+## 事件的當事人編號：a_person，沒有就取 persons 的第一位，都沒有為 -1。
+func _principal(event: Dictionary) -> int:
+	var who := int(event.get("a_person", -1))
+	if who < 0 and event.has("persons") and (event["persons"] as PackedInt32Array).size() > 0:
+		who = (event["persons"] as PackedInt32Array)[0]
+	return who
 
 
 ## 了結欠債方一端：事件字典若給了 a_pos 就用它（橋接補欄位後的正途），否則取人物目前的所在格。
@@ -190,6 +201,11 @@ func _in_view(spec: Dictionary) -> bool:
 		if s.is_finite() and rect.has_point(s):
 			return true
 	return false
+
+
+## 鏡頭拉得太遠（高度超過地圖寬的 FigureActor.MAX_CAMERA_FRACTION）時小人不畫（8.11）。
+func figure_hidden() -> bool:
+	return FigureActor.too_far(_camera.z, _map.map_size.x)
 
 
 ## 介面單位（線寬、半徑乘它）。
@@ -257,7 +273,8 @@ func _place(stage: SpectacleStage, item: Dictionary) -> void:
 	stage.global_transform = Transform3D(_up_basis(world).scaled(Vector3.ONE * radius), world)
 	# 光柱要貫到畫面頂端：正交鏡頭下鉛直 1 單位在螢幕上約 cos(俯角) 像素乘每單位像素數。
 	var beam_height := maxf((screen.y + 40.0) / (px * cos(MapView.pitch())) / radius, 2.0)
-	stage.tick(maxf(age, 0.0), {"scale": radius, "u": u, "px_world": 1.0 / px, "beam_height": beam_height})
+	stage.tick(maxf(age, 0.0), {"scale": radius, "u": u, "px_world": 1.0 / px, "beam_height": beam_height,
+		"camera": _camera, "up": _up_basis(world).y, "figure_hidden": figure_hidden()})
 
 
 func _place_thread(stage: SpectacleStage, item: Dictionary, age: float, u: float, near_x: float) -> void:
