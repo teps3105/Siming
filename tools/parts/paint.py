@@ -2,7 +2,7 @@
 
     python tools/parts/paint.py <部件代號> [--try N] [--seed S] [--base m|f] [--steps 25]
 
-部件代號見 portrait.py 的 PARTS（如 hair-bun、eyes-a、brows-a、beard-3、collar-dao-mid）。
+部件代號見 portrait.py 的 PARTS（如 face-m0、front_hair-topknot、eyes-m0、brows-0、beard-goatee、collar-dao_plain）。
 輸入：底版（性別由 PARTS 指定或 --base）為第一張，畫風基準圖為第二張。
 輸出：.shiftblame/tmp/parts/portrait/paint/<部件>-t<N>.png（畫家原圖，不入庫），
       sources/parts/portrait/<部件>.json 的 "paint" 清單追加一筆（輸入雜湊、指示、模型、參數、種子、輸出雜湊、耗時）。
