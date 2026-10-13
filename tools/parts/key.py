@@ -158,8 +158,6 @@ def key(name):
     if not os.path.exists(src):
         src = P.TMP + f"collect/{name}.png"
     rgba = cv2.cvtColor(cv2.imread(src, cv2.IMREAD_UNCHANGED), cv2.COLOR_BGRA2RGBA)
-    if spec["slot"] == "face":
-        rgba = clip_face(rgba)
     img = shrink(rgba)
     masks = split_subs(img, spec["subs"])
     os.makedirs(P.TMP + "key", exist_ok=True)

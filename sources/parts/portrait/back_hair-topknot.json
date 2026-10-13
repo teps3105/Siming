@@ -304,6 +304,51 @@
     }
    },
    "time": "2026-10-13 17:41:13"
+  },
+  {
+   "metrics": {
+    "back_hair-topknot.hair": {
+     "edge_len": 416,
+     "bare_edge": 7,
+     "bare_ratio": 0.017,
+     "blobs": 1,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 4048
+    }
+   },
+   "time": "2026-10-13 18:00:15"
+  },
+  {
+   "metrics": {
+    "back_hair-topknot.hair": {
+     "edge_len": 416,
+     "bare_edge": 7,
+     "bare_ratio": 0.017,
+     "blobs": 1,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 4048
+    }
+   },
+   "time": "2026-10-13 18:01:24"
+  },
+  {
+   "metrics": {
+    "back_hair-topknot.hair": {
+     "edge_len": 416,
+     "bare_edge": 7,
+     "bare_ratio": 0.017,
+     "blobs": 1,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.0,
+     "pixels": 4048
+    }
+   },
+   "time": "2026-10-13 18:34:23"
   }
  ]
 }

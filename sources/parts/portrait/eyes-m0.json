@@ -203,6 +203,111 @@
     }
    },
    "time": "2026-10-13 17:41:13"
+  },
+  {
+   "metrics": {
+    "eyes-m0.iris": {
+     "edge_len": 76,
+     "bare_edge": 76,
+     "bare_ratio": 1.0,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.224,
+     "pixels": 92
+    },
+    "eyes-m0.rest": {
+     "edge_len": 119,
+     "bare_edge": 4,
+     "bare_ratio": 0.034,
+     "blobs": 6,
+     "specks": 4,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 123
+    },
+    "eyes-m0.union": {
+     "edge_len": 123,
+     "bare_edge": 16,
+     "bare_ratio": 0.13,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 215
+    }
+   },
+   "time": "2026-10-13 18:00:15"
+  },
+  {
+   "metrics": {
+    "eyes-m0.iris": {
+     "edge_len": 76,
+     "bare_edge": 76,
+     "bare_ratio": 1.0,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.224,
+     "pixels": 92
+    },
+    "eyes-m0.rest": {
+     "edge_len": 119,
+     "bare_edge": 4,
+     "bare_ratio": 0.034,
+     "blobs": 6,
+     "specks": 4,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 123
+    },
+    "eyes-m0.union": {
+     "edge_len": 123,
+     "bare_edge": 16,
+     "bare_ratio": 0.13,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 215
+    }
+   },
+   "time": "2026-10-13 18:01:24"
+  },
+  {
+   "metrics": {
+    "eyes-m0.iris": {
+     "edge_len": 76,
+     "bare_edge": 76,
+     "bare_ratio": 1.0,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0.224,
+     "pixels": 92
+    },
+    "eyes-m0.rest": {
+     "edge_len": 119,
+     "bare_edge": 4,
+     "bare_ratio": 0.034,
+     "blobs": 6,
+     "specks": 4,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 123
+    },
+    "eyes-m0.union": {
+     "edge_len": 123,
+     "bare_edge": 16,
+     "bare_ratio": 0.13,
+     "blobs": 2,
+     "specks": 0,
+     "holes": 0,
+     "high_on_edge": 0,
+     "pixels": 215
+    }
+   },
+   "time": "2026-10-13 18:34:23"
   }
  ]
 }

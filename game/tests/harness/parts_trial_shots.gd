@@ -10,6 +10,9 @@ const PALETTES := [
 	{"skin": "b07e58", "hair": "7a4c32", "robe": "56806c", "trim": "c9a246", "iris": "3a7860"},
 ]
 var _out := "user://parts_trial_shots"
+## --set=代號,代號…：三色並排改用指定的款（修缺陷前後對照用同一組款）；--name=檔名（預設 stack_x3）
+var _set: PackedStringArray = []
+var _name := "stack_x3"
 
 
 func _initialize() -> void:
@@ -23,14 +26,17 @@ func _tints(pal: Dictionary) -> Dictionary:
 	return out
 
 
-## 目錄裡每格的第一款，由後往前。
+## 目錄裡每格的第一款（only 不空時只放那一款），由後往前。
 func _recipe(catalog: PartCatalog, pal: Dictionary, only := "") -> Dictionary:
 	var items: Array[Dictionary] = []
 	for slot in catalog.slots():
 		for code in catalog.parts_in(slot):
+			if not _set.is_empty() and not _set.has(code):
+				continue
 			if only == "" or only == code:
 				items.append({"part": code, "tints": _tints(pal)})
-			break
+				if only == "":
+					break
 	return {"items": items, "halo": 0}
 
 
@@ -45,6 +51,10 @@ func _main() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--out="):
 			_out = arg.trim_prefix("--out=")
+		elif arg.begins_with("--set="):
+			_set = arg.trim_prefix("--set=").split(",")
+		elif arg.begins_with("--name="):
+			_name = arg.trim_prefix("--name=")
 	DirAccess.make_dir_recursive_absolute(_out)
 	var catalog := PartCatalog.load_class(CLASS_ID)
 	if catalog == null:
@@ -58,7 +68,7 @@ func _main() -> void:
 		sheet.blit_rect(img, Rect2i(Vector2i.ZERO, img.get_size()), Vector2i(320 * i, 0))
 	var big := sheet.duplicate() as Image
 	big.resize(sheet.get_width() * 3, sheet.get_height() * 3, Image.INTERPOLATE_NEAREST)
-	big.save_png(_out.path_join("stack_x3.png"))
+	big.save_png(_out.path_join(_name + ".png"))
 	# 二、每款單層在紙色底與墨色底
 	var codes: Array[String] = []
 	for slot in catalog.slots():

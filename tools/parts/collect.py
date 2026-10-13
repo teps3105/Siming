@@ -48,7 +48,7 @@ def bg_color(img):
     return np.median(pts, 0).astype(int)
 
 
-def collect_face(key="face-m0", n=1):
+def collect_face(key="face-m0", n=1, as_base=False):
     """臉：畫家把底版去掉內衫、補完頸肩、背景換純綠；以背景色解混去背，邊緣像素還原成前景色，不留亮邊。
     也把畫家原圖存成之後所有部件的底版 sources/parts/portrait/base-face-m.png。"""
     src = P.TMP + f"paint/{key}-t{n}.png"
@@ -74,7 +74,8 @@ def collect_face(key="face-m0", n=1):
     path = P.TMP + f"collect/{key}.png"
     cv2.imwrite(path, cv2.cvtColor(out, cv2.COLOR_RGBA2BGRA))
     import shutil
-    shutil.copy(src, P.base_path(P.PARTS[key]["sex"]))
+    if as_base:
+        shutil.copy(src, P.base_path(P.PARTS[key]["sex"]))
     info = {"from": f"paint/{key}-t{n}.png", "bg": G.astype(int).tolist(), "pixels": int((a > 0.5).sum()), "output": path}
     P.log(key, "collect", info)
     print(key, info)
@@ -97,12 +98,15 @@ def collect(key, n=1, thr=38, min_area=250, thick=6.0, keep_skin=False):
         hsv = cv2.cvtColor(warped, cv2.COLOR_RGB2HSV).astype(np.float32)
         hue, sat, val = hsv[..., 0] * 2, hsv[..., 1] / 255, hsv[..., 2] / 255
         raw &= ~((hue > 10) & (hue < 45) & (sat > 0.18) & (val > 0.55))
+    if spec.get("gray"):   # 灰階稿的件：帶彩度的像素（底版皮膚的陰影、對位殘留）不是這一件
+        hs = cv2.cvtColor(warped, cv2.COLOR_RGB2HSV)
+        raw &= hs[..., 1] < 0.16 * 255
     if spec.get("extract") == "color":
         # 新畫的東西與底版被它蓋住的東西明度色相相近時（灰青道袍蓋灰青內衫），相減會留洞；改取「不是膚色、不是紙色」的像素，
         # 以 7×7 開運算切掉頸輪廓之類的細線，再向外長 4 像素與原遮罩取交集，把部件自己的墨邊找回來。
         hsv = cv2.cvtColor(warped, cv2.COLOR_RGB2HSV).astype(np.float32)
         hue, sat, val = hsv[..., 0] * 2, hsv[..., 1] / 255, hsv[..., 2] / 255
-        skin = (hue > 16) & (hue < 45) & (sat > 0.18) & (sat < 0.62) & (val > 0.5)
+        skin = (hue > 10) & (hue < 50) & (sat > 0.07) & (sat < 0.62) & (val > 0.4)   # 含皮膚陰影的低彩度灰褐（V 領口內緣的淺塊來自這裡）
         paper = np.abs(warped.astype(int) - bg_color(base)[None, None]).max(2) < 60   # 純綠底
         cand = (zone & ~skin & ~paper)
         core = cv2.morphologyEx(cand.astype(np.uint8), cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9)))
@@ -161,9 +165,10 @@ if __name__ == "__main__":
     ap.add_argument("--try", dest="n", type=int, default=1)
     ap.add_argument("--thr", type=int, default=38)
     ap.add_argument("--thick", type=float, default=6.0)
+    ap.add_argument("--as-base", action="store_true")
     ap.add_argument("--keep-skin", action="store_true")
     a = ap.parse_args()
     if P.PARTS[a.part].get("zone") is None:
-        collect_face(a.part, a.n)
+        collect_face(a.part, a.n, a.as_base)
     else:
         collect(a.part, a.n, a.thr, thick=a.thick, keep_skin=a.keep_skin)
