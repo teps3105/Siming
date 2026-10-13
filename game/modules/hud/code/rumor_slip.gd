@@ -14,8 +14,8 @@ signal person_requested(person: int)
 ## 點了「溯因」（或統計名單一行的「溯因」）：開這則事件的事件卡。
 signal trace_requested(event: int)
 
-const WIDTH := 300.0
-const EXPANDED_WIDTH := 360.0
+const WIDTH := 370.0
+const EXPANDED_WIDTH := 430.0
 const ITEM_HEIGHT := 32.0
 const ITEM_GAP := 5.0
 const HEADER_HEIGHT := 26.0
@@ -135,6 +135,7 @@ func post(event: Dictionary) -> bool:
 		"kind": event["kind"],
 		"tick": event["tick"],
 		"year": event.get("year", 0),
+		"era": event.get("date_era", ""),
 		"month": EventText.month_of(event),
 		"importance": importance,
 		"world": world,
@@ -337,6 +338,7 @@ func _make_group(gkey: String, members: Array) -> Dictionary:
 		"kind": first["kind"],
 		"tick": first["tick"],
 		"year": first["year"],
+		"era": first["era"],
 		"month": first["month"],
 		"importance": importance,
 		"world": false,
@@ -753,7 +755,7 @@ func _draw_row(entry: Dictionary, rect: Rect2, index: int, note: int) -> void:
 		# 游標在小印上：年月讓位，把寬度留給那句話。
 		tail = ""
 	else:
-		tail = EventText.stamp(int(entry.get("year", 0)), int(entry["month"]))
+		tail = EventText.era_stamp(entry.get("era", ""), int(entry.get("year", 0)), int(entry["month"]))
 	var key_width := Ink.key_glyph_width(key, _unit)
 	if not key.is_empty():
 		right -= key_width

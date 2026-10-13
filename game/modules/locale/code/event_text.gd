@@ -42,6 +42,13 @@ static func stamp(year: int, month: int) -> String:
 	return Locale.t("rumor_month").format({"y": year, "m": month})
 
 
+## 傳聞簽的年月：帶紀元號，「咸寧 43年 12月」；沒有紀元名時退回「43年12月」。
+static func era_stamp(era: String, year: int, month: int) -> String:
+	if era.is_empty():
+		return stamp(year, month)
+	return Locale.t("rumor_era_month").format({"e": era, "y": year, "m": month})
+
+
 ## 低境界身死時可以同月同死因合成統計的死因（7.2）；被殺（有兇手與宿緣脈絡）與飛升、涅槃、成聖不在內。
 const MERGE_CAUSES := ["Age", "BreakthroughFailed", "Tribulation", "ShedBody", "Smite", "War", "Plague", "Famine", "Kalpa"]
 ## 死於天劫的兩種死因：當事人是在衝擊下一境時身死，境界要再加一階才是他正要去的境界。

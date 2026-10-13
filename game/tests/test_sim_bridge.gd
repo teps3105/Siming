@@ -450,6 +450,7 @@ func test_gdd_6_4_events_carry_what_the_templates_need() -> void:
 			var line := EventText.line(event)
 			assert_false(line.contains("{") or line.begins_with("event_") or line == Locale.t("event_unknown"), "「%s」有對應的模板：%s" % [event["kind"], line])
 			assert_eq(EventText.seal(event["kind"]).length(), 2, "印是二字詞")
+			assert_false(String(event["date_era"]).is_empty(), "事件帶當時的紀元名")
 	assert_gt(kinds.size(), 8, "四百年裡出現多種事件")
 	assert_gt(located, 0, "有地點的事件帶 pos")
 	assert_gt(named, 0, "人物事件帶人名")

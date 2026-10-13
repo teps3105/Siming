@@ -1312,7 +1312,9 @@ impl SimWorld {
         }
         let souls: Vec<i32> = e.souls.iter().map(|&s| s as i32).collect();
         d.set("souls", &PackedInt32Array::from(souls.as_slice()));
-        d.set("year", siming_sim::calendar::era_year(e.tick, w.evolution.history_years, &w.eras).1 as i32);
+        let (date_era, year) = siming_sim::calendar::era_year(e.tick, w.evolution.history_years, &w.eras);
+        d.set("date_era", &GString::from(date_era.name.as_str()));
+        d.set("year", year as i32);
         d.set("month", siming_sim::calendar::date(e.tick).month as i32);
         // 可追對象：牽涉的人物與勢力編號（州郡編號為 province）。
         let person_ids: Vec<i32> = e.persons.iter().map(|&i| i as i32).collect();

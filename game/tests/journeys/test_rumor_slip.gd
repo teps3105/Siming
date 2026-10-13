@@ -280,14 +280,14 @@ func test_desktop_sizes_match_the_layout_table() -> void:
 	_post(_event("Killed", 3, 100))
 	_post(_event("Killed", 3, 120, {"souls": PackedInt32Array([1])}))
 	await frames(2)
-	assert_eq(_rumor.header_rect().size.x, 300.0, "傳聞簽寬 300")
+	assert_eq(_rumor.header_rect().size.x, 370.0, "傳聞簽寬 370")
 	assert_eq(_rumor.row_rect(0).size.y, 32.0, "每張高 32")
 	assert_eq(_rumor.row_rect(1).position.y - _rumor.row_rect(0).end.y, 5.0, "間距 5")
 	var bounds := Vector2(tree.root.get_visible_rect().size)
 	assert_eq(_rumor.occupied_rect().end.x, bounds.x - 12.0, "右上角內縮 12")
 	assert_eq(_rumor.occupied_rect().position.y, 12.0)
 	_rumor.expanded = true
-	assert_eq(_rumor.header_rect().size.x, 360.0, "展開清單寬 360")
+	assert_eq(_rumor.header_rect().size.x, 430.0, "展開清單寬 430")
 
 
 func test_layout_scale_applies_to_the_slip() -> void:
@@ -296,4 +296,4 @@ func test_layout_scale_applies_to_the_slip() -> void:
 	_hud._layout()
 	await frames(3)
 	_rumor = _hud.rumor()
-	assert_eq(_rumor.header_rect().size.x, 450.0, "介面縮放 1.5 倍，寬 300 變 450")
+	assert_eq(_rumor.header_rect().size.x, 555.0, "介面縮放 1.5 倍，寬 370 變 555")

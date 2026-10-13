@@ -475,6 +475,7 @@
   "group_Died_Kalpa": "本月 {N} 人亡於量劫",
   "rumor_person": "看人物",
   "card_history_date_short": "{Y}年 {M}月",
+  "rumor_era_month": "{e} {y}年 {m}月",
   "event_Judged_own": "魂判入{X}",
   "group_TribulationOmen": "本月 {N} 處山門劫雲將聚",
   "group_ComeOfAge": "本月 {N} 人入道",
