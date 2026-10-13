@@ -588,7 +588,7 @@ func test_gdd_3_5_sect_list_follows_the_world_over_time() -> void:
 
 
 ## 走遍所有人物，回傳 [在世歷程最長者, 已歿歷程最長者] 的編號。
-func _richest_people(world: SimWorld) -> Array[int]:
+func _richest_people(world: SimWorld, died_after := -1) -> Array[int]:
 	var best_alive := -1
 	var best_dead := -1
 	var most_alive := -1
@@ -600,7 +600,7 @@ func _richest_people(world: SimWorld) -> Array[int]:
 			if count > most_alive:
 				most_alive = count
 				best_alive = id
-		elif count > most_dead:
+		elif count > most_dead and int(world.person(id)["died_tick"]) > died_after:
 			most_dead = count
 			best_dead = id
 		id += 1
@@ -644,14 +644,16 @@ func test_gdd_5_8_person_card_fields() -> void:
 
 func test_gdd_5_8_person_history_is_ordered_and_matches_the_ledger() -> void:
 	var world := SimWorld.new()
-	world.create(SEED, "small")
+	world.create_with({"seed": SEED, "size": "small", "rng_seed": 7})
 	world.drain_events()
+	var since := world.tick()
 	var stream := {}
 	for step in 40:
 		world.step(12)
 		for event: Dictionary in world.drain_events():
 			stream[event["id"]] = event
-	var picks := _richest_people(world)
+	# 已歿者只挑事件流開始之後才身故的，預跑期間身故的人沒有身故事件可對。
+	var picks := _richest_people(world, since)
 	assert_gt(picks[0], -1, "有在世者")
 	assert_gt(picks[1], -1, "四十年後有已歿者")
 	for id in picks:
