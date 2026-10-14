@@ -536,11 +536,11 @@ static func _build(look: Dictionary, pose: Variant, time: float, fills: Array[Pa
 	if look["cape"] and not seated:
 		# 大氅的肩頭有個最小寬度：肩窄的人兩個點擠在一起，輪廓會打結。
 		var drape := maxf(s, 0.095)
-		fills.append(smooth_outline([
+		fills.append(_simple(smooth_outline([
 			neck + Vector2(drape * 0.2, 0.034), neck + Vector2(drape * 0.7, 0.014), neck + Vector2(drape * 1.02 + 0.02, 0.068 + tip + slope), hip + Vector2(g + 0.07 + w * 0.6, -0.05),
 			Vector2(hip.x + f + 0.07 + w * 2.2, -0.10 - w * 0.5), Vector2(hip.x + f + 0.02 + w * 1.6 + 0.015 * sway, -0.04),
 			Vector2(hip.x + f * 0.6, -0.18), hip + Vector2(g * 0.5, -0.02),
-		]))
+		])))
 		lines.append(PackedVector2Array([near + Vector2(0.03, 0.12), hip + Vector2(g + 0.08 + w, 0.1), Vector2(hip.x + f + 0.03 + w * 1.6, -0.12)]))
 	_cut(cuts, fills, lines, bands, CAPE)
 	_stage(cuts, Layer.SHAWL)
@@ -590,7 +590,7 @@ static func _build(look: Dictionary, pose: Variant, time: float, fills: Array[Pa
 			Vector2(hip.x + f * 0.8 + w + hem_back * 0.5, -0.22 + hem * 0.4), hip + Vector2(g + 0.03 + w * 0.3, 0.05), hip + Vector2(g + 0.006, -0.03),
 		])
 	body.append_array([neck + Vector2(s * 0.98, 0.17), near, neck + Vector2(s * 0.7, 0.018), neck + Vector2(0.03, 0.0)])
-	fills.append(smooth_outline(body))
+	fills.append(_simple(smooth_outline(body)))
 
 	# 腰帶的高度。女裝的裙繫在胸下：裙是另一塊、另一個顏色，蓋在上襦外面，自胸下往下放開。
 	var waist_y := hip.y - (0.05 if seated else 0.03)
@@ -614,7 +614,7 @@ static func _build(look: Dictionary, pose: Variant, time: float, fills: Array[Pa
 				Vector2(hip.x + f * 0.86 + w, -0.22), Vector2(hip.x + g * 1.1 + 0.034 + w * 0.3, hip.y + 0.02),
 			])
 		skirt.append(Vector2(hip.x + waist_half, waist_y))
-		fills.append(smooth_outline(skirt))
+		fills.append(_simple(smooth_outline(skirt)))
 	if monk:
 		# 袈裟：自靠外的肩斜披到前腰，兩道邊，中間是袈裟的顏色。
 		bands.append([PackedVector2Array([neck + Vector2(s * 0.82, 0.065), neck + Vector2(-s * 0.05, 0.18), Vector2(hip.x - g * 0.9, waist_y + 0.075)]), TRIM, 0.045])

@@ -21,6 +21,7 @@ import bpy
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import actions  # noqa: E402
+import poses2d  # noqa: E402
 import build  # noqa: E402
 
 AZIMUTH = math.radians(45.0)
@@ -192,6 +193,7 @@ def main(path):
             poses.append(r5(pose))
         result["actions"][name] = {"loop": spec["loop"], "loop_start": spec["loop_start"], "length": spec["frames"],
                                    "events": spec["events"], "poses": poses}
+    result["actions"].update(poses2d.build())  # 肢體動作以 2D 關節直接寫（poses2d.py），匯出時一併合入
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     with open(path, "w", encoding="utf-8") as handle:
         json.dump(result, handle, ensure_ascii=False, separators=(",", ":"))

@@ -70,20 +70,20 @@ func test_gdd_5_13_table_maps_each_event_to_its_action_sequence() -> void:
 		[_event("FeudEscalated"), [["strike"], ["fall"]]],
 		[_event("ThreadResolved", {"x": "Feud"}), [["strike"], ["fall"]]],
 		[_event("ThreadResolved", {"x": "Feud", "survivor_alive": true}), [["strike"], ["brace"]]],
-		[_event("ThreadResolved", {"x": "Grace"}), [["bow"], ["bow"]]],
-		[_event("ThreadResolved", {"x": "Love"}), [["bow"], ["bow"]]],
+		[_event("ThreadResolved", {"x": "Grace"}), [["offer"], ["receive"]]],
+		[_event("ThreadResolved", {"x": "Love"}), [["clasp", "away"], ["clasp", "away"]]],
 		[_event("ThreadResolved", {"x": "Grudge"}), [["bow"], ["bow"]]],
-		[_event("ThreadResolved", {"x": "Mentor"}), [["bow"], ["bow"]]],
-		[_event("Died", {"x": "Age"}), [["fall"]]],
+		[_event("ThreadResolved", {"x": "Mentor"}), [["kneel"], ["turn"]]],
+		[_event("Died", {"x": "Age"}), [["slump"]]],
 		[_event("Died", {"x": "Plague"}), [["fall"]]],
-		[_event("Breakthrough", {"n": 2}), [["seal", "rise"]]],
+		[_event("Breakthrough", {"n": 2}), [["sit", "rise"]]],
 		[_event("Ascended"), [["rise"]]],
 		[_event("FellToDemon"), [["seal", "struck"]]],
-		[_event("ThreadCreated", {"x": "Mentor"}), [["bow"], ["stand"]]],
-		[_event("Married"), [["bow"], ["bow"]]],
+		[_event("ThreadCreated", {"x": "Mentor"}), [["kneel"], ["bless"]]],
+		[_event("Married"), [["bow", "clasp"], ["bow", "clasp"]]],
 		[_event("Succession"), [["bow"]]],
 		[_event("PowerFounded"), [["seal"]]],
-		[_event("SectSplit"), [["seal"]]],
+		[_event("SectSplit"), [["turn"]]],
 		[_event("Traveled", {"x": "Out", "q_province": 3}), [["walk"]]],
 		[_event("Traveled", {"x": "Back", "q_province": 3}), [["walk"]]],
 	]
@@ -118,7 +118,7 @@ func test_gdd_5_13_the_fall_starts_at_the_strike_hit_and_the_action_spans_both()
 	assert_true(is_equal_approx(float(plan["action_len"]), hit + FigureMotion.length("fall")), "動作段到倒地播完")
 	var seq := EventScript.plan(_event("Breakthrough"))
 	var steps: Array = seq["actors"][0]["steps"]
-	assert_true(is_equal_approx(float(steps[1]["start"]), FigureMotion.length("seal")), "結印播完接浮空")
+	assert_true(is_equal_approx(float(steps[1]["start"]), FigureMotion.length("sit")), "盤坐播完接浮空")
 
 
 func test_gdd_5_13_accepts_filters_by_kind_and_parameter_without_building_anything() -> void:
@@ -404,9 +404,9 @@ func test_gdd_5_13_resolved_mentor_has_a_row_with_the_apprentice_as_a() -> void:
 	var plan := EventScript.plan(event)
 	assert_eq(int(plan["actors"][0]["person"]), 4, "a 是徒（同 ThreadCreated:Mentor）")
 	assert_eq(int(plan["actors"][1]["person"]), 7, "b 是師")
-	assert_eq(_actions(plan), [["bow"], ["bow"]], "兩人列沒有走開，退成兩人相向行禮")
+	assert_eq(_actions(plan), [["kneel"], ["turn"]], "徒跪別、師拂袖轉身（兩人列沒有走開，原地背過身）")
 	var gone := EventScript.plan(_event("ThreadResolved", {"x": "Mentor", "a_person": -1, "b_person": 7}))
-	assert_eq(_actions(gone), [["bow"]], "一方不在場只演另一方，同 Grace")
+	assert_eq(_actions(gone), [["turn"]], "一方不在場只演另一方，同 Grace")
 
 
 func test_gdd_5_13_every_thread_kind_has_a_resolved_row() -> void:

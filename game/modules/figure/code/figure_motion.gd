@@ -6,14 +6,14 @@ extends RefCounted
 ##
 ## 檔案格式：{"version", "fps", "actions": {名稱: {"loop", "loop_start", "length"（格數）, "events": {名稱: 格號},
 ## "poses": [length + 1 格，每格 {hip, neck, elbow_f, hand_f, elbow_b, hand_b: [x, y], head_roll, wind, seated, point, anchors: {名稱: [x, y]}，
-## 選用 foot_f、foot_b: [x, y]（雙腳位移）、body_roll、body_lift、body_pivot: [x, y]（整體剛體變換）}]}}}。
+## 選用 foot_f、foot_b: [x, y]（雙腳位移）、body_roll、body_lift、body_pivot: [x, y]（整體剛體變換）、flip（左右翻面）}]}}}。
 ## 座標與 CultivatorFigure 相同：成人身高為 1、腳下為原點、−y 向上、人朝 −x；_f 離看畫的人遠（人物的右手），_b 近（左手）。
 
 const PATH := "res://modules/figure/resources/actions.json"
 const VECTOR_KEYS := ["hip", "neck", "elbow_f", "hand_f", "elbow_b", "hand_b"]
-## 部分動作才有的選用關節：雙腳位移（步行）、整體剛體變換（倒地、浮空）。資料沒有就不放進姿勢字典，畫法回到舊樣子。
+## 部分動作才有的選用關節：雙腳位移（步行）、整體剛體變換（倒地、浮空）、左右翻面 flip（轉身，1 是原朝向、−1 是翻到另一面，0 是側薄的一線）。資料沒有就不放進姿勢字典，畫法回到舊樣子。
 const OPTIONAL_VECTORS := ["foot_f", "foot_b", "body_pivot"]
-const OPTIONAL_FLOATS := ["body_roll", "body_lift"]
+const OPTIONAL_FLOATS := ["body_roll", "body_lift", "flip"]
 
 static var _data := {}
 static var _fps := 24.0
