@@ -326,8 +326,11 @@ pub fn faith_color_table(provinces: &[Province]) -> Vec<u8> {
 }
 
 /// 州郡名的位置（GDD 5.3「文字標籤」）：州郡內離州界最遠的那一格（東西相接）；
-/// 同樣遠的取最靠近重心者，再同則取編號最小者。`cells` 不可為空。
-pub fn province_label_cell(cells: &[u32], grid_w: usize, grid_h: usize) -> u32 {
+/// 同樣遠的取最靠近重心者，再同則取編號最小者。州郡的格全數沒入海中（`cells` 為空）時沒有位置，回 `None`。
+pub fn province_label_cell(cells: &[u32], grid_w: usize, grid_h: usize) -> Option<u32> {
+    if cells.is_empty() {
+        return None;
+    }
     use std::collections::{BTreeMap, VecDeque};
     let index: BTreeMap<u32, usize> = cells.iter().enumerate().map(|(i, &c)| (c, i)).collect();
     let neighbours = |c: u32| {
@@ -388,7 +391,7 @@ pub fn province_label_cell(cells: &[u32], grid_w: usize, grid_h: usize) -> u32 {
             best_d2 = d2;
         }
     }
-    best
+    Some(best)
 }
 
 // ---------------------------------------------------------------- 地形網格
@@ -702,12 +705,12 @@ mod tests {
                 cells.push((y * w + x) as u32);
             }
         }
-        let cell = province_label_cell(&cells, w, h);
+        let cell = province_label_cell(&cells, w, h).unwrap();
         assert_eq!(cell, (2 * w + 3) as u32, "5×3 的長方形：中心是正中那一格");
         // 加上一條往下的細尾巴，中心不該被拉到尾巴上。
         cells.push((4 * w + 1) as u32);
         cells.push((5 * w + 1) as u32);
-        let cell = province_label_cell(&cells, w, h);
+        let cell = province_label_cell(&cells, w, h).unwrap();
         assert_eq!(cell as usize / w, 2, "中心仍在橫條的中間那一列");
         assert!(cells.contains(&cell));
     }
@@ -722,8 +725,15 @@ mod tests {
                 cells.push((y * w + x) as u32);
             }
         }
-        let cell = province_label_cell(&cells, w, h);
+        let cell = province_label_cell(&cells, w, h).unwrap();
         assert_eq!(cell as usize / w, 2);
         assert!([7usize, 0].contains(&(cell as usize % w)), "中心貼著接縫：{}", cell as usize % w);
+    }
+
+    #[test]
+    fn province_label_skips_a_drowned_province_without_cells() {
+        // 州郡的格全數沒入海中後 cells 為空（GDD 2.8）：沒有地方標州郡名，不可越界。
+        assert_eq!(province_label_cell(&[], 16, 6), None);
+        assert_eq!(province_label_cell(&[21], 16, 6), Some(21));
     }
 }
