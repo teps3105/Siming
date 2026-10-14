@@ -341,7 +341,7 @@ func test_right_stick_moves_the_cursor_and_triggers_are_mouse_buttons() -> void:
 
 
 func test_pad_cursor_can_click_interface_buttons() -> void:
-	await joy_button(JOY_BUTTON_LEFT_STICK)
+	await joy_button(JOY_BUTTON_PADDLE1)
 	_camera.set_cursor_position(_hud._seals.position + _hud._seals._seal_rect(1).get_center())
 	await frames(2)
 	await joy_axis(JOY_AXIS_TRIGGER_LEFT, 1.0, 0.05)
@@ -358,7 +358,7 @@ func test_pad_cursor_can_click_interface_buttons() -> void:
 
 
 func test_right_trigger_held_rotates_with_the_cursor() -> void:
-	await joy_button(JOY_BUTTON_LEFT_STICK)
+	await joy_button(JOY_BUTTON_PADDLE1)
 	var yaw_before := _camera.yaw
 	var hold := InputEventJoypadMotion.new()
 	hold.axis = JOY_AXIS_TRIGGER_RIGHT
@@ -376,7 +376,7 @@ func test_right_trigger_held_rotates_with_the_cursor() -> void:
 
 func test_no_map_hint_while_the_pointer_is_on_an_instrument() -> void:
 	await _aim_at_province(0)
-	await joy_button(JOY_BUTTON_LEFT_STICK)
+	await joy_button(JOY_BUTTON_PADDLE1)
 	await frames(2)
 	assert_eq(_camera._hover_province, 0, "游標在地圖上：顯示游標下的州郡")
 	_camera.set_cursor_position(_hud._seals.position + _hud._seals._seal_rect(0).get_center())
@@ -386,7 +386,7 @@ func test_no_map_hint_while_the_pointer_is_on_an_instrument() -> void:
 
 func test_a_locks_on_to_the_nearest_target_and_cycles() -> void:
 	await _aim_at_province(0)
-	await joy_button(JOY_BUTTON_LEFT_STICK)
+	await joy_button(JOY_BUTTON_PADDLE1)
 	# 把游標放在離治所有一段距離的地方：不必對準，A 會自己吸過去。
 	var seat: Vector2 = _sim.world.province_info(0)["seat"]
 	var seat_screen := _camera.unproject_position(Vector3(seat.x, _map.surface_height(seat.x, seat.y), seat.y))

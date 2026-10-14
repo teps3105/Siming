@@ -130,13 +130,13 @@ func _main() -> void:
 	quit()
 
 
-## 十六倍速跑一分鐘（真實時間），記每幀耗時。
+## 最快一檔跑一分鐘（真實時間），記每幀耗時。
 func _run_perf() -> void:
 	if _no_events:
 		_sim.event_posted.disconnect(_stage.post)
 	_camera.look_at_map(_camera.focus, _map.map_size.x * 0.12, true)
-	_sim.set_speed(SimHost.SPEED_MULTIPLIERS.size() - 1)
-	print("速度 ", _sim.speed_multiplier(), " 倍")
+	_sim.set_speed(SimHost.DAYS_PER_SECOND.size() - 1)
+	print("速度 每秒 ", _sim.days_per_second(), " 日")
 	_sim.set_paused(false)
 	var frames: Array[float] = []
 	var last := Time.get_ticks_usec()

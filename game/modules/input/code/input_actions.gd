@@ -25,8 +25,11 @@ const CARD_CENTER := &"card_center"
 ## 溯因（GDD 5.9）：開目前選取人物的最近一則事件。只綁鍵盤 X；搖桿的 X 仍是置中（情境印環實作前），搖桿以游標加 LT 點「溯因」印。
 const CARD_TRACE := &"card_trace"
 const PAUSE := &"time_pause"
-## 鍵盤的 Tab、搖桿的 Y：切到下一檔速度，到最快再回到最慢。
+## 鍵盤的 Tab、搖桿的 Y：切到下一檔細步速度（每秒 1／2／5／10 日），到最快再回到最慢。
 const SPEED_CYCLE := &"time_speed_cycle"
+## 世界快進（GDD 2.6）：鍵盤 R、搖桿按下左搖桿。點一下開選單選終點；按住超過 FAST_HOLD_SECONDS 改為按住才快進，放開就停。
+## 搖桿右扳機（RT）已是右鍵（按住旋轉），不能再當快進鍵。
+const FAST := &"time_fast"
 ## 搖桿的 Start：開遊戲中選單（GDD 9.1）。
 const MENU := &"menu_open"
 const MODE_NEXT := &"map_mode_next"
@@ -78,6 +81,7 @@ static func bindings() -> Dictionary:
 		CARD_TRACE: [KEY_X],
 		PAUSE: [KEY_SPACE, "joy:%d" % JOY_BUTTON_BACK],
 		SPEED_CYCLE: [KEY_TAB, "joy:%d" % JOY_BUTTON_Y],
+		FAST: [KEY_R, "joy:%d" % JOY_BUTTON_LEFT_STICK],
 		# 遊戲中選單：搖桿 Start；鍵盤的 Esc 在沒有卡片開著時也開它（hud）。
 		MENU: ["joy:%d" % JOY_BUTTON_START],
 		MODE_NEXT: ["joy:%d" % JOY_BUTTON_RIGHT_SHOULDER],

@@ -40,6 +40,10 @@ func setup(sim: SimHost, camera: MapCamera, busy: Callable, suppressed: Callable
 	add_child(_fade)
 	sim.event_posted.connect(_on_event)
 	sim.world_created.connect(director.reset)
+	# 世界快進時導播暫停接手：正在演的收掉，降下的速度不再恢復。
+	sim.fast_forward_started.connect(func() -> void:
+		director.reset()
+		_on_yielded())
 	camera.player_acted.connect(director.player_acted)
 	camera.directed_done.connect(director.arrive)
 	director.go.connect(_on_go)
@@ -62,12 +66,12 @@ func attach_card(card: DirectorCard) -> void:
 func _process(delta: float) -> void:
 	if _sim == null:
 		return
-	director.enabled = GameSettings.flag("director") and not _suppressed.call() and not _camera.is_flying()
+	director.enabled = GameSettings.flag("director") and not _suppressed.call() and not _camera.is_flying() and not _sim.fast_active()
 	director.pace = int(GameSettings.value("director_pace"))
 	director.idle_resume = float(GameSettings.value("director_idle"))
 	speed.enabled = GameSettings.flag("director_slow")
 	director.busy = _busy.call() or _camera.pointer_kind() != &"arrow"
-	director.update(delta, not _sim.paused)
+	director.update(delta, not _sim.paused and not _sim.fast_active())
 	_fade.modulate.a = _camera.directed_fade
 
 

@@ -194,7 +194,7 @@ func test_gamepad_clicks_through_the_cursor_and_shows_pad_keys() -> void:
 	await _boot(FLOW_VIEW)
 	var target := Vector2(50.0, 40.0)
 	_post(_event("Killed", 3, 100, {"pos": target}))
-	await joy_button(JOY_BUTTON_LEFT_STICK)
+	await joy_button(JOY_BUTTON_PADDLE1)
 	await frames(2)
 	assert_true(_rumor.gamepad, "搖桿模式切過去")
 	assert_eq(_rumor._list_key(), "LT", "搖桿的簽頭畫 LT（游標的左鍵）")
@@ -216,7 +216,7 @@ func test_gamepad_edge_hover_scrolls_the_list() -> void:
 	await _boot(FLOW_VIEW)
 	for i in 30:
 		_post(_event("Killed", 3, 100 + i * 20, {"souls": PackedInt32Array([i])}))
-	await joy_button(JOY_BUTTON_LEFT_STICK)
+	await joy_button(JOY_BUTTON_PADDLE1)
 	_rumor.expanded = true
 	await frames(2)
 	var view: Rect2 = _rumor._view_rect()

@@ -13,6 +13,10 @@ static func draw(item: CanvasItem, icon: StringName, center: Vector2, r: float, 
 		&"pause":
 			for x: float in [-0.6, 0.2]:
 				item.draw_rect(Rect2(center + Vector2(x, -0.75) * r, Vector2(0.4, 1.5) * r), color, true)
+		&"fast":
+			# 快進：兩個並排的三角。
+			item.draw_colored_polygon(_at(center, r, [Vector2(-1.0, -0.75), Vector2(-0.05, 0.0), Vector2(-1.0, 0.75)]), color)
+			item.draw_colored_polygon(_at(center, r, [Vector2(0.05, -0.75), Vector2(1.0, 0.0), Vector2(0.05, 0.75)]), color)
 		&"close":
 			_line(item, center, r, [Vector2(-0.7, -0.7), Vector2(0.7, 0.7)], color)
 			_line(item, center, r, [Vector2(-0.7, 0.7), Vector2(0.7, -0.7)], color)

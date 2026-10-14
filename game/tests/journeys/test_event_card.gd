@@ -341,7 +341,7 @@ func test_gamepad_walks_slip_to_card_to_cause_to_person_and_back() -> void:
 	await _boot(FLOW_VIEW)
 	var event := _deep_event()
 	_sim.event_posted.emit(event)
-	await joy_button(JOY_BUTTON_LEFT_STICK)
+	await joy_button(JOY_BUTTON_PADDLE1)
 	await frames(2)
 	var index := _slip_index(int(event["id"]))
 	_rumor.expanded = true

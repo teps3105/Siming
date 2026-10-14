@@ -1,13 +1,16 @@
 class_name TimeDial
 extends Control
 ## GDD 5.7 天時儀：左上圓盤（十二月刻度、朱針、盤心的行止鈕），盤右是寫著日期的題簽，
-## 題簽下是時速簽——「運行中／已暫停」加暫停鍵、疾徐四筆加倍率（1x、5x…）與調速鍵。
+## 題簽下是時速簽——「運行中／已暫停」加暫停鍵、疾徐四筆加每秒日數（1、2、5、10 日/秒）與調速鍵，最右是世界快進鈕。
 ## 每個可操作的地方都有圖像、文字與實體鍵圖像（5.7 原則 7）。支援的決定：現在該停還是該快。
 ## 圓盤外圈兩道弧（GDD 2.8）：左弧寒暖（下寒上暖）、右弧靈潮（下枯上盛），兩端加粗的一段是大寒、大暖、末法、靈氣復甦的範圍；
 ## 朱點是目前的值，朱點旁的箭頭指向下一世結算後的走向；滑鼠停在弧上，題簽右邊出現一張說明簽。
 
 ## 點題簽右端的「冊」印，要求展開天下冊（GDD 5.10）。
 signal almanac_requested
+## 在快進鈕上按下與放開（GDD 2.6）：點一下開終點選單，按住超過一段時間改為按住才快進；由 Hud 判斷。
+signal fast_pressed
+signal fast_released
 
 ## 圓盤半徑含綾邊（直徑 56）；盤心鈕直徑 30。
 const DISC_RADIUS := 28.0
@@ -31,6 +34,10 @@ const PAD := 8.0
 const SPEED_DIGITS := 2
 const DATE_PAD := 12.0
 const PRESSED_PAUSE := 100
+const PRESSED_FAST := 101
+## 快進鈕的半徑與它和前一個鍵的間距。
+const FAST_RADIUS := 9.0
+const FAST_GAP := 10.0
 ## 兩個調速鍵之間的間距。
 const KEY_GAP := 10.0
 ## 題簽右端的「冊」印邊長，與印、鍵右側的留白。
@@ -59,6 +66,9 @@ var _fit := {}
 var _hover_stroke := -1
 var _hover_seal := false
 var _hover_almanac := false
+var _hover_fast := false
+## 快進鈕按著（滑鼠移出也要等到放開）。
+var _fast_down := false
 ## 滑鼠停在哪一道弧上：&""、&"warmth"、&"tide"。
 var _hover_arc := &""
 ## 正按住的地方（按下的回饋）：-1 沒有、0–3 疾徐的某一筆、PRESSED_PAUSE 行止鈕。
@@ -74,6 +84,8 @@ func setup(sim: SimHost, unit: float) -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 	sim.advanced.connect(queue_redraw.unbind(1))
+	sim.fast_forward_started.connect(queue_redraw)
+	sim.fast_forward_finished.connect(queue_redraw.unbind(1))
 	sim.time_state_changed.connect(queue_redraw)
 
 
@@ -178,11 +190,17 @@ func _draw_arc_gauge(kind: StringName) -> void:
 
 
 func _state_label() -> String:
+	if _sim.fast_active():
+		return Locale.t("dial_fast")
 	return Locale.t("dial_paused") if _sim.paused else Locale.t("dial_running")
 
 
 func _speed_label() -> String:
-	return "%d%s" % [_sim.speed_multiplier(), Locale.t("dial_speed_unit")]
+	return "%d%s" % [_sim.days_per_second(), Locale.t("dial_speed_unit")]
+
+
+func _fast_key() -> String:
+	return InputHints.label(InputActions.FAST, gamepad)
 
 
 func _pause_key() -> String:
@@ -273,12 +291,12 @@ func _strokes_width() -> float:
 	return (strokes + STROKE_GAP * (STROKE_COUNT - 1)) * _unit
 
 
-## 時速簽各段的 x 座標：狀態字、暫停鍵、四筆、倍速字、調速鍵、右緣。
+## 時速簽各段的 x 座標：狀態字、暫停鍵、四筆、每秒日數、調速鍵、快進鈕與它的鍵、右緣。
 func _columns() -> Dictionary:
 	var note := Ink.font_size(Ink.SIZE_NOTE, _unit)
 	var x := _slip_left() + PAD * _unit
 	var out := {"state": x}
-	x += maxf(Ink.text_size(Locale.t("dial_paused"), note).x, Ink.text_size(Locale.t("dial_running"), note).x) + 6.0 * _unit
+	x += maxf(Ink.text_size(Locale.t("dial_paused"), note).x, maxf(Ink.text_size(Locale.t("dial_running"), note).x, Ink.text_size(Locale.t("dial_fast"), note).x)) + 6.0 * _unit
 	out["pause_key"] = x
 	x += _widest_key(InputActions.PAUSE) + 14.0 * _unit
 	out["strokes"] = x
@@ -288,7 +306,11 @@ func _columns() -> Dictionary:
 	out["speed_end"] = x
 	x += Ink.text_size(Locale.t("dial_speed_unit"), note).x + 8.0 * _unit
 	out["speed_keys"] = x
-	x += _widest_key(InputActions.SPEED_CYCLE) + PAD * _unit
+	x += _widest_key(InputActions.SPEED_CYCLE) + FAST_GAP * _unit
+	out["fast"] = x + FAST_RADIUS * _unit
+	x += FAST_RADIUS * 2.0 * _unit + 4.0 * _unit
+	out["fast_key"] = x
+	x += _widest_key(InputActions.FAST) + PAD * _unit
 	out["end"] = x
 	return out
 
@@ -331,9 +353,10 @@ func _draw() -> void:
 	# 盤心行止鈕：暫停中是朱底的暫停圖示，運行中是紙底的播放圖示。
 	var stopped := _sim.paused
 	Ink.round_button(self, center, SEAL_RADIUS * _unit, &"pause" if stopped else &"play", stopped, _hover_seal, _pressed == PRESSED_PAUSE)
-	# 朱針指向本月。
-	var month_index := int((maxi(_sim.world.tick(), 1) - 1) % 12)
-	var needle := Vector2.UP.rotated(TAU * month_index / 12.0)
+	# 朱針逐日緩緩前行：月內第幾日決定它在兩個刻度之間的位置。
+	var parts: Dictionary = _sim.world.date_parts()
+	var month_pos := float(int(parts["month"]) - 1) + float(int(parts["day"]) - 1) / float(SimHost.DAYS_PER_MONTH)
+	var needle := Vector2.UP.rotated(TAU * month_pos / 12.0)
 	draw_line(center + needle * (SEAL_RADIUS + 1.0) * _unit, center + needle * (face - 1.0 * _unit), Ink.SEAL_RED, 2.5, true)
 
 	# 題簽：日期。
@@ -367,11 +390,14 @@ func _draw() -> void:
 		var y := rect.get_center().y
 		Ink.stroke(self, Vector2(rect.position.x, y + 1.5 * _unit), Vector2(rect.end.x, y - 1.5 * _unit), 3.5 * _unit, color)
 	# 倍速的數字在固定寬的欄位裡靠右對齊。
-	var multiplier := str(_sim.speed_multiplier())
+	var multiplier := str(_sim.days_per_second())
 	Ink.text(self, Vector2(columns["speed_end"] - Ink.text_size(multiplier, note).x, text_y), multiplier, note)
 	Ink.text(self, Vector2(columns["speed_end"], text_y), Locale.t("dial_speed_unit"), note)
 	var keys := _speed_keys()
 	Ink.key_glyph(self, Vector2(columns["speed_keys"], key_y), keys[0], _unit)
+	var fast_center := Vector2(columns["fast"], slip.get_center().y)
+	Ink.round_button(self, fast_center, FAST_RADIUS * _unit, &"fast", _sim.fast_active(), _hover_fast, _pressed == PRESSED_FAST)
+	Ink.key_glyph(self, Vector2(columns["fast_key"], key_y), _fast_key(), _unit)
 	if _hover_arc != &"":
 		var hint := _hover_rect()
 		Ink.paper_slip(self, hint)
@@ -400,6 +426,10 @@ func _gui_input(event: InputEvent) -> void:
 		if on_almanac != _hover_almanac:
 			_hover_almanac = on_almanac
 			queue_redraw()
+		var on_fast := _on_fast((event as InputEventMouseMotion).position)
+		if on_fast != _hover_fast:
+			_hover_fast = on_fast
+			queue_redraw()
 		var on_seal: bool = _on_pause((event as InputEventMouseMotion).position)
 		var on_stroke: int = _stroke_at((event as InputEventMouseMotion).position)
 		var on_arc := _arc_at((event as InputEventMouseMotion).position)
@@ -410,7 +440,12 @@ func _gui_input(event: InputEvent) -> void:
 			queue_redraw()
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		var stroke: int = _stroke_at((event as InputEventMouseButton).position)
-		if _almanac_rect().grow(Ink.SLIP_BAND).has_point((event as InputEventMouseButton).position):
+		if _on_fast((event as InputEventMouseButton).position):
+			_pressed = PRESSED_FAST
+			_fast_down = true
+			fast_pressed.emit()
+			accept_event()
+		elif _almanac_rect().grow(Ink.SLIP_BAND).has_point((event as InputEventMouseButton).position):
 			almanac_requested.emit()
 			accept_event()
 		elif stroke >= 0:
@@ -423,14 +458,21 @@ func _gui_input(event: InputEvent) -> void:
 			_pressed = PRESSED_PAUSE
 			accept_event()
 		queue_redraw()
+	elif event is InputEventMouseButton and not event.pressed and event.button_index == MOUSE_BUTTON_LEFT and _fast_down:
+		_fast_down = false
+		_pressed = -1
+		fast_released.emit()
+		queue_redraw()
 	elif event is InputEventMouseButton and not event.pressed and _pressed >= 0:
 		_pressed = -1
 		queue_redraw()
 
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_MOUSE_EXIT and (_hover_almanac or _hover_seal or _hover_stroke >= 0 or _pressed >= 0 or _hover_arc != &""):
-		_pressed = -1
+	if what == NOTIFICATION_MOUSE_EXIT and (_hover_almanac or _hover_seal or _hover_fast or _hover_stroke >= 0 or _pressed >= 0 or _hover_arc != &""):
+		if not _fast_down:
+			_pressed = -1
+		_hover_fast = false
 		_hover_arc = &""
 		_hover_seal = false
 		_hover_almanac = false
@@ -445,7 +487,18 @@ func _has_point(point: Vector2) -> bool:
 
 ## 游標停在這裡時是否可以按（GDD 5.9 游標圖示）。
 func is_hot(point: Vector2) -> bool:
-	return _on_pause(point) or _stroke_at(point) >= 0 or _almanac_rect().grow(Ink.SLIP_BAND).has_point(point)
+	return _on_pause(point) or _on_fast(point) or _stroke_at(point) >= 0 or _almanac_rect().grow(Ink.SLIP_BAND).has_point(point)
+
+
+## 快進鈕（時速簽最右的圓鈕）。
+func _on_fast(pos: Vector2) -> bool:
+	var slip := _speed_rect()
+	return pos.distance_to(Vector2(_columns()["fast"], slip.get_center().y)) <= (FAST_RADIUS + 3.0) * _unit
+
+
+## 快進鈕的中心（本器物座標）。
+func fast_button_center() -> Vector2:
+	return Vector2(_columns()["fast"], _speed_rect().get_center().y)
 
 
 ## 圓盤，或時速簽上狀態字與暫停鍵那一段：點了切換行止。

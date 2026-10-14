@@ -48,7 +48,7 @@ const PAD_DPAD_HORIZONTAL := "DPAD_H"
 const KEY_ARROWS_VERTICAL := "ARROWS_V"
 const KEY_ARROWS_HORIZONTAL := "ARROWS_H"
 const PAD_ICONS: Array[String] = [PAD_RIGHT_STICK, PAD_LEFT_STICK, PAD_DPAD_VERTICAL, PAD_DPAD_HORIZONTAL, KEY_ARROWS_VERTICAL, KEY_ARROWS_HORIZONTAL]
-const PAD_SHOULDERS: Array[String] = ["LB", "RB", "LT", "RT", "Start", "Select", "R3"]
+const PAD_SHOULDERS: Array[String] = ["LB", "RB", "LT", "RT", "Start", "Select", "R3", "L3"]
 
 ## 紙紋（8.3 `paper`，存的是乘數）；由 hud 在啟動時設定。使用它的 CanvasItem 要開啟 texture_repeat。
 static var paper_texture: Texture2D

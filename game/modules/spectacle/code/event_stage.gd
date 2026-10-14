@@ -53,6 +53,7 @@ func setup(spectacle: Spectacle, sim: SimHost) -> void:
 	add_child(_holder)
 	sim.event_posted.connect(post)
 	sim.world_created.connect(clear)
+	sim.fast_forward_started.connect(clear)
 
 
 ## 這件事的演出長度（秒，四段合計）；沒有對應動作回 0。
@@ -410,7 +411,7 @@ func _stage(perf: Dictionary) -> void:
 	var total := float(plan["total"])
 	var fade := EventScript.opacity_at(total, age)
 	var count := actors_plan.size()
-	var fast := _sim != null and _sim.speed_multiplier() >= SpectacleQueue.FAST_SPEED
+	var fast := _sim != null and _sim.fast_active()
 	var right := _ground_dir_of_world(pos, base, camera.global_basis.x, up)
 	for i in count:
 		var actor: FigureActor = perf["actors"][i]

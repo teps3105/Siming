@@ -153,7 +153,7 @@ impl Replay {
                 if left == 0 {
                     return Ok(false);
                 }
-                self.sim.step();
+                self.step_within_save();
                 left -= 1;
                 continue;
             };
@@ -169,10 +169,16 @@ impl Replay {
                 if left == 0 {
                     return Ok(false);
                 }
-                self.sim.step();
+                self.step_within_save();
                 left -= 1;
             }
         }
+    }
+
+    /// 推進一個月，但不越過存檔的日：存檔可以在月中（細步觀看時按下存檔）。
+    fn step_within_save(&mut self) {
+        let to = crate::sim::next_month_end(self.sim.world().tick).min(self.file.tick);
+        self.sim.advance_to(to);
     }
 
     /// 重播的進度，0..1。

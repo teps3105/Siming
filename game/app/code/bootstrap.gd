@@ -52,10 +52,14 @@ func _ready() -> void:
 	spectacle.setup(_sim, _map, _camera)
 	_saved_tick = _sim.world.tick()
 	_sim.advanced.connect(_auto_save)
+	_sim.fast_forward_finished.connect(func(_summary: Dictionary) -> void: _auto_save(0))
 
 
 ## 時間跨過一世的邊界就存一份自動存檔。
-func _auto_save(_months: int) -> void:
+func _auto_save(_days: int) -> void:
+	# 世界快進一口氣跨好幾世：不在途中存，停下時存一份。
+	if _sim.fast_active():
+		return
 	var now: int = _sim.world.tick()
 	if auto_save and SaveStore.auto_due(_saved_tick, now):
 		var error := SaveStore.save_auto(_sim.world)

@@ -34,5 +34,5 @@ pub mod types;
 pub mod worldgen;
 
 pub use model::*;
-pub use sim::{Sim, World};
+pub use sim::{FastOutcome, FastStop, Sim, World};
 pub use types::*;
