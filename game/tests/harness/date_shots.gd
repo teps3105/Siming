@@ -1,6 +1,6 @@
 extends SceneTree
-## 日期雙表（決策 #91）的畫面檢查：四種視圖（1280×800、1920×1080，各 100%、150%）各存題簽、傳聞簽展開、
-## 一張人物卡、一張有歷任掌門的宗門卡。要開視窗才畫得出來；開發時手動執行，不屬於測試套件。
+## 日期只寫紀元時間（決策 #99）的畫面檢查：四種視圖（1280×800、1920×1080，各 100%、150%）各存題簽、傳聞簽展開、
+## 一張人物卡、一張有歷任掌門的宗門卡、天下冊首頁的世界簡史橫條。要開視窗才畫得出來；開發時手動執行，不屬於測試套件。
 
 const Suite := preload("res://tests/harness/suite.gd")
 const VIEWS := [
@@ -69,7 +69,7 @@ func _view(prefix: String, view: Vector2i, scale: float) -> void:
 	# 句子長到與年月同一行放不下的簽：年月應移到第二行。
 	sim.event_posted.emit({"id": 99001, "tick": 20000, "kind": "Killed", "importance": 3, "province": 0, "cell": -1,
 		"souls": PackedInt32Array(), "a": "沈青霜青霜青霜青霜", "b": "韓烈韓烈韓烈韓烈韓烈", "f": "", "g": "", "p": "青州青州青州青州",
-		"q": "", "x": "", "n": 0, "m": 0, "year": 99, "world_year": 12345})
+		"q": "", "x": "", "n": 0, "m": 0, "year": 99})
 	await _suite.frames(3)
 	await _shot("%s-6-rumor-collapsed" % prefix)
 	hud.rumor().expanded = true
@@ -84,6 +84,9 @@ func _view(prefix: String, view: Vector2i, scale: float) -> void:
 			best = id
 	hud.open_person(best)
 	await _shot("%s-3-person" % prefix)
+	hud.person_card().toggle_timeline()
+	await _suite.wait(0.3)
+	await _shot("%s-3b-person-timeline" % prefix)
 	var sect := -1
 	var runs := -1
 	for row: Dictionary in world.sects():
@@ -104,6 +107,12 @@ func _view(prefix: String, view: Vector2i, scale: float) -> void:
 			list.scroll = clampf(float(row["top"]) - 4.0, 0.0, list.max_scroll())
 			break
 	await _shot("%s-5-sect-leaders" % prefix)
+	world.step(12 * 200)
+	hud.almanac().page = 0
+	hud.almanac().expanded = true
+	await _suite.wait(0.4)
+	await _shot("%s-7-almanac" % prefix)
+	hud.almanac().expanded = false
 	root.remove_child(game)
 	game.queue_free()
 	await _suite.frames(2)

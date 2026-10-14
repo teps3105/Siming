@@ -154,7 +154,7 @@ static func _link(word: String, target: String) -> Dictionary:
 
 ## 立派與覆滅的年份：紀元時間加世界時間，只到年。
 func _year_text(prefix: String) -> String:
-	return EventText.year_label(_info[prefix + "_era"], int(_info[prefix + "_year"]), int(_info[prefix + "_world_year"]))
+	return EventText.year_label(_info[prefix + "_era"], int(_info[prefix + "_year"]))
 
 
 func _add_para(y: float, text: String, links: Array[Dictionary], width: float, size: int, color: Color) -> float:

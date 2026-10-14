@@ -163,7 +163,7 @@ func test_card_shows_the_biography_and_a_collapsed_timeline() -> void:
 
 
 func _compose(id: int) -> Dictionary:
-	return ChronicleText.compose(_sim.world.person(id), _sim.world.person_chronicle(id), (func(p: int) -> Dictionary: return _sim.world.person(p)), _sim.world.history_years())
+	return ChronicleText.compose(_sim.world.person(id), _sim.world.person_chronicle(id), (func(p: int) -> Dictionary: return _sim.world.person(p)))
 
 
 func _items(card: PersonCard, kind: String) -> Array:

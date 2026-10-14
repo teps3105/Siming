@@ -196,11 +196,7 @@ func _speed_keys() -> Array[String]:
 
 ## 題簽的紙面（不含綾邊）。
 func _title_rect() -> Rect2:
-	var fit := _date_fit()
-	var height := TITLE_HEIGHT * _unit
-	if fit["lines"] == 2:
-		height += LedgerText.line_height(fit["size"])
-	return Rect2(Vector2(_slip_left(), Ink.SLIP_BAND + ARC_MARGIN * 0.5 * _unit), Vector2(_slip_width(), height))
+	return Rect2(Vector2(_slip_left(), Ink.SLIP_BAND + ARC_MARGIN * 0.5 * _unit), Vector2(_slip_width(), TITLE_HEIGHT * _unit))
 
 
 ## 兩張簽共用的左緣。
@@ -233,7 +229,7 @@ static func _digit_width(size: int) -> float:
 	return widest
 
 
-## 最寬的日期佔多寬：紀元名兩個字、紀元年四位、世界年六位、十二月。題簽的寬度以它為準，不隨當下的日期變。
+## 最寬的日期佔多寬：紀元名兩個字、紀元年四位、十二月。題簽的寬度以它為準，不隨當下的日期變。
 func _date_max_width() -> float:
 	return _date_fit()["width"]
 
@@ -242,9 +238,8 @@ func _date_font_size() -> int:
 	return _date_fit()["size"]
 
 
-## 題簽日期怎麼排：先是單行、內文字級；右邊要留給命簿，放不下就縮字級（最多縮到 85%），
-## 還放不下折成兩行（「竭黃紀元 一五年」「(11145年) 十二月」），兩行也先用內文字級、再逐級縮到 85%。
-## 回傳 lines（1 或 2）、size（字級）、width（最寬的日期佔多寬）。
+## 題簽日期怎麼排：單行、內文字級；右邊要留給命簿，放不下就縮字級（最多縮到 85%）。
+## 回傳 size（字級）、width（最寬的日期佔多寬）。
 func _date_fit() -> Dictionary:
 	if not _fit.is_empty():
 		return _fit
@@ -253,13 +248,8 @@ func _date_fit() -> Dictionary:
 	var room := max_right - position.x - _slip_left() - DATE_PAD * 2.0 * _unit - _almanac_strip() * 2.0
 	for size in range(body, floor_size - 1, -1):
 		var width := EventText.widest_label(size)
-		if width <= room:
-			_fit = {"lines": 1, "size": size, "width": width}
-			return _fit
-	for size in range(body, floor_size - 1, -1):
-		var width := EventText.widest_label_lines(size)
 		if width <= room or size == floor_size:
-			_fit = {"lines": 2, "size": size, "width": width}
+			_fit = {"size": size, "width": width}
 			return _fit
 	return _fit
 
@@ -267,17 +257,13 @@ func _date_fit() -> Dictionary:
 ## 日期文字畫在哪裡：整串在題簽裡置中。
 func _date_rect() -> Rect2:
 	var title := _title_rect()
-	var fit := _date_fit()
-	var extent := Vector2.ZERO
-	for line in _date_lines():
-		extent = Vector2(maxf(extent.x, Ink.text_size(line, fit["size"]).x), extent.y + LedgerText.line_height(fit["size"]) if fit["lines"] == 2 else Ink.text_size(line, fit["size"]).y)
+	var extent := Ink.text_size(_date_text(), _date_font_size())
 	return Rect2(title.position + (title.size - extent) * 0.5, extent)
 
 
-## 現在的日期分行：單行一個、兩行兩個。
-func _date_lines() -> PackedStringArray:
-	var label := EventText.now_label(_sim.world)
-	return EventText.label_lines(label) if _date_fit()["lines"] == 2 else PackedStringArray([label])
+## 現在的日期。
+func _date_text() -> String:
+	return EventText.now_label(_sim.world)
 
 
 func _strokes_width() -> float:
@@ -356,14 +342,7 @@ func _draw() -> void:
 	Ink.paper_slip(self, title)
 	# 整串日期在題簽裡置中。
 	var date_rect := _date_rect()
-	var step := LedgerText.line_height(date_size)
-	var lines := _date_lines()
-	for i in lines.size():
-		var line_width := Ink.text_size(lines[i], date_size).x
-		var line_y := date_rect.position.y + (step * i if lines.size() == 2 else 0.0)
-		var line_h := step if lines.size() == 2 else date_rect.size.y
-		var offset_y := (line_h - Ink.text_size(lines[i], date_size).y) * 0.5 if lines.size() == 2 else 0.0
-		Ink.text(self, Vector2(date_rect.get_center().x - line_width * 0.5, line_y + offset_y), lines[i], date_size)
+	Ink.text(self, date_rect.position, _date_text(), date_size)
 	_draw_almanac_seal()
 
 	# 時速簽：狀態與暫停鍵；四筆由短到長，已達速度者濃墨；倍速與調速鍵。

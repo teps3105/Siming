@@ -2,6 +2,7 @@
 //! 本 crate 不含遊戲規則；規則一律在 siming-sim（GDD 6.1 依賴原則）。
 
 mod chronicle_api;
+mod era_api;
 mod karma;
 mod mapbake;
 mod relief;

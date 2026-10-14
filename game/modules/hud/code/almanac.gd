@@ -35,6 +35,9 @@ const SELECT_NONE := -1
 const SELECT_DIM := -2
 const SELECT_COLLAPSE := -3
 const TAB_BASE := 100
+## 世界簡史橫條上第 i 段紀元的選項碼是 HISTORY_BASE + i；起因事件那一句是 SELECT_HISTORY_EVENT。
+const HISTORY_BASE := 1000
+const SELECT_HISTORY_EVENT := -4
 
 ## 近百年各類事件的鍵（橋接 recent_counts 的鍵）。
 const RECENT_PEOPLE: Array[String] = ["tribulation_passed", "tribulation_failed", "ascended", "fell_to_demon", "fallen_high"]
@@ -50,6 +53,7 @@ const KARMA_KEYS: Array[String] = ["kind_feud", "kind_grace", "kind_love", "kind
 var gamepad := false:
 	set(value):
 		gamepad = value
+		_history.hint = Locale.t("history_hint_pad" if value else "history_hint_pointer")
 		if _left != null:
 			_left.edge_scroll = value
 			_right.edge_scroll = value
@@ -76,14 +80,19 @@ var page := 0:
 		page = value
 		_pick = ""
 		_roster = {}
+		_history.hover = -1
 		if _left != null:
 			_left.scroll = 0.0
 			_right.scroll = 0.0
-			_relayout()
+			_layout_body()
 		queue_redraw()
 
 var _sim: SimHost
 var _unit := 1.0
+## 天下頁頂端的世界簡史橫條與它選取那段起因事件的一句話（沒有為空）、那句話可點的範圍。
+var _history := WorldHistoryBar.new()
+var _history_line := ""
+var _history_event_rect: Array[Rect2] = []
 var _left: LedgerList
 var _right: LedgerList
 var _hover := SELECT_NONE
@@ -153,14 +162,30 @@ func _body_rect() -> Rect2:
 	return Rect2(Vector2(paper.position.x + side, top), Vector2(paper.size.x - side * 2.0, paper.end.y - BOTTOM * _unit - top))
 
 
+## 世界簡史橫條的範圍：只在天下頁（第一頁）頂端；其他頁為空。
+func history_rect() -> Rect2:
+	var body := _body_rect()
+	if PAGES[page] != "world":
+		return Rect2(body.position, Vector2(body.size.x, 0.0))
+	return Rect2(body.position, Vector2(body.size.x, WorldHistoryBar.band_height(_unit)))
+
+
+## 兩欄頂端：天下頁要在橫條下方留一道縫。
+func _columns_top() -> float:
+	var band := history_rect()
+	return band.end.y + (8.0 * _unit if band.size.y > 0.0 else 0.0)
+
+
 func _left_rect() -> Rect2:
 	var body := _body_rect()
+	body = Rect2(Vector2(body.position.x, _columns_top()), Vector2(body.size.x, body.end.y - _columns_top()))
 	var width := (body.size.x - COLUMN_GAP * _unit) * LEFT_FRACTION
 	return Rect2(body.position, Vector2(width, body.size.y))
 
 
 func _right_rect() -> Rect2:
 	var body := _body_rect()
+	body = Rect2(Vector2(body.position.x, _columns_top()), Vector2(body.size.x, body.end.y - _columns_top()))
 	var left := _left_rect()
 	var x := left.end.x + COLUMN_GAP * _unit
 	return Rect2(Vector2(x, body.position.y), Vector2(body.end.x - x, body.size.y))
@@ -230,6 +255,9 @@ func _reload() -> void:
 	_pick = ""
 	_roster = {}
 	_date = EventText.now_label(_world())
+	_history.load_rows(_world().era_table())
+	_history.hint = Locale.t("history_hint_pad" if gamepad else "history_hint_pointer")
+	_refresh_history_line()
 	_sect_pos.clear()
 	_layout_body()
 	_left.scroll = 0.0
@@ -399,10 +427,13 @@ func _draw() -> void:
 	Ink.text(self, Vector2(turn_x, row.position.y + (row.size.y - Ink.text_size(turn_text, font).y) * 0.5), turn_text, font, Ink.INK_LIGHT)
 	Ink.key_glyph(self, Vector2(turn_x - 8.0 * _unit - Ink.key_glyph_width(turn_key, _unit), row.position.y + (row.size.y - Ink.KEY_HEIGHT * _unit) * 0.5), turn_key, _unit, not gamepad)
 	draw_line(Vector2(head.position.x + SIDE * _unit, row.end.y), Vector2(head.end.x - SIDE * _unit, row.end.y), Color(Ink.GOLD, 0.7), 1.0)
+	# 世界簡史橫條（天下頁頂端）。
+	if history_rect().size.y > 0.0:
+		_history.draw(self, history_rect(), _unit, _history_line, _history_event_rect)
 	# 兩欄之間一道細線。
 	var gap_x := _left_rect().end.x + COLUMN_GAP * _unit * 0.5
 	var body := _body_rect()
-	draw_line(Vector2(gap_x, body.position.y), Vector2(gap_x, body.end.y), Color(Ink.INK_LIGHT, 0.3), 1.0)
+	draw_line(Vector2(gap_x, _columns_top()), Vector2(gap_x, body.end.y), Color(Ink.INK_LIGHT, 0.3), 1.0)
 
 
 # ── 各頁的圖表 ───────────────────────────────────────────────
@@ -444,7 +475,6 @@ func _compose_world(pen: AlmanacPen, width: float, d: Dictionary) -> float:
 		{"label": Locale.t("card_capacity"), "value": Locale.count(w["capacity"])},
 		{"label": Locale.t("almanac_alive"), "value": Locale.count(w["alive"])},
 		{"label": Locale.t("almanac_provinces"), "value": str(w["provinces"])},
-		{"label": Locale.t("almanac_years"), "value": Locale.t("almanac_years_value").format({"n": w["years"]})},
 	]) + _gap(pen)
 	# 大洲。
 	y = _title(pen, y, "continent")
@@ -693,8 +723,8 @@ func _compose_sect(pen: AlmanacPen, width: float, d: Dictionary) -> float:
 			var target := "go:event:%d" % f["event"] if int(f["event"]) >= 0 else ""
 			frows.append({"cells": [
 				{"text": f["name"], "target": target, "color": Ink.SEAL_RED if f["evil"] else Ink.INK},
-				{"text": EventText.year_label(f["founded_era"], int(f["founded_era_year"]), int(f["founded_year"]))},
-				{"text": EventText.year_label(f["fallen_era"], int(f["fallen_era_year"]), int(f["fallen_year"]))},
+				{"text": EventText.year_label(f["founded_era"], int(f["founded_era_year"]))},
+				{"text": EventText.year_label(f["fallen_era"], int(f["fallen_era_year"]))},
 				{"text": Locale.t("almanac_years_value").format({"n": f["lasted_years"]})},
 				{"text": Locale.t("almanac_cause_war") if f["cause_kind"] == "SectWar" else Locale.t("almanac_cause_scatter")},
 			]})
@@ -1001,6 +1031,14 @@ func _select_at(point: Vector2) -> int:
 	for i in PAGES.size():
 		if tab_rect(i).has_point(point):
 			return TAB_BASE + i
+	var band := history_rect()
+	if band.size.y > 0.0:
+		var era := _history.era_at(point, band, _unit)
+		if era >= 0:
+			return HISTORY_BASE + era
+		for rect in _history_event_rect:
+			if rect.has_point(point):
+				return SELECT_HISTORY_EVENT
 	if not paper_rect().has_point(point):
 		return SELECT_DIM
 	return SELECT_NONE
@@ -1020,6 +1058,10 @@ func _gui_input(event: InputEvent) -> void:
 		var at := _select_at((event as InputEventMouseMotion).position)
 		if at != _hover:
 			_hover = at
+			var era := at - HISTORY_BASE if at >= HISTORY_BASE else -1
+			if era != _history.hover:
+				_history.hover = era
+				_refresh_history_line()
 			queue_redraw()
 	elif event is InputEventMouseButton:
 		var button := event as InputEventMouseButton
@@ -1042,14 +1084,60 @@ func _gui_input(event: InputEvent) -> void:
 func _activate(select: int) -> void:
 	if select == SELECT_DIM or select == SELECT_COLLAPSE:
 		expanded = false
+	elif select >= HISTORY_BASE:
+		select_era(select - HISTORY_BASE)
+	elif select == SELECT_HISTORY_EVENT:
+		_open_history_event()
 	elif select >= TAB_BASE:
 		set_page(select - TAB_BASE)
+
+
+# ── 世界簡史 ─────────────────────────────────────────────────
+
+## 選取第 index 段紀元（橫條與說明跟著換）。
+func select_era(index: int) -> void:
+	if _history.rows.is_empty():
+		return
+	_history.selected = clampi(index, 0, _history.rows.size() - 1)
+	_refresh_history_line()
+	queue_redraw()
+
+
+func selected_era() -> int:
+	return _history.selected
+
+
+func history_bar() -> WorldHistoryBar:
+	return _history
+
+
+## 起因事件那一句的文字；沒有（開天、開局前、已被修剪）為空。
+func history_event_line() -> String:
+	return _history_line
+
+
+func _refresh_history_line() -> void:
+	_history_line = ""
+	var id := _history.event_id(_history.shown())
+	if id >= 0:
+		var event := _world().event(id)
+		if not event.is_empty():
+			_history_line = EventText.line(event)
+
+
+## 開選取那段紀元起因事件的事件卡。
+func _open_history_event() -> void:
+	var id := _history.event_id(_history.shown())
+	if id >= 0:
+		event_requested.emit(id)
 
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_MOUSE_EXIT and (_hover != SELECT_NONE or _pressed != SELECT_NONE):
 		_hover = SELECT_NONE
 		_pressed = SELECT_NONE
+		_history.hover = -1
+		_refresh_history_line()
 		queue_redraw()
 
 
@@ -1060,6 +1148,11 @@ func _process(delta: float) -> void:
 	var axis := Input.get_axis(InputActions.MENU_UP, InputActions.MENU_DOWN)
 	if axis != 0.0:
 		_column_under_pointer().scroll += axis * KEY_SCROLL_SPEED * _unit * delta
+	if history_rect().size.y > 0.0:
+		if Input.is_action_just_pressed(InputActions.MODE_PREV):
+			select_era(_history.selected - 1)
+		elif Input.is_action_just_pressed(InputActions.MODE_NEXT):
+			select_era(_history.selected + 1)
 	if Input.is_action_just_pressed(InputActions.MENU_LEFT):
 		set_page(page - 1)
 	elif Input.is_action_just_pressed(InputActions.MENU_RIGHT):
@@ -1090,6 +1183,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			list.scroll = 0.0
 		KEY_END:
 			list.scroll_to_end()
+		KEY_BRACKETLEFT:
+			select_era(_history.selected - 1)
+		KEY_BRACKETRIGHT:
+			select_era(_history.selected + 1)
 		_:
 			return
 	get_viewport().set_input_as_handled()

@@ -19,7 +19,7 @@ signal trace_requested(event: int)
 ## 全螢幕展開或收合了（Hud 據此暫停與復原時間、讓鏡頭讓出畫面）。
 signal fullscreen_changed(on: bool)
 
-## 收合時簽的寬：每筆帶「紀元名＋年＋（世界年）＋月」的日期（約 250 單位），句子才有地方放。
+## 收合時簽的寬：每筆帶「紀元名＋年＋月」的日期（約 250 單位），句子才有地方放。
 const WIDTH := 520.0
 const ITEM_HEIGHT := 32.0
 const ITEM_GAP := 5.0
@@ -190,7 +190,6 @@ func post(event: Dictionary) -> bool:
 		"kind": event["kind"],
 		"tick": event["tick"],
 		"year": event.get("year", 0),
-		"world_year": event.get("world_year", 0),
 		"era": event.get("date_era", ""),
 		"month": EventText.month_of(event),
 		"importance": importance,
@@ -390,7 +389,6 @@ func _make_group(gkey: String, members: Array) -> Dictionary:
 		"kind": first["kind"],
 		"tick": first["tick"],
 		"year": first["year"],
-		"world_year": first["world_year"],
 		"era": first["era"],
 		"month": first["month"],
 		"importance": importance,
@@ -525,7 +523,7 @@ func is_open(index: int) -> bool:
 
 
 func _stamp(entry: Dictionary) -> String:
-	return EventText.date_label(entry.get("era", ""), int(entry.get("year", 0)), int(entry.get("world_year", 0)), int(entry["month"]))
+	return EventText.date_label(entry.get("era", ""), int(entry.get("year", 0)), int(entry["month"]))
 
 
 func _queue_refit() -> void:

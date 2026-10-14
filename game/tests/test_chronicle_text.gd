@@ -24,7 +24,7 @@ func _lookup(pid: int) -> Dictionary:
 
 func _compose(id: int) -> Dictionary:
 	_ensure()
-	return ChronicleText.compose(_world.person(id), _world.person_chronicle(id), _lookup, _world.history_years())
+	return ChronicleText.compose(_world.person(id), _world.person_chronicle(id), _lookup)
 
 
 func _ensure() -> void:
@@ -78,8 +78,8 @@ func test_han_writes_chinese_numerals() -> void:
 
 
 func test_keep_pieces_finds_year_and_month_runs() -> void:
-	var pieces := ChronicleText.keep_pieces("咸寧紀元一〇二年（12335年）二月，他於十三年入門。")
-	assert_true(pieces.has("咸寧紀元一〇二年（12335年）二月"))
+	var pieces := ChronicleText.keep_pieces("咸寧紀元一〇二年二月，他於十三年入門。")
+	assert_true(pieces.has("咸寧紀元一〇二年二月"))
 	assert_false(pieces.has("十三年"), "只護整個日期，不護孤立的數字年")
 	assert_eq(ChronicleText.keep_pieces("無年月").size(), 0)
 
@@ -186,7 +186,7 @@ func test_acceptance_2_same_text_every_time_and_after_reload() -> void:
 		var c := _compose(id)
 		assert_eq(a["bio"], b["bio"], "%d 號連續兩次相同" % id)
 		assert_eq(b["rows"], c["rows"], "%d 號連續三次相同" % id)
-		var d := ChronicleText.compose(other.person(id), other.person_chronicle(id), (func(p: int) -> Dictionary: return other.person(p)), other.history_years())
+		var d := ChronicleText.compose(other.person(id), other.person_chronicle(id), (func(p: int) -> Dictionary: return other.person(p)))
 		assert_eq(a["bio"], d["bio"], "%d 號重建世界後小傳相同" % id)
 		assert_eq(a["rows"], d["rows"], "%d 號重建世界後年表相同" % id)
 

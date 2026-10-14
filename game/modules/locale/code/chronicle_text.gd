@@ -17,8 +17,6 @@ const PARA_BUDGET := 220
 const PUPILS_FROM := 3
 const WEDS_FROM := 2
 const LATE := 1 << 60
-## 一年的天數（曆法 2.6）。
-const DAYS_PER_YEAR := 360
 ## 各種事的重要度，段落放不下時由低的先去掉。
 const RANK := {
 	"come_of_age": 8, "sect_joined": 7, "sect_left": 7, "apprenticed": 6, "mentor_ended": 5, "married": 6, "widowed": 4,
@@ -37,7 +35,6 @@ var _me := -1
 var _past: Dictionary = {}
 var _entries: Array[Dictionary] = []
 var _row_mode := false
-var _history := 0
 var _prev: Dictionary = {}
 var _cur: Dictionary = {}
 var _section := ""
@@ -47,14 +44,13 @@ var _used_by: Dictionary = {}
 
 
 ## 組出小傳與年表。info 是 `person(id)`，facts 是 `person_chronicle(id)`；lookup(id) 回傳 `person(id)`（收徒挑最高境界者用，可不給）。
-static func compose(info: Dictionary, facts: Array, lookup := Callable(), history := 0) -> Dictionary:
-	var c := ChronicleText.new(info, facts, lookup, history)
+static func compose(info: Dictionary, facts: Array, lookup := Callable()) -> Dictionary:
+	var c := ChronicleText.new(info, facts, lookup)
 	var bio := c.biography()
 	return {"bio": bio, "rows": c.timeline(), "used": c._used_by}
 
 
-func _init(info: Dictionary, facts: Array, lookup := Callable(), history := 0) -> void:
-	_history = history
+func _init(info: Dictionary, facts: Array, lookup := Callable()) -> void:
 	_info = info
 	_lookup = lookup
 	_me = int(info.get("id", -1))
@@ -92,7 +88,7 @@ static func han(n: int) -> String:
 	return out
 
 
-## 紀元年逐位寫（零寫〇）。日期字串由 EventText 的共用函式產生；世界年由 tick 與開局前的年數（compose 的 history）算出。
+## 紀元年逐位寫（零寫〇）。日期字串由 EventText 的共用函式產生。
 static func digits(n: int) -> String:
 	var out := ""
 	for ch in str(n):
@@ -100,17 +96,13 @@ static func digits(n: int) -> String:
 	return out
 
 
-func _world_year(tick: int) -> int:
-	return _history + (maxi(tick, 1) - 1) / DAYS_PER_YEAR + 1
-
-
 func _year_text(era: String, year: int, tick: int) -> String:
-	return EventText.year_inline(era, year, _world_year(tick))
+	return EventText.year_inline(era, year)
 
 
 ## 年表列的日期（獨立一行的題簽寫法）。
 func _stamp(e: Dictionary) -> String:
-	return EventText.date_label(e["era"], int(e["year"]), _world_year(int(e["tick"])), int(e["month"]))
+	return EventText.date_label(e["era"], int(e["year"]), int(e["month"]))
 
 
 # ── 句型庫 ────────────────────────────────────────────────────
@@ -1184,7 +1176,7 @@ func timeline() -> Array[Dictionary]:
 	var units := _units()
 	var rows: Array[Dictionary] = []
 	if not _past.is_empty():
-		var stamp := EventText.date_label(_past["reborn_era"], int(_past["reborn_year"]), _world_year(int(_past["reborn_tick"])), int(_past["reborn_month"]))
+		var stamp := EventText.date_label(_past["reborn_era"], int(_past["reborn_year"]), int(_past["reborn_month"]))
 		var clause := _past_clause(_past, false)
 		rows.append(_row(stamp, [clause], int(_past["id"])))
 	for u in units:
@@ -1221,7 +1213,7 @@ static var _keep_re: RegEx = null
 ## 折行時整段不拆的片段：整個日期（「咸寧紀元一二三年（12356年）十一月」）。
 static func keep_pieces(text: String) -> Array[String]:
 	if _keep_re == null:
-		_keep_re = RegEx.create_from_string("[\\x{4e00}-\\x{9fff}]{2}紀元[〇一二三四五六七八九]+年（\\d+年）(?:[一二三四五六七八九十]+月)?")
+		_keep_re = RegEx.create_from_string("[\\x{4e00}-\\x{9fff}]{2}紀元[〇一二三四五六七八九]+年(?:[一二三四五六七八九十]+月)?")
 	var out: Array[String] = []
 	for found in _keep_re.search_all(text):
 		var piece := found.get_string()

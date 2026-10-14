@@ -318,3 +318,107 @@ func test_fits_at_full_hd() -> void:
 
 func test_fits_on_the_deck_at_larger_scale() -> void:
 	await _check_fit(DECK_VIEW, 1.5)
+
+
+# ── 世界簡史橫條（5.10）─────────────────────────────────────────
+
+## 讓世界多過幾個紀元（改元的間隔隨參數而定，跑到有為止，最多一千年）。
+func _age_until_eras(count: int) -> void:
+	_sim.set_paused(true)
+	for _i in 100:
+		if _sim.world.era_table().size() >= count:
+			return
+		_sim.world.step(12 * 10)
+	await frames(1)
+
+
+func test_world_page_opens_with_the_history_bar_and_it_is_the_only_world_year() -> void:
+	await _boot()
+	await _open(0)
+	var band := _almanac.history_rect()
+	assert_gt(band.size.y, 0.0, "天下頁頂端有世界簡史橫條")
+	assert_true(_almanac.paper_rect().encloses(band), "橫條在紙面內")
+	assert_true(_almanac.left_list().position.y >= band.end.y, "左欄在橫條下方")
+	assert_true(_almanac.right_list().position.y >= band.end.y, "右欄在橫條下方")
+	var bar := _almanac.history_bar()
+	var now := int(_sim.world.stats_world()["years"])
+	assert_eq(bar.total_years(), now)
+	assert_true(bar.headline().begins_with("世界簡史　開天至今 "))
+	assert_eq(bar.selected, bar.era_count() - 1, "預設選現在的紀元")
+	await _open(1)
+	assert_eq(_almanac.history_rect().size.y, 0.0, "其他頁沒有橫條")
+	assert_lt(_almanac.left_list().position.y, band.position.y + band.size.y, "其他頁的欄位頂回原位")
+
+
+func test_clicking_an_era_segment_selects_it_and_shows_its_cause() -> void:
+	await _boot()
+	await _age_until_eras(2)
+	await _open(0)
+	var bar := _almanac.history_bar()
+	assert_gt(bar.era_count(), 1, "世界已有不只一個紀元")
+	var band := _almanac.history_rect()
+	var rects := bar.segment_rects(band, _almanac._unit)
+	await click(rects[0].get_center())
+	assert_eq(_almanac.selected_era(), 0, "點第一段選中第一段")
+	assert_true(bar.era_text(0).contains(Locale.t("history_kind_genesis")), "第一段的起因是開天")
+	assert_eq(_almanac.history_event_line(), "", "開天沒有起因事件")
+	var last := rects.size() - 1
+	await click(rects[last].get_center())
+	assert_eq(_almanac.selected_era(), last)
+	var id := bar.event_id(last)
+	assert_gt(id, -1, "改元的紀元有起因的世界大事")
+	assert_eq(_almanac.history_event_line(), EventText.line(_sim.world.event(id)), "說明寫出起因那件大事的一句話")
+
+
+func test_clicking_the_cause_line_opens_the_event_card() -> void:
+	await _boot()
+	await _age_until_eras(2)
+	await _open(0)
+	var bar := _almanac.history_bar()
+	var last := bar.era_count() - 1
+	_almanac.select_era(last)
+	await frames(2)
+	var asked: Array[int] = []
+	_almanac.event_requested.connect(func(id: int) -> void: asked.append(id))
+	assert_gt(_almanac._history_event_rect.size(), 0, "起因的一句話有可點的範圍")
+	await click(_almanac._history_event_rect[0].get_center())
+	assert_eq(asked, [bar.event_id(last)], "點起因的一句話要開那件事的事件卡")
+
+
+func test_pruned_cause_event_only_names_the_era_and_its_kind() -> void:
+	await _boot()
+	await _open(0)
+	var bar := _almanac.history_bar()
+	bar.rows[0]["event"] = -1
+	_almanac.select_era(0)
+	assert_eq(_almanac.history_event_line(), "")
+	assert_true(bar.era_text(0).contains(String(bar.rows[0]["name"]) + "紀元"))
+	assert_true(bar.era_text(0).contains(bar.kind_text(0)))
+
+
+func test_era_segments_can_be_stepped_with_keys_and_the_pad_shoulders() -> void:
+	await _boot()
+	await _age_until_eras(2)
+	await _open(0)
+	var count := _almanac.history_bar().era_count()
+	assert_gt(count, 1)
+	var mode := _hud._map.mode
+	await key(KEY_BRACKETLEFT)
+	assert_eq(_almanac.selected_era(), count - 2, "[ 選前一段")
+	await key(KEY_BRACKETRIGHT)
+	assert_eq(_almanac.selected_era(), count - 1, "] 選後一段")
+	await joy_button(JOY_BUTTON_LEFT_SHOULDER)
+	assert_eq(_almanac.selected_era(), count - 2, "搖桿 LB 選前一段")
+	await joy_button(JOY_BUTTON_RIGHT_SHOULDER)
+	assert_eq(_almanac.selected_era(), count - 1, "搖桿 RB 選後一段")
+	assert_eq(_hud._map.mode, mode, "天下冊開著時 LB／RB 不會同時換地圖模式")
+
+
+func test_history_bar_fits_both_deck_and_full_hd_sizes_at_150_percent() -> void:
+	GameSettings.set_value("ui_scale", 1.5)
+	for view in [DECK_VIEW, FLOW_VIEW]:
+		await _boot(view)
+		await _open(0)
+		var band := _almanac.history_rect()
+		assert_true(_almanac.paper_rect().encloses(band), "橫條在紙面內：%s" % str(view))
+		assert_gt(_almanac.left_list().size.y, 120.0 * _almanac._unit, "兩欄仍留有高度：%s" % str(view))

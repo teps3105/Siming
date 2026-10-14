@@ -50,7 +50,7 @@ func test_clickable_names_stay_on_one_line() -> void:
 
 
 func test_kept_pieces_wrap_as_a_whole_with_comma_at_line_end() -> void:
-	var pieces: Array[String] = ["岳嶺（常始紀元八二年（2310年）起）", "夏磊寒（常始紀元九三年（2321年）起）", "汪婷嬌（閉易紀元一二二年（2350年）起）"]
+	var pieces: Array[String] = ["岳嶺（常始紀元八二年起）", "夏磊寒（常始紀元九三年起）", "汪婷嬌（閉易紀元一二二年起）"]
 	var text := "、".join(pieces)
 	var width := _width(pieces[2]) + _width("、") + 2.0
 	var para := LedgerText.paragraph(text, NO_LINKS, width, SIZE, pieces)
@@ -65,8 +65,8 @@ func test_kept_pieces_wrap_as_a_whole_with_comma_at_line_end() -> void:
 
 
 func test_oversize_piece_breaks_around_dates_never_inside_them() -> void:
-	var date_a := EventText.year_inline("常始", 156, 2384)
-	var date_b := EventText.year_inline("閉易", 178, 2406)
+	var date_a := EventText.year_inline("常始", 156)
+	var date_b := EventText.year_inline("閉易", 178)
 	var piece := "謝慎謐（%s至%s）" % [date_a, date_b]
 	# 整位放不下一行：只在姓名、日期與「至」之間折，兩個日期各自整段，左括號不留在行尾。
 	for step in range(0, 12):
@@ -84,8 +84,8 @@ func test_oversize_piece_breaks_around_dates_never_inside_them() -> void:
 
 ## 日期（兩種寫法）比一行窄時，任何寬度下都整段在同一行；寬到放不下一整段才逐字折。
 func test_dates_never_split_in_either_style() -> void:
-	var inline_date := EventText.date_inline("咸寧", 123, 12356, 6)
-	var label_date := EventText.date_label("咸寧", 123, 12356, 6)
+	var inline_date := EventText.date_inline("咸寧", 123, 6)
+	var label_date := EventText.date_label("咸寧", 123, 6)
 	for date in [inline_date, label_date]:
 		var text := "據傳%s，某某壽終，同日還有一事" % date
 		var least := _width(date + "，")
