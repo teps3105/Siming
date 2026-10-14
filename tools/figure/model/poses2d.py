@@ -60,9 +60,9 @@ def _arm(shoulder, spec):
     return elbow, (shoulder[0] + ux * d, shoulder[1] + uy * d)
 
 
-def pose(hip=STAND_HIP, lean=0.0, f=A(-3, -18), b=A(0, 8), head=None, wind=0.05, seated=0, point=0, flip=None, neck=None):
+def pose(hip=STAND_HIP, lean=0.0, f=A(-3, -18), b=A(0, 8), head=None, wind=0.05, seated=0, point=0, flip=None, neck=None, feet=None):
     """一個姿勢：{hip, neck, elbow_f, hand_f, elbow_b, hand_b, head_roll, wind, seated, point[, flip]}。
-    neck 不給就由腰與前傾算出；head 是頭的後仰（弧度，前低為負），不給就跟著上身前傾。"""
+    feet 是 (foot_f, foot_b) 雙腳相對立姿的位移（動作中每一格都要給，不然內插缺鍵）；neck 不給就由腰與前傾算出；head 是頭的後仰（弧度，前低為負），不給就跟著上身前傾。"""
     t = math.radians(lean)
     vx, vy = TORSO
     top = (vx * math.cos(t) + vy * math.sin(t), -vx * math.sin(t) + vy * math.cos(t))
@@ -74,6 +74,8 @@ def pose(hip=STAND_HIP, lean=0.0, f=A(-3, -18), b=A(0, 8), head=None, wind=0.05,
     out["wind"], out["seated"], out["point"] = wind, seated, point
     if flip is not None:
         out["flip"] = flip
+    if feet is not None:
+        out["foot_f"], out["foot_b"] = feet
     return out
 
 
@@ -152,12 +154,13 @@ def kneel():
 
 
 def bless():
-    """撫頂（對跪著的人）：上身深深前傾約 28°、遠手向前下方伸到對方頭頂（手落在身前 0.30、高 −0.50），近手甩向身後上方作平衡；
-    8–20 彎身伸手；22 touch 掌落在頂上，拍兩下；40 release 收手；54 立姿。"""
-    reach = pose(hip=(0.04, -0.49), lean=28, f=H(-0.30, -0.50), b=A(-62, -75), head=-0.35, wind=0.08)
-    pat = pose(hip=(0.04, -0.49), lean=28, f=H(-0.30, -0.55), b=A(-62, -75), head=-0.35, wind=0.08)
-    keys = [(0, _stand()), (10, pose(lean=14, f=A(60, 70), b=A(-40, -55), head=-0.1, wind=0.07)), (20, reach), (22, reach), (26, pat), (30, reach),
-            (34, pat), (40, pose(lean=12, f=A(50, 60), b=A(-30, -45), head=-0.1)), (54, _stand())]
+    """撫頂（對跪著的人）：10 上身前傾 20°、遠手舉過頭；16 舉到最高；22 touch 上身前傾 40°、遠手落到身前最遠處（頭頂高度）按下，
+    近手甩向身後；拍兩下；40 release 收手；54 立姿。"""
+    up = pose(hip=(0.05, -0.49), lean=22, f=A(172, 178), b=A(-70, -80), head=-0.2, wind=0.08)
+    top = pose(hip=(0.07, -0.48), lean=30, f=A(176, 178), b=A(-78, -88), head=-0.3, wind=0.09)
+    reach = pose(hip=(0.10, -0.46), lean=42, f=H(-0.46, -0.52), b=A(-82, -90), head=-0.55, wind=0.1)
+    pat = pose(hip=(0.10, -0.46), lean=42, f=H(-0.46, -0.58), b=A(-82, -90), head=-0.55, wind=0.1)
+    keys = [(0, _stand()), (8, up), (14, top), (22, reach), (26, pat), (30, reach), (34, pat), (40, pose(lean=14, f=A(50, 60), b=A(-30, -45), head=-0.1)), (54, _stand())]
     return {"frames": 54, "keys": keys, "events": {"touch": 22, "release": 40}}
 
 
@@ -198,35 +201,46 @@ def turn():
 
 
 def away():
-    """背過身（不甩袖）：頭先低下、再整個人翻面，雙手垂下；轉定後肩略垮。turned 是翻面完成。"""
-    keys = [(0, pose(flip=1.0)), (8, pose(lean=4, head=-0.25, f=A(2, -10), b=A(4, 10), flip=1.0)), (14, pose(lean=4, head=-0.25, flip=0.0)),
-            (20, pose(lean=4, head=-0.25, flip=-1.0)), (34, pose(lean=2, head=-0.12, f=A(0, -12), b=A(2, 8), flip=-1.0)), (40, pose(lean=2, head=-0.12, f=A(0, -12), b=A(2, 8), flip=-1.0))]
+    """背過身：6 抬手預備；12 甩袖橫掃（一袖向後上、一袖向前、衣擺飄起）整個人翻面（flip 1 → −1）；20 turned 翻面完成，
+    低頭、遠手掩面、近手抱在胸前、肩線下沉；34 放鬆；40 站定（背對原方向）。turned 是翻面完成。"""
+    wind_up = pose(lean=-2, f=A(-5, -20), b=H(-0.10, -0.72, "back"), head=0.05, wind=0.08)
+    sweep = pose(lean=-4, f=A(75, 95), b=A(-125, -155), head=0.0, wind=0.2, flip=0.0)
+    covered = pose(hip=(0.05, -0.43), lean=26, f=H(-0.25, -0.82, "front"), b=H(-0.22, -0.56, "back"), head=-0.85, wind=0.05, flip=-1.0)
+    keys = [(0, pose(flip=1.0)), (6, dict(wind_up, flip=1.0)), (10, dict(sweep, flip=0.5)), (12, sweep), (14, dict(sweep, flip=-0.5)),
+            (20, covered), (30, covered), (36, pose(lean=4, head=-0.2, flip=-1.0)), (40, pose(flip=-1.0))]
     return {"frames": 40, "keys": keys, "events": {"turned": 20}}
 
 
+def _z(**kw):
+    kw.setdefault("feet", ((0.0, 0.0), (0.0, 0.0)))
+    return pose(**kw)
+
+
 def clasp():
-    """執手：兩人各伸遠手到兩人中間（掌心落在身前 0.32，與 PAIR_GAP 相等）相接，另一臂向後張開、屈膝前傾。
-    8–20 遠手前伸；20 meet 兩手相接；20–36 握住；36–50 鬆手收回；56 立姿。release 是開始鬆手。"""
-    meet = pose(hip=(0.05, -0.46), lean=14, f=H(-0.28, -0.62), b=A(-48, -40), head=-0.1, wind=0.09)
-    keys = [(0, _stand()), (8, pose(hip=(0.03, -0.48), lean=8, f=A(45, 66), b=A(-20, -25), head=-0.05)), (20, meet), (30, dict(meet, wind=0.06)), (36, meet),
-            (42, pose(lean=8, f=A(52, 70), b=A(-20, -25))), (50, pose(lean=2, f=A(12, 30), b=A(2, 12))), (56, _stand())]
+    """執手：兩人各跨一大步（雙腳前後分開、髖在前腳上方）、上身前傾、雙臂向前平伸到兩人中間（遠手掌心落在身前 0.32 = PAIR_GAP）相接；
+    8–20 跨步伸手；20 meet 兩手相接；20–36 握住；36 release 鬆手；36–50 收手收步；56 立姿。"""
+    step = _z(hip=(0.03, -0.47), lean=10, f=A(55, 75), b=A(35, 60), head=-0.05, feet=((-0.12, 0.0), (0.06, 0.0)))
+    meet = _z(hip=(0.08, -0.45), lean=32, f=H(-0.28, -0.70), b=H(-0.24, -0.62), head=-0.35, wind=0.1, feet=((-0.30, 0.0), (0.28, 0.0)))
+    keys = [(0, _z()), (8, step), (20, meet), (30, dict(meet, wind=0.06)), (36, meet),
+            (42, _z(hip=(0.03, -0.47), lean=10, f=A(55, 75), b=A(35, 60), feet=((-0.12, 0.0), (0.06, 0.0)))), (50, _z(lean=2, f=A(12, 30), b=A(2, 12))), (56, _z())]
     return {"frames": 56, "keys": keys, "events": {"meet": 20, "release": 36}}
 
 
 def offer():
-    """雙手奉物：雙手高舉過胸、上身前傾約 24°、頭深低。12 雙手端到胸前；24–38 雙臂向前上方平托到下巴高度；
+    """雙手奉物：跨出一步、雙手高舉過胸、上身前傾約 30°、頭深低。12 雙手端到胸前；24–38 雙臂向前上方高托過下巴；
     30 give 把東西遞出；38–50 手收回；60 立姿。"""
-    cup = pose(hip=(0.02, -0.48), lean=12, f=H(-0.16, -0.64), b=H(-0.10, -0.62), head=-0.2)
-    full = pose(hip=(0.01, -0.47), lean=24, f=H(-0.32, -0.80), b=H(-0.24, -0.78), head=-0.6, wind=0.08)
-    keys = [(0, _stand()), (12, cup), (24, full), (38, full), (46, cup), (60, _stand())]
+    cup = _z(hip=(0.02, -0.48), lean=12, f=H(-0.16, -0.64), b=H(-0.10, -0.62), head=-0.2, feet=((-0.06, 0.0), (0.03, 0.0)))
+    full = _z(hip=(0.04, -0.45), lean=32, f=H(-0.40, -0.90), b=H(-0.30, -0.88), head=-0.7, wind=0.08, feet=((-0.20, 0.0), (0.12, 0.0)))
+    keys = [(0, _z()), (12, cup), (24, full), (38, full), (46, cup), (60, _z())]
     return {"frames": 60, "keys": keys, "events": {"give": 30, "retreat": 38}}
 
 
 def receive():
-    """雙手捧接：身略後仰、雙手在腹前低低攤開。10–22 雙手攤開向前；22 take 接住；28–44 收到胸前、頭低下看；60 立姿。"""
-    open_hand = pose(hip=(0.03, -0.43), lean=8, f=H(-0.31, -0.46), b=H(-0.20, -0.42), head=-0.05)
-    held = pose(hip=(0.03, -0.48), lean=10, f=H(-0.10, -0.58), b=H(-0.06, -0.55), head=-0.45)
-    keys = [(0, _stand()), (10, pose(lean=0, f=A(40, 62), b=A(20, 40), head=0.0)), (22, open_hand), (28, open_hand), (40, held), (50, held), (60, _stand())]
+    """接過：屈膝半蹲、雙腳分開、雙手高舉過頭去接；22 take 接住；28–44 收下來抱在胸前、頭低下看；60 立姿。"""
+    catch = _z(hip=(0.05, -0.23), lean=-10, f=A(150, 172), b=A(125, 156), head=0.4, wind=0.08, feet=((-0.26, 0.0), (0.26, 0.0)))
+    held = _z(hip=(0.03, -0.47), lean=14, f=H(-0.10, -0.58), b=H(-0.06, -0.55), head=-0.45)
+    keys = [(0, _z()), (8, _z(hip=(0.04, -0.40), lean=-4, f=A(70, 110), b=A(55, 95), head=0.1, feet=((-0.08, 0.0), (0.08, 0.0)))), (22, catch), (28, catch),
+            (40, held), (50, held), (60, _z())]
     return {"frames": 60, "keys": keys, "events": {"take": 22, "hold": 40}}
 
 

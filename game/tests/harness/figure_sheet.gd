@@ -50,7 +50,9 @@ class Sheet:
 			var i := slot - 1
 			var t: float = frames[i] / 24.0
 			var pose := FigureMotion.pose(action, t)
-			F.draw(self, at, height, -1.0, look, pose, t, Color(Ink.INK, 0.94))
+			# flip（轉身的翻面）：負的朝反向畫；0 是側薄的一線，這裡照原朝向畫
+			var flip := float(pose.get("flip", 1.0))
+			F.draw(self, at, height, -1.0 * (signf(flip) if flip != 0.0 else 1.0), look, pose, t, Color(Ink.INK, 0.94))
 			var label := "%s f%d" % [action, frames[i]]
 			draw_string(font, Vector2(at.x - 70.0, base + 26.0), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Ink.INK)
 			var event := _event_label(frames[i])

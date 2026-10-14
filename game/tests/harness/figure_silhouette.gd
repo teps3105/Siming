@@ -12,7 +12,7 @@ const ROWS := 77
 ## 每個動作最有代表性的一格。
 const REP := {
 	"stand": 0, "brace": 12, "struck": 14, "walk": 5, "fall": 22, "rise": 27, "strike": 32, "seal": 24, "bow": 24,
-	"kneel": 28, "bless": 22, "sit": 24, "slump": 60, "turn": 10, "away": 30, "clasp": 24, "offer": 30, "receive": 24,
+	"kneel": 28, "bless": 22, "sit": 24, "slump": 60, "turn": 10, "away": 28, "clasp": 24, "offer": 30, "receive": 22,
 }
 const SEED := 11
 
@@ -53,8 +53,13 @@ static func difference(a: PackedByteArray, b: PackedByteArray) -> float:
 	return float(diff) / float(maxi(union, 1))
 
 
-static func masks_of(names: Array) -> Dictionary:
-	var look := F.traits(SEED)
+## 同一個種子的兩種樣子：持杖的（種子 11 本來就持杖）與沒有持物的；杖畫在近手旁，手伸出去它就跟著走。
+static func look_of(armed: bool) -> Dictionary:
+	return F.traits(SEED) if armed else F.traits(SEED, {"prop": F.Prop.NONE})
+
+
+static func masks_of(names: Array, armed := true) -> Dictionary:
+	var look := look_of(armed)
 	var out := {}
 	for name: String in names:
 		out[name] = mask(look, name, int(REP[name]))

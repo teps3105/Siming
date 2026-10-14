@@ -19,6 +19,10 @@ const EXPECT := {
 }
 ## 剪影差異的門檻：不同像素占聯集的比例要超過這個數（現有 bow 對 seal 是 0.38，stand 對 seal 是 0.27）。
 const SILHOUETTE_MIN := 0.30
+## 退修過的四個動作（bless、clasp、receive、away）要更大：對 stand 超過 0.50、對 bow、seal 與彼此超過 0.40。
+const STRONG := ["bless", "clasp", "receive", "away"]
+const SILHOUETTE_STRONG_STAND := 0.50
+const SILHOUETTE_STRONG := 0.40
 const JOINTS := ["hip", "neck", "elbow_f", "hand_f", "elbow_b", "hand_b"]
 
 
@@ -146,13 +150,27 @@ func test_gdd_8_11_silhouettes_of_the_body_actions_differ_at_64_px() -> void:
 	var names: Array = BODY.duplicate()
 	for old: String in ["bow", "seal", "stand"]:
 		names.append(old)
-	var masks := SIL.masks_of(names)
-	for i in BODY.size():
-		for j in names.size():
-			if j <= i and j < BODY.size():
-				continue
-			var d := SIL.difference(masks[names[i]], masks[names[j]])
-			assert_gt(d, SILHOUETTE_MIN, "%s 與 %s 的剪影不同像素比例 %.2f 要超過 %.2f" % [names[i], names[j], d, SILHOUETTE_MIN])
+	for armed in [false, true]:
+		var masks := SIL.masks_of(names, armed)
+		var label := "持杖" if armed else "無持物"
+		for i in BODY.size():
+			for j in names.size():
+				if j <= i and j < BODY.size():
+					continue
+				var pair := [names[i], names[j]]
+				var need := SILHOUETTE_MIN
+				var tight := 0
+				for n: String in pair:
+					if n in STRONG:
+						tight += 1
+					elif n in ["bow", "seal"]:
+						tight += 10
+				if "stand" in pair and tight == 1:
+					need = SILHOUETTE_STRONG_STAND
+				elif tight == 2 or tight == 11:
+					need = SILHOUETTE_STRONG
+				var d := SIL.difference(masks[names[i]], masks[names[j]])
+				assert_gt(d, need, "%s：%s 與 %s 的剪影不同像素比例 %.2f 要超過 %.2f" % [label, names[i], names[j], d, need])
 
 
 func test_gdd_5_13_receive_take_lines_up_with_the_offer_give() -> void:
