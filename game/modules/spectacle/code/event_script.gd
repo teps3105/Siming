@@ -5,6 +5,7 @@ extends RefCounted
 ## 對照表 ROWS 以資料寫成：鍵是事件種類（有分支的加 :x 參數）；actors 的順序就是站位（第一位在左，兩人時相向）。
 ## 每位演員的 steps 依序播；沒有 sync 的步驟接在前一步結束；sync 寫成「演員序號:動作:事件名」，
 ## 表示從那位演員那個動作的事件時刻起播（例如倒地從出手「命中」那一格開始）。
+## 沒有人物的演出（轉世）以 "light": true 標示、actors 為空：光效由 EventStage 另建，動作段長度取 light_len。
 ## len 是動作沒有固定長度（循環動作）時的秒數，len_of 取另一個動作的長度。
 
 const INTRO := 1.5
@@ -15,6 +16,9 @@ const FADE_IN := 0.5
 ## 迎擊（對方未死）、行走的動作長度。
 const BRACE_SECONDS := 2.0
 const WALK_SECONDS := 3.0
+## 轉世光效：光自上方落到事件格（定場）、落地後光暈散開（動作段）。
+const LIGHT_LAND := 1.5
+const LIGHT_SECONDS := 1.5
 ## 行走速度（身高／秒）：一步 11 格（24 fps）、腳相對髖前後共 0.18 身高。
 const WALK_SPEED := 0.393
 
@@ -38,6 +42,10 @@ const ROWS := {
 		{"who": "a", "steps": [{"do": "bow"}]}, {"who": "b", "steps": [{"do": "bow"}]}]},
 	"ThreadResolved:Grudge": {"actors": [
 		{"who": "a", "steps": [{"do": "bow"}]}, {"who": "b", "steps": [{"do": "bow"}]}]},
+	# 師徒緣了結：a 是徒、b 是師（同 ThreadCreated:Mentor）；兩人列沒有走開的位移，兩人相向行禮。
+	"ThreadResolved:Mentor": {"actors": [
+		{"who": "a", "steps": [{"do": "bow"}]}, {"who": "b", "steps": [{"do": "bow"}]}]},
+	"Rebirth": {"light": true, "light_len": LIGHT_SECONDS, "actors": []},
 	"Died:Age": {"actors": [{"who": "a", "steps": [{"do": "fall"}]}]},
 	"Died:Plague": {"actors": [{"who": "a", "steps": [{"do": "fall"}]}]},
 	"Breakthrough": {"actors": [{"who": "a", "steps": [{"do": "seal"}, {"do": "rise"}]}]},
@@ -95,7 +103,7 @@ static func row_key(event: Dictionary) -> String:
 	return key if ROWS.has(key) else ""
 
 
-## 事件的演出腳本：{key, actors: [{who, person, steps: [{do, start, length}], end}], action_len, total, travel, to}；
+## 事件的演出腳本：{key, actors: [{who, person, steps: [{do, start, length}], end}], action_len, total, travel, light, ascend, to}；
 ## 沒有對應動作、沒有位置、沒有當事人（或行走沒有目的州郡）回空字典。
 static func plan(event: Dictionary) -> Dictionary:
 	var key := row_key(event)
@@ -111,9 +119,10 @@ static func plan(event: Dictionary) -> Dictionary:
 		if person < 0:
 			continue
 		actors.append({"who": spec["who"], "person": person, "spec": spec})
-	if actors.is_empty():
+	var light := bool(row.get("light", false))
+	if actors.is_empty() and not light:
 		return {}
-	var action_len := 0.0
+	var action_len := float(row["light_len"]) if light else 0.0
 	for index in actors.size():
 		var steps: Array[Dictionary] = []
 		var cursor := 0.0
@@ -130,7 +139,7 @@ static func plan(event: Dictionary) -> Dictionary:
 		actors[index].erase("spec")
 		action_len = maxf(action_len, cursor)
 	return {"key": key, "actors": actors, "action_len": action_len, "total": INTRO + action_len + HOLD + OUTRO,
-		"travel": travel, "ascend": bool(row.get("ascend", false)), "to": int(event.get("q_province", -1))}
+		"travel": travel, "light": light, "ascend": bool(row.get("ascend", false)), "to": int(event.get("q_province", -1))}
 
 
 ## 事件的演出長度（秒，四段合計）；沒有對應動作回 0。

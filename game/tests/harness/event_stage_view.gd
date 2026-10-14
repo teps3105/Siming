@@ -80,6 +80,7 @@ func _main() -> void:
 		["Died", {"x": "Age"}, 0.8], ["Breakthrough", {}, 0.4], ["Breakthrough", {}, 0.9], ["Ascended", {}, 0.5],
 		["FellToDemon", {}, 0.4], ["FellToDemon", {}, 0.9], ["ThreadCreated", {"x": "Mentor"}, 0.6], ["Married", {}, 0.6],
 		["Succession", {}, 0.6], ["PowerFounded", {}, 0.6], ["Traveled", {"x": "Out", "q_province": 3}, 0.9],
+		["ThreadResolved", {"x": "Mentor"}, 0.6], ["Rebirth", {}, 0.0], ["Rebirth", {}, 0.8], ["Rebirth", {}, 2.0],
 	]
 	_camera.look_at_map(focus, 30.0, true)
 	for i in 8:
