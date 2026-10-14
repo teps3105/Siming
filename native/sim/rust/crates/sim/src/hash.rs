@@ -218,6 +218,8 @@ pub fn world_hash(world: &World) -> u64 {
     feed(&mut h, &world.queue);
     // GDD 3.4 門人（門人層新增）：附加在最後。
     feed(&mut h, &world.adepts);
+    // GDD 3.1 魂力（魂散補位）：附加在最後。
+    h.write_u32(world.soul_vacancies);
     h.finish()
 }
 

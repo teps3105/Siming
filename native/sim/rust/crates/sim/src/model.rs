@@ -81,6 +81,10 @@ pub enum SoulState {
         way: Liberation,
         tick: Tick,
     },
+    /// 魂力耗盡，魂散入天地：永久離開輪迴，宿緣線斷（GDD 3.1 魂力）。
+    Dissolved {
+        tick: Tick,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -156,6 +160,10 @@ pub struct Soul {
     /// 已了結（或消散）宿緣的精簡紀錄，供天書偵測等回看；每魂上限 [`SETTLED_CAP`]。
     #[serde(default)]
     pub settled: Vec<Settled>,
+    /// 魂力：每次轉世與在惡道的年數都會消耗，耗盡則魂散（GDD 3.1 魂力）。
+    pub power: f32,
+    /// 魂誕生的時刻（日）；魂齡 = 魂散（或現在）− 誕生。
+    pub born: Tick,
 }
 
 /// 每魂保留的已了結宿緣紀錄上限；滿了先丟最舊的非師徒紀錄，全是師徒才丟最舊的。
@@ -344,6 +352,8 @@ pub struct Thread {
     pub woven: bool,
     pub resolved: Option<(Tick, EventId)>,
     pub omen_at: Option<u16>,
+    /// 斷：任一端的魂散時，未了的線強度歸零並記下斷的時刻與事件（GDD 3.3）；不算了結。
+    pub severed: Option<(Tick, EventId)>,
     /// 師徒線：建線時師父的成就。
     pub master_best: Option<Achievements>,
 }
@@ -458,6 +468,8 @@ pub enum EventKind {
     SectLeft,
     /// GDD 5.12 人物生平：師徒關係解除（7.2 `MasterEnded`；只供生平，不上傳聞）。
     MasterEnded,
+    /// GDD 3.1 魂力耗盡，魂散入天地（7.2 `SoulDissolved`）。
+    SoulDissolved,
 }
 
 impl EventKind {
@@ -497,6 +509,12 @@ pub enum EventArgs {
     },
     Judged {
         path: SixPath,
+    },
+    /// 魂散（GDD 3.1）：魂齡（年）、歷次轉世數、斷掉的未了宿緣數。
+    Dissolved {
+        age_years: u32,
+        rebirths: u16,
+        severed: u16,
     },
     Travel {
         from: ProvinceId,

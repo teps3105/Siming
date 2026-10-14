@@ -22,6 +22,7 @@ fn achievement_wisdom(a: &Achievements) -> f32 {
 }
 
 /// 轉世處理（GDD 6.3「出生」第 2 項），不改變魂的狀態：
+/// 0. 魂力：扣一次轉世的消耗（GDD 3.1 魂力；呼叫端須已確認 [`power::can_rebirth`]，新魂首世不經此處）。
 /// 1. 宿慧：`W_new = W_old × 0.5 + 前世成就`（兵解另 +30），截斷 0..200。
 /// 2. `best_now` 併入 `best_prev`（逐項取大），再清空。
 /// 3. 道緣：`normalize(0.7 × 前世道緣 + 0.3 × 出生州 faith4)`，前世入魔魔 +0.2、被度化釋 +0.3，再正規化。
@@ -32,6 +33,7 @@ pub fn prepare_rebirth(w: &mut World, sid: SoulId, birth_province: ProvinceId) {
     let thread_ids = w.souls[sid as usize].threads.clone();
 
     let soul = &mut w.souls[sid as usize];
+    soul.power = (soul.power - super::power::rebirth_cost(soul)).max(0.0);
     let mut wisdom = soul.wisdom * WISDOM_DECAY + achievement_wisdom(&soul.best_now);
     if soul.marks.has(SoulMarks::LAST_LIFE_SHED) {
         wisdom += WISDOM_GAIN_SHED_BODY;
@@ -98,7 +100,12 @@ pub fn attach_person(w: &mut World, sid: SoulId, pid: PersonId) {
 
 /// 輪迴出生（GDD 3.2 出生）：轉世處理 → 建立肉身 → 綁定 → 寫入 `Rebirth` 事件。
 /// 有未了宿緣者事件重要度 3，其他 1（GDD 7.2）。
-pub fn rebirth(w: &mut World, sid: SoulId, province: ProvinceId) -> PersonId {
+/// 魂力不夠再轉世一次時改為魂散（GDD 3.1 魂力），回傳 `None`。
+pub fn rebirth(w: &mut World, sid: SoulId, province: ProvinceId) -> Option<PersonId> {
+    if !super::power::can_rebirth(&w.souls[sid as usize]) {
+        super::power::dissolve(w, sid);
+        return None;
+    }
     let cause = w.souls[sid as usize].lives.last().and_then(|&p| w.persons.get(p as usize)).and_then(|p| p.last_event);
     prepare_rebirth(w, sid, province);
     let cell = pick_cell(w, province);
@@ -106,7 +113,7 @@ pub fn rebirth(w: &mut World, sid: SoulId, province: ProvinceId) -> PersonId {
     attach_person(w, sid, pid);
 
     let has_thread =
-        w.souls[sid as usize].threads.iter().any(|&t| w.threads.get(t as usize).is_some_and(|t| t.resolved.is_none() && t.strength > 0.0));
+        w.souls[sid as usize].threads.iter().any(|&t| w.threads.get(t as usize).is_some_and(|t| crate::thread::is_open(t)));
     let mut e = NewEvent::new(EventKind::Rebirth, if has_thread { 3 } else { 1 }, EventArgs::None);
     e.province = Some(province);
     e.cell = Some(cell);
@@ -116,7 +123,7 @@ pub fn rebirth(w: &mut World, sid: SoulId, province: ProvinceId) -> PersonId {
         e.causes = smallvec![c];
     }
     ledger::record(w, e);
-    pid
+    Some(pid)
 }
 
 /// 確保 `souls[0]` 是天道（GDD 3.1），已有魂時不做事。開天（U8）通常已建立；這裡只是防線。
@@ -139,6 +146,8 @@ pub fn ensure_heaven(w: &mut World) {
             last_place: (0, 0),
             guide: None,
             settled: Vec::new(),
+            power: SOUL_POWER_MAX,
+            born: 0,
         });
     }
 }
@@ -171,6 +180,8 @@ pub fn create_soul(w: &mut World, origin: SoulOrigin, province: ProvinceId) -> S
         last_place: (province, 0),
         guide: None,
         settled: Vec::new(),
+        power: SOUL_POWER_MAX,
+        born: w.tick,
     });
     super::arm(w, w.souls.len() as SoulId - 1);
     id

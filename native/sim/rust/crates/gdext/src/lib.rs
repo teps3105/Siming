@@ -1475,6 +1475,10 @@ impl SimWorld {
                 }
             }
             siming_sim::EventArgs::Famine { deaths } => n = *deaths as i64,
+            siming_sim::EventArgs::Dissolved { age_years, severed, .. } => {
+                n = *age_years as i64;
+                m = *severed as i64;
+            }
             siming_sim::EventArgs::World { .. } | siming_sim::EventArgs::None => {}
             siming_sim::EventArgs::Dynasty { dynasty, other, n: count } => {
                 f = w.dynasty.get(*dynasty).map_or("", |d| d.name.as_str());

@@ -292,6 +292,14 @@ pub fn chronicle(w: &World, pid: PersonId) -> Option<Chronicle> {
                     Some(x)
                 }
             }
+            EventKind::SoulDissolved => {
+                // 魂散：本人最後一世的結尾，不是他自己經歷的事；`n` 為魂齡（年）。
+                let mut x = blank(e, "soul_dissolved");
+                if let EventArgs::Dissolved { age_years, .. } = e.args {
+                    x.n = age_years as i64;
+                }
+                Some(x)
+            }
             EventKind::Died | EventKind::Ascended => {
                 let mut x = blank(e, if e.kind == EventKind::Died { "died" } else { "ascended" });
                 if let EventArgs::Death { cause, age } = e.args {
