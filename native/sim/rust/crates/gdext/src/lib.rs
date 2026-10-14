@@ -760,13 +760,9 @@ impl SimWorld {
             push("continent", &c.name, centre(continent_label_cell(&w.geo, i)), 100.0 + c.area, none());
         }
         for p in &w.provinces {
-            push(
-                "province",
-                &p.name,
-                centre(mapbake::province_label_cell(&p.cells, w.geo.w as usize, w.geo.h as usize)),
-                p.city_level as f32,
-                none(),
-            );
+            // 格全數沒入海中的州郡沒有位置，不標名。
+            let Some(cell) = mapbake::province_label_cell(&p.cells, w.geo.w as usize, w.geo.h as usize) else { continue };
+            push("province", &p.name, centre(cell), p.city_level as f32, none());
         }
         for water in &self.waters {
             use siming_sim::worldgen::WaterKind;

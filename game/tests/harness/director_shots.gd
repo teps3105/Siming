@@ -13,6 +13,12 @@ var _ui := 1.0
 var _speed := 3
 var _shots := 40
 var _every := 2.0
+## --replay=鍵,鍵：先把模擬推一段，挑出對照表鍵（EventScript.row_key，如 Died:Age、ThreadResolved:Feud）相符的真事件，
+## 開拍後每隔 _replay_gap 遊戲秒把一件改成大事重新送進導演（為了在一輪裡拍到少見的事件）。
+var _replay_keys := PackedStringArray()
+var _replay := []
+var _replay_gap := 45.0
+var _replay_next := 20.0
 var _suite: Suite
 var _log := PackedStringArray()
 var _t0 := 0
@@ -40,6 +46,8 @@ func _main() -> void:
 				_shots = int(pair[1])
 			"every":
 				_every = float(pair[1])
+			"replay":
+				_replay_keys = pair[1].split(",")
 	DirAccess.make_dir_recursive_absolute(_out)
 	SimWorld.set_default_prerun(1500, 100)
 	_suite = Suite.new()
@@ -50,6 +58,8 @@ func _main() -> void:
 	var view := Vector2i(root.get_visible_rect().size)
 	var game: Node = await _suite.boot(false, view)
 	var sim: SimHost = game.get_node("SimHost")
+	if not _replay_keys.is_empty():
+		_collect_replay(sim)
 	var camera: MapCamera = game.get_node("MapCamera")
 	var hud: Hud = game.get_node("Hud")
 	var director: Director = hud._director.director
@@ -120,6 +130,15 @@ func _arrive_run(sim: SimHost, camera: MapCamera, director: Director, card: Dire
 	while _game_t < float(_shots):
 		await _suite.frames(1)
 		_game_t += root.get_process_delta_time()
+		if not _replay.is_empty() and _game_t >= _replay_next:
+			_replay_next = _game_t + _replay_gap
+			var again: Dictionary = _replay.pop_front()
+			again["importance"] = 5
+			_note("重送 %s %s（州 %d）" % [again["kind"], again.get("x", ""), int(again["province"])])
+			director.reset()
+			camera.cancel_directed()
+			arrived = -1.0
+			sim.event_posted.emit(again)
 		if director.state == Director.State.STAY and last != Director.State.STAY:
 			arrived = _game_t
 			taken = 0
@@ -141,4 +160,42 @@ func _arrive_run(sim: SimHost, camera: MapCamera, director: Director, card: Dire
 			var name := "p%d_%s_%s%s_t%03d_a%.1f" % [director.current, sim.world.province_info(director.current)["name"], event.get("kind", "?"), event.get("x", ""), int(_game_t), since]
 			_note("%s 種類 %s 事件格 %s 治所 %s 螢幕 %s 焦點 (%.1f, %.1f) 高 %.1f/寬 %.0f 字卡 %s" % [name, event.get("kind", "?"), spot,
 				sim.world.province_info(director.current)["seat"], screen, camera.focus.x, camera.focus.y, camera.z, camera.map_width(), card.text()])
+			_note("DBG 狀態 " + _classify(event, camera))
 			await _shot(name)
+
+
+func _classify(event: Dictionary, camera: MapCamera) -> String:
+	if event.is_empty():
+		return "空事件"
+	if not EventScript.accepts(event):
+		return "無演出列"
+	var id := int(event.get("id", -1))
+	var stage: EventStage = get_nodes_in_group("event_stage")[0]
+	for perf in stage.performances():
+		if int(perf["id"]) == id:
+			if float(perf["age"]) < 0.0:
+				return "a排隊中"
+			if not (perf["actors"] as Array).is_empty() or perf["light"] != null:
+				return "ok播放中有棋子 age=%.1f/%.1f" % [perf["age"], perf["plan"]["total"]]
+			var sp: Spectacle = stage._spectacle
+			if sp.figure_hidden() or not sp.pos_in_view(perf["pos"]):
+				return "d隱藏(figure_hidden=%s in_view=%s)" % [sp.figure_hidden(), sp.pos_in_view(perf["pos"])]
+			return "b名額用完 age=%.1f" % perf["age"]
+	return "c/b已不在（演完、被擠掉或沒登記）"
+
+
+## 推一段模擬，每個鍵各挑一件有位置的真事件。
+func _collect_replay(sim: SimHost) -> void:
+	var seen := {}
+	var grab := func(event: Dictionary) -> void:
+		var key := EventScript.row_key(event)
+		if _replay_keys.has(key) and not seen.has(key) and event.has("pos") and int(event.get("province", -1)) >= 0:
+			seen[key] = true
+			_replay.append(event.duplicate())
+	sim.event_posted.connect(grab)
+	for round in 12:
+		sim.advance(240)
+		if seen.size() >= _replay_keys.size():
+			break
+	sim.event_posted.disconnect(grab)
+	_note("備重送 %d/%d 種：%s" % [_replay.size(), _replay_keys.size(), ",".join(seen.keys())])

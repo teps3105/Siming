@@ -303,6 +303,37 @@ func test_camera_lands_on_the_event_cell_not_the_province_seat() -> void:
 	assert_lt(_camera.z, _landing_z() + 0.5, "鏡頭高度不超過棋子約 64 像素高的到位高度")
 
 
+## 字卡那件事自己的演出：事件早就發生、演出被同格別件占著（或已演完），導演到位後 1 秒它仍在中央播放中，且從到位才開始。
+func test_caption_event_performs_in_the_middle_from_arrival() -> void:
+	await _start()
+	await _quiet()
+	var stage: EventStage = tree.get_first_node_in_group("event_stage")
+	stage.clear()
+	var province := int(_events[0]["province"])
+	var seat: Vector2 = _sim.world.province_info(province)["seat"]
+	var cell := seat + Vector2(3.0, -2.0)
+	var rival := {"id": 7001, "tick": 100, "kind": "Died", "x": "Age", "importance": 3, "province": province, "cell": -1, "pos": cell,
+		"a_person": 0, "b_person": 1, "a": "甲", "b": "乙", "p": "", "q": "", "q_province": -1, "n": 0, "year": 9}
+	var target := rival.duplicate()
+	target["id"] = 7002
+	target["importance"] = 4
+	_sim.event_posted.emit(rival)
+	_sim.event_posted.emit(target)
+	assert_true(await _until_stay(20.0))
+	await wait(1.0)
+	var found := {}
+	for perf in stage.performances():
+		if int(perf["id"]) == 7002:
+			found = perf
+	assert_false(found.is_empty(), "字卡事件的演出還在場上")
+	if found.is_empty():
+		return
+	assert_true(float(found["age"]) >= 0.3 and float(found["age"]) <= 2.0, "演出從到位起算：到位後 1 秒演出時間約 1 秒，實際 %.2f" % float(found["age"]))
+	assert_eq((found["actors"] as Array).size(), 1, "字卡事件的棋子在畫面上")
+	_assert_in_middle_third(cell, "到位後 1 秒")
+	assert_true(stage.remaining_seconds(province) <= float((found["plan"] as Dictionary)["total"]) + 0.01, "停留只等字卡事件自己的演出")
+
+
 func test_caption_switching_inside_the_province_pans_to_the_new_event() -> void:
 	await _start()
 	await _quiet()

@@ -291,6 +291,7 @@ func _begin(province: int) -> void:
 	_pending_caption = {}
 	_set_caption({})
 	_hold(province)
+	_focus(_target_event)
 	go.emit(province, was_big)
 
 
@@ -331,6 +332,7 @@ func _offer_caption(payload: Dictionary, importance: int) -> void:
 	if state == State.TRAVEL:
 		if _target_event.is_empty() or _rank(payload, importance) >= _rank(_target_event, _importance_of(_target_event)):
 			_target_event = payload
+			_focus(payload)
 			refocus.emit(payload)
 		return
 	if _rank(payload, importance) <= _rank(_caption, _importance_of(_caption)):
@@ -354,6 +356,7 @@ func _set_caption(event: Dictionary) -> void:
 	var changed := not event.is_empty() and state == State.STAY and not _caption.is_empty()
 	if state == State.STAY and not event.is_empty():
 		_target_event = event
+		_focus(event)
 	_caption = event
 	_caption_age = 0.0
 	_pending_caption = {}
@@ -373,6 +376,13 @@ func _hold(province: int) -> void:
 	for node in stages.call():
 		if node.has_method("hold"):
 			node.hold(province)
+
+
+## 要看的那件事選定或換了：通知演出節點把它的演出排在最前、等鏡頭到位才開播。
+func _focus(event: Dictionary) -> void:
+	for node in stages.call():
+		if node.has_method("focus"):
+			node.focus(event)
 
 
 func _release(province: int) -> void:

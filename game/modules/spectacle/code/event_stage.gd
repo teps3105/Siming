@@ -14,6 +14,8 @@ const MAX_WAITING := 3
 const MAX_PERFORMANCES := 96
 ## 等鏡頭最多幾秒（真實時間）。
 const HOLD_LIMIT := 5.0
+## 導演要看的那件事所在州郡等鏡頭最多幾秒：比導演過場上限（Director.TRAVEL_LIMIT）長一點，到位前不會自己開演。
+const FOCUS_HOLD_LIMIT := 8.0
 ## 兩人演出各站事件格一側，離中心幾個身高。
 const PAIR_GAP := 0.32
 ## 事件格在不在畫面內，每幾幀重算一次。
@@ -28,7 +30,8 @@ static var _known := {}
 var _spectacle: Spectacle
 var _sim: SimHost
 var _holder: Node3D
-## 演出：{id, event, plan, importance, province, pos, cell, serial, age（−1 尚未開演）, actors: Array[FigureActor], light（轉世的光效，沒有為 null）, to_pos}
+## 演出：{id, event, plan, importance, province, pos, cell, serial, age（−1 尚未開演）, actors: Array[FigureActor], light（轉世的光效，沒有為 null）, to_pos,
+## focus（導演字卡那件事：不被排隊上限丟掉、在棋子名額與同格排隊上優先、到位才開演）}
 var _perfs: Array[Dictionary] = []
 var _holds := {}
 var _serial := 0
@@ -67,21 +70,9 @@ func post(event: Dictionary) -> void:
 		return
 	if _perfs.size() >= MAX_PERFORMANCES and int(event.get("importance", 1)) <= _waiting_floor():
 		return
-	var prepared := event
-	if str(event.get("kind", "")) == "ThreadResolved" and not event.has("survivor_alive"):
-		prepared = event.duplicate()
-		prepared["survivor_alive"] = _debtor_alive(event)
-	var plan := EventScript.plan(prepared)
-	if plan.is_empty():
+	var perf := _register(event, false)
+	if perf.is_empty():
 		return
-	var pos: Vector2 = prepared["pos"]
-	_serial += 1
-	var perf := {"id": int(prepared.get("id", -1)), "event": prepared, "plan": plan, "importance": int(prepared.get("importance", 1)),
-		"province": int(prepared.get("province", -1)), "pos": pos, "cell": Vector2i(floori(pos.x), floori(pos.y)),
-		"serial": _serial, "age": -1.0, "actors": [], "light": null, "to_pos": _destination(plan)}
-	if int(perf["id"]) >= 0:
-		_known[perf["id"]] = float(plan["total"])
-	_perfs.append(perf)
 	_trim(perf["cell"])
 	_start_ready()
 	# 棋子由 _process 每幀對齊；這裡只在這件馬上開演時立刻建（高倍速下每秒上千件事件，不能每件都全場對齊一次）。
@@ -89,9 +80,63 @@ func post(event: Dictionary) -> void:
 		_sync()
 
 
+## 登記一件演出（不排隊、不開演）；表裡沒有對應動作回空字典。
+func _register(event: Dictionary, focus: bool) -> Dictionary:
+	var prepared := event
+	if str(event.get("kind", "")) == "ThreadResolved" and not event.has("survivor_alive"):
+		prepared = event.duplicate()
+		prepared["survivor_alive"] = _debtor_alive(event)
+	var plan := EventScript.plan(prepared)
+	if plan.is_empty():
+		return {}
+	var pos: Vector2 = prepared["pos"]
+	_serial += 1
+	var perf := {"id": int(prepared.get("id", -1)), "event": prepared, "plan": plan, "importance": int(prepared.get("importance", 1)),
+		"province": int(prepared.get("province", -1)), "pos": pos, "cell": Vector2i(floori(pos.x), floori(pos.y)),
+		"serial": _serial, "age": -1.0, "actors": [], "light": null, "to_pos": _destination(plan), "focus": focus}
+	if int(perf["id"]) >= 0:
+		_known[perf["id"]] = float(plan["total"])
+	_perfs.append(perf)
+	return perf
+
+
+## 導演選定要看的那件事（字卡事件）：它的演出排在最前，不被排隊上限丟掉，棋子名額與同格排隊都優先；
+## 州郡還在等鏡頭時（過場中）停在開演前，到位 release 才從定場播；已在播或已演完、被擠掉的，重新登記一份從頭播。
+## 表裡沒有對應動作的事件（例如饑荒）不處理。
+func focus(event: Dictionary) -> void:
+	if event.is_empty() or not EventScript.accepts(event) or not event.has("pos"):
+		return
+	for perf in _perfs:
+		perf["focus"] = false
+	var id := int(event.get("id", -1))
+	var province := int(event.get("province", -1))
+	var waiting := _holds.has(province)
+	var perf := {}
+	for each in _perfs:
+		if id >= 0 and int(each["id"]) == id:
+			perf = each
+	if not perf.is_empty() and (float(perf["age"]) < 0.0 or not waiting):
+		perf["focus"] = true
+	else:
+		if not perf.is_empty():
+			_free_actors(perf)
+			_perfs.erase(perf)
+		perf = _register(event, true)
+		if perf.is_empty():
+			return
+	if waiting:
+		_holds[province] = maxf(float(_holds[province]), FOCUS_HOLD_LIMIT)
+	_start_ready()
+	_sync()
+
+
 ## 該州郡排隊中與播放中的演出還要幾秒（各格並行，取最久的一格）；沒有為 0。
+## 州郡裡有導演字卡那件事的演出時，只算它自己這件（導演停留以它的長度為準）。
 func remaining_seconds(province: int) -> float:
 	var per_cell := {}
+	for perf in _perfs:
+		if int(perf["province"]) == province and bool(perf["focus"]):
+			return float((perf["plan"] as Dictionary)["total"]) - maxf(float(perf["age"]), 0.0)
 	for perf in _perfs:
 		if int(perf["province"]) != province:
 			continue
@@ -189,7 +234,7 @@ func _trim(cell: Vector2i) -> void:
 	while _perfs.size() > MAX_PERFORMANCES:
 		var waiting: Array[Dictionary] = []
 		for perf in _perfs:
-			if float(perf["age"]) < 0.0:
+			if float(perf["age"]) < 0.0 and not bool(perf["focus"]):
 				waiting.append(perf)
 		if waiting.is_empty():
 			break
@@ -209,7 +254,7 @@ func _waiting_floor() -> int:
 func _waiting_in(cell: Vector2i) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	for perf in _perfs:
-		if perf["cell"] == cell and float(perf["age"]) < 0.0:
+		if perf["cell"] == cell and float(perf["age"]) < 0.0 and not bool(perf["focus"]):
 			out.append(perf)
 	return out
 
@@ -230,6 +275,13 @@ func _drop(perf: Dictionary) -> void:
 
 ## 每一格沒有在播的演出時，讓排隊裡重要度最高（同重要度先到）且州郡沒被 hold 的開演。
 func _start_ready() -> void:
+	# 導演字卡那件事輪到開演時，同格正在播的別件讓位（它要在畫面中央演）。
+	for perf in _perfs.duplicate():
+		if bool(perf["focus"]) and float(perf["age"]) < 0.0 and not _holds.has(perf["province"]):
+			for other in _perfs.duplicate():
+				if other != perf and other["cell"] == perf["cell"] and float(other["age"]) >= 0.0:
+					_free_actors(other)
+					_perfs.erase(other)
 	var busy := {}
 	for perf in _perfs:
 		if float(perf["age"]) >= 0.0:
@@ -239,10 +291,15 @@ func _start_ready() -> void:
 		if float(perf["age"]) >= 0.0 or busy.has(perf["cell"]) or _holds.has(perf["province"]):
 			continue
 		var cell: Vector2i = perf["cell"]
-		if not best.has(cell) or int(perf["importance"]) > int(best[cell]["importance"]):
+		if not best.has(cell) or _start_rank(perf) > _start_rank(best[cell]):
 			best[cell] = perf
 	for cell: Vector2i in best:
 		best[cell]["age"] = 0.0
+
+
+## 開演順位：導演字卡那件事最優先，其餘依重要度。
+static func _start_rank(perf: Dictionary) -> int:
+	return int(perf["importance"]) + (1000 if bool(perf["focus"]) else 0)
 
 
 # ── 事件資料 ──────────────────────────────────────────────────
@@ -296,7 +353,7 @@ func _sync() -> void:
 		shown.append(perf)
 	if shown.size() > 1:
 		shown.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-			return int(a["importance"]) > int(b["importance"]) or (int(a["importance"]) == int(b["importance"]) and int(a["serial"]) < int(b["serial"])))
+			return _start_rank(a) > _start_rank(b) or (_start_rank(a) == _start_rank(b) and int(a["serial"]) < int(b["serial"])))
 	var budget := MAX_FIGURES
 	for perf in shown:
 		var need: int = maxi((perf["plan"] as Dictionary)["actors"].size(), 1)
@@ -375,7 +432,6 @@ func _stage_light(perf: Dictionary) -> void:
 		made.setup({"seed": int(perf["id"]) * 7 + 13, "total": float((perf["plan"] as Dictionary)["total"])})
 		perf["light"] = made
 	var light: RebirthStage = perf["light"]
-	var camera := _spectacle.camera()
 	var base := _spectacle.world_of(perf["pos"])
 	var basis := _spectacle.up_basis(base)
 	var height := FigureActor.world_height()
