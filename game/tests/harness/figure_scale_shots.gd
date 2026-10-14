@@ -1,6 +1,6 @@
 extends SceneTree
 ## 讀圖工具（棋子大小綁地面）：同一個種子、同一件兩人演出的事件（Married），
-## 對 --cells 列出的每個棋子高度（格）各拍三個鏡頭高度：導演到位高度、地圖寬 0.25 倍、玩家可拉到的最近。
+## 對 --cells 列出的每個棋子高度（格）各拍三個鏡頭高度：導播到位高度、地圖寬 0.25 倍、玩家可拉到的最近。
 ## 檔名 cells<格數>_<鏡頭>_z<高度>.png，並印出每張棋子的畫面像素高度（公式值）。
 ## 用法：godot --path game --position 2600,40 --audio-driver Dummy --resolution 1920x1080 -s res://tests/harness/figure_scale_shots.gd -- --out=<資料夾> [--cells=1,2,3]
 ## 視窗要開（不能 --headless）。

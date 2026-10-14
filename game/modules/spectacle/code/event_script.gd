@@ -6,6 +6,7 @@ extends RefCounted
 ## 每位演員的 steps 依序播；沒有 sync 的步驟接在前一步結束；sync 寫成「演員序號:動作:事件名」，
 ## 表示從那位演員那個動作的事件時刻起播（例如倒地從出手「命中」那一格開始）。
 ## 沒有人物的演出（轉世）以 "light": true 標示、actors 為空：光效由 EventStage 另建，動作段長度取 light_len。
+## 步驟的 do 寫成陣列就是幾種任選一種（出手 STRIKES）；sync 的動作名寫 * 是對方第一步不論挑到哪一種。
 ## len 是動作沒有固定長度（循環動作）時的秒數，len_of 取另一個動作的長度；align 配 sync 用：本步驟自己的某個事件對到 sync 的時刻。
 
 const INTRO := 1.5
@@ -22,20 +23,26 @@ const LIGHT_SECONDS := 1.5
 ## 行走速度（身高／秒）：一步 11 格（24 fps）、腳相對髖前後共 0.18 身高。
 const WALK_SPEED := 0.393
 
+## 出手的三種動作：依序是修士（並指劍訣）、凡人與武人（揮劍劈）、僧人（掌擊）；出手者的道途（0、1、2）直接當索引。
+const STRIKES := ["strike", "chop", "palm"]
+
 const ROWS := {
+	# 出手有三種（STRIKES）：並指劍訣、揮劍劈、掌擊；依出手者的道途挑（plan 的 a_path、b_path），沒有就取人物編號除三的餘數；
+	# 倒地與格擋從出手的「命中」（三種都叫 hit）那一格開始，sync 的動作名寫 * 就是對方第一步不論挑到哪一種。
 	"Killed": {"actors": [
-		{"who": "a", "steps": [{"do": "strike"}]},
-		{"who": "b", "steps": [{"do": "fall", "sync": "0:strike:hit"}]}]},
+		{"who": "a", "steps": [{"do": STRIKES}]},
+		{"who": "b", "steps": [{"do": "fall", "sync": "0:*:hit"}]}]},
 	"FeudEscalated": {"actors": [
-		{"who": "a", "steps": [{"do": "strike"}]},
-		{"who": "b", "steps": [{"do": "fall", "sync": "0:strike:hit"}]}]},
+		{"who": "a", "steps": [{"do": STRIKES}]},
+		{"who": "b", "steps": [{"do": "fall", "sync": "0:*:hit"}]}]},
 	# 了結：a 是欠債方、b 是債主（Spectacle._debtor_end）；報仇的是債主，倒下的是欠債方。
 	"ThreadResolved:Feud": {"actors": [
-		{"who": "b", "steps": [{"do": "strike"}]},
-		{"who": "a", "steps": [{"do": "fall", "sync": "0:strike:hit"}]}]},
+		{"who": "b", "steps": [{"do": STRIKES}]},
+		{"who": "a", "steps": [{"do": "fall", "sync": "0:*:hit"}]}]},
+	# 對方沒死：被打的一方後退格擋。
 	"ThreadResolved:Feud:Survived": {"actors": [
-		{"who": "b", "steps": [{"do": "strike"}]},
-		{"who": "a", "steps": [{"do": "brace", "len": 2.0, "sync": "0:strike:hit"}]}]},
+		{"who": "b", "steps": [{"do": STRIKES}]},
+		{"who": "a", "steps": [{"do": "guard", "sync": "0:*:hit"}]}]},
 	# 報恩：a 是欠恩方（報恩者）雙手奉物，b 受者伸手接過；接過的 take 對到奉物的 give。
 	"ThreadResolved:Grace": {"actors": [
 		{"who": "a", "steps": [{"do": "offer"}]},
@@ -43,17 +50,18 @@ const ROWS := {
 	# 情緣了結：兩人執手，鬆開後各自背過身。
 	"ThreadResolved:Love": {"actors": [
 		{"who": "a", "steps": [{"do": "clasp"}, {"do": "away"}]}, {"who": "b", "steps": [{"do": "clasp"}, {"do": "away"}]}]},
+	# 釋怨：a 是欠怨方，抱拳深揖；b 拂袖轉身。
 	"ThreadResolved:Grudge": {"actors": [
-		{"who": "a", "steps": [{"do": "bow"}]}, {"who": "b", "steps": [{"do": "bow"}]}]},
+		{"who": "a", "steps": [{"do": "salute"}]}, {"who": "b", "steps": [{"do": "turn"}]}]},
 	# 師徒緣了結：a 是徒、b 是師（同 ThreadCreated:Mentor）；徒跪別，師拂袖轉身（兩人列沒有位移，原地背過身）。
 	"ThreadResolved:Mentor": {"actors": [
 		{"who": "a", "steps": [{"do": "kneel"}]}, {"who": "b", "steps": [{"do": "turn"}]}]},
 	"Rebirth": {"light": true, "light_len": LIGHT_SECONDS, "actors": []},
 	"Died:Age": {"actors": [{"who": "a", "steps": [{"do": "slump"}]}]},
-	"Died:Plague": {"actors": [{"who": "a", "steps": [{"do": "fall"}]}]},
+	"Died:Plague": {"actors": [{"who": "a", "steps": [{"do": "cough"}, {"do": "fall"}]}]},
 	"Breakthrough": {"actors": [{"who": "a", "steps": [{"do": "sit"}, {"do": "rise"}]}]},
 	"Ascended": {"ascend": true, "actors": [{"who": "a", "steps": [{"do": "rise"}]}]},
-	"FellToDemon": {"actors": [{"who": "a", "steps": [{"do": "seal"}, {"do": "struck"}]}]},
+	"FellToDemon": {"actors": [{"who": "a", "steps": [{"do": "writhe"}]}]},
 	# 拜師：徒跪拜叩首，師抬手撫頂（兩個動作同長，撫頂的 touch 與叩首的 down 都在第 22 格）。
 	"ThreadCreated:Mentor": {"actors": [
 		{"who": "a", "steps": [{"do": "kneel"}]},
@@ -61,8 +69,8 @@ const ROWS := {
 	# 成婚：兩人對拜後執手。
 	"Married": {"actors": [
 		{"who": "a", "steps": [{"do": "bow"}, {"do": "clasp"}]}, {"who": "b", "steps": [{"do": "bow"}, {"do": "clasp"}]}]},
-	"Succession": {"actors": [{"who": "a", "steps": [{"do": "bow"}]}]},
-	"PowerFounded": {"actors": [{"who": "a", "steps": [{"do": "seal"}]}]},
+	"Succession": {"actors": [{"who": "a", "steps": [{"do": "token"}]}]},
+	"PowerFounded": {"actors": [{"who": "a", "steps": [{"do": "hail"}]}]},
 	"SectSplit": {"actors": [{"who": "a", "steps": [{"do": "turn"}]}]},
 	"Traveled:Out": {"travel": true, "actors": [{"who": "a", "steps": [{"do": "walk", "len": 3.0}]}]},
 	"Traveled:Back": {"travel": true, "actors": [{"who": "a", "steps": [{"do": "walk", "len": 3.0}]}]},
@@ -108,6 +116,26 @@ static func row_key(event: Dictionary) -> String:
 	return key if ROWS.has(key) else ""
 
 
+## 步驟有幾種任選一種（do 是陣列）的列：補上出手者的道途 <who>_path（path_of 由人物編號回傳 0 起算的索引，不知道回 −1），
+## 沒有這類步驟的事件原樣回傳。道途由 EventStage 向橋接取：修士 0、凡人與其他 1、僧人 2，與 STRIKES 的順序一致。
+static func with_paths(event: Dictionary, path_of: Callable) -> Dictionary:
+	var key := row_key(event)
+	if key.is_empty():
+		return event
+	var out := event
+	for spec: Dictionary in ROWS[key]["actors"]:
+		for step: Dictionary in spec["steps"]:
+			if step["do"] is Array:
+				var who := str(spec["who"])
+				var person := _person_of(event, who)
+				if person < 0 or event.has(who + "_path"):
+					continue
+				if out == event:
+					out = event.duplicate()
+				out[who + "_path"] = int(path_of.call(person))
+	return out
+
+
 ## 事件的演出腳本：{key, actors: [{who, person, steps: [{do, start, length}], end}], action_len, total, travel, light, ascend, to}；
 ## 沒有對應動作、沒有位置、沒有當事人（或行走沒有目的州郡）回空字典。
 static func plan(event: Dictionary) -> Dictionary:
@@ -132,7 +160,7 @@ static func plan(event: Dictionary) -> Dictionary:
 		var steps: Array[Dictionary] = []
 		var cursor := 0.0
 		for step: Dictionary in (actors[index]["spec"] as Dictionary)["steps"]:
-			var action := str(step["do"])
+			var action := _pick(step["do"], event, str(actors[index]["who"]), int(actors[index]["person"]))
 			var length := float(step["len"]) if step.has("len") else (FigureMotion.length(str(step["len_of"])) if step.has("len_of") else FigureMotion.length(action))
 			var start := cursor
 			if step.has("sync"):
@@ -188,6 +216,15 @@ static func opacity_at(total: float, time: float) -> float:
 	return clampf(time / FADE_IN, 0.0, 1.0) * clampf((total - time) / OUTRO, 0.0, 1.0)
 
 
+## 步驟的動作：寫成陣列就是幾種任選一種，取事件的「<who>_path」（出手者的道途，0 起算），沒有就取人物編號除以種數的餘數。
+static func _pick(choice: Variant, event: Dictionary, who: String, person: int) -> String:
+	if not choice is Array:
+		return str(choice)
+	var options: Array = choice
+	var path := int(event.get(who + "_path", -1))
+	return str(options[path if path >= 0 and path < options.size() else person % options.size()])
+
+
 static func _person_of(event: Dictionary, who: String) -> int:
 	var persons: PackedInt32Array = event.get("persons", PackedInt32Array())
 	var index := 0 if who == "a" else 1
@@ -203,6 +240,6 @@ static func _sync_time(actors: Array[Dictionary], sync: String) -> float:
 	if other >= actors.size() or not actors[other].has("steps"):
 		return 0.0
 	for step: Dictionary in actors[other]["steps"]:
-		if str(step["do"]) == parts[1]:
-			return float(step["start"]) + maxf(FigureMotion.event_time(parts[1], parts[2]), 0.0)
+		if parts[1] == "*" or str(step["do"]) == parts[1]:
+			return float(step["start"]) + maxf(FigureMotion.event_time(str(step["do"]), parts[2]), 0.0)
 	return 0.0

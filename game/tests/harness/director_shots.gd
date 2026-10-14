@@ -1,5 +1,5 @@
 extends SceneTree
-## 導演模式（GDD 5.13）的實機截圖：開視窗跑一段高速時間，每隔幾秒存一張，並把每次換鏡頭的時間表寫成日誌。
+## 導播模式（GDD 5.13）的實機截圖：開視窗跑一段高速時間，每隔幾秒存一張，並把每次換鏡頭的時間表寫成日誌。
 ## 用法（要開視窗才畫得出來）：
 ##   Godot_v4.7.1-stable_win64_console.exe --audio-driver Dummy --path game --position 2600,40 --resolution 1920x1080
 ##     --script res://tests/harness/director_shots.gd -- --out=資料夾 [--mode=run|card] [--ui=1.0] [--speed=3] [--shots=40] [--every=2.0]
@@ -14,7 +14,7 @@ var _speed := 3
 var _shots := 40
 var _every := 2.0
 ## --replay=鍵,鍵：先把模擬推一段，挑出對照表鍵（EventScript.row_key，如 Died:Age、ThreadResolved:Feud）相符的真事件，
-## 開拍後每隔 _replay_gap 遊戲秒把一件改成大事重新送進導演（為了在一輪裡拍到少見的事件）。
+## 開拍後每隔 _replay_gap 遊戲秒把一件改成大事重新送進導播（為了在一輪裡拍到少見的事件）。
 var _replay_keys := PackedStringArray()
 var _replay := []
 var _replay_gap := 45.0

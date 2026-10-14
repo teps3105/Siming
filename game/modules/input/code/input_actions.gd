@@ -38,7 +38,7 @@ const MODE_LINGMAI := &"map_mode_lingmai"
 const MODE_YINGUO := &"map_mode_yinguo"
 ## 星球視角與平面地圖互換：鍵盤 G、搖桿按下右搖桿。
 const VIEW_TOGGLE := &"map_view_toggle"
-## 導演模式開關（GDD 5.13）：鍵盤 F7（F6 留給地圖模式的業氣）、搖桿的 Share（Xbox 手把中間偏右的小鍵）。
+## 導播模式開關（GDD 5.13）：鍵盤 F7（F6 留給地圖模式的業氣）、搖桿的 Share（Xbox 手把中間偏右的小鍵）。
 const DIRECTOR_TOGGLE := &"director_toggle"
 ## 傳聞簽（GDD 5.7）：展開近 50 則的清單、收回清單。搖桿沒有專屬鍵，以游標點簽頭（5.9）。
 const RUMOR_LIST := &"rumor_list"

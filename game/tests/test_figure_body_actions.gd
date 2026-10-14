@@ -5,7 +5,8 @@ extends "res://tests/harness/suite.gd"
 const CF := preload("res://modules/ui_kit/code/cultivator_figure.gd")
 const SIL := preload("res://tests/harness/figure_silhouette.gd")
 const OLD := ["stand", "brace", "struck", "walk", "fall", "rise", "strike", "seal", "bow"]
-const BODY := ["kneel", "bless", "sit", "slump", "turn", "away", "clasp", "offer", "receive"]
+const BODY := ["kneel", "bless", "sit", "slump", "turn", "away", "clasp", "offer", "receive",
+	"salute", "hail", "token", "writhe", "cough", "chop", "palm", "guard"]
 const EXPECT := {
 	"kneel": {"frames": 54, "events": {"down": 22, "up": 36}},
 	"bless": {"frames": 54, "events": {"touch": 22, "release": 40}},
@@ -16,11 +17,21 @@ const EXPECT := {
 	"clasp": {"frames": 56, "events": {"meet": 20, "release": 36}},
 	"offer": {"frames": 60, "events": {"give": 30, "retreat": 38}},
 	"receive": {"frames": 60, "events": {"take": 22, "hold": 40}},
+	"salute": {"frames": 54, "events": {"salute": 22, "release": 34}},
+	"hail": {"frames": 56, "events": {"raise": 24, "release": 44}},
+	"token": {"frames": 72, "events": {"receive": 16, "lift": 40}},
+	"writhe": {"frames": 64, "events": {"clutch": 30, "collapse": 44}},
+	"cough": {"frames": 48, "events": {"cover": 10, "stagger": 30}},
+	"chop": {"frames": 44, "events": {"raise": 16, "hit": 24}},
+	"palm": {"frames": 40, "events": {"charge": 12, "hit": 22}},
+	"guard": {"frames": 36, "events": {"block": 6}},
 }
 ## 剪影差異的門檻：不同像素占聯集的比例要超過這個數（現有 bow 對 seal 是 0.38，stand 對 seal 是 0.27）。
 const SILHOUETTE_MIN := 0.30
 ## 退修過的四個動作（bless、clasp、receive、away）要更大：對 stand 超過 0.50、對 bow、seal 與彼此超過 0.40。
 const STRONG := ["bless", "clasp", "receive", "away"]
+## 第二批從一開始就照對 stand 超過 0.50 做（兩兩之間與 bow、seal 只要超過 0.30）。
+const SECOND := ["salute", "hail", "token", "writhe", "cough", "chop", "palm", "guard"]
 const SILHOUETTE_STRONG_STAND := 0.50
 const SILHOUETTE_STRONG := 0.40
 const JOINTS := ["hip", "neck", "elbow_f", "hand_f", "elbow_b", "hand_b"]
@@ -42,14 +53,14 @@ func test_gdd_8_11_body_actions_have_the_frames_and_named_events() -> void:
 			assert_lt(int(events[name]), FigureMotion.frame_count(action) + 1, "%s 的事件格號存在" % action)
 
 
-func test_gdd_8_11_body_actions_start_from_stand_and_all_but_slump_end_near_it() -> void:
+func test_gdd_8_11_body_actions_start_from_stand_and_all_but_slump_and_writhe_end_near_it() -> void:
 	var stand := FigureMotion.frame_pose("stand", 0)
 	for action: String in BODY:
 		var first := FigureMotion.frame_pose(action, 0)
 		for key in JOINTS:
 			assert_lt((first[key] as Vector2).distance_to(stand[key]), 0.03, "%s 起點的 %s 接得上 stand" % [action, key])
 		assert_false(first["seated"], action + " 起點不是坐姿")
-		if action == "slump":
+		if action == "slump" or action == "writhe":
 			continue
 		var last := FigureMotion.frame_pose(action, FigureMotion.frame_count(action))
 		var tolerance := 0.05 if action in ["turn", "away"] else 0.03
@@ -165,7 +176,7 @@ func test_gdd_8_11_silhouettes_of_the_body_actions_differ_at_64_px() -> void:
 						tight += 1
 					elif n in ["bow", "seal"]:
 						tight += 10
-				if "stand" in pair and tight == 1:
+				if "stand" in pair and (tight == 1 or names[i] in SECOND):
 					need = SILHOUETTE_STRONG_STAND
 				elif tight == 2 or tight == 11:
 					need = SILHOUETTE_STRONG

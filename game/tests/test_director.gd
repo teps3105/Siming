@@ -1,5 +1,5 @@
 extends "res://tests/harness/suite.gd"
-## 導演模式（GDD 5.13）的決策與自動變速。時間全部是假的：測試自己推進真實秒，不等任何一秒。
+## 導播模式（GDD 5.13）的決策與自動變速。時間全部是假的：測試自己推進真實秒，不等任何一秒。
 
 const STEP := 0.25
 
@@ -46,7 +46,7 @@ func _run(seconds: float, running := true) -> void:
 		left -= step
 
 
-## 讓導演去 province 並到位（鏡頭瞬間完成）。
+## 讓導播去 province 並到位（鏡頭瞬間完成）。
 func _visit(province: int, importance := 2) -> void:
 	_dir.post(province, importance, {"importance": importance, "p": "州%d" % province})
 	_run(STEP)
@@ -239,7 +239,7 @@ func test_disabling_during_travel_releases_the_hold() -> void:
 	_run(STEP)
 	_dir.enabled = false
 	_run(STEP)
-	assert_eq(stage.releases, [5] as Array[int], "導演讓出也放開")
+	assert_eq(stage.releases, [5] as Array[int], "導播讓出也放開")
 	assert_eq(_dir.state, Director.State.OFF)
 
 
@@ -250,7 +250,7 @@ func test_player_action_yields_and_idle_brings_it_back() -> void:
 	_run(18.0)
 	_dir.post(2, 4, _event(4))
 	_run(1.0)
-	assert_eq(_log.size(), 1, "閒置沒滿，導演不動")
+	assert_eq(_log.size(), 1, "閒置沒滿，導播不動")
 	_run(1.5)
 	assert_eq(_log.size(), 2, "閒置滿 20 秒接回，去分數最高的地方")
 	assert_eq(_log[1][1], 2)
@@ -402,7 +402,7 @@ func test_speed_is_not_restored_when_the_player_changed_it() -> void:
 	speed.engage()
 	sim.set_paused(true)
 	speed.release()
-	assert_true(sim.paused, "玩家按了暫停，導演不解除")
+	assert_true(sim.paused, "玩家按了暫停，導播不解除")
 
 
 func test_speed_unchanged_when_disabled() -> void:

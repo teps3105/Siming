@@ -13,6 +13,7 @@ const ROWS := 77
 const REP := {
 	"stand": 0, "brace": 12, "struck": 14, "walk": 5, "fall": 22, "rise": 27, "strike": 32, "seal": 24, "bow": 24,
 	"kneel": 28, "bless": 22, "sit": 24, "slump": 60, "turn": 10, "away": 28, "clasp": 24, "offer": 30, "receive": 22,
+	"salute": 22, "hail": 30, "token": 44, "writhe": 44, "cough": 30, "chop": 24, "palm": 22, "guard": 8,
 }
 const SEED := 11
 

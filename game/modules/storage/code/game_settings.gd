@@ -18,7 +18,7 @@ const DEFAULTS := {
 	"edge_scroll": false,
 	"tutorial_done": false,
 	"tutorial_step": 0,
-	# 導演模式（GDD 5.13）。節奏 0 慢、1 標準、2 快。
+	# 導播模式（GDD 5.13）。節奏 0 慢、1 標準、2 快。
 	"director": true,
 	"director_pace": 1,
 	"director_idle": 20,
@@ -26,7 +26,7 @@ const DEFAULTS := {
 	"director_card": true,
 	"director_reduce": false,
 }
-## 程式覆寫的預設值（不寫入設定檔）：測試執行器用它預設關閉導演，使用者存過的值仍優先。
+## 程式覆寫的預設值（不寫入設定檔）：測試執行器用它預設關閉導播，使用者存過的值仍優先。
 static var default_overrides := {}
 
 ## 設定檔的位置；測試會改到別處。
