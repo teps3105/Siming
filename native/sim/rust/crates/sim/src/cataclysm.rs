@@ -61,11 +61,16 @@ pub fn thread_allowed(w: &mut World) -> bool {
     w.rng.evolution.gen::<f64>() < rate
 }
 
+/// 魔劫起訖記一件世界大事；距目前紀元開始不滿 [`EVO_ERA_MIN_YEARS`] 年（或已是同類）就只記事、不改元。
 fn open_era_now(w: &mut World, year: u32, kind: EraKind, change: WorldChange) {
-    let used: Vec<String> = w.eras.iter().map(|e| e.name.clone()).collect();
-    let name = Lexicon::builtin().name(w.params.seed, w.eras.len() as u32, kind, &used);
-    w.eras.push(CalendarEra { name, start_year: year + 1, kind });
-    ledger::record(w, NewEvent::new(EventKind::WorldChanged, EVO_EVENT_IMPORTANCE, EventArgs::World { change, new_era: true }));
+    let current = w.eras.last().expect("紀元年表至少有開天一筆");
+    let new_era = year + 1 >= current.start_year + EVO_ERA_MIN_YEARS && current.kind != kind;
+    if new_era {
+        let used: Vec<String> = w.eras.iter().map(|e| e.name.clone()).collect();
+        let name = Lexicon::builtin().name(w.params.seed, w.eras.len() as u32, kind, &used);
+        w.eras.push(CalendarEra { name, start_year: year + 1, kind });
+    }
+    ledger::record(w, NewEvent::new(EventKind::WorldChanged, EVO_EVENT_IMPORTANCE, EventArgs::World { change, new_era }));
 }
 
 /// 每年一次：劫終收尾；負荷超過上限且距上次大劫夠久就降下大劫。

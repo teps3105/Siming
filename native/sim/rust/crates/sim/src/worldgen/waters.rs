@@ -141,7 +141,12 @@ fn name_since(seed: u64, origin: &Survey, now: &Survey) -> Vec<NamedWater> {
         }
         let slot = &mut names[at as usize];
         if slot.is_none() && is_lake(now.waters[at as usize].0) == is_lake(elder.kind) {
-            *slot = Some(elder.name.clone());
+            // 名字承襲，稱呼跟著現在的種類走：海漲成洋就叫洋，不會出現標成洋的「鯨海」。
+            let (kind, _, area) = now.waters[at as usize];
+            let (_, suffix, _) = stem_pool(&words, kind, area);
+            let mut stem = elder.name.clone();
+            stem.pop();
+            *slot = Some(format!("{stem}{suffix}"));
         }
     }
     now.waters

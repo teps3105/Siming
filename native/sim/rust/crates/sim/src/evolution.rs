@@ -54,10 +54,25 @@ pub enum WorldChange {
     RevivalEnded,
     CataclysmBegan,
     CataclysmEnded,
+    /// 天地回到寒暖平常、靈潮平常：承平。紀元因過了最短年數才開啟時，天地的狀態早已不是剛跨門檻的那一刻，
+    /// 用它記「進入承平」。變體的順序進世界雜湊與存檔，只在末尾追加。
+    Calm,
 }
 
 impl WorldChange {
-    /// 這件大事開啟哪一類紀元；時期結束的不指定（由 [`next_era`] 判斷是否承平）。
+    /// 開啟 `kind` 類紀元的大事（紀元因最短年數延後開啟、當世沒有對應的跨門檻大事時，用它記這次改元）。
+    fn starting(kind: EraKind) -> Self {
+        match kind {
+            EraKind::Cold => WorldChange::ColdBegan,
+            EraKind::Warm => WorldChange::WarmBegan,
+            EraKind::Decline => WorldChange::DeclineBegan,
+            EraKind::Revival => WorldChange::RevivalBegan,
+            EraKind::Cataclysm => WorldChange::CataclysmBegan,
+            _ => WorldChange::Calm,
+        }
+    }
+
+    /// 這件大事開啟哪一類紀元；時期結束的不指定。
     fn opens(self) -> Option<EraKind> {
         match self {
             WorldChange::ColdBegan => Some(EraKind::Cold),
@@ -94,6 +109,9 @@ pub struct Evolution {
     pub tide_phase: f32,
     pub climate: Climate,
     pub aura: AuraAge,
+    /// 目前的天地狀態（[`Evolution::state_kind`]）從哪一年起沒有變過；改元要等狀態穩定 [`EVO_ERA_SETTLE_YEARS`] 年。
+    #[serde(default)]
+    pub kind_since: u32,
 }
 
 impl Evolution {
@@ -125,6 +143,7 @@ impl Evolution {
             tide_phase: tide_phase - tide_phase.floor(),
             climate: Climate::Mild,
             aura: AuraAge::Plain,
+            kind_since: 0,
         };
         out.warmth = out.warmth_cycle(0);
         out.tide = out.tide_cycle(0);
@@ -167,6 +186,7 @@ impl Evolution {
         self.sea_shift = (self.sea_shift + (sea_target - self.sea_shift) * EVO_SEA_APPROACH).clamp(-EVO_SEA_RANGE, EVO_SEA_RANGE);
         self.tide = self.tide_cycle(year).clamp(EVO_TIDE_MIN, EVO_TIDE_MAX);
 
+        let before = self.state_kind();
         let mut changes = Vec::new();
         // 進入與離開用不同的門檻，免得在門檻附近反覆。
         match self.climate {
@@ -207,22 +227,32 @@ impl Evolution {
             }
             _ => {}
         }
+        if self.state_kind() != before {
+            self.kind_since = year;
+        }
         changes
     }
 
-    /// 這一世的世界大事開啟哪一類紀元（GDD 2.8）；不改元時回傳 `None`。
-    ///
-    /// 有時期開始，取第一件；只有時期結束，而寒暖與靈潮都回到平常，才是承平。
-    /// 距上一次改元不滿 [`EVO_ERA_MIN_YEARS`] 年，或與目前的紀元同類，不改元。
-    pub fn next_era(&self, changes: &[WorldChange], year: u32, current: &CalendarEra) -> Option<EraKind> {
-        let kind = match changes.iter().find_map(|c| c.opens()) {
-            Some(kind) => kind,
-            None if !changes.is_empty() && self.climate == Climate::Mild && self.aura == AuraAge::Plain => EraKind::Peace,
-            None => return None,
-        };
+    /// 天地現在的狀態屬於哪一類紀元：寒暖不平常取大寒、大暖，否則靈潮不平常取末法、靈氣復甦，都平常則承平。
+    pub fn state_kind(&self) -> EraKind {
+        match (self.climate, self.aura) {
+            (Climate::Cold, _) => EraKind::Cold,
+            (Climate::Warm, _) => EraKind::Warm,
+            (_, AuraAge::Decline) => EraKind::Decline,
+            (_, AuraAge::Revival) => EraKind::Revival,
+            _ => EraKind::Peace,
+        }
+    }
+
+    /// 這一世是否改元（GDD 2.8）：距目前紀元開始已滿 [`EVO_ERA_MIN_YEARS`] 年，天地現在的狀態
+    /// （[`Evolution::state_kind`]）已穩定 [`EVO_ERA_SETTLE_YEARS`] 年，且與目前的紀元不同類，就改成現在狀態的那一類。
+    /// 不在大事跨門檻的當下改元，所以紀元名取決於改元時天地的樣子，而不是早已過去的那件大事。
+    pub fn next_era(&self, year: u32, current: &CalendarEra) -> Option<EraKind> {
+        let kind = self.state_kind();
         // 新紀元的元年是下一年。
         let long_enough = year + 1 >= current.start_year + EVO_ERA_MIN_YEARS;
-        (long_enough && kind != current.kind).then_some(kind)
+        let settled = year >= self.kind_since + EVO_ERA_SETTLE_YEARS;
+        (long_enough && settled && kind != current.kind).then_some(kind)
     }
 }
 
@@ -233,8 +263,8 @@ pub fn genesis(seed: u64, era: Era, open_years: u32) -> (Evolution, Vec<Calendar
     let mut eras = vec![CalendarEra { name: lexicon.name(seed, 0, EraKind::Genesis, &[]), start_year: 1, kind: EraKind::Genesis }];
     let mut year = 30;
     while year <= evolution.history_years {
-        let changes = evolution.settle(year);
-        open_era(&evolution, &changes, year, seed, &lexicon, &mut eras);
+        evolution.settle(year);
+        open_era(&evolution, year, seed, &lexicon, &mut eras);
         year += 30;
     }
     evolution.opening_warmth = evolution.warmth;
@@ -242,23 +272,14 @@ pub fn genesis(seed: u64, era: Era, open_years: u32) -> (Evolution, Vec<Calendar
     (evolution, eras)
 }
 
-/// 依這一世的世界大事決定是否改元；改元則追加一筆紀元並回傳真。
-pub fn open_era(
-    evolution: &Evolution,
-    changes: &[WorldChange],
-    year: u32,
-    seed: u64,
-    lexicon: &Lexicon,
-    eras: &mut Vec<CalendarEra>,
-) -> bool {
+/// 依天地現在的狀態決定是否改元；改元則追加一筆紀元並回傳它的類別。
+pub fn open_era(evolution: &Evolution, year: u32, seed: u64, lexicon: &Lexicon, eras: &mut Vec<CalendarEra>) -> Option<EraKind> {
     let current = eras.last().expect("紀元年表至少有開天一筆");
-    let Some(kind) = evolution.next_era(changes, year, current) else {
-        return false;
-    };
+    let kind = evolution.next_era(year, current)?;
     let used: Vec<String> = eras.iter().map(|e| e.name.clone()).collect();
     let name = lexicon.name(seed, eras.len() as u32, kind, &used);
     eras.push(CalendarEra { name, start_year: year + 1, kind });
-    true
+    Some(kind)
 }
 
 /// 一個洞天福地在這一世升或降了一級（等級見 [`LeyNode::grade`]）。
@@ -350,20 +371,42 @@ pub fn prepare_aura(w: &mut World) -> bool {
 /// GDD 2.8「每世結算」：在每世的天機收入之前執行。草木隨墾殖度消長；地形與海陸隨寒暖與海平面推進一步、州郡重算；
 /// 靈氣隨靈潮重算；世界大事、地形的變動與洞天福地的升降寫入因果帳；改元則追加紀元。
 pub fn shi_settle(w: &mut World) {
+    shi_settle_coarse(w, &mut Vec::new(), true);
+}
+
+/// 同 [`shi_settle`]；`land` 為假時略過地形與海陸的推進（最耗時的一步），草木旗標有變的格先記在 `pending`，
+/// 下一次 `land` 為真時一併套用。人口期用它把地形每數世推進一次（GDD 4.6）。
+pub fn shi_settle_coarse(w: &mut World, pending: &mut Vec<u32>, land: bool) {
     let year = w.evolution.history_years + year_of(w.tick);
     let changes = w.evolution.settle(year);
     let flora = crate::flora::settle(w);
-    let land = crate::landform::settle_with(w, &flora.touched);
+    pending.extend_from_slice(&flora.touched);
+    let land = if land {
+        pending.sort_unstable();
+        pending.dedup();
+        let shift = crate::landform::settle_with(w, pending);
+        pending.clear();
+        shift
+    } else {
+        Default::default()
+    };
     let shifts = shift_nodes_rng(&mut w.rng.evolution, w.evolution.tide, &mut w.geo.nodes);
     refresh_aura(w);
-    if !changes.is_empty() {
-        let new_era = open_era(&w.evolution, &changes, year, w.params.seed, &Lexicon::builtin(), &mut w.eras);
-        // 開啟紀元的那一件掛在紀元上：有時期開始取第一件開始的，否則（承平）取最後一件。
-        let opener = changes.iter().position(|c| c.opens().is_some()).unwrap_or(changes.len() - 1);
-        for (i, &change) in changes.iter().enumerate() {
-            let args = EventArgs::World { change, new_era: new_era && i == opener };
-            crate::ledger::record(w, NewEvent::new(EventKind::WorldChanged, EVO_EVENT_IMPORTANCE, args));
+    let opened = open_era(&w.evolution, year, w.params.seed, &Lexicon::builtin(), &mut w.eras);
+    // 開啟紀元的那一件掛在紀元上：這一世有跨門檻的對應大事就取它，否則（延後開啟）另記一件。
+    let mut events: Vec<(WorldChange, bool)> = changes.iter().map(|&c| (c, false)).collect();
+    if let Some(kind) = opened {
+        let opener = events.iter().position(|(c, _)| c.opens() == Some(kind)).or_else(|| {
+            let ended = kind == EraKind::Peace;
+            ended.then(|| events.iter().position(|(c, _)| c.opens().is_none())).flatten()
+        });
+        match opener {
+            Some(i) => events[i].1 = true,
+            None => events.push((WorldChange::starting(kind), true)),
         }
+    }
+    for (change, new_era) in events {
+        crate::ledger::record(w, NewEvent::new(EventKind::WorldChanged, EVO_EVENT_IMPORTANCE, EventArgs::World { change, new_era }));
     }
     record_land(w, &land);
     for (kind, provinces) in [(EventKind::ForestCleared, &flora.exhausted), (EventKind::Desertified, &flora.desertified)] {
@@ -431,6 +474,8 @@ mod tests {
 
     const ERAS: [Era; 3] = [Era::Ancient, Era::Middle, Era::Decline];
     const THREE_YUN: u32 = 1080;
+    /// 住劫的終點（世界第 113,400 年）：推演到這裡看整個住劫的紀元。
+    const KALPA: u32 = LANDING_YEAR_MAX;
 
     /// 開局後再推演 `years` 年的紀元年表與每世的慢變量。
     fn play(seed: u64, era: Era, years: u32) -> (Evolution, Vec<CalendarEra>, Vec<Evolution>) {
@@ -439,8 +484,8 @@ mod tests {
         let mut curve = Vec::new();
         let mut year = e.history_years + 30;
         while year <= e.history_years + years {
-            let changes = e.settle(year);
-            open_era(&e, &changes, year, seed, &lexicon, &mut eras);
+            e.settle(year);
+            open_era(&e, year, seed, &lexicon, &mut eras);
             curve.push(e.clone());
             year += 30;
         }
@@ -548,27 +593,49 @@ mod tests {
         }
     }
 
+    /// 老闆裁定（訪談第 65 輪）：紀元最短 8,000 年、中位約 15,000 年，住劫（86,400 年）內約 5–10 個紀元。
     #[test]
-    fn gdd_2_8_era_changes_two_to_six_per_three_yun_and_never_short() {
-        let (mut total, mut within) = (0u32, 0u32);
+    fn gdd_2_8_eras_last_at_least_8000_years_and_median_about_15000() {
+        let mut lengths = Vec::new();
+        let (mut before_landing, mut seeds) = (Vec::new(), 0u32);
         for seed in 1..=200u64 {
             for era in ERAS {
-                let (e, eras, _) = play(seed, era, THREE_YUN);
+                let (_, eras, _) = play(seed, era, KALPA);
                 for pair in eras.windows(2) {
-                    assert!(
-                        pair[1].start_year - pair[0].start_year >= EVO_ERA_MIN_YEARS,
-                        "種子 {seed}：紀元 {} 只有 {} 年",
-                        pair[0].name,
-                        pair[1].start_year - pair[0].start_year
-                    );
+                    let len = pair[1].start_year - pair[0].start_year;
+                    assert!(len >= EVO_ERA_MIN_YEARS, "種子 {seed}：紀元 {} 只有 {len} 年", pair[0].name);
                     assert_ne!(pair[0].kind, pair[1].kind, "相鄰的紀元不同類");
+                    lengths.push(len);
                 }
-                let after = eras.iter().filter(|x| x.start_year > e.history_years + 1).count();
-                total += 1;
-                within += u32::from((2..=6).contains(&after));
+                // 住劫內（第 27,000–113,400 年）的紀元數。
+                let in_kalpa = eras.iter().filter(|x| x.start_year > LANDING_YEAR_MIN).count() as u32;
+                before_landing.push(in_kalpa);
+                seeds += 1;
             }
         }
-        assert!(within * 100 >= total * 90, "三運內改元 2–6 次的只有 {within}/{total}");
+        lengths.sort_unstable();
+        let median = lengths[lengths.len() / 2];
+        assert!((12_000..=18_000).contains(&median), "紀元長度中位 {median} 年");
+        let ok = before_landing.iter().filter(|&&n| (3..=10).contains(&n)).count() as u32;
+        assert!(ok * 100 >= seeds * 85, "住劫內改元 3–10 次的只有 {ok}/{seeds}");
+    }
+
+    /// 紀元的類別要與開啟時天地的狀態相符，且狀態已穩定 [`EVO_ERA_SETTLE_YEARS`] 年。
+    #[test]
+    fn gdd_2_8_era_kind_matches_the_world_when_it_opens() {
+        for seed in 1..=60u64 {
+            let lexicon = Lexicon::builtin();
+            let (mut e, mut eras) = genesis(seed, Era::Middle, 0);
+            let mut year = 30;
+            while year <= KALPA {
+                e.settle(year);
+                if let Some(kind) = open_era(&e, year, seed, &lexicon, &mut eras) {
+                    assert_eq!(kind, e.state_kind(), "種子 {seed} 第 {year} 年：紀元類別與天地狀態不符");
+                    assert!(year >= e.kind_since + EVO_ERA_SETTLE_YEARS, "種子 {seed} 第 {year} 年：狀態還沒穩定就改元");
+                }
+                year += 30;
+            }
+        }
     }
 
     #[test]
@@ -583,7 +650,7 @@ mod tests {
         // 往後推演，同一張年表不重名。
         let mut names = std::collections::BTreeSet::new();
         for seed in 1..=30u64 {
-            let (_, eras, _) = play(seed, Era::Middle, THREE_YUN);
+            let (_, eras, _) = play(seed, Era::Middle, KALPA);
             let unique: std::collections::BTreeSet<&str> = eras.iter().map(|x| x.name.as_str()).collect();
             assert_eq!(unique.len(), eras.len(), "同一張年表不重名");
             names.insert(eras.last().unwrap().name.clone());
@@ -593,11 +660,11 @@ mod tests {
 
     #[test]
     fn gdd_2_8_same_seed_same_chronicle() {
-        let a = play(20261011, Era::Middle, THREE_YUN);
-        let b = play(20261011, Era::Middle, THREE_YUN);
+        let a = play(20261011, Era::Middle, KALPA);
+        let b = play(20261011, Era::Middle, KALPA);
         assert_eq!(a.1, b.1);
         assert_eq!(a.2, b.2);
-        assert_ne!(a.1, play(20261012, Era::Middle, THREE_YUN).1);
+        assert_ne!(a.1, play(20261012, Era::Middle, KALPA).1);
     }
 
     fn node(origin: f32) -> LeyNode {

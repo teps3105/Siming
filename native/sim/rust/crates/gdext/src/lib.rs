@@ -268,6 +268,7 @@ impl SimWorld {
     fn create(&mut self, seed: i64, size: GString) -> GString {
         let mut params = WorldParams::new(seed as u64);
         params.size = size_from(size.to_string().as_str());
+        params.set_landing(siming_sim::Landing::Random);
         self.open(params)
     }
 
@@ -292,16 +293,23 @@ impl SimWorld {
                 _ => Era::Middle,
             };
         }
+        // 開局落點（GDD 4.6）：`landing` 為 random／early／mid／late，`landing_year` 指定世界年（優先）。
+        let landing = match options.get("landing_year").and_then(|v| v.try_to::<i64>().ok().or_else(|| v.try_to::<f64>().ok().map(|f| f as i64))) {
+            Some(y) if y > 0 => siming_sim::Landing::Year(y.min(u32::MAX as i64) as u32),
+            _ => siming_sim::Landing::parse(text("landing").as_deref().unwrap_or("random")),
+        };
         if let Some(n) = options.get("rng_seed").and_then(|v| v.try_to::<i64>().ok()) {
             FIXED_RNG.store(n as u64 & (u64::MAX >> 1), Ordering::Relaxed);
         }
-        let count = |key: &str| options.get(key).and_then(|v| v.try_to::<i64>().ok()).map(|n| n.clamp(0, 20_000) as u32);
-        if let Some(n) = count("pop_years") {
-            params.pop_years = n;
-            self.explicit_prerun = true;
-        }
+        let count = |key: &str| options.get(key).and_then(|v| v.try_to::<i64>().ok()).map(|n| n.clamp(0, 120_000) as u32);
+        // 人口期長度預設由落點算出；人物期長度先定，落點才算得對。
         if let Some(n) = count("prerun_years") {
             params.prerun_years = n;
+            self.explicit_prerun = true;
+        }
+        params.set_landing(landing);
+        if let Some(n) = count("pop_years") {
+            params.pop_years = n;
             self.explicit_prerun = true;
         }
         if let Some(v) = number("land_ratio") {
@@ -320,7 +328,7 @@ impl SimWorld {
     /// 傳負數表示還原成世界參數的預設值。`create_with` 明確給的 `pop_years`、`prerun_years` 優先。
     #[func]
     fn set_default_prerun(pop_years: i64, prerun_years: i64) {
-        let f = |n: i64| if n < 0 { UNSET } else { n.min(20_000) as u32 };
+        let f = |n: i64| if n < 0 { UNSET } else { n.min(120_000) as u32 };
         DEFAULT_POP_YEARS.store(f(pop_years), Ordering::Relaxed);
         DEFAULT_PRERUN_YEARS.store(f(prerun_years), Ordering::Relaxed);
     }
@@ -347,6 +355,8 @@ impl SimWorld {
             d.set("land_ratio", p.land_ratio);
             d.set("relief", p.relief);
             d.set("humidity", p.humidity);
+            // 存檔摘要經 JSON 往返會變成浮點數，這裡直接給浮點數，兩邊一致；create_with 兩種都收。
+            d.set("landing_year", (p.pop_years + p.prerun_years) as f64);
         }
         d
     }

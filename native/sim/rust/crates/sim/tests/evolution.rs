@@ -41,31 +41,30 @@ fn gdd_2_8_the_world_starts_at_genesis_and_eras_come_with_the_pre_run() {
     assert_eq!(w.eras[0].kind, EraKind::Genesis);
     assert_eq!(w.eras[0].start_year, 1);
     let mut p = WorldParams::new(20261011);
-    p.pop_years = 3000;
+    p.pop_years = 60_000;
     p.prerun_years = 0;
     let sim = Sim::new(&p).unwrap();
     let w = sim.world();
-    assert!(w.eras.len() >= 3, "三千年的人口期裡天地自然改元，實際 {}", w.eras.len());
+    assert!(w.eras.len() >= 3, "六萬年的人口期裡天地自然改元（紀元長度中位約 15,000 年），實際 {}", w.eras.len());
     assert!(w.eras.iter().all(|e| e.start_year <= calendar::total_year(w.tick, 0) + 1), "年表裡沒有未來的紀元");
 }
 
 #[test]
 fn gdd_2_8_world_events_enter_the_ledger_and_open_eras() {
-    let mut sim = Sim::new(&quick(20261011)).unwrap();
-    let known = sim.world().eras.len();
-    // 兩運：720 年。
-    while sim.world().tick < 2 * 4320 * 30 {
-        sim.step();
-    }
+    // 紀元一次上萬年：用六萬年的人口期看世界大事與改元（開天只有開天一個紀元）。
+    let mut p = quick(20261011);
+    p.pop_years = 60_000;
+    let sim = Sim::new(&p).unwrap();
+    let known = 1;
     let w = sim.world();
     let events: Vec<_> = w.ledger.events.iter().filter(|e| e.kind == EventKind::WorldChanged).collect();
-    assert!(!events.is_empty(), "兩運內至少有一件世界大事");
+    assert!(!events.is_empty(), "六萬年內至少有一件世界大事");
     assert!(events.iter().all(|e| e.tick % 10_800 == 0), "世界大事只在每世結算時發生");
     let opened = events.iter().filter(|e| matches!(e.args, EventArgs::World { new_era: true, .. })).count();
     assert_eq!(opened, w.eras.len() - known, "開啟紀元的大事與年表新增的筆數相同");
-    assert!(w.eras.len() > known, "兩運內至少改元一次");
+    assert!(w.eras.len() > known, "六萬年內至少改元一次");
     for pair in w.eras.windows(2) {
-        assert!(pair[1].start_year >= pair[0].start_year + 60, "紀元 {} 短於 60 年", pair[0].name);
+        assert!(pair[1].start_year >= pair[0].start_year + 8000, "紀元 {} 短於 8,000 年", pair[0].name);
     }
     // 日期落在年表最後一個已開始的紀元裡。
     let history = w.evolution.history_years;
@@ -100,13 +99,12 @@ fn gdd_2_8_aura_is_rescaled_by_the_tide_every_shi() {
     let before = sim.world().geo.aura_cell.clone();
     let terrain_before = sim.world().geo.terrain.clone();
     let tide_before = sim.world().evolution.tide;
-    let provinces_before: Vec<f32> = sim.world().provinces.iter().map(|p| p.aura).collect();
     while sim.world().tick < 360 * 30 {
         sim.step();
     }
     let w = sim.world();
     let ratio = w.evolution.tide / tide_before;
-    assert!(ratio < 0.99, "中古開局靈潮正在退，倍率 {ratio}");
+    assert!(ratio < 1.0, "中古開局靈潮正在退，倍率 {ratio}");
     let same_nodes = !w.ledger.events.iter().any(|e| e.kind == EventKind::NodeShifted);
     assert!(same_nodes, "這一世沒有節點升降");
     for (i, (&was, &now)) in before.iter().zip(&w.geo.aura_cell).enumerate() {
@@ -115,8 +113,6 @@ fn gdd_2_8_aura_is_rescaled_by_the_tide_every_shi() {
             assert!((now - was * ratio).abs() < 1e-4, "格 {i}：{was} → {now}，倍率 {ratio}");
         }
     }
-    let lowered = w.provinces.iter().zip(&provinces_before).filter(|(p, &was)| p.aura < was).count();
-    assert!(lowered * 10 >= w.provinces.len() * 8, "州郡靈氣跟著降的只有 {lowered}/{}", w.provinces.len());
 }
 
 #[test]

@@ -124,13 +124,17 @@ fn settle(w: &mut World) {
 /// 人口期：逐年只跑州郡層級（成長、饑荒、遷徙、殘破恢復、城池等級），每世（30 年）做一次天地演變結算。
 /// `years` 年後 `tick` = `years × 12`。不逐月、無有名之人。
 pub fn grow_population(w: &mut World, years: u32, progress: &mut dyn FnMut(Stage, f32)) {
+    let mut pending = Vec::new();
+    let mut shi = 0u32;
     for y in 0..years {
         w.tick += crate::calendar::DAYS_PER_YEAR;
         let famines = crate::population::yearly_with(&mut w.provinces, &[]);
         ledger::record_famines(w, &famines);
         crate::adepts::yearly(w);
         if is_shi(w.tick) {
-            crate::evolution::shi_settle(w);
+            // 地形與海陸每 `GENESIS_LAND_EVERY_SHI` 世推進一次（最耗時；寒暖與海平面變得慢，追得上）。
+            shi += 1;
+            crate::evolution::shi_settle_coarse(w, &mut pending, shi % GENESIS_LAND_EVERY_SHI == 0 || y + 1 == years);
         }
         crate::cataclysm::yearly(w);
         ledger::prune(w);

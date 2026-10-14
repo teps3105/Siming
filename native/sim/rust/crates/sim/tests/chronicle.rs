@@ -49,8 +49,9 @@ fn chronicle_rules_hold_for_everyone() {
         // 再次拜師之前要有結束的原因（死去超過百年者重要度 1 的紀錄已修剪，不查）。
         let recent = p.died.is_none_or(|(t, _)| t + 100 * 360 > w.tick);
         let masters: Vec<usize> = (0..list.len()).filter(|&i| list[i].kind == "apprenticed" && list[i].role == "disciple").collect();
-        if recent {
-            for pair in masters.windows(2) {
+        // 在世者的紀錄不修剪；已歿者重要度 1 的紀錄超過百年就修剪（死後十年內複查），所以只查前一段拜師仍在百年內的。
+        for pair in masters.windows(2) {
+            if p.alive() || list[pair[0]].tick + 100 * 360 > w.tick {
                 let ended = list[pair[0] + 1..pair[1]].iter().any(|e| e.kind == "mentor_ended" && e.role == "disciple");
                 assert!(ended, "人物 {} 換師前沒有結束原因", p.id);
             }
