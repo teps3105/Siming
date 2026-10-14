@@ -12,6 +12,7 @@ var _camera: MapCamera
 var _hud: Hud
 var _director: Director
 var _events: Array[Dictionary] = []
+var _events_pick: Dictionary = {}
 
 
 func suite_name() -> String:
@@ -56,10 +57,19 @@ func _start(view := FLOW_VIEW) -> void:
 
 
 ## 忘掉剛推出來的事件，導播回到沒事可做的樣子（大事與暫停的案例自己再送事件）。
-func _quiet() -> void:
+func _quiet(isolate := false) -> void:
+	# isolate：活的模擬會在同州冒出同重要度的事件搶走導播目標，之後只收測試自己送的事件（_post）。
+	var on_event := Callable(_hud._director, "_on_event")
+	if isolate and _sim.event_posted.is_connected(on_event):
+		_sim.event_posted.disconnect(on_event)
 	_director.reset()
 	_camera.cancel_directed()
 	await frames(2)
+
+
+## 送一件事給導播（不經活模擬，也不驚動舞台）。
+func _post(event: Dictionary) -> void:
+	_hud._director._on_event(event)
 
 
 ## 等導播到位（STAY），最多 seconds 秒。
@@ -285,18 +295,19 @@ func _screen_of(cell: Vector2) -> Vector2:
 func _assert_in_middle_third(cell: Vector2, label: String) -> void:
 	var view := Vector2(_hud.get_viewport().get_visible_rect().size)
 	var screen := _screen_of(cell)
-	assert_true(Rect2(view / 3.0, view / 3.0).has_point(screen), "%s：事件格投影 %s 在畫面中央三分之一內" % [label, screen])
+	var off := screen - view * 0.5
+	assert_true(absf(off.y) <= view.y * 0.08 and absf(off.x) <= view.x * 0.05, "%s：事件格投影 %s 距畫面中心 %s，縱向要在 %.0f 內、橫向要在 %.0f 內" % [label, screen, off, view.y * 0.08, view.x * 0.05])
 
 
 func test_camera_lands_on_the_event_cell_not_the_province_seat() -> void:
 	await _start()
-	await _quiet()
+	await _quiet(true)
 	var event: Dictionary = _events[0].duplicate()
 	event["importance"] = 4
 	var seat: Vector2 = _sim.world.province_info(int(event["province"]))["seat"]
 	var cell := seat + Vector2(3.0, -2.0)
 	event["pos"] = cell
-	_sim.event_posted.emit(event)
+	_post(event)
 	assert_true(await _until_stay(20.0))
 	await frames(10)
 	_assert_in_middle_third(cell, "到位後")
@@ -336,12 +347,12 @@ func test_caption_event_performs_in_the_middle_from_arrival() -> void:
 
 func test_caption_switching_inside_the_province_pans_to_the_new_event() -> void:
 	await _start()
-	await _quiet()
+	await _quiet(true)
 	var event: Dictionary = _events[0].duplicate()
 	event["importance"] = 3
 	var seat: Vector2 = _sim.world.province_info(int(event["province"]))["seat"]
 	event["pos"] = seat
-	_sim.event_posted.emit(event)
+	_post(event)
 	assert_true(await _until_stay(20.0))
 	await frames(10)
 	_assert_in_middle_third(seat, "第一件事")
@@ -350,7 +361,7 @@ func test_caption_switching_inside_the_province_pans_to_the_new_event() -> void:
 	other["importance"] = 4
 	var cell := seat + Vector2(0.0, _camera.ground_width() * 0.6)
 	other["pos"] = cell
-	_sim.event_posted.emit(other)
+	_post(other)
 	await wait(4.0)
 	await frames(5)
 	assert_eq(_director.state, Director.State.STAY, "同州換事不算換鏡頭")
@@ -473,28 +484,25 @@ func test_caption_stays_inside_the_screen_and_clear_of_other_slips_in_all_four_v
 func test_polar_event_cells_land_in_the_middle_third() -> void:
 	await _start()
 	for row: float in [0.5, 1.5, 126.5, 127.5]:
-		await _quiet()
+		await _quiet(true)
 		var event: Dictionary = _events[0].duplicate()
 		event["importance"] = 5
 		var cell := Vector2(float(_sim.world.province_info(int(event["province"]))["seat"].x), row)
 		event["pos"] = cell
-		_sim.event_posted.emit(event)
+		_post(event)
 		assert_true(await _until_stay(20.0), "列 %s：到位" % row)
 		await frames(10)
-		var view := Vector2(_hud.get_viewport().get_visible_rect().size)
-		var screen := _screen_of(cell)
-		assert_lt(absf(screen.x - view.x * 0.5), view.x / 6.0, "列 %s：事件格投影 %s 橫向在中央三分之一內" % [row, screen])
-		assert_lt(absf(screen.y - view.y * 0.5), view.y / 6.0 + 40.0, "列 %s：事件格投影 %s 縱向在中央（含地形起伏）" % [row, screen])
+		_assert_in_middle_third(cell, "列 %s" % row)
 
 
 ## 放寬只在導播對準時：玩家接手後焦點回到一般的列限制。
 func test_player_row_limits_are_unchanged_after_the_director_lets_go() -> void:
 	await _start()
-	await _quiet()
+	await _quiet(true)
 	var event: Dictionary = _events[0].duplicate()
 	event["importance"] = 5
 	event["pos"] = Vector2(float(_sim.world.province_info(int(event["province"]))["seat"].x), 0.5)
-	_sim.event_posted.emit(event)
+	_post(event)
 	assert_true(await _until_stay(20.0))
 	await frames(5)
 	assert_lt(_camera.focus.y, 1.0, "導播把焦點放在最北列")
@@ -545,7 +553,7 @@ func test_rumor_slip_is_one_line_while_the_director_is_on() -> void:
 func test_event_cell_is_clear_of_hud_slips_when_landed() -> void:
 	GameSettings.set_value("ui_scale", 1.5)
 	await _start(Vector2i(1280, 800))
-	await _quiet()
+	await _quiet(true)
 	for i in 3:
 		var posted: Dictionary = _events[i].duplicate()
 		posted["importance"] = 3
@@ -554,10 +562,39 @@ func test_event_cell_is_clear_of_hud_slips_when_landed() -> void:
 	event["importance"] = 4
 	var cell: Vector2 = _sim.world.province_info(int(event["province"]))["seat"] + Vector2(3.0, -2.0)
 	event["pos"] = cell
-	_sim.event_posted.emit(event)
+	_post(event)
 	assert_true(await _until_stay(20.0))
 	await frames(10)
 	var screen := _screen_of(cell)
 	for rect: Rect2 in _hud._occupied():
 		assert_false(rect.has_point(screen), "事件格投影 %s 不在器物 %s 內" % [screen, rect])
+	GameSettings.set_value("ui_scale", 1.0)
+
+
+## 兩種解析度都要置中：事件格（含地形起伏）的投影距畫面中心縱向不超過畫面高 8%、橫向不超過 5%；挑高度最高的一格最吃力。
+func test_event_cell_is_centered_in_both_views() -> void:
+	for view: Vector2i in VIEWS:
+		GameSettings.set_value("ui_scale", 1.5 if view.y <= 800 else 1.0)
+		_events.clear()
+		await _start(view)
+		for spare in tree.root.get_children():
+			if spare.name == "Bootstrap" and spare != _game:
+				spare.queue_free()
+		await _quiet(true)
+		var steepest := Vector2.ZERO
+		var rise := -1.0
+		for event in _events:
+			var spot: Variant = event.get("pos")
+			if spot is Vector2 and _camera._map.surface_height((spot as Vector2).x, (spot as Vector2).y) > rise:
+				rise = _camera._map.surface_height((spot as Vector2).x, (spot as Vector2).y)
+				steepest = spot
+				_events_pick = event
+		var event: Dictionary = _events_pick.duplicate()
+		event["importance"] = 5
+		_post(event)
+		assert_true(await _until_stay(20.0), "%dx%d：到位" % [view.x, view.y])
+		await frames(10)
+		_assert_in_middle_third(steepest, "%dx%d 高度 %.2f 的事件格" % [view.x, view.y, rise])
+		_game.queue_free()
+		await frames(2)
 	GameSettings.set_value("ui_scale", 1.0)

@@ -52,6 +52,8 @@ const DIRECTED_FRAMING := 0.8
 const EDGE_SCROLL_PX := 10.0
 
 ## 為假時地圖不收輸入（選單開著）；鏡頭照常跟著既有的目標走，游標位置照常更新。
+## 導播對準時焦點列可超出地圖南北緣的列數（高處的事件格要把焦點退到鏡頭那一側）。
+const OVERREACH_ROWS := 8.0
 var input_enabled := true:
 	set(value):
 		input_enabled = value
@@ -191,6 +193,8 @@ func descend_to(target_z: float, seconds: float) -> void:
 ## 焦點走東西較短的那一邊。到位發 directed_done；玩家操作會中斷。
 func direct_to(dest: Vector2, dest_z: float, reduced := false) -> void:
 	var width := _map.map_size.x
+	if not globe:
+		dest = framing_focus(dest)
 	var limits := MapView.z_range(width)
 	dest_z = clampf(dest_z, limits.x, limits.y)
 	var shift := Vector2(fposmod(dest.x - focus.x + width * 0.5, width) - width * 0.5, dest.y - focus.y)
@@ -207,6 +211,13 @@ func direct_to(dest: Vector2, dest_z: float, reduced := false) -> void:
 		"reduced": reduced, "swapped": false, "to": dest}
 	_flight_seconds = 0.0
 	_overreach = not globe
+
+
+## 讓地面位置 cell 的地表點（含高度）投到畫面正中央的焦點：高處的點畫得比地面高，
+## 要在焦點的地面上往鏡頭方向退回 高度／tan(俯角)，點才落在鏡頭軸上（與眼高無關）。
+func framing_focus(cell: Vector2) -> Vector2:
+	var rise := _map.surface_height(cell.x, cell.y)
+	return cell - Vector2(sin(yaw), cos(yaw)) * rise / tan(MapView.pitch())
 
 
 ## 地圖寬度（導播算高度用）。
@@ -549,7 +560,7 @@ func _apply(delta: float) -> void:
 	var map_size := _map.map_size
 	var limits := MapView.z_range(map_size.x)
 	_target_z = clampf(_target_z, limits.x, limits.y)
-	var rows := Vector2(0.0, map_size.y) if _overreach and not globe else MapView.focus_row_limits(map_size, _target_z, globe)
+	var rows := Vector2(-OVERREACH_ROWS, map_size.y + OVERREACH_ROWS) if _overreach and not globe else MapView.focus_row_limits(map_size, _target_z, globe)
 	_target_focus.y = clampf(_target_focus.y, rows.x, rows.y)
 
 	var blend := 1.0 if delta <= 0.0 else 1.0 - exp(-delta / SMOOTH_SECONDS)
