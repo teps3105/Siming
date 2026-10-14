@@ -6,7 +6,7 @@ extends RefCounted
 ## 每位演員的 steps 依序播；沒有 sync 的步驟接在前一步結束；sync 寫成「演員序號:動作:事件名」，
 ## 表示從那位演員那個動作的事件時刻起播（例如倒地從出手「命中」那一格開始）。
 ## 沒有人物的演出（轉世）以 "light": true 標示、actors 為空：光效由 EventStage 另建，動作段長度取 light_len。
-## len 是動作沒有固定長度（循環動作）時的秒數，len_of 取另一個動作的長度。
+## len 是動作沒有固定長度（循環動作）時的秒數，len_of 取另一個動作的長度；align 配 sync 用：本步驟自己的某個事件對到 sync 的時刻。
 
 const INTRO := 1.5
 const HOLD := 2.0
@@ -36,29 +36,34 @@ const ROWS := {
 	"ThreadResolved:Feud:Survived": {"actors": [
 		{"who": "b", "steps": [{"do": "strike"}]},
 		{"who": "a", "steps": [{"do": "brace", "len": 2.0, "sync": "0:strike:hit"}]}]},
+	# 報恩：a 是欠恩方（報恩者）雙手奉物，b 受者伸手接過；接過的 take 對到奉物的 give。
 	"ThreadResolved:Grace": {"actors": [
-		{"who": "a", "steps": [{"do": "bow"}]}, {"who": "b", "steps": [{"do": "bow"}]}]},
+		{"who": "a", "steps": [{"do": "offer"}]},
+		{"who": "b", "steps": [{"do": "receive", "sync": "0:offer:give", "align": "take"}]}]},
+	# 情緣了結：兩人執手，鬆開後各自背過身。
 	"ThreadResolved:Love": {"actors": [
-		{"who": "a", "steps": [{"do": "bow"}]}, {"who": "b", "steps": [{"do": "bow"}]}]},
+		{"who": "a", "steps": [{"do": "clasp"}, {"do": "away"}]}, {"who": "b", "steps": [{"do": "clasp"}, {"do": "away"}]}]},
 	"ThreadResolved:Grudge": {"actors": [
 		{"who": "a", "steps": [{"do": "bow"}]}, {"who": "b", "steps": [{"do": "bow"}]}]},
-	# 師徒緣了結：a 是徒、b 是師（同 ThreadCreated:Mentor）；兩人列沒有走開的位移，兩人相向行禮。
+	# 師徒緣了結：a 是徒、b 是師（同 ThreadCreated:Mentor）；徒跪別，師拂袖轉身（兩人列沒有位移，原地背過身）。
 	"ThreadResolved:Mentor": {"actors": [
-		{"who": "a", "steps": [{"do": "bow"}]}, {"who": "b", "steps": [{"do": "bow"}]}]},
+		{"who": "a", "steps": [{"do": "kneel"}]}, {"who": "b", "steps": [{"do": "turn"}]}]},
 	"Rebirth": {"light": true, "light_len": LIGHT_SECONDS, "actors": []},
-	"Died:Age": {"actors": [{"who": "a", "steps": [{"do": "fall"}]}]},
+	"Died:Age": {"actors": [{"who": "a", "steps": [{"do": "slump"}]}]},
 	"Died:Plague": {"actors": [{"who": "a", "steps": [{"do": "fall"}]}]},
-	"Breakthrough": {"actors": [{"who": "a", "steps": [{"do": "seal"}, {"do": "rise"}]}]},
+	"Breakthrough": {"actors": [{"who": "a", "steps": [{"do": "sit"}, {"do": "rise"}]}]},
 	"Ascended": {"ascend": true, "actors": [{"who": "a", "steps": [{"do": "rise"}]}]},
 	"FellToDemon": {"actors": [{"who": "a", "steps": [{"do": "seal"}, {"do": "struck"}]}]},
+	# 拜師：徒跪拜叩首，師抬手撫頂（兩個動作同長，撫頂的 touch 與叩首的 down 都在第 22 格）。
 	"ThreadCreated:Mentor": {"actors": [
-		{"who": "a", "steps": [{"do": "bow"}]},
-		{"who": "b", "steps": [{"do": "stand", "len_of": "bow"}]}]},
+		{"who": "a", "steps": [{"do": "kneel"}]},
+		{"who": "b", "steps": [{"do": "bless"}]}]},
+	# 成婚：兩人對拜後執手。
 	"Married": {"actors": [
-		{"who": "a", "steps": [{"do": "bow"}]}, {"who": "b", "steps": [{"do": "bow"}]}]},
+		{"who": "a", "steps": [{"do": "bow"}, {"do": "clasp"}]}, {"who": "b", "steps": [{"do": "bow"}, {"do": "clasp"}]}]},
 	"Succession": {"actors": [{"who": "a", "steps": [{"do": "bow"}]}]},
 	"PowerFounded": {"actors": [{"who": "a", "steps": [{"do": "seal"}]}]},
-	"SectSplit": {"actors": [{"who": "a", "steps": [{"do": "seal"}]}]},
+	"SectSplit": {"actors": [{"who": "a", "steps": [{"do": "turn"}]}]},
 	"Traveled:Out": {"travel": true, "actors": [{"who": "a", "steps": [{"do": "walk", "len": 3.0}]}]},
 	"Traveled:Back": {"travel": true, "actors": [{"who": "a", "steps": [{"do": "walk", "len": 3.0}]}]},
 }
@@ -132,6 +137,9 @@ static func plan(event: Dictionary) -> Dictionary:
 			var start := cursor
 			if step.has("sync"):
 				start = _sync_time(actors, str(step["sync"]))
+				# align：本步驟自己的這個事件對到 sync 的時刻（接過的 take 對奉物的 give），本步驟因此提早開始。
+				if step.has("align"):
+					start = maxf(start - maxf(FigureMotion.event_time(action, str(step["align"])), 0.0), 0.0)
 			steps.append({"do": action, "start": start, "length": length})
 			cursor = start + length
 		actors[index]["steps"] = steps

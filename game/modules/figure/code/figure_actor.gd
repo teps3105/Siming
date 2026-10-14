@@ -275,6 +275,9 @@ func place(origin: Vector3, up: Vector3, camera: Camera3D, unit: float, hidden :
 	# 面片：高度方向被後仰壓扁 cos 30°，所以高度用 _height（NATURAL_CELLS 格）、寬度用 _height × cos 30°，棋子在畫面上不變形。
 	var width := _height * cos(deg_to_rad(VIEW_PITCH_DEG))
 	var mirror := -1.0 if face_right else 1.0
+	# 轉身：動作資料的 flip（1 原朝向、−1 翻面、0 側薄的一線）在面片上乘進水平縮放，翻面不必重畫；太薄時留 0.04 避免縮放為零。
+	var flip := float(_pose.get("flip", 1.0))
+	mirror *= signf(flip) * maxf(absf(flip), 0.04) if flip != 0.0 else 0.04
 	_card.scale = Vector3(FRAME.size.x * width * mirror, FRAME.size.y * _height, 1.0)
 	_card.position = Vector3(FRAME.get_center().x * width * mirror, -FRAME.get_center().y * _height, 0.0)
 	_material.set_shader_parameter("depth_pull", _height * depth_pull_factor)
