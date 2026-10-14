@@ -245,6 +245,7 @@
   "set_vsync": "垂直同步",
   "set_ui_scale": "介面縮放",
   "set_edge": "邊緣捲動",
+  "set_map_labels": "地圖標籤",
   "set_director_head": "導播",
   "set_director": "導播模式",
   "set_director_pace": "節奏",

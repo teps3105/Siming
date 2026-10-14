@@ -110,6 +110,10 @@ var _hover_province := -1
 var _hover_text := ""
 ## 介面器物佔住的畫面範圍：地圖標籤避開這些地方，不鑽到器物底下露出半截。
 var reserved: Array[Rect2] = []
+## 「地圖標籤」設定（遊戲中選單）；關掉時不畫任何地圖文字（地名、治所名、宗門名），墨點與山門圖樣照畫。每幀開畫時重讀。
+var _labels_on := true
+## 最近一次繪製寫了幾個地圖文字標籤（江河與山脈的字算一個標籤；測試用）。
+var _labels_drawn := 0
 
 
 func setup(world: SimWorld, map: TerrainMap, camera: MapCamera, unit: float) -> void:
@@ -250,6 +254,8 @@ func ring_period(sect: Dictionary) -> float:
 func _draw() -> void:
 	if _camera == null:
 		return
+	_labels_on = GameSettings.flag("map_labels")
+	_labels_drawn = 0
 	if _map.mode == TerrainMap.Mode.LINGMAI:
 		_draw_ley_nodes()
 	elif _map.mode == TerrainMap.Mode.SANJIAO and not sect_gates_visible():
@@ -261,13 +267,18 @@ func _draw() -> void:
 		_draw_hover_tip()
 
 
+## 最近一次繪製寫了幾個地圖文字標籤（測試用）。
+func labels_drawn() -> int:
+	return _labels_drawn
+
+
 func _draw_labels() -> void:
 	var map_w := _map.map_size.x
 	var z_frac := _camera.z / map_w
 	var screen := get_viewport_rect()
 	var taken: Array[Rect2] = reserved.duplicate()
 	_draw_sects(taken)
-	for label in _labels:
+	for label in _labels if _labels_on else []:
 		var rule: Dictionary = LABEL_RULES[label["kind"]]
 		if z_frac > rule["z_max"] or z_frac < rule["z_min"]:
 			continue
@@ -303,6 +314,7 @@ func _draw_labels() -> void:
 						var glyph := text[i]
 						var extent := Ink.text_size(glyph, size)
 						Ink.outlined_text(self, spots[i] - extent * 0.5, glyph, size, color, LABEL_OUTLINE)
+					_labels_drawn += 1
 			continue
 		if not _visible_on_map(pos):
 			continue
@@ -321,6 +333,7 @@ func _draw_labels() -> void:
 			continue
 		taken.append(rect)
 		Ink.outlined_text(self, rect.position, text, size, color, LABEL_OUTLINE)
+		_labels_drawn += 1
 	_draw_seats(taken)
 
 
@@ -444,12 +457,15 @@ func _draw_seats(taken: Array[Rect2]) -> void:
 			continue
 		draw_circle(point, radius + 1.5, Color(Ink.PAPER_LIGHT, 0.9))
 		draw_circle(point, radius, KIND_COLORS["seat"])
+		if not _labels_on:
+			continue
 		var extent := Ink.text_size(seat["text"], size)
 		var rect := Rect2(point + Vector2(radius + 4.0 * _unit, -extent.y * 0.5), extent)
 		if not screen.encloses(rect) or _blocked(rect, taken):
 			continue
 		taken.append(rect)
 		Ink.outlined_text(self, rect.position, seat["text"], size, KIND_COLORS["seat"], LABEL_OUTLINE)
+		_labels_drawn += 1
 
 
 ## 山門（GDD 5.5）：牌坊、三重殿與山徑；正道白牆黛瓦，邪道黑瓦。中景才畫，名字寫在圖樣下方，
@@ -460,7 +476,7 @@ func _draw_sects(taken: Array[Rect2]) -> void:
 	if not sect_gates_visible():
 		return
 	var screen := get_viewport_rect()
-	var show_name := _camera.z <= _map.map_size.x * SECT_NAME_Z_MAX
+	var show_name := _labels_on and _camera.z <= _map.map_size.x * SECT_NAME_Z_MAX
 	var size := Ink.font_size(SECT_NAME_SIZE, _unit)
 	var scale := SECT_SCALE * _unit
 	for sect in _sects:
@@ -479,6 +495,7 @@ func _draw_sects(taken: Array[Rect2]) -> void:
 			if screen.encloses(rect) and not _blocked(rect, taken):
 				Ink.outlined_text(self, rect.position, sect["name"], size, KIND_COLORS["sect"], LABEL_OUTLINE)
 				taken.append(rect)
+				_labels_drawn += 1
 				click = click.merge(rect)
 		taken.append(mark)
 		if _hits.has(sect["id"]):

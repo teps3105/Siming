@@ -273,3 +273,43 @@ func test_edge_scroll_pans_only_when_the_setting_is_on() -> void:
 	focus = _camera.focus
 	await wait(0.3)
 	assert_lt(_camera.focus.distance_to(focus), 0.5, "游標離開邊緣就停")
+
+
+## 開遊戲中選單到設定頁，點「地圖標籤」一列右邊的箭頭換下一個選項，再等地圖覆蓋層重畫。
+func _toggle_map_labels_in_menu() -> void:
+	await key(KEY_ESCAPE)
+	var deck := _hud.menu()
+	deck._on_chosen(&"settings")
+	await frames(2)
+	assert_eq(deck.page(), &"settings")
+	var panel := deck.panel()
+	var rect := panel.row_rect(&"set.map_labels")
+	assert_gt(rect.size.x, 0.0, "設定頁有「地圖標籤」一列")
+	await click(panel.position + Vector2(rect.end.x - 20.0, rect.get_center().y))
+	await key(KEY_ESCAPE)
+	await key(KEY_ESCAPE)
+	assert_false(_hud.menu_open(), "設定頁退一步回第一頁，再按一次關掉選單")
+	await frames(3)
+
+
+func test_map_labels_menu_row_hides_every_map_text_and_survives_reboot() -> void:
+	var overlay: MapOverlay = _hud._overlay
+	_camera.z = (_game.get_node("TerrainMap") as TerrainMap).map_size.x * 0.2
+	await frames(3)
+	assert_true(GameSettings.flag("map_labels"), "預設開")
+	assert_gt(overlay.labels_drawn(), 0, "標籤開著時地圖上有字")
+	await _toggle_map_labels_in_menu()
+	assert_false(GameSettings.flag("map_labels"), "選單裡切換後設定值改變")
+	assert_eq(overlay.labels_drawn(), 0, "標籤關掉時地圖文字一個都不畫（含治所名、宗門名）")
+	# 重開遊戲：設定檔重讀，新的遊戲場景仍不畫標籤。
+	GameSettings.load_file()
+	var again := await boot()
+	var overlay_again: MapOverlay = (again.get_node("Hud") as Hud)._overlay
+	(again.get_node("MapCamera") as MapCamera).z = (again.get_node("TerrainMap") as TerrainMap).map_size.x * 0.2
+	await frames(3)
+	assert_false(GameSettings.flag("map_labels"), "重新開遊戲仍是關")
+	assert_eq(overlay_again.labels_drawn(), 0, "重新開遊戲仍不畫標籤")
+	# 切回來。
+	GameSettings.set_value("map_labels", true)
+	await frames(3)
+	assert_gt(overlay_again.labels_drawn(), 0, "切回開，標籤回來")
