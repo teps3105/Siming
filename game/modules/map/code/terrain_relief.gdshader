@@ -303,6 +303,9 @@ vec3 field_ramp(float t) {
 void fragment() {
 	vec2 wp = v_lpos;
 	vec2 uv = vec2(wp.x / map_size.x, clamp(wp.y / map_size.y, 0.0, 1.0));
+	// 取樣不貼著南北緣（離邊 3 個紋素內夾住）：貼圖是平鋪的，貼邊與邊疆帶的三次取樣會把另一極繞過來，邊疆帶變成一塊紙色的陸地，交界一條硬線與接縫。
+	vec2 edge_texel = 1.0 / vec2(textureSize(elevation_tex, 0));
+	uv.y = clamp(uv.y, 3.0 * edge_texel.y, 1.0 - 3.0 * edge_texel.y);
 	vec3 d = normalize(v_sdir);
 
 	// 每像素涵蓋幾個遊戲格（東西接縫兩側差一整圈，取週期內最短差）。
@@ -495,9 +498,9 @@ void fragment() {
 	vec3 paper_now = ink_wash > 0.0 ? mix(paper, to_ink(paper), ink_wash) : paper;
 	col = mix(col, paper_now, smoothstep(fog_start, fog_end, dist) * 0.85);
 
-	// 9 南北緣之外的邊疆帶淡成紙色。
+	// 9 南北緣之外的邊疆帶：延續邊緣那一列的顏色，約 1 格內淡成紙色。
 	float out_y = max(-wp.y, wp.y - map_size.y);
-	float fade_y = smoothstep(-2.0, 0.05 * map_size.x, out_y) * (1.0 - globe_morph);
+	float fade_y = smoothstep(0.0, 1.0, out_y) * (1.0 - globe_morph);
 	col = mix(col, paper_now, fade_y);
 
 	ALBEDO = col;
