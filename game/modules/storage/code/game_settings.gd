@@ -34,6 +34,14 @@ static var file_path := DEFAULT_PATH
 static var _file: ConfigFile
 
 
+## 改用另一份設定檔；fresh 為真時先刪掉舊檔，從預設值開始（測試與拍圖工具用，不碰玩家的設定檔）。
+static func use_file(path: String, fresh := false) -> void:
+	file_path = path
+	if fresh and FileAccess.file_exists(path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	load_file()
+
+
 static func load_file() -> void:
 	_file = ConfigFile.new()
 	_file.load(file_path)

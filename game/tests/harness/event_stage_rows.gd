@@ -43,6 +43,8 @@ func _main() -> void:
 	DirAccess.make_dir_recursive_absolute(_out)
 	GameSettings.file_path = _out.path_join("settings-event.cfg")
 	GameSettings.load_file()
+	# 拍圖工具用自己的設定檔，不改玩家的設定。
+	GameSettings.use_file("user://harness/event_stage_rows.cfg", true)
 	GameSettings.set_value("ui_scale", 1.0)
 	var game: Node = (load(BOOTSTRAP) as PackedScene).instantiate()
 	game.start_seed = 20261011

@@ -63,6 +63,8 @@ func _menu_device(panel: MenuPanel, pad: bool) -> void:
 
 
 func _game_pages(prefix: String, view: Vector2i, pad: bool) -> void:
+	# 拍圖工具用自己的設定檔，不改玩家的設定。
+	GameSettings.use_file("user://harness/shots.cfg", true)
 	GameSettings.set_value("tutorial_done", false)
 	GameSettings.set_value("tutorial_step", 0)
 	var game: Node = await _suite.boot(false, view, true)

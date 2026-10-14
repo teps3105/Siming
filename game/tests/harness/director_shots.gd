@@ -60,6 +60,8 @@ func _main() -> void:
 	_suite = Suite.new()
 	_suite.tree = self
 	_suite._begin_case()
+	# 拍圖工具用自己的設定檔，不改玩家的設定。
+	GameSettings.use_file("user://harness/director_shots.cfg", true)
 	GameSettings.set_value("director", true)
 	GameSettings.set_value("ui_scale", _ui)
 	var view := Vector2i(root.get_visible_rect().size)

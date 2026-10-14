@@ -28,6 +28,8 @@ func _main() -> void:
 	SimWorld.set_default_prerun(TEST_POP_YEARS, TEST_PRERUN_YEARS)
 	# 既有的流程測試都假設鏡頭不會自己動；導播預設關閉，只有導播自己的測試打開。
 	GameSettings.default_overrides["director"] = false
+	# 測試不讀寫玩家的設定檔；各套件要自己的設定檔時另行 use_file。
+	GameSettings.use_file("user://test_runs/settings.cfg", true)
 	var results: Array[Dictionary] = []
 	var load_errors: Array[String] = []
 	var paths := _discover(ROOT)

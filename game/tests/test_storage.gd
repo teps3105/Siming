@@ -21,7 +21,7 @@ func setup() -> void:
 func teardown() -> void:
 	_wipe()
 	SaveStore.root = SaveStore.DEFAULT_ROOT
-	GameSettings.file_path = GameSettings.DEFAULT_PATH
+	GameSettings.file_path = TEST_STORAGE.path_join("idle.cfg")
 	GameSettings.load_file()
 
 

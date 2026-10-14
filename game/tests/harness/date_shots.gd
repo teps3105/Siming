@@ -41,6 +41,8 @@ func _shot(name: String) -> void:
 
 
 func _view(prefix: String, view: Vector2i, scale: float) -> void:
+	# 拍圖工具用自己的設定檔，不改玩家的設定。
+	GameSettings.use_file("user://harness/date_shots.cfg", true)
 	GameSettings.set_value("ui_scale", scale)
 	GameSettings.set_value("tutorial_done", true)
 	var game: Node = await _suite.boot(false, view)

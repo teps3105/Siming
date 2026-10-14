@@ -282,10 +282,9 @@ func _begin_case() -> void:
 	_message = ""
 	_assertions = 0
 	_expected_errors.clear()
-	# 存檔與設定指到測試用的位置：測試不讀也不寫玩家的檔案。
+	# 存檔與設定指到測試用的位置：測試不讀也不寫玩家的檔案；設定每個案例從預設值開始，前一案例寫的值不帶過來。
 	SaveStore.root = TEST_STORAGE.path_join("saves")
-	GameSettings.file_path = TEST_STORAGE.path_join("settings.cfg")
-	GameSettings.load_file()
+	GameSettings.use_file(TEST_STORAGE.path_join("settings.cfg"), true)
 
 
 func _finish_case() -> void:
@@ -306,6 +305,7 @@ func _finish_case() -> void:
 	tree.paused = false
 	Engine.time_scale = 1.0
 	SaveStore.root = SaveStore.DEFAULT_ROOT
-	GameSettings.file_path = GameSettings.DEFAULT_PATH
+	# 案例之間不指回玩家的設定檔，免得收尾時的寫入落到玩家檔上。
+	GameSettings.file_path = TEST_STORAGE.path_join("idle.cfg")
 	GameSettings.load_file()
 	await tree.process_frame

@@ -138,6 +138,8 @@ func _sheet(items: Array, labels: Array[String], name: String, columns: int) -> 
 
 func _cards() -> void:
 	for layout: Array in [["1920x1080_100", Vector2i(1920, 1080), 1.0], ["1280x800_100", Vector2i(1280, 800), 1.0], ["1280x800_150", Vector2i(1280, 800), 1.5]]:
+		# 拍圖工具用自己的設定檔，不改玩家的設定。
+		GameSettings.use_file("user://harness/parts_shots.cfg", true)
 		GameSettings.set_value("ui_scale", layout[2])
 		var game: Node = await _suite.boot(false, layout[1])
 		root.size = layout[1]
