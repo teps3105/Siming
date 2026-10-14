@@ -15,6 +15,8 @@ const GUIDE_GAP := 24.0
 const DECK_CARD_WIDTH_FRAC := 0.45
 ## 命簿「返回」最多記幾層（GDD 5.8）。
 const BACK_DEPTH := 8
+## 快進鍵按住超過這麼久，就從「點一下開選單」改為「按住才快進」。
+const FAST_HOLD_SECONDS := 0.4
 
 var _sim: SimHost
 var _map: TerrainMap
@@ -58,6 +60,14 @@ var _paused_before_rumor := false
 var _almanac_pause_held := false
 var _paused_before_almanac := false
 var _almanac_page := 0
+## 世界快進（GDD 2.6）：選單與摘要那張簽；快進鍵按下後還沒判定是點還是按住、按住快進中、按下已多久。
+var _fast_panel: FastPanel
+var _fast_down := false
+var _fast_hold_on := false
+var _fast_held := 0.0
+## 快進選單與摘要開著、快進進行時，時間暫停；這是開始前是否已經暫停。
+var _fast_prev_paused := false
+var _fast_prev_known := false
 
 
 func setup(sim: SimHost, map: TerrainMap, camera: MapCamera) -> void:
@@ -92,12 +102,15 @@ func setup(sim: SimHost, map: TerrainMap, camera: MapCamera) -> void:
 			_guide.notify(&"time"))
 	sim.world_changed.connect(func(change: String, era: String) -> void: _notice.post(EventText.world_line(change, era)))
 	sim.event_posted.connect(func(event: Dictionary) -> void: _rumor.post(event))
+	sim.fast_forward_started.connect(_on_fast_started)
+	sim.fast_forward_finished.connect(_on_fast_finished)
 	sim.world_created.connect(func() -> void:
+		_fast_reset()
 		if _notice != null:
 			_notice.clear()
 		if _rumor != null:
 			_rumor.clear())
-	sim.advanced.connect(func(_months: int) -> void:
+	sim.advanced.connect(func(_days: int) -> void:
 		_card.refresh()
 		_person_card.refresh()
 		_event_card.refresh()
@@ -186,6 +199,8 @@ func _build() -> void:
 		rumors = _rumor.snapshot()
 	var rumors_open := _rumor != null and _rumor.expanded
 	var almanac_open := _almanac != null and _almanac.expanded
+	var fast_mode: StringName = _fast_panel.mode() if _fast_panel != null else &""
+	var fast_summary: Dictionary = _fast_panel.summary() if _fast_panel != null else {}
 	if _almanac != null:
 		_almanac_page = _almanac.page
 	var notices: Array[String] = []
@@ -323,6 +338,16 @@ func _build() -> void:
 	_almanac.event_requested.connect(func(id: int) -> void: open_event(id))
 	_almanac.sect_requested.connect(func(id: int) -> void: open_sect(id))
 	_dial.almanac_requested.connect(toggle_almanac)
+	_dial.fast_pressed.connect(press_fast)
+	_dial.fast_released.connect(release_fast)
+
+	_fast_panel = FastPanel.new()
+	add_child(_fast_panel)
+	_fast_panel.setup(_sim, _unit)
+	_fast_panel.choice_made.connect(_on_fast_choice)
+	_fast_panel.event_requested.connect(func(id: int) -> void: open_event(id))
+	_fast_panel.dismissed.connect(_on_fast_dismissed)
+	_fast_panel.restore(fast_mode, fast_summary)
 
 	# 遊戲內游標畫在所有器物之上。
 	_cursor = GameCursor.new()
@@ -645,9 +670,10 @@ func close_menu() -> void:
 
 
 ## 輸入裝置換了（鍵鼠↔搖桿），器物上的實體鍵圖像跟著換。
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if _camera == null or _dial == null:
 		return
+	_tick_fast_hold(delta)
 	_sync_trace()
 	if _menu != null:
 		_camera.use_crosshair = _menu.panel().gamepad
@@ -709,6 +735,7 @@ func _apply_device() -> void:
 	_guide.gamepad = _camera.use_crosshair
 	_rumor.gamepad = _camera.use_crosshair
 	_almanac.gamepad = _camera.use_crosshair
+	_fast_panel.gamepad = _camera.use_crosshair
 
 
 ## 因果模式下點了魂光（GDD 5.4）：開那位的人物卡，地圖只留他的線並標出前世所在，鏡頭落在他的魂光上。
@@ -747,8 +774,145 @@ func _set_mode(mode: TerrainMap.Mode) -> void:
 	_seals.set_mode(mode)
 
 
+## 世界快進鍵（GDD 2.6）與「快進中任何一鍵中止」：比 GUI 先收到事件。
+## 點一下快進鍵開終點選單，按住超過 FAST_HOLD_SECONDS 改為按住才快進，放開就停。
+func _input(event: InputEvent) -> void:
+	if _sim == null or _menu != null:
+		return
+	if event.is_action_released(InputActions.FAST):
+		release_fast()
+		return
+	if event is InputEventKey and event.echo:
+		return
+	var pressed_fast := event.is_action_pressed(InputActions.FAST)
+	if _sim.fast_active():
+		if pressed_fast or _is_press(event):
+			_sim.fast_stop()
+			get_viewport().set_input_as_handled()
+		return
+	if pressed_fast:
+		press_fast()
+		get_viewport().set_input_as_handled()
+
+
+## 一次「按下」：鍵、搖桿鍵、滑鼠鍵、觸控。
+static func _is_press(event: InputEvent) -> bool:
+	return (event is InputEventKey or event is InputEventJoypadButton or event is InputEventMouseButton or event is InputEventScreenTouch) and event.is_pressed()
+
+
+## 快進鍵（或天時儀上的快進鈕）按下。快進中按下就是中止；選單開著就收起。
+func press_fast() -> void:
+	if _sim == null or _menu != null:
+		return
+	if _sim.fast_active():
+		_sim.fast_stop()
+		return
+	if _fast_panel.is_open():
+		_fast_panel.close()
+		return
+	if _almanac.expanded or _rumor.expanded or _camera.modal:
+		return
+	_fast_down = true
+	_fast_held = 0.0
+
+
+## 快進鍵放開：按住快進中就停下；還沒按夠久就是點一下，開終點選單。
+func release_fast() -> void:
+	if _fast_hold_on:
+		_fast_hold_on = false
+		_sim.fast_stop()
+	elif _fast_down:
+		open_fast_menu()
+	_fast_down = false
+	_fast_held = 0.0
+
+
+func _tick_fast_hold(delta: float) -> void:
+	if not _fast_down or _fast_hold_on:
+		return
+	_fast_held += delta
+	if _fast_held < FAST_HOLD_SECONDS:
+		return
+	_fast_down = false
+	_capture_pause()
+	if _sim.fast_forward(SimHost.Stop.HOLD):
+		_fast_hold_on = true
+	else:
+		_fast_prev_known = false
+
+
+## 開世界快進的終點選單：時間暫停、地圖不收輸入，取消時行止回到開選單前。
+func open_fast_menu() -> void:
+	if _sim == null or _menu != null or _sim.fast_active() or _fast_panel.is_open():
+		return
+	_capture_pause()
+	_set_paused_quietly(true)
+	_camera.modal = true
+	_fast_panel.open_menu()
+
+
+func _capture_pause() -> void:
+	if not _fast_prev_known:
+		_fast_prev_known = true
+		_fast_prev_paused = _sim.paused
+
+
+func _set_paused_quietly(value: bool) -> void:
+	_menu_switching = true
+	_sim.set_paused(value)
+	_menu_switching = false
+
+
+func _fast_reset() -> void:
+	_fast_down = false
+	_fast_hold_on = false
+	_fast_prev_known = false
+	if _fast_panel != null and _fast_panel.is_open():
+		_fast_panel.close()
+
+
+func _on_fast_choice(stop: int, years: int) -> void:
+	_camera.modal = false
+	_sim.fast_forward(stop as SimHost.Stop, years)
+
+
+func _on_fast_started() -> void:
+	_capture_pause()
+	_collapse_rumor()
+
+
+func _on_fast_finished(summary: Dictionary) -> void:
+	_fast_hold_on = false
+	if int(summary["days"]) <= 0:
+		_restore_pause()
+		return
+	_set_paused_quietly(true)
+	_camera.modal = true
+	_fast_panel.show_summary(summary)
+
+
+func _on_fast_dismissed() -> void:
+	_camera.modal = false
+	_restore_pause()
+
+
+func _restore_pause() -> void:
+	if _fast_prev_known:
+		_fast_prev_known = false
+		_set_paused_quietly(_fast_prev_paused)
+
+
+## 快進選單與摘要那張簽（測試用）。
+func fast_panel() -> FastPanel:
+	return _fast_panel
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if _sim == null or _menu != null:
+		return
+	if _fast_panel != null and _fast_panel.is_open():
+		if _fast_panel.handle_action(event):
+			get_viewport().set_input_as_handled()
 		return
 	if event.is_action_pressed(InputActions.ALMANAC):
 		_almanac.expanded = not _almanac.expanded
@@ -778,7 +942,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed(InputActions.PAUSE):
 		_sim.toggle_paused()
 	elif event.is_action_pressed(InputActions.SPEED_CYCLE):
-		_sim.set_speed((_sim.speed_index + 1) % SimHost.SPEED_MULTIPLIERS.size())
+		_sim.set_speed((_sim.speed_index + 1) % SimHost.DAYS_PER_SECOND.size())
 		_sim.set_paused(false)
 	elif event.is_action_pressed(InputActions.MODE_NEXT):
 		_seals.cycle(1)
