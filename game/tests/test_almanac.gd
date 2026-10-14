@@ -322,14 +322,13 @@ func test_fits_on_the_deck_at_larger_scale() -> void:
 
 # ── 世界簡史橫條（5.10）─────────────────────────────────────────
 
-## 讓世界多過幾個紀元（改元的間隔隨參數而定，跑到有為止，最多一千年）。
-func _age_until_eras(count: int) -> void:
-	_sim.set_paused(true)
-	for _i in 100:
-		if _sim.world.era_table().size() >= count:
-			return
-		_sim.world.step(12 * 10)
-	await frames(1)
+## 開一個已過兩個紀元的世界：測試預設的歷史只有一千多年，而紀元最短 8,000 年（第二紀元自第 8,011 年起），
+## 這裡把開天的歷史拉到 9,000 年，開完還原測試預設。
+func _boot_with_two_eras() -> void:
+	SimWorld.set_default_prerun(9000, 100)
+	await _boot()
+	var run := preload("res://tests/harness/run.gd")
+	SimWorld.set_default_prerun(run.TEST_POP_YEARS, run.TEST_PRERUN_YEARS)
 
 
 func test_world_page_opens_with_the_history_bar_and_it_is_the_only_world_year() -> void:
@@ -351,8 +350,7 @@ func test_world_page_opens_with_the_history_bar_and_it_is_the_only_world_year() 
 
 
 func test_clicking_an_era_segment_selects_it_and_shows_its_cause() -> void:
-	await _boot()
-	await _age_until_eras(2)
+	await _boot_with_two_eras()
 	await _open(0)
 	var bar := _almanac.history_bar()
 	assert_gt(bar.era_count(), 1, "世界已有不只一個紀元")
@@ -371,8 +369,7 @@ func test_clicking_an_era_segment_selects_it_and_shows_its_cause() -> void:
 
 
 func test_clicking_the_cause_line_opens_the_event_card() -> void:
-	await _boot()
-	await _age_until_eras(2)
+	await _boot_with_two_eras()
 	await _open(0)
 	var bar := _almanac.history_bar()
 	var last := bar.era_count() - 1
@@ -397,8 +394,7 @@ func test_pruned_cause_event_only_names_the_era_and_its_kind() -> void:
 
 
 func test_era_segments_can_be_stepped_with_keys_and_the_pad_shoulders() -> void:
-	await _boot()
-	await _age_until_eras(2)
+	await _boot_with_two_eras()
 	await _open(0)
 	var count := _almanac.history_bar().era_count()
 	assert_gt(count, 1)

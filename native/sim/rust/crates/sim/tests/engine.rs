@@ -159,8 +159,8 @@ fn fast_forward_open_reaches_limit_and_matches_stepping() {
 fn fast_forward_stops_at_next_world_event() {
     let mut s = world(23);
     let d0 = s.world().tick;
-    let out = s.fast_forward(FastStop::Kind(EventKind::WorldChanged), d0 + 2000 * DAYS_PER_YEAR, &mut || true, &mut |_, _| {});
-    let FastOutcome::Hit(id) = out else { panic!("兩千年內應有世界大事：{out:?}") };
+    let out = s.fast_forward(FastStop::Kind(EventKind::WorldChanged), d0 + 10_000 * DAYS_PER_YEAR, &mut || true, &mut |_, _| {});
+    let FastOutcome::Hit(id) = out else { panic!("一萬年內應有世界大事（紀元最短 8,000 年，天地變化數千年一件）：{out:?}") };
     let w = s.world();
     let e = &w.ledger.events[id as usize];
     assert_eq!(e.kind, EventKind::WorldChanged);
