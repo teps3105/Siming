@@ -502,3 +502,62 @@ func test_player_row_limits_are_unchanged_after_the_director_lets_go() -> void:
 	await wait(2.0)
 	var rows := MapView.focus_row_limits(_camera._map.map_size, _camera.z)
 	assert_true(_camera.focus.y >= rows.x - 0.05, "玩家接手後焦點 %s 回到列限制 %s 之內" % [_camera.focus.y, rows])
+
+
+## 導播開著，傳聞簽收成只剩最新一張；關掉恢復；導播開著時玩家按 T 仍可展開，導播換事就收回。
+func test_rumor_slip_is_one_line_while_the_director_is_on() -> void:
+	await _start(Vector2i(1920, 1080))
+	await _quiet()
+	var rumor := _hud.rumor()
+	for i in 4:
+		var event: Dictionary = _events[0].duplicate()
+		event["id"] = 8100 + i
+		event["importance"] = 3
+		event["souls"] = PackedInt32Array([900 + i])
+		rumor.post(event)
+	GameSettings.set_value("director", false)
+	await frames(3)
+	assert_gt(rumor.shown().size(), 1, "導播關著：不只一張")
+	var before := rumor.shown().size()
+	GameSettings.set_value("director", true)
+	await frames(3)
+	assert_eq(rumor.shown().size(), 1, "導播開著：只一張")
+	rumor.expanded = true
+	assert_true(rumor.expanded, "導播開著時玩家可以展開")
+	rumor.expanded = false
+	GameSettings.set_value("director", false)
+	await frames(3)
+	assert_eq(rumor.shown().size(), before, "關掉導播恢復原張數")
+	GameSettings.set_value("director", true)
+	await frames(3)
+	rumor.expanded = true
+	_director.go.emit(int(_events[0]["province"]), false)
+	assert_false(rumor.expanded, "導播去下一處：展開的清單收回")
+	rumor.expanded = true
+	_director.refocus.emit(_events[0])
+	assert_false(rumor.expanded, "導播換同州另一件事：展開的清單收回")
+	rumor.expanded = true
+	_director.caption_changed.emit({})
+	assert_true(rumor.expanded, "字卡收起不算換事")
+
+
+## 1280×800 介面 1.5 倍：到位後事件格投影不落在任何器物（傳聞簽、時間盤、印鈕列）內。
+func test_event_cell_is_clear_of_hud_slips_when_landed() -> void:
+	GameSettings.set_value("ui_scale", 1.5)
+	await _start(Vector2i(1280, 800))
+	await _quiet()
+	for i in 3:
+		var posted: Dictionary = _events[i].duplicate()
+		posted["importance"] = 3
+		_hud.rumor().post(posted)
+	var event: Dictionary = _events[0].duplicate()
+	event["importance"] = 4
+	var cell: Vector2 = _sim.world.province_info(int(event["province"]))["seat"] + Vector2(3.0, -2.0)
+	event["pos"] = cell
+	_sim.event_posted.emit(event)
+	assert_true(await _until_stay(20.0))
+	await frames(10)
+	var screen := _screen_of(cell)
+	for rect: Rect2 in _hud._occupied():
+		assert_false(rect.has_point(screen), "事件格投影 %s 不在器物 %s 內" % [screen, rect])
+	GameSettings.set_value("ui_scale", 1.0)

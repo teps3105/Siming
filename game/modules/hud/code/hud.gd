@@ -78,6 +78,11 @@ func setup(sim: SimHost, map: TerrainMap, camera: MapCamera) -> void:
 	_director = DirectorRig.new()
 	add_child(_director)
 	_director.setup(sim, camera, _director_busy, func() -> bool: return _camera.is_flying() or (_guide != null and _guide.visible))
+	_director.director.go.connect(func(_province: int, _big: bool) -> void: _collapse_rumor())
+	_director.director.refocus.connect(func(_event: Dictionary) -> void: _collapse_rumor())
+	_director.director.caption_changed.connect(func(event: Dictionary) -> void:
+		if not event.is_empty():
+			_collapse_rumor())
 	_director.toggled.connect(func(on: bool) -> void: _notice.post(Locale.t("director_on" if on else "director_off")))
 	camera.globe_changed.connect(func(on: bool) -> void:
 		_view.globe = on
@@ -331,6 +336,12 @@ func _build() -> void:
 	_apply_device()
 
 
+## 導播換了下一件事：玩家按 T 展開的傳聞清單收回。
+func _collapse_rumor() -> void:
+	if _rumor != null:
+		_rumor.expanded = false
+
+
 ## 傳聞簽全螢幕展開：模擬暫停（記下展開前的行止）、鏡頭讓出畫面；收合時行止與速度回到展開前。
 func _on_rumor_fullscreen(on: bool) -> void:
 	# 兩張全螢幕互斥：先收另一張（它的行止先還原），這一張才記下展開前的行止。
@@ -396,11 +407,14 @@ func _place_rumor() -> void:
 	var bounds := get_viewport().get_visible_rect().size
 	var open_card := _open_card()
 	var right := open_card.position.x - MARGIN if open_card != null else bounds.x - MARGIN
-	_rumor.max_width = maxf(right - MARGIN, 0.0)
-	var width := _rumor.size.x - RumorSlip.SHADOW * 2.0
 	var dial_right := _dial.position.x + maxf(_dial._title_rect().end.x, _dial._speed_rect().end.x) + Ink.SLIP_BAND
+	_rumor.max_width = maxf(right - MARGIN, 0.0)
+	if _rumor.director_line:
+		# 導播開著：簽縮窄成一行，固定留在右上角時間盤的右邊，不往下讓出而蓋住畫面中央。
+		_rumor.max_width = maxf(right - dial_right - MARGIN * 2.0, 0.0)
+	var width := _rumor.size.x - RumorSlip.SHADOW * 2.0
 	var y := MARGIN
-	if right - width < dial_right + MARGIN:
+	if not _rumor.director_line and right - width < dial_right + MARGIN:
 		y = _view.position.y + _view.size.y + MARGIN
 	_rumor.max_height = maxf(_seals.position.y - y - MARGIN, 0.0)
 	_rumor.right_edge = right
@@ -643,6 +657,7 @@ func _process(_delta: float) -> void:
 	var bounds := get_viewport().get_visible_rect().size
 	if not is_equal_approx(_card_limit(bounds), _last_card_limit):
 		_place_cards(bounds)
+	_rumor.director_line = GameSettings.flag("director")
 	_place_rumor()
 	_overlay.reserved = _occupied()
 	_place_director_card(bounds)
