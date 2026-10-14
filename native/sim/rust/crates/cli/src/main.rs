@@ -1,6 +1,7 @@
 //! GDD 6.7 siming-cli：無頭工具（gen、sim）。
 
 mod render;
+mod soulage;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use render::Layer;
@@ -114,6 +115,31 @@ enum Cmd {
         #[arg(long)]
         json: Option<PathBuf>,
     },
+    /// 魂齡量測（GDD 3.1 魂力）：長跑世界，量魂誕生到魂散的年數分佈與一個魂一生跨越的紀元數
+    SoulAge {
+        /// 世界種子；人物期亂數種子預設同此值
+        #[arg(long)]
+        seed: u64,
+        /// 開天與預跑完成後再跑的年數；魂齡要跑到數萬年才看得到
+        #[arg(long, default_value_t = 60000)]
+        years: u32,
+        #[arg(long, value_enum, default_value = "small")]
+        size: FunnelSize,
+        /// 人物期亂數種子（預設取 --seed）
+        #[arg(long)]
+        rng: Option<u64>,
+        /// 對照組：每年補滿所有魂的魂力，等於沒有魂散
+        #[arg(long)]
+        baseline: bool,
+        /// 每隔幾年印一次魂數
+        #[arg(long, default_value_t = 5000)]
+        sample: u32,
+        /// 群體：接手後這麼多年內誕生的魂（跑得夠久，群體幾乎全部已散，沒有截尾偏誤）
+        #[arg(long, default_value_t = 10000)]
+        cohort: u32,
+        #[arg(long)]
+        json: Option<PathBuf>,
+    },
     /// 無頭跑 N 運，每世印一行天地的慢變量：寒暖、海平面偏移、靈潮（GDD 2.8）
     Evolve {
         #[arg(long)]
@@ -139,6 +165,14 @@ fn main() {
         }
         Cmd::Sim { seed, yun, report } => sim(seed, yun, report),
         Cmd::Funnel { seed, years, size, warmup, rng, json } => funnel(seed, years, size, warmup, rng, json),
+        Cmd::SoulAge { seed, years, size, rng, baseline, sample, cohort, json } => {
+            let size = match size {
+                FunnelSize::Small => WorldSize::Small,
+                FunnelSize::Medium => WorldSize::Medium,
+                FunnelSize::Large => WorldSize::Large,
+            };
+            soulage::run(seed, years, size, rng, baseline, sample, cohort, json)
+        }
         Cmd::Adepts { seed, years, size, rng, json } => adepts(seed, years, size, rng, json),
         Cmd::DynastyProbe { seed, yun } => dynasty_probe(seed, yun),
         Cmd::Evolve { seed, yun, era, seeds: None } => evolve(seed, yun, era),

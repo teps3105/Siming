@@ -178,6 +178,8 @@ fn hash_covers_new_fields() {
             w.rng.people.next_u32();
         })
     );
+    assert_ne!(h0, mutate(&|w| w.souls[1].power -= 1.0));
+    assert_ne!(h0, mutate(&|w| w.soul_vacancies += 1));
 }
 
 #[test]
@@ -223,4 +225,33 @@ fn world_name_is_stable_per_seed_and_varies() {
     assert!(!world_name(42).is_empty());
     let names: std::collections::BTreeSet<String> = (0..64u64).map(world_name).collect();
     assert!(names.len() > 8);
+}
+
+#[test]
+fn dissolved_souls_survive_save_and_replay() {
+    use siming_sim::model::SoulState;
+    // 起點就把一批魂的魂力壓到只剩一點，下一次轉世或惡道停留就會魂散；起點寫在建構函式裡，重播才重現得了。
+    fn weak(p: &WorldParams) -> Result<Sim, WorldGenError> {
+        let mut s = populated(p)?;
+        for x in s.world_mut().souls.iter_mut().skip(1).take(150) {
+            x.power = 0.5;
+        }
+        Ok(s)
+    }
+    let mut a = weak(&params(77)).unwrap();
+    for _ in 0..2400 {
+        a.step();
+    }
+    let dissolved = a.world().souls.iter().filter(|s| matches!(s.state, SoulState::Dissolved { .. })).count();
+    assert!(dissolved > 0, "壓低魂力後應有魂散去");
+    let file = a.save();
+    let mut b = Sim::load_with(&SaveFile::from_json(&file.to_json()).unwrap(), weak).unwrap();
+    assert_eq!(b.hash(), a.hash());
+    for _ in 0..600 {
+        a.step();
+        b.step();
+    }
+    assert_eq!(a.hash(), b.hash());
+    let severed = |s: &Sim| s.world().threads.iter().filter(|t| t.severed.is_some()).count();
+    assert_eq!(severed(&a), severed(&b));
 }

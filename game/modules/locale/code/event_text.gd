@@ -22,7 +22,7 @@ const FILTER_KINDS := {
 		"Famine", "Plague", "BeastAwakened", "BeastRaid", "DemonDen", "CataclysmBegan", "CataclysmEnded", "HeavenWrath",
 		"KalpaOmen", "Kalpa", "LeyDamaged", "KalpaSettled"],
 	"person": ["Born", "ComeOfAge", "Married", "Died", "WraithBorn", "Breakthrough", "Tribulation", "TribulationOmen", "Ascended", "FellToDemon",
-		"FruitAttained", "Vow", "Nirvana", "Treatise", "GreatScholar", "Sage", "Killed", "Converted", "Rebirth", "Judged", "Traveled", "Remonstrance"],
+		"FruitAttained", "Vow", "Nirvana", "Treatise", "GreatScholar", "Sage", "Killed", "Converted", "Rebirth", "Judged", "SoulDissolved", "Traveled", "Remonstrance"],
 	"sect": ["PowerFounded", "Succession", "SectSplit", "SectWar", "PowerFallen"],
 	"dynasty": ["DynastyFounded", "Annexed", "WarDeclared", "Battle", "CityFell", "Massacre", "Rebellion", "Secession", "Usurpation", "CivilWar",
 		"CapitalMoved", "DynastyChanged", "DynastyCollapsed", "Peace", "Fengshan", "Relief", "Purge", "BanTao"],
@@ -356,6 +356,9 @@ static func _key(event: Dictionary) -> String:
 		"ThreadOmen", "FeudEscalated", "ThreadFaded":
 			# n 是這條緣跨了幾世：隔過世的是前世結下的緣。
 			return "event_%s_past" % kind if int(event.get("n", 0)) >= 1 else "event_" + kind
+		"SoulDissolved":
+			# m 是隨魂散而斷的未了宿緣數。
+			return "event_SoulDissolved_threads" if int(event.get("m", 0)) >= 1 else "event_SoulDissolved"
 		"ThreadResolved":
 			return "event_ThreadResolved" if int(event.get("n", 0)) >= 1 else "event_ThreadResolved_once"
 		"ProvinceLost":
@@ -396,6 +399,7 @@ static func _params(event: Dictionary) -> Dictionary:
 		"X": _word(event),
 		"L": Locale.t("node_level_%d" % n),
 		"N": str(n),
+		"M": str(event.get("m", 0)),
 		"T": Locale.t("tribulation_%d" % n) if Locale.has("tribulation_%d" % n) else "",
 		"R": Locale.t("realm_%d" % n) if Locale.has("realm_%d" % n) else "",
 		"W": gain(n),
@@ -458,6 +462,9 @@ static func category(event: Dictionary) -> String:
 			return "ThreadCreated" if int(event["importance"]) <= 2 else ""
 		"Married":
 			return "Married"
+		"SoulDissolved":
+			# 重要度 2 的魂散是尋常的消逝，同月合成一則；重要度 3（有牽掛的宿緣、修為高）各自成則。
+			return "SoulDissolved" if int(event["importance"]) <= 2 else ""
 		"Died":
 			var cause: String = event.get("x", "")
 			var role: String = event.get("a_role", "")

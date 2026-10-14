@@ -782,6 +782,31 @@ pub const AFFINITY_CONVERTED_BUDDHA_GAIN: f32 = 0.3;
 pub const FAITH4_TURBID: f32 = 0.5;
 /// 7.1 `BARDO_MONTHS` 中陰時長 2 個月（GDD 3.2 中陰；本值已為月數）。
 pub const BARDO_MONTHS: u32 = 2;
+
+// ---- 魂力（GDD 3.1 魂力）----
+
+/// 7.1 `SOUL_POWER_MAX` 新魂的魂力 720（GDD 3.1 魂力）。
+pub const SOUL_POWER_MAX: f32 = 720.0;
+/// 7.1 `SOUL_REBIRTH_COST` 每次轉世消耗的魂力 10，再除以減緩係數（GDD 3.1 魂力）。
+pub const SOUL_REBIRTH_COST: f32 = 10.0;
+/// 7.1 `SOUL_BEAST_COST` 為獸每年消耗的魂力 0.5（GDD 3.1 魂力）。
+pub const SOUL_BEAST_COST_PER_YEAR: f32 = 0.5;
+/// 7.1 `SOUL_HUNGRY_COST` 餓鬼道每年消耗的魂力 0.4（GDD 3.1 魂力）。
+pub const SOUL_HUNGRY_COST_PER_YEAR: f32 = 0.4;
+/// 7.1 `SOUL_HELL_COST` 地獄道每年消耗的魂力 0.4（GDD 3.1 魂力）。
+pub const SOUL_HELL_COST_PER_YEAR: f32 = 0.4;
+/// 7.1 `SOUL_EASE_RANK` 減緩係數的修為項：係數 × 修為階的平方；修為階 0..9（GDD 3.1 魂力）。
+pub const SOUL_EASE_RANK: f32 = 0.15;
+/// 7.1 `SOUL_EASE_MERIT` 減緩係數的功德項：係數 × ln(1 + G / `SOUL_EASE_MERIT_SCALE`)（GDD 3.1 魂力）。
+pub const SOUL_EASE_MERIT: f32 = 2.0;
+/// 7.1 `SOUL_EASE_MERIT_SCALE` 功德項的尺度 150（GDD 3.1 魂力）。
+pub const SOUL_EASE_MERIT_SCALE: f32 = 150.0;
+/// 7.1 `SOUL_EASE_WISDOM` 減緩係數的宿慧項：係數 × min(W, `SOUL_EASE_WISDOM_FULL`) / `SOUL_EASE_WISDOM_FULL`（GDD 3.1 魂力）。
+pub const SOUL_EASE_WISDOM: f32 = 4.0;
+/// 7.1 `SOUL_EASE_WISDOM_FULL` 宿慧項滿額的 W 值 100（GDD 3.1 魂力）。
+pub const SOUL_EASE_WISDOM_FULL: f32 = 100.0;
+/// 7.1 `SOUL_EASE_IMMORTAL_DIV` 儒士的三不朽總和每 40 折為修為一階（GDD 3.1 魂力）。
+pub const SOUL_EASE_IMMORTAL_DIV: f32 = 40.0;
 /// 7.1 `PATH_NOISE` 六道判定雜訊的振幅 15，即 ±15（GDD 3.2 判定）。
 pub const PATH_NOISE: f32 = 15.0;
 /// 7.1 `PATH_HEAVEN` 天道門檻：業障 x ≥ 200（GDD 3.2 天道）。

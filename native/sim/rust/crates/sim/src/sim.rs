@@ -70,6 +70,8 @@ pub struct World {
     /// 全部子流上次重設用的種子；`None` 表示仍是世界種子決定的初始狀態（人物落地之前）。
     /// 讀檔重播的過渡期用它重建同一個世界；快照存檔上線後不再需要。
     pub rng_origin: Option<u64>,
+    /// 魂散騰出、尚待新魂補上的名額數（GDD 3.1 魂力、3.4 人間補魂）：`soul::power::dissolve` 加一，年度補魂扣掉。
+    pub soul_vacancies: u32,
 }
 
 /// 在世者依判定月分桶（桶內升冪）。`total` 為桶內人數總和，`usize::MAX` 表示失效。
@@ -146,6 +148,7 @@ impl World {
             rng,
             queue: Default::default(),
             rng_origin: None,
+            soul_vacancies: 0,
         }
     }
 

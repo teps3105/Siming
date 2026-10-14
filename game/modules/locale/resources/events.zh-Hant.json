@@ -95,6 +95,11 @@
       "template": "{A}之魂判入{X}",
       "importance": "1"
     },
+    "SoulDissolved": {
+      "seal": "魂散",
+      "template": "{A}之魂力竭，魂散天地",
+      "importance": "2；有強度 ≥ 50 的未了宿緣或修為達化神者 3"
+    },
     "Traveled": {
       "seal": "遊",
       "template": "{A}出外遊歷{P}／{A}遊歷歸來",

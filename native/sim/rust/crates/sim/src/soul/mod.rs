@@ -30,6 +30,7 @@
 //! - 超度加成需要州郡香火（M4 寺院）；M2 沒有寺院，恆為 0（見 `incense`）。
 
 mod judge;
+pub mod power;
 pub mod pull;
 mod rebirth;
 #[cfg(test)]
@@ -135,6 +136,10 @@ pub fn on_death(w: &mut World, pid: PersonId, liberation: Option<Liberation>) {
 pub fn take_for_birth(w: &World, province: ProvinceId) -> Option<SoulId> {
     for soul in &w.souls {
         let SoulState::Waiting { for_souls, .. } = &soul.state else { continue };
+        // 魂力不夠再轉世的魂不由王族子女接走，留在等待中到期時魂散（GDD 3.1 魂力）。
+        if !power::can_rebirth(soul) {
+            continue;
+        }
         let near = for_souls.iter().any(|&o| {
             matches!(
                 w.souls.get(o as usize).map(|s| &s.state),
@@ -233,6 +238,17 @@ fn judge_and_place(w: &mut World, sid: SoulId, m: &mut Month) {
 
     if let Some((lo, hi)) = realm_months(path) {
         let dur = draw_months(w, (lo, hi));
+        // 在惡道的年數消耗魂力；耗盡則魂散在入道之時（GDD 3.1 魂力）。
+        let cost = power::realm_cost(&w.souls[sid as usize], path, dur as f32 / 12.0);
+        if cost > 0.0 {
+            let soul = &mut w.souls[sid as usize];
+            soul.power -= cost;
+            if soul.power <= 0.0 {
+                record_judged(w, sid, path);
+                power::dissolve(w, sid);
+                return;
+            }
+        }
         let soul = &mut w.souls[sid as usize];
         soul.guide = None;
         soul.marks.clear(SoulMarks::ASURA);
@@ -285,13 +301,13 @@ fn judge_and_place(w: &mut World, sid: SoulId, m: &mut Month) {
         }
     }
     record_judged(w, sid, path);
-    rebirth(w, sid, province);
+    let mut born = u32::from(rebirth(w, sid, province).is_some());
     for wid in waiters {
         let p = pull::sample_near(w, province);
-        rebirth(w, wid, p);
+        born += u32::from(rebirth(w, wid, p).is_some());
         m.left_waiting(wid);
     }
-    *m.living(w) += group;
+    *m.living(w) += born;
 }
 
 /// 等待逾時：照常以因果牽引出生；達上限則再等 1 年。
@@ -303,9 +319,9 @@ fn birth_after_wait(w: &mut World, sid: SoulId, m: &mut Month) {
         return;
     }
     let province = m.birth_province(w, sid);
-    rebirth(w, sid, province);
+    let born = rebirth(w, sid, province).is_some();
     m.left_waiting(sid);
-    *m.living(w) += 1;
+    *m.living(w) += u32::from(born);
 }
 
 /// GDD 6.3 步驟 5：中陰到期的魂六道判定；他道期滿的魂重判（天道 G × 0.5、為獸 S × 0.9）；
@@ -389,6 +405,8 @@ pub fn fire(w: &mut World, sid: SoulId) {
 
 /// GDD 3.4 人間補魂：每年，在世有名之人 < `NOTABLE_FLOOR` 時，
 /// 建立 `ceil((NOTABLE_FLOOR − 在世數) × REFILL_RATE)` 個新魂（不超過上限），依州郡人口分布選出生地，年齡 0。
+/// 另外，魂散騰出的名額（`World::soul_vacancies`，GDD 3.1 魂力）每年全數補上新魂（同樣不超過上限），
+/// 使魂不斷更替而在世人數不隨之下滑；在世人數已達上限時，空缺作廢。
 pub fn yearly_refill(w: &mut World) {
     if w.provinces.is_empty() {
         return;
@@ -396,11 +414,12 @@ pub fn yearly_refill(w: &mut World) {
     let cap = notable_cap(w);
     let floor = cap as f32 * NOTABLE_FLOOR_RATIO;
     let living = living_notables(w);
-    if (living as f32) >= floor {
+    let want = if (living as f32) >= floor { 0 } else { ((floor - living as f32) * REFILL_RATE).ceil() as u32 };
+    let n = want.max(w.soul_vacancies).min(cap.saturating_sub(living));
+    if n == 0 {
+        w.soul_vacancies = 0;
         return;
     }
-    let want = ((floor - living as f32) * REFILL_RATE).ceil() as u32;
-    let n = want.min(cap.saturating_sub(living));
     // 各州名額（隨該州人口）扣掉該州在世有名之人，剩餘名額作為出生地的權重；無人口的州不出人。
     let mut room: Vec<f64> = w.provinces.iter().map(province_quota).collect();
     for &i in &w.alive_ids {
@@ -419,5 +438,8 @@ pub fn yearly_refill(w: &mut World) {
         let province = pull::sample_dist(w, &dist);
         spawn_new_life(w, SoulOrigin::New, province);
         weights[province as usize] = (weights[province as usize] - 1.0).max(0.0);
+        w.soul_vacancies = w.soul_vacancies.saturating_sub(1);
     }
+    // 補不滿的空缺（達上限或沒有名額的州）不累積：下一年再依當時的缺額判定。
+    w.soul_vacancies = 0;
 }

@@ -270,7 +270,10 @@ pub(super) fn royal_birth(w: &mut World, di: usize) {
         return;
     }
     let pid = match soul::take_for_birth(w, cap) {
-        Some(sid) => soul::rebirth(w, sid, cap),
+        Some(sid) => match soul::rebirth(w, sid, cap) {
+            Some(pid) => pid,
+            None => return,
+        },
         None => {
             if soul::living_notables(w) >= soul::notable_cap(w) {
                 return;

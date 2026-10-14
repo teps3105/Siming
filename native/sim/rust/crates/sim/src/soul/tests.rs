@@ -95,6 +95,7 @@ fn add_thread(w: &mut World, kind: ThreadKind, debtor: SoulId, creditor: SoulId,
         woven: false,
         resolved: None,
         omen_at: None,
+        severed: None,
         master_best: None,
     });
     w.souls[debtor as usize].threads.push(id);
@@ -555,4 +556,137 @@ fn gdd_6_5_soul_system_is_deterministic() {
     assert_ne!(format!("{:?}", a.souls), format!("{:?}", c.souls));
     assert!(a.ledger.events.iter().any(|e| e.kind == EventKind::Rebirth));
     assert!(a.ledger.events.iter().any(|e| e.kind == EventKind::Judged));
+}
+
+// ── 魂力（3.1）─────────────────────────────────────────────
+
+/// 讓魂死亡並推進到出生或魂散為止。
+fn die_and_settle(w: &mut World, pid: PersonId) {
+    kill(w, pid);
+    let t = w.tick / 30;
+    run_to(w, t + 3);
+}
+
+#[test]
+fn gdd_3_1_power_cost_and_ease() {
+    let mut w = line_world(21, &[100.0, 100.0]);
+    let (a, _) = living(&mut w, 0, 0.0, 0.0);
+    let (b, _) = living(&mut w, 0, 300.0, 0.0);
+    assert_eq!(w.souls[a as usize].power, SOUL_POWER_MAX);
+    assert!((power::ease(&w.souls[a as usize]) - 1.0).abs() < 1e-6);
+    assert!((power::rebirth_cost(&w.souls[a as usize]) - SOUL_REBIRTH_COST).abs() < 1e-6);
+    // 功德 300、宿慧滿額、化神境界（修為階 5）。
+    w.souls[b as usize].wisdom = SOUL_EASE_WISDOM_FULL;
+    w.souls[b as usize].best_prev.realm = Some(4);
+    let e = power::ease(&w.souls[b as usize]);
+    let want = 1.0 + SOUL_EASE_RANK * 25.0 + SOUL_EASE_MERIT * (1.0 + 300.0 / SOUL_EASE_MERIT_SCALE).ln() + SOUL_EASE_WISDOM;
+    assert!((e - want).abs() < 1e-4, "{e} {want}");
+    assert!(power::rebirth_cost(&w.souls[b as usize]) < SOUL_REBIRTH_COST / 5.0);
+    // 三者各自單調：功德多、宿慧深、修為高都使消耗變小。
+    let base = power::ease(&w.souls[a as usize]);
+    for f in [|s: &mut Soul| s.merit = 50.0, |s: &mut Soul| s.wisdom = 10.0, |s: &mut Soul| s.best_now.fruit = Some(1)] {
+        let mut s = w.souls[a as usize].clone();
+        f(&mut s);
+        assert!(power::ease(&s) > base);
+    }
+    // 惡道依年數；天道、人道、阿修羅不消耗。
+    let s = &w.souls[a as usize];
+    assert!((power::realm_cost(s, SixPath::Hell, 100.0) - SOUL_HELL_COST_PER_YEAR * 100.0).abs() < 1e-4);
+    assert!((power::realm_cost(s, SixPath::Beast, 10.0) - SOUL_BEAST_COST_PER_YEAR * 10.0).abs() < 1e-4);
+    for p in [SixPath::Heaven, SixPath::Human, SixPath::Asura] {
+        assert_eq!(power::realm_cost(s, p, 100.0), 0.0);
+    }
+}
+
+#[test]
+fn gdd_3_1_each_rebirth_costs_power() {
+    let mut w = line_world(22, &[100.0, 100.0, 100.0]);
+    let (sid, pid) = living(&mut w, 1, 100.0, 0.0);
+    w.tick = 100 * 30;
+    die_and_settle(&mut w, pid);
+    let SoulState::Incarnate(_) = w.souls[sid as usize].state else { panic!("應已轉世") };
+    let cost = SOUL_REBIRTH_COST / (1.0 + SOUL_EASE_MERIT * (1.0 + 100.0 / SOUL_EASE_MERIT_SCALE).ln());
+    assert!((w.souls[sid as usize].power - (SOUL_POWER_MAX - cost)).abs() < 1e-3, "{}", w.souls[sid as usize].power);
+}
+
+#[test]
+fn gdd_3_1_exhausted_power_dissolves_instead_of_rebirth() {
+    let mut w = line_world(23, &[100.0, 100.0, 100.0]);
+    let (sid, pid) = living(&mut w, 1, 100.0, 0.0);
+    let (other, _) = living(&mut w, 0, 0.0, 0.0);
+    let t = add_thread(&mut w, ThreadKind::Grace, sid, other, 60.0);
+    let weak = add_thread(&mut w, ThreadKind::Mentor, other, sid, 20.0);
+    w.souls[sid as usize].power = 1.0;
+    w.tick = 100 * 30;
+    let before = living_notables(&w);
+    die_and_settle(&mut w, pid);
+    assert!(matches!(w.souls[sid as usize].state, SoulState::Dissolved { .. }));
+    assert_eq!(w.souls[sid as usize].power, 0.0);
+    assert_eq!(w.souls[sid as usize].lives, vec![pid], "沒有新的肉身");
+    assert_eq!(living_notables(&w), before - 1);
+    // 宿緣線斷：強度歸零、不算了結、記下斷的事件。
+    for tid in [t, weak] {
+        let th = &w.threads[tid as usize];
+        assert_eq!(th.strength, 0.0);
+        assert!(th.resolved.is_none());
+        let (_, eid) = th.severed.expect("線應已斷");
+        assert_eq!(w.ledger.events[eid as usize].kind, EventKind::SoulDissolved);
+        assert!(!crate::thread::is_open(th));
+    }
+    // 因果帳：一筆 SoulDissolved，以最後一世的最近事件為因；有強度 ≥ 50 的線，重要度 3。
+    let ev: Vec<_> = w.ledger.events.iter().filter(|e| e.kind == EventKind::SoulDissolved).collect();
+    assert_eq!(ev.len(), 1);
+    assert_eq!(ev[0].importance, 3);
+    assert_eq!(ev[0].souls.as_slice(), &[sid]);
+    assert!(matches!(ev[0].args, EventArgs::Dissolved { rebirths: 0, severed: 2, .. }));
+    // 魂散後不再被排程、判定或牽引。
+    run_to(&mut w, 400);
+    assert!(matches!(w.souls[sid as usize].state, SoulState::Dissolved { .. }));
+}
+
+#[test]
+fn gdd_3_1_hell_stay_can_dissolve_in_the_realm() {
+    let mut w = line_world(24, &[100.0, 100.0]);
+    let (sid, pid) = living(&mut w, 0, 0.0, 900.0);
+    w.souls[sid as usize].power = 5.0;
+    w.tick = 100 * 30;
+    kill(&mut w, pid);
+    run_to(&mut w, 103);
+    assert!(matches!(w.souls[sid as usize].state, SoulState::Dissolved { .. }), "{:?}", w.souls[sid as usize].state);
+    assert!(w.ledger.events.iter().any(|e| e.kind == EventKind::Judged));
+    assert!(w.ledger.events.iter().any(|e| e.kind == EventKind::SoulDissolved));
+}
+
+#[test]
+fn gdd_3_1_dissolved_slot_is_refilled_by_a_new_soul() {
+    let mut w = line_world(25, &[400.0, 400.0]);
+    for _ in 0..30 {
+        yearly_refill(&mut w);
+    }
+    let n0 = living_notables(&w);
+    let souls0 = w.souls.len();
+    let pid = w.alive_ids[0];
+    let sid = w.persons[pid as usize].soul;
+    w.souls[sid as usize].power = 0.5;
+    w.tick = 100 * 30;
+    die_and_settle(&mut w, pid);
+    assert!(matches!(w.souls[sid as usize].state, SoulState::Dissolved { .. }));
+    assert_eq!(living_notables(&w), n0 - 1);
+    // 名額騰出：年度補魂建立新魂，在世人數回到原水準，魂總數多一個。
+    yearly_refill(&mut w);
+    assert!(living_notables(&w) >= n0 - 1);
+    assert!(w.souls.len() > souls0);
+    assert!(w.souls.last().unwrap().power == SOUL_POWER_MAX);
+}
+
+#[test]
+fn gdd_3_1_waiting_soul_without_power_is_not_taken_for_birth() {
+    let mut w = line_world(26, &[100.0, 100.0]);
+    let (a, pa) = living(&mut w, 0, 100.0, 0.0);
+    let (b, _) = living(&mut w, 0, 100.0, 0.0);
+    w.souls[a as usize].state = SoulState::Waiting { until: 5000, for_souls: smallvec![b] };
+    w.persons[pa as usize].died = Some((0, DeathCause::Age));
+    assert_eq!(take_for_birth(&w, 0), Some(a));
+    w.souls[a as usize].power = 1.0;
+    assert_eq!(take_for_birth(&w, 0), None);
 }

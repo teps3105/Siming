@@ -23,7 +23,7 @@ const RANK := {
 	"breakthrough": 6, "tribulation": 6, "tribulation_omen": 1, "fell_to_demon": 9, "traveled": 2, "sect_founded": 9,
 	"sect_split": 9, "succeeded": 9, "throne_succeeded": 9, "dynasty_founded": 9, "rebellion": 9, "secession": 9,
 	"usurpation": 9, "fengshan": 9, "killed": 4, "thread_created": 5, "thread_resolved": 7, "feud_escalated": 6,
-	"thread_omen": 2, "thread_faded": 3, "died": 10, "ascended": 10,
+	"thread_omen": 2, "thread_faded": 3, "died": 10, "ascended": 10, "soul_dissolved": 10,
 }
 
 static var _lib: Dictionary = {}
@@ -339,7 +339,7 @@ const SECTION_OF := {
 	"dynasty_founded": "deeds", "rebellion": "deeds", "secession": "deeds", "usurpation": "deeds", "fengshan": "deeds",
 	"killed": "karma", "thread_created": "karma", "thread_omen": "karma", "thread_resolved": "karma", "feud_escalated": "karma",
 	"thread_faded": "karma",
-	"died": "end", "ascended": "end",
+	"died": "end", "ascended": "end", "soul_dissolved": "end",
 }
 
 
@@ -478,6 +478,8 @@ func _render(u: Dictionary, when: String) -> Dictionary:
 			return _r_killed(u, when, salt)
 		"died", "ascended":
 			return _r_died(u, when, salt)
+		"soul_dissolved":
+			return _say("soul_dissolved", {}, salt, when)
 		"thread_omen", "thread_resolved", "thread_faded", "feud_escalated", "thread_created":
 			return _r_thread(u, when, salt)
 	return {"t": "", "l": [] as Array[Dictionary]}

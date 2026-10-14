@@ -416,6 +416,7 @@ fn remarriage_resolves_existing_love_thread() {
         woven: false,
         resolved: None,
         omen_at: None,
+        severed: None,
         master_best: None,
     });
     w.souls[sa as usize].threads.push(0);

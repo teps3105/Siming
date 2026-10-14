@@ -60,9 +60,9 @@ pub enum Resolution {
 
 // ── 查詢輔助 ─────────────────────────────────────────────
 
-/// 未了：未了結且強度 > 0。
+/// 未了：未了結、未斷（魂散）且強度 > 0。
 pub fn is_open(t: &Thread) -> bool {
-    t.resolved.is_none() && t.strength > 0.0
+    t.resolved.is_none() && t.severed.is_none() && t.strength > 0.0
 }
 
 /// 宿緣的 `lives`（3.3）：欠債方轉世增量；對稱線（情緣、師徒）取雙方增量較大者。
@@ -215,6 +215,7 @@ fn push_thread(
         woven,
         resolved: None,
         omen_at: None,
+        severed: None,
         master_best,
     });
     w.souls[debtor as usize].threads.push(tid);
