@@ -105,7 +105,7 @@ func test_gamepad_opens_the_person_card_and_b_goes_back() -> void:
 	var province := _busiest_province()
 	_hud._card.show_province(province)
 	await wait(0.5)
-	await joy_button(JOY_BUTTON_LEFT_STICK)
+	await joy_button(JOY_BUTTON_PADDLE1)
 	await frames(2)
 	assert_true(_hud._card.gamepad, "搖桿模式切過去")
 	_camera.set_cursor_position(_people_row_center(_hud._card, 0))
@@ -124,7 +124,7 @@ func test_gamepad_opens_the_person_card_and_b_goes_back() -> void:
 func test_gamepad_edge_hover_scrolls_the_history() -> void:
 	await _boot(DECK_VIEW)
 	var found := _find_people()
-	await joy_button(JOY_BUTTON_LEFT_STICK)
+	await joy_button(JOY_BUTTON_PADDLE1)
 	_hud.open_person(found["alive"])
 	await wait(0.5)
 	_card().toggle_timeline()

@@ -650,7 +650,7 @@ impl SimWorld {
     }
 
     /// 現在的日期各部分（GDD 2.6「日期顯示」）：`era`（紀元名，不含「紀元」二字）、`era_year`（紀元內第幾年）、
-    /// `world_year`（開天以來第幾年）、`month`（1..12）。文字由 GDScript 的 `EventText` 日期函式組產生。
+    /// `world_year`（開天以來第幾年）、`month`（1..12）、`day`（月內第幾日，1..30）。文字由 GDScript 的 `EventText` 日期函式組產生。
     #[func]
     fn date_parts(&self) -> VarDictionary {
         let mut d = VarDictionary::new();
@@ -661,6 +661,7 @@ impl SimWorld {
             d.set("era_year", year as i32);
             d.set("world_year", calendar::total_year(w.tick, w.evolution.history_years) as i32);
             d.set("month", calendar::date(w.tick).month as i32);
+            d.set("day", calendar::date(w.tick).day as i32);
         }
         d
     }

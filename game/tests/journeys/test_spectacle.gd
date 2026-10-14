@@ -248,17 +248,17 @@ func test_replay_of_a_resolved_thread_uses_the_ends_remembered_at_the_time() -> 
 
 # ── 速度與暫停 ────────────────────────────────────────────────
 
-func test_fast_speed_turns_low_importance_events_into_spots() -> void:
+func test_fast_forward_turns_low_importance_events_into_spots() -> void:
 	await _boot()
 	var pos := _look_at_province(2)
 	await frames(2)
-	_sim.set_speed(3)
-	assert_eq(_sim.speed_multiplier(), 20)
+	assert_true(_sim.fast_forward(SimHost.Stop.HOLD))
 	_post(_event("Tribulation", 3, {"pos": pos, "x": "Passed", "n": 3}))
-	assert_eq(_spec.queue().count(), 0, "20× 時重要度 3 的天劫不放完整的")
+	assert_eq(_spec.queue().count(), 0, "快進中重要度 3 的天劫不放完整的")
 	assert_eq(_spec.queue().spots().size(), 1, "只放一個光點")
 	_post(_event("Ascended", 5, {"pos": pos}))
 	assert_eq(_spec.queue().count(), 1, "重要度 5 的飛升照常")
+	_sim.fast_stop()
 	await frames(3)
 
 

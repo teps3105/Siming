@@ -1,13 +1,12 @@
 class_name SpectacleQueue
 extends RefCounted
 ## GDD 5.6 奇觀佇列：同時最多 12 個，超過時依重要度捨棄（同重要度捨棄先開始的）；
-## 速度 >= 20× 時重要度 < 4 的奇觀只留簡化版光點，光點屬小型奇觀，不計入上限。
+## 世界快進中放的奇觀（fast）重要度 < 4 的只留簡化版光點，光點屬小型奇觀，不計入上限。
 ## 時長是實際秒；推進多少秒由呼叫端決定（暫停時不推進）。純邏輯，不碰畫面。
 
 const MAX_ACTIVE := 12
 ## 光點雖不計上限，仍留一道保險，免得快轉時無限堆積。
 const MAX_SPOTS := 64
-const FAST_SPEED := 20
 const FULL_IMPORTANCE := 4
 const SPOT_SECONDS := 0.8
 ## 5.6 表的時長（實際秒）。

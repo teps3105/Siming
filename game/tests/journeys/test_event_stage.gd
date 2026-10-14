@@ -374,7 +374,7 @@ func test_gdd_5_13_show_time_does_not_speed_up_with_game_speed() -> void:
 	var event := _event_at_seat("Succession")
 	_stage.post(event)
 	_sim.set_paused(false)
-	_sim.set_speed(_sim.SPEED_MULTIPLIERS.size() - 1)
+	_sim.set_speed(_sim.DAYS_PER_SECOND.size() - 1)
 	var before := _stage.remaining_seconds(0)
 	var started := Time.get_ticks_msec()
 	await wait(0.5)

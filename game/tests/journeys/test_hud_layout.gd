@@ -154,14 +154,15 @@ func test_every_control_has_text_and_a_key_image() -> void:
 	assert_eq(_hud._seals._key_label(3), "F4")
 	assert_eq(_hud._dial._state_label(), Locale.t("dial_paused"), "時速簽寫出行止狀態")
 	assert_eq(_hud._dial._pause_key(), "Space")
-	assert_eq(_hud._dial._speed_label(), "1x", "時速簽寫出倍率")
+	assert_eq(_hud._dial._speed_label(), "1日/秒", "時速簽寫出每秒幾日")
 	assert_eq(_hud._dial._speed_keys(), ["Tab"])
 	await key(KEY_TAB)
 	await key(KEY_TAB)
 	assert_eq(_hud._dial._state_label(), Locale.t("dial_running"))
-	assert_eq(_hud._dial._speed_label(), "10x")
+	assert_eq(_hud._dial._speed_label(), "5日/秒")
 	await key(KEY_TAB)
-	assert_eq(_hud._dial._speed_label(), "20x", "最快 20 倍")
+	assert_eq(_hud._dial._speed_label(), "10日/秒", "最快每秒 10 日")
+	assert_eq(_hud._dial._fast_key(), "R", "快進鈕帶快捷鍵的圖像")
 	assert_eq(_hud._view._key(), "G", "視角鈕帶快捷鍵的圖像")
 	assert_false(_hud._view._label().is_empty(), "視角鈕有文字")
 	var badge_owner: Rect2 = _hud._seals._seal_rect(0)
@@ -172,7 +173,7 @@ func test_every_control_has_text_and_a_key_image() -> void:
 
 func test_key_images_follow_the_input_device() -> void:
 	await _boot(FLOW_VIEW)
-	await joy_button(JOY_BUTTON_LEFT_STICK)
+	await joy_button(JOY_BUTTON_PADDLE1)
 	await frames(2)
 	assert_eq(_hud._dial._pause_key(), "Select", "搖桿模式畫搖桿的鍵")
 	assert_eq(_hud._dial._speed_keys(), ["Y"])
@@ -315,11 +316,11 @@ func test_time_slips_keep_one_fixed_width() -> void:
 			seen_two_digit_month = true
 	assert_true(seen_two_digit_month, "測試涵蓋到兩位數的月份")
 	# 切到每一檔速度，寬度都不變。
-	for i in SimHost.SPEED_MULTIPLIERS.size():
+	for i in SimHost.DAYS_PER_SECOND.size():
 		await key(KEY_TAB)
-		assert_eq(_hud._dial._speed_rect().size.x, speed_width, "倍速 %s 時寬度不變" % _hud._dial._speed_label())
+		assert_eq(_hud._dial._speed_rect().size.x, speed_width, "每秒日數 %s 時寬度不變" % _hud._dial._speed_label())
 	# 換成搖桿（鍵圖像不同），寬度也不變。
-	await joy_button(JOY_BUTTON_LEFT_STICK)
+	await joy_button(JOY_BUTTON_PADDLE1)
 	await frames(2)
 	assert_eq(_hud._dial._speed_rect().size.x, speed_width, "換輸入裝置時寬度不變")
 	assert_eq(_hud._dial._title_rect().size.x, title_width)

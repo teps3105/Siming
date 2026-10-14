@@ -1,6 +1,6 @@
 class_name DirectorSpeed
 extends RefCounted
-## GDD 5.13 時間：導播對準大事時把遊戲速度降到一倍速，離開時恢復降速前的速度；
+## GDD 5.13 時間：導播對準大事時把遊戲速度降到細步最慢一檔（每秒 1 日），離開時恢復降速前的速度；
 ## 期間玩家自己改了速度或按了暫停，就以玩家的為準，不再恢復。
 
 var enabled := true

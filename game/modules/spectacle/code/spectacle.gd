@@ -45,6 +45,10 @@ func setup(sim: SimHost, map: TerrainMap, camera: MapCamera) -> void:
 	add_child(_holder)
 	sim.event_posted.connect(post)
 	sim.world_created.connect(clear)
+	# 世界快進不播奇觀：開始時正在放的收掉（記憶留著，傳聞簽點擊仍可重播）。
+	sim.fast_forward_started.connect(func() -> void:
+		_queue.clear()
+		_sync())
 	# 事件的棋子演出（5.13）：與天劫共用這裡的投影、鏡頭高度門檻與擺位。
 	var events := EventStage.new()
 	events.name = "EventStage"
@@ -60,7 +64,7 @@ func post(event: Dictionary) -> void:
 	_remember(spec)
 	if not _in_view(spec):
 		return
-	_queue.add(spec, _sim.speed_multiplier() >= SpectacleQueue.FAST_SPEED)
+	_queue.add(spec, _sim.fast_active())
 	_sync()
 
 
