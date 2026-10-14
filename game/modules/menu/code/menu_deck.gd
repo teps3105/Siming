@@ -20,6 +20,8 @@ const EDGE_GAP := 28.0
 const DISPLAY_KEYS: Array[String] = ["fullscreen", "window_size", "vsync"]
 const SIZES: Array[String] = ["small", "medium", "large"]
 const ERAS: Array[String] = ["ancient", "middle", "decline"]
+## 開局落點（GDD 2.6、4.6）：住劫內由種子決定，或限定住劫的前、中、後段；另可直接指定世界年。
+const LANDINGS: Array[String] = ["random", "early", "mid", "late"]
 const ROOT_ICONS := {
 	&"new": &"sun", &"continue": &"play", &"load": &"scroll", &"save": &"brush", &"share": &"knot",
 	&"settings": &"dial", &"book": &"book", &"credits": &"seal", &"quit": &"door", &"resume": &"play", &"to_title": &"back",
@@ -207,6 +209,8 @@ func _new_rows() -> Array[Dictionary]:
 		MenuPanel.slider(&"new.relief", Locale.t("new_relief"), _options["relief"], 0.0, 1.0, 0.05),
 		MenuPanel.slider(&"new.humidity", Locale.t("new_humidity"), _options["humidity"], 0.6, 1.4, 0.05),
 		MenuPanel.choice(&"new.era", Locale.t("new_era"), _named(ERAS, "era_"), _options["era"]),
+		MenuPanel.choice(&"new.landing", Locale.t("new_landing"), _named(LANDINGS, "landing_"), _options["landing"]),
+		MenuPanel.text_field(&"new.landing_year", Locale.t("new_landing_year"), str(_options.get("landing_year", "")), 6, true),
 		MenuPanel.action(&"new.start", Locale.t("new_start"), &"sun"),
 	]
 
@@ -221,7 +225,7 @@ static func _named(values: Array[String], prefix: String) -> Array:
 
 ## 開局選項回到 GDD 4.6 的預設值，種子與世界名隨機。
 func _reset_options() -> void:
-	_options = {"size": "medium", "land_ratio": 0.4, "relief": 0.5, "humidity": 1.0, "era": "middle"}
+	_options = {"size": "medium", "land_ratio": 0.4, "relief": 0.5, "humidity": 1.0, "era": "middle", "landing": "random"}
 	_name_custom = false
 	_roll_seed()
 
@@ -405,6 +409,12 @@ func _on_changed(id: StringName, value: Variant) -> void:
 	elif id == &"new.name":
 		_options["name"] = value
 		_name_custom = true
+	elif id == &"new.landing_year":
+		# 空白＝依上一列的落點選項；有數字就指定世界年（超出住劫的由模擬核心夾回住劫）。
+		if str(value).is_empty():
+			_options.erase("landing_year")
+		else:
+			_options["landing_year"] = int(value)
 	elif id == &"new.seed":
 		_set_seed(int(value))
 		_show(&"new", &"new.seed")

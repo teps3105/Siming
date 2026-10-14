@@ -156,6 +156,9 @@ func test_acceptance_1_no_duplicates_and_causes_precede() -> void:
 		# 再婚之前，上一段婚姻已結束；換師之前，上一位師父的緣分已了結。
 		var open_marriages := 0
 		var open_masters := 0
+		var last_master_tick := 0
+		# 已歿者重要度 1 的紀錄超過百年就修剪（含拜師的了結），只查前一段拜師仍在百年內或本人在世者。
+		var keeps_all: bool = _world.person(id)["alive"]
 		for fact: Dictionary in facts:
 			match fact["kind"]:
 				"married":
@@ -165,8 +168,10 @@ func test_acceptance_1_no_duplicates_and_causes_precede() -> void:
 					open_marriages = maxi(open_marriages - 1, 0)
 				"apprenticed":
 					if fact["role"] == "disciple":
-						assert_eq(open_masters, 0, "%d 號換師前要先有了結" % id)
+						if keeps_all or last_master_tick + 100 * 360 > _world.tick():
+							assert_eq(open_masters, 0, "%d 號換師前要先有了結" % id)
 						open_masters += 1
+						last_master_tick = int(fact["tick"])
 				"mentor_ended":
 					if fact["role"] == "disciple":
 						open_masters = maxi(open_masters - 1, 0)

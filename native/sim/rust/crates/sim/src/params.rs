@@ -538,13 +538,13 @@ pub const AURA_LEY_COEF: f32 = 0.3;
 pub const AURA_LEY_DECAY: f32 = 3.0;
 
 /// 7.1 `EVO_WARMTH_P1` 寒暖第一週期的長度下限 600 年（GDD 2.8 慢變量）。
-pub const EVO_WARMTH_P1_MIN: u32 = 600;
+pub const EVO_WARMTH_P1_MIN: u32 = 50000;
 /// 7.1 `EVO_WARMTH_P1` 寒暖第一週期的長度上限 900 年（GDD 2.8 慢變量）。
-pub const EVO_WARMTH_P1_MAX: u32 = 900;
+pub const EVO_WARMTH_P1_MAX: u32 = 80000;
 /// 7.1 `EVO_WARMTH_P2` 寒暖第二週期的長度下限 1,500 年（GDD 2.8 慢變量）。
-pub const EVO_WARMTH_P2_MIN: u32 = 1500;
+pub const EVO_WARMTH_P2_MIN: u32 = 130000;
 /// 7.1 `EVO_WARMTH_P2` 寒暖第二週期的長度上限 2,250 年（GDD 2.8 慢變量）。
-pub const EVO_WARMTH_P2_MAX: u32 = 2250;
+pub const EVO_WARMTH_P2_MAX: u32 = 200000;
 /// 7.1 `EVO_WARMTH_WEIGHT` 寒暖第一週期的權重 0.6（GDD 2.8 慢變量）。
 pub const EVO_WARMTH_W1: f32 = 0.6;
 /// 7.1 `EVO_WARMTH_WEIGHT` 寒暖第二週期的權重 0.4（GDD 2.8 慢變量）。
@@ -554,9 +554,9 @@ pub const EVO_SEA_RANGE: f32 = 0.03;
 /// 7.1 `EVO_SEA_APPROACH` 海平面每世向目標靠近的比例 0.5（GDD 2.8 慢變量）。
 pub const EVO_SEA_APPROACH: f32 = 0.5;
 /// 7.1 `EVO_TIDE_PERIOD` 靈潮週期的長度下限 900 年（GDD 2.8 慢變量）。
-pub const EVO_TIDE_PERIOD_MIN: u32 = 900;
+pub const EVO_TIDE_PERIOD_MIN: u32 = 100000;
 /// 7.1 `EVO_TIDE_PERIOD` 靈潮週期的長度上限 1,400 年（GDD 2.8 慢變量）。
-pub const EVO_TIDE_PERIOD_MAX: u32 = 1400;
+pub const EVO_TIDE_PERIOD_MAX: u32 = 160000;
 /// 7.1 `EVO_TIDE_AMPLITUDE` 靈潮在 1 上下的振幅 0.4（GDD 2.8 慢變量）。
 pub const EVO_TIDE_AMPLITUDE: f32 = 0.4;
 /// 7.1 `EVO_TIDE_RANGE` 靈潮的下限 0.5（GDD 2.8 慢變量）。
@@ -591,8 +591,10 @@ pub const EVO_REVIVAL_LEAVE: f32 = 1.2;
 pub const EVO_WARMTH_TEMPERATURE: f32 = 0.18;
 /// 7.1 `EVO_WARMTH_MOISTURE` 寒暖每 1 使濕度增減 15%（GDD 2.8 每世結算）。
 pub const EVO_WARMTH_MOISTURE: f32 = 0.15;
-/// 7.1 `EVO_ERA_MIN_YEARS` 兩次改元至少相隔 60 年（GDD 2.8 世界大事）。
-pub const EVO_ERA_MIN_YEARS: u32 = 60;
+/// 7.1 `EVO_ERA_MIN_YEARS` 一個紀元至少 8,000 年：一個人一世（壽元至多 8,000 年）至多跨兩個紀元（GDD 2.8 世界大事）。
+pub const EVO_ERA_MIN_YEARS: u32 = 8000;
+/// 7.1 `EVO_ERA_SETTLE_YEARS` 天地狀態（大寒、大暖、末法、靈氣復甦、承平）穩定這麼久才改元，短暫的起伏不成紀元（GDD 2.8 世界大事）。
+pub const EVO_ERA_SETTLE_YEARS: u32 = 3000;
 /// 7.1 `EVO_NODE_FADE` 靈潮低於 0.7 時，洞天福地每世可能降一級（GDD 2.8 每世結算）。
 pub const EVO_NODE_FADE_BELOW: f32 = 0.7;
 /// 7.1 `EVO_NODE_RISE` 靈潮高於 1.1 時，降過級的洞天福地每世可能回復一級（GDD 2.8 每世結算）。
@@ -1167,11 +1169,18 @@ pub const GENESIS_AFFINITY_FAITH_WEIGHT: f32 = 0.5;
 pub const GENESIS_AFFINITY_STATUS_WEIGHT: f32 = 0.5;
 /// 7.1 `GENESIS_AFFINITY` 身分偏向對應教派的分量 1（修士 道、僧 釋、儒士 儒、魔修 魔；散人均等，GDD 4.6 開天）。
 pub const GENESIS_AFFINITY_STATUS_BIAS: f32 = 1.0;
-/// 7.1 `GENESIS_POP_YEARS` 人口期預設長度 10,000 年（GDD 4.6 開天；世界參數 `pop_years`）。
+/// 7.1 `GENESIS_POP_YEARS` 人口期的引擎預設長度 10,000 年（`WorldParams::new` 的值，測試與工具用；
+/// 玩家開新世界時由開局落點 [`crate::landing`] 依種子或設定算出 `pop_years`，GDD 4.6 開天）。
 pub const GENESIS_POP_YEARS: u32 = 10_000;
-/// 7.1 `GENESIS_POP_YEARS` 人口期長度上限 20,000 年。
-pub const GENESIS_POP_YEARS_MAX: u32 = 20_000;
-/// 7.1 `GENESIS_PRERUN_YEARS` 人物期（逐月預跑）預設長度 600 年（GDD 4.6 開天；世界參數 `prerun_years`）。
+/// 7.1 `GENESIS_POP_YEARS` 人口期長度上限 120,000 年（住劫終點 113,400 年減人物期後仍有餘裕）。
+pub const GENESIS_POP_YEARS_MAX: u32 = 120_000;
+/// 7.1 `GENESIS_LAND_EVERY_SHI` 人口期每 4 世（120 年）才推進一次地形與海陸；世界大事、紀元、草木、靈氣與洞天福地仍每世結算（GDD 4.6）。
+pub const GENESIS_LAND_EVERY_SHI: u32 = 4;
+/// 7.1 `LANDING_YEAR_MIN` 開局落點（玩家接手的世界年）的下限：住劫起點，世界第 27,000 年（GDD 2.6 成住壞空）。
+pub const LANDING_YEAR_MIN: u32 = 27_000;
+/// 7.1 `LANDING_YEAR_MAX` 開局落點的上限：住劫終點，世界第 113,400 年。
+pub const LANDING_YEAR_MAX: u32 = 113_400;
+/// 7.1 `GENESIS_PRERUN_YEARS` 人物期（逐月預跑）預設長度 1,000 年（GDD 4.6 開天；世界參數 `prerun_years`）。
 pub const GENESIS_PRERUN_YEARS: u32 = 1_000;
 /// 7.1 `GENESIS_PRERUN_YEARS` 人物期長度上限 5,000 年。
 pub const GENESIS_PRERUN_YEARS_MAX: u32 = 5_000;

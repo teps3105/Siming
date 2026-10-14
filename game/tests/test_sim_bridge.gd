@@ -367,8 +367,9 @@ func test_gdd_2_8_world_changes_come_out_of_the_event_queue_with_their_era() -> 
 		assert_true(event["change"] in ["ColdBegan", "ColdEnded", "WarmBegan", "WarmEnded", "DeclineBegan", "DeclineEnded", "RevivalBegan", "RevivalEnded", "CataclysmBegan", "CataclysmEnded"])
 		if event["era"] != "":
 			opened += 1
-	assert_gt(opened, 0, "六十世裡應有改元")
-	assert_eq(world.date_parts()["era"], changes.filter(func(e: Dictionary) -> bool: return e["era"] != "")[-1]["era"], "題簽的紀元應是最後一次改元的名字")
+	# 紀元至少 8,000 年（2.8），六十世內多半不改元；改元的規則由 Rust 端測試核對，有改元時題簽要是最後那個紀元名。
+	if opened > 0:
+		assert_eq(world.date_parts()["era"], changes.filter(func(e: Dictionary) -> bool: return e["era"] != "")[-1]["era"], "題簽的紀元應是最後一次改元的名字")
 
 
 func _label_lines(world: SimWorld) -> Array[String]:

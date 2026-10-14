@@ -17,6 +17,7 @@ pub mod genesis;
 pub mod hash;
 mod hash_ser;
 pub mod landform;
+pub mod landing;
 pub mod ledger;
 pub mod model;
 pub mod params;
@@ -33,6 +34,7 @@ pub mod thread;
 pub mod types;
 pub mod worldgen;
 
+pub use landing::{landing_year, Landing};
 pub use model::*;
 pub use sim::{FastOutcome, FastStop, Sim, World};
 pub use types::*;
