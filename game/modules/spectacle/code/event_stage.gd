@@ -378,7 +378,7 @@ func _stage_light(perf: Dictionary) -> void:
 	var camera := _spectacle.camera()
 	var base := _spectacle.world_of(perf["pos"])
 	var basis := _spectacle.up_basis(base)
-	var height := FigureActor.world_height(FigureActor.pixels_per_unit(camera, base), _spectacle.unit())
+	var height := FigureActor.world_height()
 	light.global_transform = Transform3D(basis.scaled(Vector3.ONE * height), base)
 	light.tick(maxf(float(perf["age"]), 0.0), {})
 
