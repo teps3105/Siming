@@ -163,7 +163,7 @@ func test_card_shows_the_biography_and_a_collapsed_timeline() -> void:
 
 
 func _compose(id: int) -> Dictionary:
-	return ChronicleText.compose(_sim.world.person(id), _sim.world.person_chronicle(id), (func(p: int) -> Dictionary: return _sim.world.person(p)), _sim.world.history_years())
+	return ChronicleText.compose(_sim.world.person(id), _sim.world.person_chronicle(id), (func(p: int) -> Dictionary: return _sim.world.person(p)))
 
 
 func _items(card: PersonCard, kind: String) -> Array:
@@ -385,7 +385,7 @@ func _check_fit(view: Vector2i, ui_scale: float) -> void:
 				assert_gt(Ink.font_size(base, _hud._unit), 15, "Deck 內文至少 16")
 
 
-func test_timeline_dates_are_double_dated() -> void:
+func test_timeline_dates_only_write_the_era_time() -> void:
 	await _boot(FLOW_VIEW)
 	var found := _find_people()
 	for key_name in ["alive", "dead"]:
@@ -400,7 +400,7 @@ func test_timeline_dates_are_double_dated() -> void:
 		for row: Dictionary in rows:
 			assert_false(String(row["text"]).contains("{"), "沒有留下未填的模板：" + row["text"])
 			assert_true(String(row["date"]).ends_with("月"), "年月到月：" + row["date"])
-			assert_true(String(row["date"]).contains("紀元") and String(row["date"]).contains("年 ("), "年月雙表：" + row["date"])
+			assert_true(String(row["date"]).contains("紀元") and not String(row["date"]).contains("("), "年表日期只寫紀元時間：" + row["date"])
 		card.toggle_timeline()
 
 

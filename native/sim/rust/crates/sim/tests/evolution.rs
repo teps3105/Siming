@@ -147,3 +147,26 @@ fn gdd_2_8_node_shifts_enter_the_ledger_and_change_the_ley_lines() {
     }
     assert!(w.geo.nodes.iter().all(|n| n.strength <= n.origin));
 }
+
+#[test]
+fn gdd_5_10_era_table_covers_the_world_from_genesis_to_today() {
+    let mut sim = Sim::new(&quick(20261011)).unwrap();
+    while sim.world().tick < 30 * 360 * 4 {
+        sim.step();
+    }
+    let w = sim.world();
+    let rows = siming_sim::era::table(w);
+    let now = calendar::total_year(w.tick, w.evolution.history_years);
+    assert_eq!(rows.len(), w.eras.len());
+    assert_eq!(rows[0].start_year, 1);
+    assert_eq!(rows.last().unwrap().end_year, now, "最後一個紀元算到今天");
+    for pair in rows.windows(2) {
+        assert_eq!(pair[0].end_year + 1, pair[1].start_year, "紀元首尾相接");
+    }
+    for row in &rows[1..] {
+        let id = row.event.expect("跑出來的改元有起因事件");
+        let e = siming_sim::ledger::get(w, id).expect("事件未被修剪");
+        assert!(matches!(e.args, EventArgs::World { new_era: true, .. }));
+    }
+    assert!(rows[0].event.is_none(), "開天沒有起因事件");
+}

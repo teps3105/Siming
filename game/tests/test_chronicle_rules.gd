@@ -1,9 +1,6 @@
 extends "res://tests/harness/suite.gd"
 ## 小傳與年表的寫法規則（GDD 5.12），用手寫的事實清單斷言輸出的句子：不依賴模擬世界。
 
-## 開局前年數：使「咸寧紀元一二三年」對到世界年 12356。
-const HISTORY := 12233
-
 var _next_id := 100
 
 
@@ -45,7 +42,7 @@ func _because(event: int, me: int, me_name: String, other: int, other_name: Stri
 
 
 func _compose(facts: Array, name := "霍青廉", alive := true, lookup := Callable()) -> Dictionary:
-	return ChronicleText.compose(_info(name, alive), facts, lookup, HISTORY)
+	return ChronicleText.compose(_info(name, alive), facts, lookup)
 
 
 func _para_with(out: Dictionary, needle: String) -> String:
@@ -65,12 +62,12 @@ func _revenge_facts(because_me: int, because_name: String) -> Array:
 
 # ── 日期（2.6）──────────────────────────────────────────────
 
-func test_every_year_is_written_with_era_and_world_year() -> void:
+func test_every_year_is_written_with_era_only() -> void:
 	var out := _compose([_fact("breakthrough", 123, 11, {"n": 1}), _fact("breakthrough", 130, 2, {"n": 2})])
-	assert_eq(out["rows"][0]["date"], "咸寧紀元 一二三年 (12356年) 十一月", "年表日期是題簽寫法：紀元與世界年雙表、月照念法")
-	assert_eq(out["rows"][1]["date"], "咸寧紀元 一三〇年 (12363年) 二月", "零寫〇")
+	assert_eq(out["rows"][0]["date"], "咸寧紀元 一二三年 十一月", "年表日期是題簽寫法：只寫紀元時間、月照念法")
+	assert_eq(out["rows"][1]["date"], "咸寧紀元 一三〇年 二月", "零寫〇")
 	var para := _para_with(out, "築基")
-	assert_true(para.contains("咸寧紀元一二三年（12356年）"), "小傳的年份雙表：" + para)
+	assert_true(para.contains("咸寧紀元一二三年"), "小傳的年份只寫紀元時間：" + para)
 	assert_eq(para.count("咸寧紀元"), 2, "同一紀元連續出現也每次都寫紀元名：" + para)
 	assert_eq(ChronicleText.digits(105), "一〇五")
 	assert_eq(ChronicleText.digits(10), "一〇")
@@ -78,9 +75,9 @@ func test_every_year_is_written_with_era_and_world_year() -> void:
 
 
 func test_keep_pieces_covers_the_whole_double_date() -> void:
-	var pieces := ChronicleText.keep_pieces("咸寧紀元一二三年（12356年）十一月，某事。咸寧紀元一〇年（12243年），某事。")
-	assert_true(pieces.has("咸寧紀元一二三年（12356年）十一月"))
-	assert_true(pieces.has("咸寧紀元一〇年（12243年）"))
+	var pieces := ChronicleText.keep_pieces("咸寧紀元一二三年十一月，某事。咸寧紀元一〇年，某事。")
+	assert_true(pieces.has("咸寧紀元一二三年十一月"))
+	assert_true(pieces.has("咸寧紀元一〇年"))
 
 
 # ── 恩怨的合併（規則 1、2）─────────────────────────────────────
@@ -165,7 +162,7 @@ func test_revenge_weaves_the_cause_in_and_names_which_life() -> void:
 		assert_true(text.contains("袁凰"), text)
 		assert_true(text.contains("林默"), "前因交代本人那一世的名字：" + text)
 		assert_true(text.contains("袁凰的前身馬谷法"), "對方當時的名字交代是誰的前身：" + text)
-		assert_true(text.contains("安黃紀元一四九年（12382年）"), "前因的年份雙表：" + text)
+		assert_true(text.contains("安黃紀元一四九年"), "前因的年份只寫紀元時間：" + text)
 		assert_true(text.contains("前世"), "上一世稱前世：" + text)
 		assert_false(text.contains("轉世之"), "不用「某某轉世之某」：" + text)
 		assert_false(text.contains("，安黃") and not text.contains("——") and not text.contains("於安黃"), "前因不當句尾半句：" + text)
@@ -333,12 +330,12 @@ func test_the_founder_is_a_patriarch_and_a_leader_is_a_leader() -> void:
 	var info := _info("高毅", false)
 	info["power"] = 8
 	info["power_name"] = "玉月派"
-	var founded := ChronicleText.compose(info, [_fact("sect_founded", 241, 1, {"power": 8, "power_name": "玉月派"})], Callable(), HISTORY)
+	var founded := ChronicleText.compose(info, [_fact("sect_founded", 241, 1, {"power": 8, "power_name": "玉月派"})])
 	assert_true(founded["bio"][0]["text"].contains("玉月派祖師"), founded["bio"][0]["text"])
 	assert_false(founded["bio"][0]["text"].contains("弟子"), founded["bio"][0]["text"])
-	var led := ChronicleText.compose(info, [_fact("succeeded", 241, 1, {"power": 8, "power_name": "玉月派"})], Callable(), HISTORY)
+	var led := ChronicleText.compose(info, [_fact("succeeded", 241, 1, {"power": 8, "power_name": "玉月派"})])
 	assert_true(led["bio"][0]["text"].contains("玉月派掌門"), led["bio"][0]["text"])
-	var plain := ChronicleText.compose(info, [], Callable(), HISTORY)
+	var plain := ChronicleText.compose(info, [])
 	assert_true(plain["bio"][0]["text"].contains("玉月派弟子"), plain["bio"][0]["text"])
 
 
@@ -348,7 +345,7 @@ func test_three_pupils_merge_with_the_earliest_year_and_two_do_not() -> void:
 		facts.append(_fact("apprenticed", 20 + i * 5, 3, {"role": "master", "other": 80 + i, "other_name": "弟子%s" % "甲乙丙"[i]}))
 	var text := _bio_text(_compose(facts))
 	assert_true(text.contains("三人") or text.contains("三名"), text)
-	assert_true(text.contains("咸寧紀元二〇年（12253年）"), "寫最早一年：" + text)
+	assert_true(text.contains("咸寧紀元二〇年"), "寫最早一年：" + text)
 	assert_false(text.contains("弟子乙") or text.contains("弟子丙"), "不逐一列名：" + text)
 	var two := _bio_text(_compose(facts.slice(0, 2)))
 	assert_true(two.contains("弟子甲") and two.contains("弟子乙"), "兩人以內照舊逐一寫：" + two)

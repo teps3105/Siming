@@ -155,6 +155,42 @@ fn mix(mut z: u64) -> u64 {
     z ^ (z >> 31)
 }
 
+/// 世界簡史的一列（GDD 5.10）：一個紀元的起訖與起因。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EraRow {
+    /// 紀元名，不含「紀元」二字。
+    pub name: String,
+    /// 起因的性質。
+    pub kind: EraKind,
+    /// 元年是自開天起的第幾年（1 起算）。
+    pub start_year: u32,
+    /// 最後一年（含）；現在這一個紀元算到今天。
+    pub end_year: u32,
+    /// 開啟這個紀元的世界大事；開天、開局前已過的紀元，或事件已被帳修剪時為 `None`。
+    pub event: Option<crate::EventId>,
+}
+
+/// 世界簡史：每個紀元的起訖年與起因事件（唯讀）。
+pub fn table(w: &crate::World) -> Vec<EraRow> {
+    let now = crate::calendar::total_year(w.tick, w.evolution.history_years);
+    let history = w.evolution.history_years;
+    w.eras
+        .iter()
+        .enumerate()
+        .map(|(i, era)| {
+            let end_year = w.eras.get(i + 1).map_or(now, |next| next.start_year - 1).max(era.start_year);
+            let event = w
+                .ledger
+                .events
+                .iter()
+                .filter(|e| e.importance > 0 && matches!(e.args, crate::EventArgs::World { new_era: true, .. }))
+                .find(|e| history + crate::evolution::year_of(e.tick) + 1 == era.start_year)
+                .map(|e| e.id);
+            EraRow { name: era.name.clone(), kind: era.kind, start_year: era.start_year, end_year, event }
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

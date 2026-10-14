@@ -119,8 +119,8 @@ func test_date_uses_the_era_form_with_arabic_numerals() -> void:
 	assert_eq(history, 0, "開天沒有開局前的歷史")
 	assert_eq(parts["world_year"], history + months / 12 + 1)
 	var label := EventText.now_label(world)
-	assert_eq(label, EventText.date_label(parts["era"], parts["era_year"], parts["world_year"], parts["month"]))
-	assert_true(label.contains("紀元 ") and label.contains(" (%d年) " % parts["world_year"]), "題簽寫紀元時間加世界時間：%s" % label)
+	assert_eq(label, EventText.date_label(parts["era"], parts["era_year"], parts["month"]))
+	assert_true(label.contains("紀元 ") and not label.contains("("), "題簽只寫紀元時間：%s" % label)
 
 
 func test_gdd_5_3_range_label_paths_stay_on_land() -> void:

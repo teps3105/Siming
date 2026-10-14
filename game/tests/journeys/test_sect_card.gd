@@ -408,10 +408,10 @@ func test_leaders_row_lists_names_with_years_and_names_open_person_cards() -> vo
 			break
 	assert_false(row.is_empty(), "有歷任掌門列")
 	var text := SectCard.leaders_text(row)
-	assert_true(text.ends_with("年）起"), "每位附在位年份，最後一位寫「起」：" + text)
+	assert_true(text.ends_with("年起"), "每位附在位年份，最後一位寫「起」：" + text)
 	assert_false(text.contains("紀元 ") or text.contains(" (") or text.contains("、"), "句子裡的寫法沒有空格、半形括號與頓號：" + text)
 	assert_eq(EventText.date_spans(text.replace("
-", "")).size(), text.count("紀元"), "每個日期都是完整的「紀元＋年＋（世界年）」：" + text)
+", "")).size(), text.count("紀元"), "每個日期都是完整的「紀元＋年」：" + text)
 	for block: Dictionary in row["blocks"]:
 		var lines: Array = block["paragraph"]["lines"]
 		for i in range(1, lines.size()):
@@ -441,9 +441,9 @@ func test_fallen_sect_head_keeps_the_fall_year_together() -> void:
 				seen = true
 	assert_true(seen, "首列寫了覆滅年")
 	var info := _sim.world.sect(_card().sect)
-	var label := EventText.year_label(info["fallen_era"], int(info["fallen_year"]), int(info["fallen_world_year"]))
+	var label := EventText.year_label(info["fallen_era"], int(info["fallen_year"]))
 	assert_true(_card().head_text().replace(" ", "").contains(label.replace(" ", "")), "覆滅年寫的是帶空格的寫法的字（折行時段落間可能換行）")
-	# 放得下一行就整段在同一行；連一行都放不下才在段落之間折（紀元名｜紀元年｜世界年），段落本身不拆。
+	# 放得下一行就整段在同一行；連一行都放不下才在段落之間折（紀元名｜紀元年），段落本身不拆。
 	for block: Dictionary in _card()._blocks:
 		if block["kind"] != "para" or not "".join(block["paragraph"]["lines"]).contains(label):
 			continue
@@ -468,7 +468,7 @@ func test_fallen_sect_opens_a_card_with_fall_year_and_cause() -> void:
 	assert_true(card.is_open() and card.sect == id, "已覆滅的宗門也開得了卡")
 	assert_eq(card.member_row_count(), 0, "沒有門人名單")
 	var head := card.head_text()
-	assert_true(head.contains(Locale.t("sect_fell")) and head.contains("(%d年)" % int(info["fallen_world_year"])), "寫明覆滅年（紀元時間加世界時間）")
+	assert_true(head.contains(Locale.t("sect_fell")) and head.contains(EventText.year_label(info["fallen_era"], int(info["fallen_year"]))), "寫明覆滅年（只寫紀元時間）")
 	assert_true(head.contains(Locale.t("sect_fell_war")) or head.contains(Locale.t("sect_fell_scatter")), "寫明覆滅原因")
 	var kinds: Array[String] = []
 	for entry: Dictionary in _sim.world.sect_history(id):

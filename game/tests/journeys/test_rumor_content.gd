@@ -54,11 +54,10 @@ func test_every_slip_shows_year_and_month() -> void:
 	_post(_event("Killed", 3, 780, {"year": 3}))
 	var entry := _rumor.shown()[0]
 	assert_eq(entry["month"], 2, "月由 tick 算：780 → 2 月")
-	_post(_event("Killed", 3, 810, {"year": 43, "world_year": 12356, "date_era": "咸寧", "souls": PackedInt32Array([7])}))
+	_post(_event("Killed", 3, 810, {"year": 43, "date_era": "咸寧", "souls": PackedInt32Array([7])}))
 	entry = _rumor.shown()[0]
 	assert_eq(entry["era"], "咸寧", "記下事件當時的紀元名")
-	assert_eq(entry["world_year"], 12356, "記下事件當時的世界年")
-	assert_eq(_rumor._stamp(entry), "咸寧紀元 四三年 (12356年) 三月", "傳聞簽寫紀元時間加世界時間")
+	assert_eq(_rumor._stamp(entry), "咸寧紀元 四三年 三月", "傳聞簽只寫紀元時間")
 	_post(_event("Killed", 3, 1080, {"year": 3, "souls": PackedInt32Array([9])}))
 	assert_eq(_rumor.shown()[0]["month"], 12, "tick 1080 是 12 月")
 	_post(_event("Killed", 3, 1110, {"year": 4, "month": 7, "souls": PackedInt32Array([8])}))
