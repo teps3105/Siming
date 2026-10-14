@@ -648,7 +648,7 @@ func _process(_delta: float) -> void:
 	_place_director_card(bounds)
 
 
-## 導演字卡在底部中央、印鈕列上方（引導簽的位置；兩者不會同時出現），避開時間盤、視角鈕、傳聞簽、命簿。
+## 導播字卡在底部中央、印鈕列上方（引導簽的位置；兩者不會同時出現），避開時間盤、視角鈕、傳聞簽、命簿。
 func _place_director_card(bounds: Vector2) -> void:
 	var seals_top := _seals.position.y + _seals._badge_position(0).y
 	var avoid: Array[Rect2] = []
@@ -658,7 +658,7 @@ func _place_director_card(bounds: Vector2) -> void:
 	_director_card.layout(bounds, seals_top - GUIDE_GAP, avoid)
 
 
-## 導演要讓出的時刻：玩家開著卡片、天下冊、傳聞簽全螢幕或選單。
+## 導播要讓出的時刻：玩家開著卡片、天下冊、傳聞簽全螢幕或選單。
 func _director_busy() -> bool:
 	if _rumor == null or _almanac == null:
 		return false

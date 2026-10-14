@@ -14,7 +14,7 @@ const MAX_WAITING := 3
 const MAX_PERFORMANCES := 96
 ## 等鏡頭最多幾秒（真實時間）。
 const HOLD_LIMIT := 5.0
-## 導演要看的那件事所在州郡等鏡頭最多幾秒：比導演過場上限（Director.TRAVEL_LIMIT）長一點，到位前不會自己開演。
+## 導播要看的那件事所在州郡等鏡頭最多幾秒：比導播過場上限（Director.TRAVEL_LIMIT）長一點，到位前不會自己開演。
 const FOCUS_HOLD_LIMIT := 8.0
 ## 兩人演出各站事件格一側，離中心幾個身高。
 const PAIR_GAP := 0.32
@@ -31,7 +31,7 @@ var _spectacle: Spectacle
 var _sim: SimHost
 var _holder: Node3D
 ## 演出：{id, event, plan, importance, province, pos, cell, serial, age（−1 尚未開演）, actors: Array[FigureActor], light（轉世的光效，沒有為 null）, to_pos,
-## focus（導演字卡那件事：不被排隊上限丟掉、在棋子名額與同格排隊上優先、到位才開演）}
+## focus（導播字卡那件事：不被排隊上限丟掉、在棋子名額與同格排隊上優先、到位才開演）}
 var _perfs: Array[Dictionary] = []
 var _holds := {}
 var _serial := 0
@@ -100,7 +100,7 @@ func _register(event: Dictionary, focus: bool) -> Dictionary:
 	return perf
 
 
-## 導演選定要看的那件事（字卡事件）：它的演出排在最前，不被排隊上限丟掉，棋子名額與同格排隊都優先；
+## 導播選定要看的那件事（字卡事件）：它的演出排在最前，不被排隊上限丟掉，棋子名額與同格排隊都優先；
 ## 州郡還在等鏡頭時（過場中）停在開演前，到位 release 才從定場播；已在播或已演完、被擠掉的，重新登記一份從頭播。
 ## 表裡沒有對應動作的事件（例如饑荒）不處理。
 func focus(event: Dictionary) -> void:
@@ -131,7 +131,7 @@ func focus(event: Dictionary) -> void:
 
 
 ## 該州郡排隊中與播放中的演出還要幾秒（各格並行，取最久的一格）；沒有為 0。
-## 州郡裡有導演字卡那件事的演出時，只算它自己這件（導演停留以它的長度為準）。
+## 州郡裡有導播字卡那件事的演出時，只算它自己這件（導播停留以它的長度為準）。
 func remaining_seconds(province: int) -> float:
 	var per_cell := {}
 	for perf in _perfs:
@@ -275,7 +275,7 @@ func _drop(perf: Dictionary) -> void:
 
 ## 每一格沒有在播的演出時，讓排隊裡重要度最高（同重要度先到）且州郡沒被 hold 的開演。
 func _start_ready() -> void:
-	# 導演字卡那件事輪到開演時，同格正在播的別件讓位（它要在畫面中央演）。
+	# 導播字卡那件事輪到開演時，同格正在播的別件讓位（它要在畫面中央演）。
 	for perf in _perfs.duplicate():
 		if bool(perf["focus"]) and float(perf["age"]) < 0.0 and not _holds.has(perf["province"]):
 			for other in _perfs.duplicate():
@@ -297,7 +297,7 @@ func _start_ready() -> void:
 		best[cell]["age"] = 0.0
 
 
-## 開演順位：導演字卡那件事最優先，其餘依重要度。
+## 開演順位：導播字卡那件事最優先，其餘依重要度。
 static func _start_rank(perf: Dictionary) -> int:
 	return int(perf["importance"]) + (1000 if bool(perf["focus"]) else 0)
 
@@ -365,7 +365,7 @@ func _sync() -> void:
 
 
 ## 事件格在不在畫面內。每幀的 _process 裡每件演出錯開，每 VISIBLE_EVERY 幀才重算一次（高倍速下登記的演出很多）；
-## 直接呼叫 advance（測試、導演）時一律重算。
+## 直接呼叫 advance（測試、導播）時一律重算。
 func _is_visible(perf: Dictionary) -> bool:
 	if _throttle and perf.has("seen") and (Engine.get_process_frames() + int(perf["serial"])) % VISIBLE_EVERY != 0:
 		return bool(perf["seen"])

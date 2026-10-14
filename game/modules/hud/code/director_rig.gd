@@ -1,9 +1,9 @@
 class_name DirectorRig
 extends Node
-## GDD 5.13 導演模式的接線：把決策（Director）接到模擬的事件與速度、鏡頭的過場與操作偵測、字卡與設定。
+## GDD 5.13 導播模式的接線：把決策（Director）接到模擬的事件與速度、鏡頭的過場與操作偵測、字卡與設定。
 ## 每幀餵真實秒給 Director；沒有自己的決策。
 
-## 玩家用快捷鍵切換導演模式，帶新的開關狀態。
+## 玩家用快捷鍵切換導播模式，帶新的開關狀態。
 signal toggled(on: bool)
 
 ## 到位時棋子在畫面上的高度（像素，乘介面單位）：由此反推鏡頭高度（5.6）；玩家原本更低則維持。
@@ -22,7 +22,7 @@ var _fade: ColorRect
 var _dest := Vector2.ZERO
 ## 回傳 true 表示玩家正在用畫面（卡片、天下冊、選單等開著）。
 var _busy: Callable
-## 回傳 true 表示現在不該由導演掌鏡（開場運鏡、要玩家操作的引導步驟）。
+## 回傳 true 表示現在不該由導播掌鏡（開場運鏡、要玩家操作的引導步驟）。
 var _suppressed: Callable
 
 

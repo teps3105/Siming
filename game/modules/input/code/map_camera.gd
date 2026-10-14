@@ -12,9 +12,9 @@ signal province_selected(province: int)
 signal globe_changed(on: bool)
 ## 因果模式下點到了魂光（GDD 5.4）；參數是人物編號。
 signal soul_selected(person: int)
-## 玩家操作了鏡頭或地圖（拖曳、推動、縮放、換視角、點選）；導演聽它讓出（GDD 5.13）。
+## 玩家操作了鏡頭或地圖（拖曳、推動、縮放、換視角、點選）；導播聽它讓出（GDD 5.13）。
 signal player_acted
-## 導演的過場到位。
+## 導播的過場到位。
 signal directed_done
 
 ## 臨界阻尼平滑的時間常數（秒）。
@@ -40,7 +40,7 @@ const LONG_PRESS_SECONDS := 0.5
 const CURSOR_SPEED := 1100.0
 ## 由搖桿轉出的滑鼠事件以這個裝置編號標記，收到時不把輸入裝置切回鍵鼠。
 const PAD_DEVICE := 77
-## 導演過場（GDD 5.13）：近處平移 1 秒；遠處拉高再落下，1.5 到 2.5 秒；減少鏡頭運動時淡出淡入各 0.3 秒。
+## 導播過場（GDD 5.13）：近處平移 1 秒；遠處拉高再落下，1.5 到 2.5 秒；減少鏡頭運動時淡出淡入各 0.3 秒。
 const DIRECTED_NEAR_SECONDS := 1.0
 const DIRECTED_FAR_MIN := 1.5
 const DIRECTED_FAR_MAX := 2.5
@@ -111,9 +111,9 @@ var _flight_seconds := 0.0
 var _flight_progress := 0.0
 ## 開場運鏡從星球開始：降到這個高度以下就攤平成平面地圖。
 var _flight_lands := false
-## 導演過場進行中的狀態（空表示沒有）：from、delta（走較短那邊的位移）、from_z、to_z、peak、seconds、age、reduced、swapped、to。
+## 導播過場進行中的狀態（空表示沒有）：from、delta（走較短那邊的位移）、from_z、to_z、peak、seconds、age、reduced、swapped、to。
 var _directed := {}
-## 減少鏡頭運動時的黑幕透明度（0–1），由導演的介面層畫。
+## 減少鏡頭運動時的黑幕透明度（0–1），由導播的介面層畫。
 var directed_fade := 0.0
 
 
@@ -184,7 +184,7 @@ func descend_to(target_z: float, seconds: float) -> void:
 	_flight_progress = 0.0
 
 
-## 導演的過場：把焦點帶到 dest、高度落在 dest_z。近處緩起緩停平移；遠處（超過畫面寬度）先拉高到
+## 導播的過場：把焦點帶到 dest、高度落在 dest_z。近處緩起緩停平移；遠處（超過畫面寬度）先拉高到
 ## 起點與終點同時入鏡，平移，再落回，全程一條連續的曲線；reduced 為真改成淡出、換位置、淡入。
 ## 焦點走東西較短的那一邊。到位發 directed_done；玩家操作會中斷。
 func direct_to(dest: Vector2, dest_z: float, reduced := false) -> void:
@@ -206,17 +206,17 @@ func direct_to(dest: Vector2, dest_z: float, reduced := false) -> void:
 	_flight_seconds = 0.0
 
 
-## 地圖寬度（導演算高度用）。
+## 地圖寬度（導播算高度用）。
 func map_width() -> float:
 	return _map.map_size.x
 
 
-## 導演過場是否進行中。
+## 導播過場是否進行中。
 func is_directed() -> bool:
 	return not _directed.is_empty()
 
 
-## 中斷導演過場，鏡頭停在當下。
+## 中斷導播過場，鏡頭停在當下。
 func cancel_directed() -> void:
 	if _directed.is_empty():
 		return
@@ -255,7 +255,7 @@ func _step_directed(delta: float) -> void:
 		directed_done.emit()
 
 
-## 不經平滑直接到位（導演用，不算玩家操作）。
+## 不經平滑直接到位（導播用，不算玩家操作）。
 func _jump(spot: Vector2, height: float) -> void:
 	focus = spot
 	_target_focus = spot

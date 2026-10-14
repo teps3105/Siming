@@ -1,6 +1,6 @@
 extends "res://tests/harness/suite.gd"
-## 流程：導演模式（GDD 5.13）——鏡頭自己動、玩家一動就讓出、設定頁的各項、減少鏡頭運動、字卡內容與版面。
-## 時間不等：事件由 SimHost.advance 一次推出來，導演的計時靠真實的幾個畫面。
+## 流程：導播模式（GDD 5.13）——鏡頭自己動、玩家一動就讓出、設定頁的各項、減少鏡頭運動、字卡內容與版面。
+## 時間不等：事件由 SimHost.advance 一次推出來，導播的計時靠真實的幾個畫面。
 
 static var ROOT: String = TEST_STORAGE.path_join("director")
 
@@ -39,7 +39,7 @@ func _wipe() -> void:
 		DirAccess.remove_absolute(path)
 
 
-## 開遊戲、放行時間，並一次推出一批事件讓導演有地方去。
+## 開遊戲、放行時間，並一次推出一批事件讓導播有地方去。
 func _start(view := FLOW_VIEW) -> void:
 	_game = await boot(false, view)
 	_sim = _game.get_node("SimHost")
@@ -55,14 +55,14 @@ func _start(view := FLOW_VIEW) -> void:
 	await frames(2)
 
 
-## 忘掉剛推出來的事件，導演回到沒事可做的樣子（大事與暫停的案例自己再送事件）。
+## 忘掉剛推出來的事件，導播回到沒事可做的樣子（大事與暫停的案例自己再送事件）。
 func _quiet() -> void:
 	_director.reset()
 	_camera.cancel_directed()
 	await frames(2)
 
 
-## 等導演到位（STAY），最多 seconds 秒。
+## 等導播到位（STAY），最多 seconds 秒。
 func _until_stay(seconds := 6.0) -> bool:
 	var left := seconds
 	while left > 0.0 and _director.state != Director.State.STAY:
@@ -75,12 +75,12 @@ func test_director_moves_the_camera_and_a_drag_takes_it_back() -> void:
 	await _start()
 	assert_gt(_events.size(), 0, "推出來的事件裡有可去的州郡")
 	var start := _camera.focus
-	assert_true(await _until_stay(), "導演把鏡頭帶到某處")
+	assert_true(await _until_stay(), "導播把鏡頭帶到某處")
 	var seat: Vector2 = _sim.world.province_info(_director.current)["seat"]
 	assert_gt(_camera.focus.distance_to(start), 0.5, "鏡頭離開了原位")
 	assert_lt(_camera.focus.distance_to(seat), 1.0, "鏡頭停在那個州郡的治所")
 	await drag(Vector2(600, 300), Vector2(700, 380))
-	assert_eq(_director.state, Director.State.YIELDED, "玩家拖曳後導演讓出")
+	assert_eq(_director.state, Director.State.YIELDED, "玩家拖曳後導播讓出")
 	await wait(0.6)
 	var after := _camera.focus
 	await wait(1.0)
@@ -96,7 +96,7 @@ func test_a_card_opening_or_zoom_also_takes_over() -> void:
 	_director.enabled = true
 	_hud.open_province(0)
 	await frames(3)
-	assert_true(_director.busy, "命簿開著，導演視為玩家在用畫面")
+	assert_true(_director.busy, "命簿開著，導播視為玩家在用畫面")
 
 
 func test_turning_the_setting_off_stops_all_movement() -> void:
@@ -109,7 +109,7 @@ func test_turning_the_setting_off_stops_all_movement() -> void:
 	await key(KEY_F7)
 	assert_true(GameSettings.flag("director"), "F7 切換成開")
 	assert_true(_hud._notice.showing(), "切換時畫面上提示")
-	assert_eq(_hud._notice.text(), "導演　開")
+	assert_eq(_hud._notice.text(), "導播　開")
 	await key(KEY_F7)
 	assert_false(GameSettings.flag("director"), "再按一次切成關")
 
@@ -165,7 +165,7 @@ func test_paused_game_keeps_the_camera_still() -> void:
 		_sim.event_posted.emit(event)
 	var start := _camera.focus
 	await wait(1.0)
-	assert_lt(_camera.focus.distance_to(start), 0.001, "暫停時導演不動")
+	assert_lt(_camera.focus.distance_to(start), 0.001, "暫停時導播不動")
 	assert_true(_sim.paused, "也不解除暫停")
 
 
@@ -221,8 +221,8 @@ func test_globe_view_works_too() -> void:
 	for event in _events.duplicate():
 		_sim.event_posted.emit(event)
 	var ok := await _until_stay(20.0)
-	assert_true(ok, "星球視角下導演照常到位 狀態 %s 忙碌 %s 啟用 %s 目標 %d 飛行 %s" % [Director.State.keys()[_director.state], _director.busy, _director.enabled, _director.target, _camera.is_directed()])
-	assert_true(_camera.globe, "導演不改視角")
+	assert_true(ok, "星球視角下導播照常到位 狀態 %s 忙碌 %s 啟用 %s 目標 %d 飛行 %s" % [Director.State.keys()[_director.state], _director.busy, _director.enabled, _director.target, _camera.is_directed()])
+	assert_true(_camera.globe, "導播不改視角")
 
 
 func test_arrival_height_is_one_where_figures_are_visible() -> void:
@@ -249,7 +249,7 @@ func test_arrival_height_is_one_where_figures_are_visible() -> void:
 	assert_lt(absf(_camera.z - low), 0.5, "玩家原本就比到位高度低，維持玩家的高度")
 
 
-## 導演到位的目標高度：棋子畫面高 LANDING_FIGURE_PX（乘介面單位）反推的鏡頭高度，不低於鏡頭允許的最低高度。
+## 導播到位的目標高度：棋子畫面高 LANDING_FIGURE_PX（乘介面單位）反推的鏡頭高度，不低於鏡頭允許的最低高度。
 func _landing_z() -> float:
 	var view := _hud.get_viewport().get_visible_rect().size
 	var unit := Ink.layout_unit(view, GameSettings.ui_scale())
@@ -303,7 +303,7 @@ func test_camera_lands_on_the_event_cell_not_the_province_seat() -> void:
 	assert_lt(_camera.z, _landing_z() + 0.5, "鏡頭高度不超過棋子約 64 像素高的到位高度")
 
 
-## 字卡那件事自己的演出：事件早就發生、演出被同格別件占著（或已演完），導演到位後 1 秒它仍在中央播放中，且從到位才開始。
+## 字卡那件事自己的演出：事件早就發生、演出被同格別件占著（或已演完），導播到位後 1 秒它仍在中央播放中，且從到位才開始。
 func test_caption_event_performs_in_the_middle_from_arrival() -> void:
 	await _start()
 	await _quiet()

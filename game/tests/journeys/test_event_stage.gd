@@ -422,7 +422,7 @@ func test_gdd_5_13_rebirth_row_is_a_light_with_the_same_four_segments_and_no_act
 	assert_false(plan.is_empty())
 	assert_true(bool(plan["light"]), "轉世是光效")
 	assert_eq((plan["actors"] as Array).size(), 0, "嬰兒不放成人棋子")
-	assert_gt(EventStage.duration_for(event), 0.0, "導演的有演出判斷成立")
+	assert_gt(EventStage.duration_for(event), 0.0, "導播的有演出判斷成立")
 	assert_true(is_equal_approx(EventStage.duration_for(event), INTRO + float(plan["action_len"]) + HOLD + OUTRO), "總長是四段合計")
 	assert_gt(float(plan["action_len"]), 0.0)
 	var nobody := EventScript.plan(_event("Rebirth", {"a_person": -1, "b_person": -1}))

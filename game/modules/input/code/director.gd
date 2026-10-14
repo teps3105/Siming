@@ -1,6 +1,6 @@
 class_name Director
 extends RefCounted
-## GDD 5.13 導演模式的決策：選去處、算停留、決定何時換鏡頭與何時讓出、接回。
+## GDD 5.13 導播模式的決策：選去處、算停留、決定何時換鏡頭與何時讓出、接回。
 ## 不碰引擎時間：外部每幀餵真實秒 delta 與事件，測試用假時間直接推進。鏡頭、字卡、變速由外面接 signal 去做。
 
 ## 開始過場：目的州郡與是否為大事。
@@ -42,7 +42,7 @@ const TRAVEL_LIMIT := 6.0
 const PACE_SCALE: Array[float] = [1.5, 1.0, 0.7]
 
 var enabled := false
-## 玩家正在用畫面（拖曳中、卡片或天下冊開著）：導演讓出並重新計閒置。
+## 玩家正在用畫面（拖曳中、卡片或天下冊開著）：導播讓出並重新計閒置。
 var busy := false
 var pace := 1
 var idle_resume := 20.0
@@ -157,7 +157,7 @@ func slowing() -> bool:
 	return _slow
 
 
-## 玩家做了一個操作（拖曳、縮放、換視角、點選）：導演讓出，閒置重新計。
+## 玩家做了一個操作（拖曳、縮放、換視角、點選）：導播讓出，閒置重新計。
 func player_acted() -> void:
 	if state == State.OFF:
 		return
@@ -178,7 +178,7 @@ func arrive() -> void:
 	_set_caption(spoken)
 
 
-## 每幀呼叫：delta 為真實秒，running 為遊戲時間是否在走（暫停時導演不動）。
+## 每幀呼叫：delta 為真實秒，running 為遊戲時間是否在走（暫停時導播不動）。
 func update(delta: float, running: bool) -> void:
 	if running:
 		clock += delta

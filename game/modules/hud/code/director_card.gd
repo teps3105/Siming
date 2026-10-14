@@ -1,6 +1,6 @@
 class_name DirectorCard
 extends Control
-## GDD 5.13 字卡：導演鏡頭到位時出在畫面下方中央的一張紙簽，州郡名加一句事件（傳聞的句子），
+## GDD 5.13 字卡：導播鏡頭到位時出在畫面下方中央的一張紙簽，州郡名加一句事件（傳聞的句子），
 ## 人名、州名、宗門名可點。長句依帳冊文字的規則折成兩行。離開時淡出。
 
 signal person_requested(person: int)
