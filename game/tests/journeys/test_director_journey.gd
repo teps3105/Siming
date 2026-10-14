@@ -88,7 +88,11 @@ func test_director_moves_the_camera_and_a_drag_takes_it_back() -> void:
 	assert_true(await _until_stay(), "導播把鏡頭帶到某處")
 	var seat: Vector2 = _sim.world.province_info(_director.current)["seat"]
 	assert_gt(_camera.focus.distance_to(start), 0.5, "鏡頭離開了原位")
-	assert_lt(_camera.focus.distance_to(seat), 1.0, "鏡頭停在那個州郡的治所")
+	# 事件帶著格位置就對準事件格（導播 _on_go），沒有才停在治所。
+	var spot: Variant = _director.target_event().get("pos")
+	if spot is Vector2:
+		seat = spot
+	assert_lt(_camera.focus.distance_to(seat), 1.0, "鏡頭停在事件格或那個州郡的治所")
 	await drag(Vector2(600, 300), Vector2(700, 380))
 	assert_eq(_director.state, Director.State.YIELDED, "玩家拖曳後導播讓出")
 	await wait(0.6)
