@@ -18,6 +18,8 @@ var _every := 2.0
 var _replay_keys := PackedStringArray()
 var _replay := []
 var _replay_gap := 45.0
+## --polar=N：另挑南北各 N 件落在極區（焦點限制外，南北緯 75° 以外）的真事件一併重送；--gap=秒：重送間隔（遊戲秒）。
+var _polar := 0
 var _replay_next := 20.0
 var _suite: Suite
 var _log := PackedStringArray()
@@ -48,6 +50,11 @@ func _main() -> void:
 				_every = float(pair[1])
 			"replay":
 				_replay_keys = pair[1].split(",")
+			"polar":
+				_polar = int(pair[1])
+			"gap":
+				_replay_gap = float(pair[1])
+				_replay_next = minf(_replay_next, _replay_gap)
 	DirAccess.make_dir_recursive_absolute(_out)
 	SimWorld.set_default_prerun(1500, 100)
 	_suite = Suite.new()
@@ -58,9 +65,9 @@ func _main() -> void:
 	var view := Vector2i(root.get_visible_rect().size)
 	var game: Node = await _suite.boot(false, view)
 	var sim: SimHost = game.get_node("SimHost")
-	if not _replay_keys.is_empty():
-		_collect_replay(sim)
 	var camera: MapCamera = game.get_node("MapCamera")
+	if not _replay_keys.is_empty() or _polar > 0:
+		_collect_replay(sim, camera._map.map_size)
 	var hud: Hud = game.get_node("Hud")
 	var director: Director = hud._director.director
 	sim.set_speed(_speed)
@@ -184,18 +191,31 @@ func _classify(event: Dictionary, camera: MapCamera) -> String:
 	return "c/b已不在（演完、被擠掉或沒登記）"
 
 
-## 推一段模擬，每個鍵各挑一件有位置的真事件。
-func _collect_replay(sim: SimHost) -> void:
+## 推一段模擬，每個鍵各挑一件有位置的真事件；--polar 另挑南北極區各 _polar 件（極區 = 焦點限制之外，南北緯 75° 以外）。
+func _collect_replay(sim: SimHost, map_size: Vector2) -> void:
+	var count := {"north": 0, "south": 0, "low": 1e9, "high": -1e9}
 	var seen := {}
+	var edge := (90.0 - MapView.FOCUS_MAX_LAT_DEG) / 180.0 * map_size.y
 	var grab := func(event: Dictionary) -> void:
+		if not event.has("pos") or int(event.get("province", -1)) < 0 or not EventScript.accepts(event):
+			return
+		var y := (event["pos"] as Vector2).y
+		count["low"] = minf(float(count["low"]), y)
+		count["high"] = maxf(float(count["high"]), y)
 		var key := EventScript.row_key(event)
-		if _replay_keys.has(key) and not seen.has(key) and event.has("pos") and int(event.get("province", -1)) >= 0:
+		if _replay_keys.has(key) and not seen.has(key):
 			seen[key] = true
 			_replay.append(event.duplicate())
+		elif y < edge and int(count["north"]) < _polar:
+			count["north"] = int(count["north"]) + 1
+			_replay.append(event.duplicate())
+		elif y > map_size.y - edge and int(count["south"]) < _polar:
+			count["south"] = int(count["south"]) + 1
+			_replay.append(event.duplicate())
 	sim.event_posted.connect(grab)
-	for round in 12:
+	for round in 24:
 		sim.advance(240)
-		if seen.size() >= _replay_keys.size():
+		if seen.size() >= _replay_keys.size() and int(count["north"]) >= _polar and int(count["south"]) >= _polar:
 			break
 	sim.event_posted.disconnect(grab)
-	_note("備重送 %d/%d 種：%s" % [_replay.size(), _replay_keys.size(), ",".join(seen.keys())])
+	_note("備重送 %d 件：%s；極區北 %d 南 %d；地圖 %s，事件列範圍 %.1f..%.1f，極區界 %.1f" % [_replay.size(), ",".join(seen.keys()), count["north"], count["south"], map_size, count["low"], count["high"], edge])

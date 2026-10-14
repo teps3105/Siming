@@ -98,6 +98,14 @@ var compact := false:
 		compact = value
 		_shown_valid = false
 		_refit()
+## 導播模式開著：收合時只留最新一張，與 Deck 版面相同；關掉即恢復原張數。
+var director_line := false:
+	set(value):
+		if director_line == value:
+			return
+		director_line = value
+		_shown_valid = false
+		_refit()
 ## 是否展開為全螢幕的清單。每次展開都從「全部」、頂端開始（點收合時的統計則捲到那一則）。
 var expanded := false:
 	set(value):
@@ -473,7 +481,7 @@ func shown() -> Array[Dictionary]:
 			out.append(entry)
 	out.sort_custom(_before if expanded else _before_collapsed)
 	if not expanded:
-		out.resize(mini(out.size(), 1 if compact else SHOWN_MAX))
+		out.resize(mini(out.size(), 1 if compact or director_line else SHOWN_MAX))
 	_shown_cache = out
 	_shown_valid = true
 	_layout()

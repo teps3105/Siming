@@ -113,6 +113,8 @@ var _flight_progress := 0.0
 var _flight_lands := false
 ## 導播過場進行中的狀態（空表示沒有）：from、delta（走較短那邊的位移）、from_z、to_z、peak、seconds、age、reduced、swapped、to。
 var _directed := {}
+## 導播對準期間焦點列可以到地圖南北緣（極區事件才置得了中）；玩家一操作或導播中斷就恢復一般的列限制。
+var _overreach := false
 ## 減少鏡頭運動時的黑幕透明度（0–1），由導播的介面層畫。
 var directed_fade := 0.0
 
@@ -204,6 +206,7 @@ func direct_to(dest: Vector2, dest_z: float, reduced := false) -> void:
 	_directed = {"from": focus, "shift": shift, "from_z": z, "to_z": dest_z, "peak": peak, "seconds": seconds, "age": 0.0,
 		"reduced": reduced, "swapped": false, "to": dest}
 	_flight_seconds = 0.0
+	_overreach = not globe
 
 
 ## 地圖寬度（導播算高度用）。
@@ -218,6 +221,7 @@ func is_directed() -> bool:
 
 ## 中斷導播過場，鏡頭停在當下。
 func cancel_directed() -> void:
+	_overreach = false
 	if _directed.is_empty():
 		return
 	_directed = {}
@@ -545,7 +549,7 @@ func _apply(delta: float) -> void:
 	var map_size := _map.map_size
 	var limits := MapView.z_range(map_size.x)
 	_target_z = clampf(_target_z, limits.x, limits.y)
-	var rows := MapView.focus_row_limits(map_size, _target_z, globe)
+	var rows := Vector2(0.0, map_size.y) if _overreach and not globe else MapView.focus_row_limits(map_size, _target_z, globe)
 	_target_focus.y = clampf(_target_focus.y, rows.x, rows.y)
 
 	var blend := 1.0 if delta <= 0.0 else 1.0 - exp(-delta / SMOOTH_SECONDS)
