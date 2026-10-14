@@ -57,6 +57,10 @@ pub struct SimWorld {
     /// 事件發生當月月底時主角的身分（推進時逐月記下，`drain_events` 取走）；快轉一次推進多月，
     /// 取走時人物的現況可能已不是事件當時的樣子（升了境界、換了掌門）。
     identities: std::collections::HashMap<siming_sim::EventId, Identity>,
+    /// `identities` 已記到帳上第幾件事件（之後新寫入的才要記）。
+    identity_mark: usize,
+    /// 進行中的世界快進（`fast_begin` 之後、`fast_finish` 之前）。
+    fast: Option<FastRun>,
     /// 有名字的海區與湖泊（世界生成後算一次）。
     waters: Vec<siming_sim::worldgen::NamedWater>,
     /// 進行中的讀檔重播（`load_begin` 之後、`load_step` 回報完成之前）。
@@ -179,6 +183,8 @@ impl SimWorld {
         self.waters = water_names(sim.world().params.seed, &sim.world().geo, origin);
         self.seat_stems = siming_sim::worldgen::seat_stems(sim.world().params.seed, &sim.world().provinces, &sim.world().geo);
         self.identities.clear();
+        self.identity_mark = sim.world().ledger.events.len();
+        self.fast = None;
         self.sim = Some(sim);
     }
 
@@ -431,11 +437,152 @@ impl SimWorld {
         for _ in 0..months.max(0) {
             sim.step();
             settled |= siming_sim::sim::is_shi(sim.world().tick);
-            note_identities(sim.world(), &mut self.identities);
+            note_identities(sim.world(), &mut self.identities, &mut self.identity_mark);
         }
         if settled {
             self.after_settle();
         }
+    }
+
+    /// GDD 2.6 細步：推進 `days` 日（跨月照常月步進；跨世的結算與月步進相同）。
+    #[func]
+    fn step_days(&mut self, days: i32) {
+        let Some(sim) = self.sim.as_mut() else {
+            return;
+        };
+        let target = sim.world().tick.saturating_add(days.max(0) as u32);
+        let mut settled = false;
+        while sim.world().tick < target {
+            let before = sim.world().tick;
+            sim.advance_to(siming_sim::sim::next_month_end(before).min(target));
+            settled |= crossed_shi(before, sim.world().tick);
+            note_identities(sim.world(), &mut self.identities, &mut self.identity_mark);
+        }
+        if settled {
+            self.after_settle();
+        }
+    }
+
+    // ── 世界快進（GDD 2.6）──────────────────────────────────────
+
+    /// 開始一次世界快進。`stop`：0 下一件世界大事、1 指定年數（`arg` 年）、2 不設終點（按住才快進）、
+    /// 3 下一件牽涉魂 `arg` 的事件（關注者的下一件事）。已有一次進行中或沒有世界時回傳 `false`。
+    /// 快進期間的事件照樣寫進因果帳，但不進 `drain_events`。
+    #[func]
+    fn fast_begin(&mut self, stop: i32, arg: i64) -> bool {
+        let Some(sim) = self.sim.as_ref() else {
+            return false;
+        };
+        if self.fast.is_some() {
+            return false;
+        }
+        let w = sim.world();
+        let (stop, limit) = match stop {
+            0 => (siming_sim::FastStop::Kind(siming_sim::EventKind::WorldChanged), u32::MAX),
+            1 => (siming_sim::FastStop::Open, w.tick.saturating_add(arg.clamp(0, 100_000) as u32 * calendar::DAYS_PER_YEAR)),
+            2 => (siming_sim::FastStop::Open, u32::MAX),
+            3 => (siming_sim::FastStop::Soul(arg as _), u32::MAX),
+            _ => return false,
+        };
+        // 快進之前已寫入的事件，身分先記完；快進期間不逐月記。
+        note_identities(w, &mut self.identities, &mut self.identity_mark);
+        self.fast = Some(FastRun {
+            stop,
+            limit,
+            start_tick: w.tick,
+            population: w.provinces.iter().map(|p| p.population).sum(),
+            people: w.alive_ids.len() as i32,
+            kinds: std::collections::BTreeMap::new(),
+            world_events: Vec::new(),
+            hit: None,
+            resettle: false,
+        });
+        true
+    }
+
+    /// 快進是否進行中。
+    #[func]
+    fn fast_active(&self) -> bool {
+        self.fast.is_some()
+    }
+
+    /// 推進快進，最多花 `budget_msec` 毫秒。回傳 `done`（已到終點）、`hit`（使終點成立的事件，沒有為 -1）、
+    /// `tick`（現在的日）。`done` 為真後還要呼叫 `fast_finish` 取摘要。
+    #[func]
+    fn fast_step(&mut self, budget_msec: i32) -> VarDictionary {
+        let mut d = VarDictionary::new();
+        d.set("done", true);
+        d.set("hit", -1i64);
+        d.set("tick", self.tick());
+        let (Some(sim), Some(run)) = (self.sim.as_mut(), self.fast.as_mut()) else {
+            return d;
+        };
+        let began = sim.world().tick;
+        let deadline = std::time::Instant::now() + std::time::Duration::from_millis(budget_msec.max(0) as u64);
+        let mut first = true;
+        let out = sim.fast_forward(
+            run.stop,
+            run.limit,
+            // 至少推進一個單位，預算再小也不會原地踏步。
+            &mut || std::mem::take(&mut first) || std::time::Instant::now() < deadline,
+            &mut |w, range| run.tally(w, range),
+        );
+        let now = sim.world().tick;
+        let (done, hit) = match out {
+            siming_sim::FastOutcome::Paused => (false, -1i64),
+            siming_sim::FastOutcome::Reached => (true, -1i64),
+            siming_sim::FastOutcome::Hit(id) => (true, id as i64),
+        };
+        run.hit = (hit >= 0).then_some(hit as siming_sim::EventId);
+        // 每過一世重算一次地圖資料；上一批還在算就等它算完再排下一批。
+        run.resettle |= crossed_shi(began, now);
+        let resettle = run.resettle && self.rebake.is_none();
+        if resettle {
+            run.resettle = false;
+        }
+        d.set("done", done);
+        d.set("hit", hit);
+        d.set("tick", now as i64);
+        if resettle {
+            self.after_settle();
+        }
+        d
+    }
+
+    /// 結束快進並交出摘要：`start_tick`、`end_tick`、`kinds`（事件種類 → 件數）、`world_events`（期間世界大事的
+    /// 事件編號）、`population0`／`population1`（州郡人口總和前後）、`people0`／`people1`（在世有名之人數前後）、
+    /// `hit`（使終點成立的事件，沒有為 -1）。期間事件不進 `drain_events`；沒有進行中的快進回傳空字典。
+    #[func]
+    fn fast_finish(&mut self) -> VarDictionary {
+        let mut d = VarDictionary::new();
+        let Some(run) = self.fast.take() else {
+            return d;
+        };
+        let Some(sim) = self.sim.as_mut() else {
+            return d;
+        };
+        // 期間的事件不是新消息：直接丟掉待取的，身分記到現在。
+        sim.drain_events();
+        let w = sim.world();
+        self.identity_mark = w.ledger.events.len();
+        let mut kinds = VarDictionary::new();
+        for (k, n) in &run.kinds {
+            kinds.set(&GString::from(k.as_str()), *n as i32);
+        }
+        let world_events: Vec<i64> = run.world_events.iter().map(|&i| i as i64).collect();
+        d.set("start_tick", run.start_tick as i64);
+        d.set("end_tick", w.tick as i64);
+        d.set("kinds", &kinds);
+        d.set("world_events", &PackedInt64Array::from(world_events.as_slice()));
+        d.set("population0", run.population);
+        d.set("population1", w.provinces.iter().map(|p| p.population).sum::<f64>());
+        d.set("people0", run.people);
+        d.set("people1", w.alive_ids.len() as i32);
+        d.set("hit", run.hit.map_or(-1, |i| i as i64));
+        if run.resettle {
+            self.after_settle();
+        }
+        d
     }
 
     /// 高度場換過幾次（開天、讀檔與每次重算完成各加一）。高度、湖面、底色、覆蓋四張貼圖與河流網格跟著它換。
@@ -1549,15 +1696,11 @@ fn subjects<'a>(w: &'a siming_sim::World, e: &siming_sim::Event) -> (Option<&'a 
     }
 }
 
-/// 一個月推進完之後，記下這個月新事件主角的身分；快轉一次推進多月時，取走事件時人物的現況可能已經不同。
-/// 掌門身死時繼任緊接在同一個月寫入，月底掌門已換人：以「前任 Died」為因的繼任事件把死者補回掌門。
-fn note_identities(w: &siming_sim::World, out: &mut std::collections::HashMap<siming_sim::EventId, Identity>) {
+/// 把上次記到現在新寫入的事件，記下主角當時的身分。
+fn note_identities(w: &siming_sim::World, out: &mut std::collections::HashMap<siming_sim::EventId, Identity>, mark: &mut usize) {
     let events = &w.ledger.events;
-    let mut start = events.len();
-    // 一步是一個月，月內事件的日各不相同：取本月（最近 30 日）寫入的全部。
-    while start > 0 && events[start - 1].tick + siming_sim::calendar::DAYS_PER_MONTH > w.tick {
-        start -= 1;
-    }
+    let start = (*mark).min(events.len());
+    *mark = events.len();
     for e in &events[start..] {
         if let (Some(p), _) = subjects(w, e) {
             out.insert(e.id, identity_of(w, p));
@@ -1573,6 +1716,41 @@ fn note_identities(w: &siming_sim::World, out: &mut std::collections::HashMap<si
             if let Some(id) = out.get_mut(cause).filter(|id| died && id.role != "Leader" && id.role != "Ruler") {
                 id.role = "Leader";
                 id.power = name.to_string();
+            }
+        }
+    }
+}
+
+/// 從 `before` 日推進到 `after` 日之間是否跨過了一世的結算日。
+fn crossed_shi(before: u32, after: u32) -> bool {
+    let shi = 30 * calendar::DAYS_PER_YEAR;
+    after / shi > before / shi
+}
+
+/// 進行中的世界快進：終點、起點的人口與期間的事件帳。
+struct FastRun {
+    stop: siming_sim::FastStop,
+    limit: u32,
+    start_tick: u32,
+    population: f64,
+    people: i32,
+    kinds: std::collections::BTreeMap<String, u32>,
+    world_events: Vec<siming_sim::EventId>,
+    hit: Option<siming_sim::EventId>,
+    /// 過了一世、地圖資料還沒排重算。
+    resettle: bool,
+}
+
+impl FastRun {
+    /// 記下新寫入的事件（只供人物生平的不計）。
+    fn tally(&mut self, w: &siming_sim::World, range: std::ops::Range<usize>) {
+        for e in &w.ledger.events[range] {
+            if e.kind.is_chronicle_only() {
+                continue;
+            }
+            *self.kinds.entry(format!("{:?}", e.kind)).or_insert(0) += 1;
+            if e.kind == siming_sim::EventKind::WorldChanged {
+                self.world_events.push(e.id);
             }
         }
     }

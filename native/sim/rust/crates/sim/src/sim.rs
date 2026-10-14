@@ -305,6 +305,28 @@ pub enum Until {
     Years(u32),
 }
 
+/// [`Sim::fast_forward`] 的停點。到期日由 `limit` 給。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FastStop {
+    /// 下一件指定種類的事件（世界大事用 `EventKind::WorldChanged`）。
+    Kind(EventKind),
+    /// 下一件牽涉指定魂的事件（關注者的下一件事）。
+    Soul(SoulId),
+    /// 不看事件，只到 `limit` 日。
+    Open,
+}
+
+/// [`Sim::fast_forward`] 為什麼停。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FastOutcome {
+    /// 到了 `limit` 日。
+    Reached,
+    /// 時間預算用完，還沒到停點。
+    Paused,
+    /// 停點的事件寫入了；世界停在事件當日。
+    Hit(EventId),
+}
+
 impl Sim {
     /// GDD 4.6 開天：世界生成 → 開天 → 預跑。
     pub fn new(params: &WorldParams) -> Result<Self, WorldGenError> {
@@ -428,6 +450,48 @@ impl Sim {
             seen = w.ledger.events.len();
         }
         None
+    }
+
+    /// 世界快進（GDD 2.6）：粗步推進，一次一個月（隊列事件仍在各自的日執行），直到 `stop` 成立、到 `limit` 日，
+    /// 或 `keep_going` 回傳 `false`（呼叫端的時間預算用完）。`stop` 是 [`FastStop::Soul`] 時改以隊列事件日為單位，
+    /// 才停得在牽涉那個魂的事件當日。每個單位後，以 `observe(世界, 新寫入的事件 ID 區間)` 讓呼叫端記帳。
+    /// 世界大事只在月步進寫入，整月為單位就停在事件當日。
+    pub fn fast_forward(
+        &mut self,
+        stop: FastStop,
+        limit: Day,
+        keep_going: &mut dyn FnMut() -> bool,
+        observe: &mut dyn FnMut(&World, std::ops::Range<usize>),
+    ) -> FastOutcome {
+        let mut seen = self.world.ledger.events.len();
+        loop {
+            if self.world.tick >= limit {
+                return FastOutcome::Reached;
+            }
+            if !keep_going() {
+                return FastOutcome::Paused;
+            }
+            let month_day = next_month_end(self.world.tick);
+            let unit = match stop {
+                FastStop::Soul(_) => self.world.queue.peek_day().map_or(month_day, |q| q.min(month_day)),
+                _ => month_day,
+            };
+            self.advance_to(unit.min(limit));
+            let end = self.world.ledger.events.len();
+            observe(&self.world, seen..end);
+            for id in seen..end {
+                let e = &self.world.ledger.events[id];
+                let hit = match stop {
+                    FastStop::Kind(k) => e.kind == k,
+                    FastStop::Soul(s) => e.souls.contains(&s),
+                    FastStop::Open => false,
+                };
+                if hit {
+                    return FastOutcome::Hit(id as EventId);
+                }
+            }
+            seen = end;
+        }
     }
 
     /// 月步進（GDD 6.3）：尚未移植到隊列的舊規則。

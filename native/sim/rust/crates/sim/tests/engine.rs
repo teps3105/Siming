@@ -7,7 +7,7 @@ use siming_sim::calendar::{DAYS_PER_MONTH, DAYS_PER_YEAR};
 use siming_sim::queue::Action;
 use siming_sim::sim::next_month_end;
 use siming_sim::sim::Until;
-use siming_sim::{Sim, WorldParams};
+use siming_sim::{EventKind, FastOutcome, FastStop, Sim, WorldParams};
 
 fn quick(seed: u64) -> WorldParams {
     let mut p = WorldParams::new(seed);
@@ -124,4 +124,96 @@ fn events_carry_their_day() {
     let w = s.world();
     let late = w.ledger.events.iter().rev().find(|e| e.tick > 0).expect("有事件");
     assert_eq!(late.tick % DAYS_PER_MONTH, 0, "舊規則的事件落在該月最後一日");
+}
+
+#[test]
+fn day_steps_match_month_steps() {
+    let mut a = world(21);
+    let mut b = world(21);
+    for _ in 0..24 {
+        a.step();
+    }
+    let t = b.world().tick;
+    for d in 1..=24 * DAYS_PER_MONTH {
+        b.advance_to(t + d);
+    }
+    assert_eq!(a.world().tick, b.world().tick);
+    assert_eq!(a.hash(), b.hash(), "逐日推進與逐月推進得到同一個世界");
+}
+
+#[test]
+fn fast_forward_open_reaches_limit_and_matches_stepping() {
+    let mut a = world(22);
+    let mut b = world(22);
+    let limit = a.world().tick + 5 * DAYS_PER_YEAR + 11;
+    let mut seen = 0usize;
+    let out = a.fast_forward(FastStop::Open, limit, &mut || true, &mut |_, r| seen += r.len());
+    assert_eq!(out, FastOutcome::Reached);
+    assert_eq!(a.world().tick, limit, "停在指定的那一天");
+    b.advance_to(limit);
+    assert_eq!(a.hash(), b.hash());
+    assert!(seen > 0, "觀察者收到期間寫入的事件");
+}
+
+#[test]
+fn fast_forward_stops_at_next_world_event() {
+    let mut s = world(23);
+    let d0 = s.world().tick;
+    let out = s.fast_forward(FastStop::Kind(EventKind::WorldChanged), d0 + 2000 * DAYS_PER_YEAR, &mut || true, &mut |_, _| {});
+    let FastOutcome::Hit(id) = out else { panic!("兩千年內應有世界大事：{out:?}") };
+    let w = s.world();
+    let e = &w.ledger.events[id as usize];
+    assert_eq!(e.kind, EventKind::WorldChanged);
+    assert_eq!(w.tick, e.tick, "停在世界大事發生的那一日");
+}
+
+#[test]
+fn fast_forward_stops_at_event_of_soul_on_its_day() {
+    let mut s = world(24);
+    let soul = s.world().persons.iter().find(|p| p.alive()).map(|p| p.soul).expect("開天後應有在世者");
+    let d0 = s.world().tick;
+    let out = s.fast_forward(FastStop::Soul(soul), d0 + 80 * DAYS_PER_YEAR, &mut || true, &mut |_, _| {});
+    let FastOutcome::Hit(id) = out else { panic!("八十年內該魂應有事件：{out:?}") };
+    let e = &s.world().ledger.events[id as usize];
+    assert!(e.souls.contains(&soul));
+    assert_eq!(s.world().tick, e.tick);
+}
+
+#[test]
+fn fast_forward_pauses_on_budget_and_resumes_to_the_same_world() {
+    let mut a = world(25);
+    let mut b = world(25);
+    let limit = a.world().tick + 3 * DAYS_PER_YEAR;
+    let mut pauses = 0;
+    loop {
+        let mut units = 0;
+        let out = a.fast_forward(
+            FastStop::Open,
+            limit,
+            &mut || {
+                units += 1;
+                units <= 7
+            },
+            &mut |_, _| {},
+        );
+        match out {
+            FastOutcome::Paused => pauses += 1,
+            FastOutcome::Reached => break,
+            FastOutcome::Hit(_) => unreachable!(),
+        }
+    }
+    assert!(pauses > 0);
+    b.advance_to(limit);
+    assert_eq!(a.hash(), b.hash(), "分段快進與一次推進得到同一個世界");
+}
+
+#[test]
+fn save_in_the_middle_of_a_month_loads_back() {
+    let mut s = world(26);
+    let t = s.world().tick;
+    s.advance_to(t + 2 * DAYS_PER_MONTH + 9);
+    let file = s.save();
+    let loaded = Sim::load_with(&file, |p| Sim::new_seeded(p, file.rng_origin)).expect("月中存檔應能重播");
+    assert_eq!(loaded.world().tick, s.world().tick);
+    assert_eq!(loaded.hash(), s.hash());
 }
