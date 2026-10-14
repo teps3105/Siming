@@ -1,6 +1,6 @@
 extends "res://tests/harness/suite.gd"
 ## GDD 8.11 地圖人物：2D 棋子（CultivatorFigure）+ 3D 設計、匯出成關節資料的動作（actions.json）；
-## 棋子立在 3D 場景裡一塊後仰的面片上，從鏡頭看恆為 30° 俯角、畫面高度 80–160 px、鏡頭拉遠就不畫；天劫奇觀裡當事人立在事件所在格。
+## 棋子立在 3D 場景裡一塊後仰的面片上，從鏡頭看恆為 30° 俯角、世界高度固定（畫面高度隨鏡頭縮放）、太遠或太小就不畫；天劫奇觀裡當事人立在事件所在格。
 
 const CF := preload("res://modules/ui_kit/code/cultivator_figure.gd")
 const ACTIONS_PATH := "res://modules/figure/resources/actions.json"
@@ -348,21 +348,69 @@ func test_gdd_8_11_figure_leans_back_to_a_fixed_30_degree_view() -> void:
 	assert_true(nadir.is_finite(), "正俯視也算得出")
 
 
-func test_gdd_8_11_height_is_80_to_160_pixels() -> void:
-	var unit := 1.0
-	for ppu: float in [3.0, 10.0, 25.0, 60.0, 400.0]:
-		var height := FigureActor.world_height(ppu, unit)
-		var px: float = height * ppu * cos(deg_to_rad(FigureActor.VIEW_PITCH_DEG))
-		assert_true(px >= 80.0 - 0.01 and px <= 160.0 + 0.01, "畫面高 %s 在 80–160 內（每單位 %s 像素）" % [px, ppu])
-	assert_eq(FigureActor.world_height(20.0, 2.0) * 20.0 * cos(deg_to_rad(30.0)) >= 159.99, true, "介面單位放大時範圍跟著放大")
+## 正交鏡頭的可見範圍：讓一個棋子在畫面上約 px 像素高（不受測試視窗大小影響）。
+func _size_for_px(px: float) -> float:
+	return tree.root.get_visible_rect().size.y / FigureActor.ppu_for_screen_px(px)
+
+
+func _ortho(size: float) -> Camera3D:
+	var camera := Camera3D.new()
+	tree.root.add_child(camera)
+	track(camera)
+	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	camera.size = size
+	return camera
+
+
+func test_gdd_8_11_world_height_is_fixed_and_does_not_follow_the_camera() -> void:
+	assert_eq(FigureActor.world_height(), FigureActor.NATURAL_CELLS, "世界高度就是 NATURAL_CELLS 格")
+	var actor := _actor(2)
+	for size: float in [6.0, 20.0, 60.0, 200.0]:
+		var camera := _ortho(size)
+		actor.place(Vector3.ZERO, Vector3.UP, camera, 1.0, false)
+		assert_eq(actor.body_height(), FigureActor.NATURAL_CELLS, "鏡頭可見範圍 %s：世界高度不變" % size)
+
+
+func test_gdd_8_11_screen_height_scales_with_camera_distance() -> void:
+	var actor := _actor(2)
+	var near := _ortho(20.0)
+	var far := _ortho(40.0)
+	actor.place(Vector3.ZERO, Vector3.UP, near, 1.0, false)
+	var near_px := actor.body_height() * FigureActor.pixels_per_unit(near, Vector3.ZERO) * cos(deg_to_rad(FigureActor.VIEW_PITCH_DEG))
+	actor.place(Vector3.ZERO, Vector3.UP, far, 1.0, false)
+	var far_px := actor.body_height() * FigureActor.pixels_per_unit(far, Vector3.ZERO) * cos(deg_to_rad(FigureActor.VIEW_PITCH_DEG))
+	assert_true(absf(near_px / far_px - 2.0) < 0.001, "鏡頭距離減半，畫面像素加倍：%s / %s" % [near_px, far_px])
+	assert_true(absf(near_px - FigureActor.screen_height(FigureActor.pixels_per_unit(near, Vector3.ZERO))) < 0.001, "screen_height 與實際擺放一致")
+
+
+func test_gdd_8_11_hidden_when_smaller_than_14_pixels() -> void:
+	var actor := _actor(2)
+	var ppu_edge := FigureActor.ppu_for_screen_px(14.0)
+	assert_true(FigureActor.too_small(13.9, 1.0), "不到 14 像素：不畫")
+	assert_false(FigureActor.too_small(14.1, 1.0), "14 像素以上：畫")
+	assert_true(FigureActor.too_small(20.0, 2.0), "下限乘介面單位")
+	var view_h := tree.root.get_visible_rect().size.y
+	var far := _ortho(view_h / ppu_edge * 1.2)
+	actor.place(Vector3.ZERO, Vector3.UP, far, 1.0, false)
+	assert_false(actor.visible, "畫面不到 14 像素就隱藏")
+	var near := _ortho(view_h / ppu_edge * 0.8)
+	actor.place(Vector3.ZERO, Vector3.UP, near, 1.0, false)
+	assert_true(actor.visible, "超過 14 像素就顯示")
+
+
+func test_gdd_8_11_ppu_for_screen_px_inverts_screen_height() -> void:
+	for px: float in [14.0, 64.0, 300.0]:
+		assert_true(absf(FigureActor.screen_height(FigureActor.ppu_for_screen_px(px)) - px) < 0.001, "反推 %s 像素" % px)
 
 
 func test_gdd_8_11_card_texture_is_drawn_at_screen_resolution() -> void:
 	# 墨線在畫面上約 1.6 px：貼圖的像素與畫面像素同尺度（不糊、不成髮絲）。
-	for px: float in [80.0, 120.0, 160.0, 320.0]:
+	for px: float in [14.0, 40.0, 64.0, 120.0, 300.0]:
 		var tex := FigureActor.texture_scale(px)
-		assert_true(tex >= px and tex <= px * 1.6, "每單位 %s 畫面像素的貼圖密度 %s 在 1–1.6 倍內" % [px, tex])
+		assert_true(tex >= px and tex <= px * 2.3, "每單位 %s 畫面像素的貼圖密度 %s 在 1–2.3 倍內" % [px, tex])
 		assert_eq(int(tex) % 16, 0, "貼圖密度以 16 為階，縮放時不逐像素重配")
+	assert_eq(FigureActor.texture_scale(5000.0), FigureActor.MAX_DENSITY, "拉到最近時貼圖密度封頂")
+	assert_true(FigureActor.texture_scale(1.0) >= FigureActor.DENSITY_STEP, "極小時也有最低一階")
 
 
 func test_gdd_8_11_hidden_when_the_camera_is_high() -> void:
@@ -373,7 +421,7 @@ func test_gdd_8_11_hidden_when_the_camera_is_high() -> void:
 	tree.root.add_child(camera)
 	track(camera)
 	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-	camera.size = 20.0
+	camera.size = _size_for_px(80.0)
 	actor.place(Vector3.ZERO, Vector3.UP, camera, 1.0, true)
 	assert_false(actor.visible, "hidden 為真就不顯示")
 	actor.place(Vector3.ZERO, Vector3.UP, camera, 1.0, false)
@@ -386,7 +434,7 @@ func test_gdd_8_11_mirror_switch_flips_the_card_without_touching_the_pose() -> v
 	tree.root.add_child(camera)
 	track(camera)
 	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-	camera.size = 20.0
+	camera.size = _size_for_px(80.0)
 	actor.place(Vector3.ZERO, Vector3.UP, camera, 1.0)
 	var left := actor.card_scale_x()
 	assert_true(left > 0.0, "預設朝左（棋子的原朝向）")
@@ -465,7 +513,7 @@ func test_gdd_5_6_tribulation_figure_stands_on_the_event_cell_and_is_hidden_when
 	tree.root.add_child(camera)
 	track(camera)
 	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-	camera.size = 30.0
+	camera.size = _size_for_px(80.0)
 	camera.global_transform = Transform3D(Basis(Vector3.RIGHT, deg_to_rad(-60.0)), Vector3(0.0, 20.0, 20.0))
 	stage.global_position = Vector3(3.0, 1.0, -2.0)
 	stage.tick(1.0, {"scale": 5.0, "u": 1.0, "px_world": 0.05, "beam_height": 6.0, "camera": camera, "up": Vector3.UP, "figure_hidden": false})

@@ -319,7 +319,7 @@ func _stage(perf: Dictionary) -> void:
 	var base := _spectacle.world_of(pos)
 	var up := _spectacle.up_basis(base).y
 	var u := _spectacle.unit()
-	var height := FigureActor.world_height(FigureActor.pixels_per_unit(camera, base), u)
+	var height := FigureActor.world_height()
 	var age := float(perf["age"])
 	var total := float(plan["total"])
 	var fade := EventScript.opacity_at(total, age)

@@ -185,7 +185,7 @@ func test_reduced_motion_fades_instead_of_travelling() -> void:
 	assert_eq(_camera.directed_fade, 0.0, "到位後淡入完畢")
 	var spot: Vector2 = _director.target_event().get("pos", _sim.world.province_info(_director.current)["seat"])
 	assert_lt(_camera.focus.distance_to(spot), 1.0)
-	assert_lt(absf(_camera.z - minf(start_z, _camera.map_width() * 0.25)), 0.001, "沒有拉高，只降到看得見棋子的高度")
+	_assert_landed(start_z, "沒有拉高，只降到看得見棋子的高度")
 
 
 func test_far_travel_lifts_and_takes_the_short_way_over_the_seam() -> void:
@@ -236,16 +236,45 @@ func test_arrival_height_is_one_where_figures_are_visible() -> void:
 		_sim.event_posted.emit(event)
 	assert_true(await _until_stay(8.0))
 	await frames(10)
-	assert_lt(absf(_camera.z - width * 0.25), 0.5, "太高（超過 0.3 倍寬）時降到 0.25 倍寬")
+	_assert_landed(width * 0.7, "太高時降到棋子約 64 像素高的高度")
 	await _quiet()
-	_camera.look_at_map(_camera.focus, width * 0.2, true)
+	var low := maxf(_landing_z() * 0.8, MapView.z_range(width).x * 1.05)
+	_camera.look_at_map(_camera.focus, low, true)
 	await frames(3)
 	_director.reset()
 	for event in _events.duplicate():
 		_sim.event_posted.emit(event)
 	assert_true(await _until_stay(8.0))
 	await frames(10)
-	assert_lt(absf(_camera.z - width * 0.2), 0.5, "玩家原本就在範圍內，維持玩家的高度")
+	assert_lt(absf(_camera.z - low), 0.5, "玩家原本就比到位高度低，維持玩家的高度")
+
+
+## 導演到位的目標高度：棋子畫面高 LANDING_FIGURE_PX（乘介面單位）反推的鏡頭高度，不低於鏡頭允許的最低高度。
+func _landing_z() -> float:
+	var view := _hud.get_viewport().get_visible_rect().size
+	var unit := Ink.layout_unit(view, GameSettings.ui_scale())
+	var ppu := FigureActor.ppu_for_screen_px(DirectorRig.LANDING_FIGURE_PX * unit)
+	return maxf(view.y / ppu / MapView.view_height(1.0), MapView.z_range(_camera.map_width()).x)
+
+
+## 棋子此刻在畫面上的高度（像素）。
+func _figure_px() -> float:
+	var view := _hud.get_viewport().get_visible_rect().size
+	return FigureActor.screen_height(view.y / MapView.view_height(_camera.z))
+
+
+## 到位後：玩家原本的高度 start_z 比到位高度低則維持；否則棋子畫面高落在 64 像素（乘介面單位）上下 15% 內，或已到鏡頭最低高度。
+func _assert_landed(start_z: float, label: String) -> void:
+	var view := _hud.get_viewport().get_visible_rect().size
+	var unit := Ink.layout_unit(view, GameSettings.ui_scale())
+	var landing := _landing_z()
+	if start_z <= landing:
+		assert_lt(absf(_camera.z - start_z), 0.5, "%s：玩家原本更低，維持 %s" % [label, start_z])
+		return
+	var target := DirectorRig.LANDING_FIGURE_PX * unit
+	var at_floor := absf(_camera.z - MapView.z_range(_camera.map_width()).x) < 0.5
+	assert_true(at_floor or absf(_figure_px() - target) <= target * 0.15, "%s：棋子畫面高 %s 像素，目標 %s" % [label, _figure_px(), target])
+	assert_lt(absf(_camera.z - landing), 0.5, "%s：鏡頭高度 %s，到位高度 %s" % [label, _camera.z, landing])
 
 
 ## 事件格（世界座標）用實際相機投到螢幕的位置。
@@ -271,7 +300,7 @@ func test_camera_lands_on_the_event_cell_not_the_province_seat() -> void:
 	assert_true(await _until_stay(20.0))
 	await frames(10)
 	_assert_in_middle_third(cell, "到位後")
-	assert_lt(_camera.z, _camera.map_width() * 0.25 + 0.5, "鏡頭高度不超過地圖寬 0.25 倍")
+	assert_lt(_camera.z, _landing_z() + 0.5, "鏡頭高度不超過棋子約 64 像素高的到位高度")
 
 
 func test_caption_switching_inside_the_province_pans_to_the_new_event() -> void:
