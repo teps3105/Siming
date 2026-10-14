@@ -16,6 +16,8 @@ const DEFAULTS := {
 	"vsync": true,
 	"ui_scale": 1.0,
 	"edge_scroll": false,
+	# 地圖上的文字標籤（地名、治所名、宗門名）；關掉時只留墨點與圖樣。
+	"map_labels": true,
 	"tutorial_done": false,
 	"tutorial_step": 0,
 	# 導播模式（GDD 5.13）。節奏 0 慢、1 標準、2 快。

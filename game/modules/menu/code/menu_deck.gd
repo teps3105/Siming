@@ -299,6 +299,7 @@ func _settings_rows() -> Array[Dictionary]:
 		MenuPanel.choice(&"set.vsync", Locale.t("set_vsync"), switch, GameSettings.flag("vsync")),
 		MenuPanel.choice(&"set.ui_scale", Locale.t("set_ui_scale"), scales, int(round(GameSettings.ui_scale() * 10.0)) * 10),
 		MenuPanel.choice(&"set.edge_scroll", Locale.t("set_edge"), switch, GameSettings.flag("edge_scroll")),
+		MenuPanel.choice(&"set.map_labels", Locale.t("set_map_labels"), switch, GameSettings.flag("map_labels")),
 		MenuPanel.choice(&"set.language", Locale.t("set_language"), [["zh-Hant", Locale.t("language_zh_hant")]], "zh-Hant"),
 		MenuPanel.head(Locale.t("set_director_head")),
 		MenuPanel.choice(&"set.director", Locale.t("set_director"), switch, GameSettings.flag("director")),
