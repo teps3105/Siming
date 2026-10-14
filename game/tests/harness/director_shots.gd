@@ -141,4 +141,25 @@ func _arrive_run(sim: SimHost, camera: MapCamera, director: Director, card: Dire
 			var name := "p%d_%s_%s%s_t%03d_a%.1f" % [director.current, sim.world.province_info(director.current)["name"], event.get("kind", "?"), event.get("x", ""), int(_game_t), since]
 			_note("%s 種類 %s 事件格 %s 治所 %s 螢幕 %s 焦點 (%.1f, %.1f) 高 %.1f/寬 %.0f 字卡 %s" % [name, event.get("kind", "?"), spot,
 				sim.world.province_info(director.current)["seat"], screen, camera.focus.x, camera.focus.y, camera.z, camera.map_width(), card.text()])
+			_note("DBG 狀態 " + _classify(event, camera))
 			await _shot(name)
+
+
+func _classify(event: Dictionary, camera: MapCamera) -> String:
+	if event.is_empty():
+		return "空事件"
+	if not EventScript.accepts(event):
+		return "無演出列"
+	var id := int(event.get("id", -1))
+	var stage: EventStage = get_nodes_in_group("event_stage")[0]
+	for perf in stage.performances():
+		if int(perf["id"]) == id:
+			if float(perf["age"]) < 0.0:
+				return "a排隊中"
+			if not (perf["actors"] as Array).is_empty() or perf["light"] != null:
+				return "ok播放中有棋子 age=%.1f/%.1f" % [perf["age"], perf["plan"]["total"]]
+			var sp: Spectacle = stage._spectacle
+			if sp.figure_hidden() or not sp.pos_in_view(perf["pos"]):
+				return "d隱藏(figure_hidden=%s in_view=%s)" % [sp.figure_hidden(), sp.pos_in_view(perf["pos"])]
+			return "b名額用完 age=%.1f" % perf["age"]
+	return "c/b已不在（演完、被擠掉或沒登記）"
