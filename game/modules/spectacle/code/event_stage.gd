@@ -80,12 +80,25 @@ func post(event: Dictionary) -> void:
 		_sync()
 
 
+## 出手者的道途（EventScript.STRIKES 的索引）：修士 0、凡人與其他 1、僧人 2；查不到回 −1（由人物編號決定）。
+func _path_of(person: int) -> int:
+	if _sim == null:
+		return -1
+	var info: Dictionary = _sim.world.person(person)
+	if info.is_empty():
+		return -1
+	if int(info.get("fruit", -1)) >= 0:
+		return 2
+	return 0 if int(info.get("realm", -1)) >= 0 else 1
+
+
 ## 登記一件演出（不排隊、不開演）；表裡沒有對應動作回空字典。
 func _register(event: Dictionary, focus: bool) -> Dictionary:
 	var prepared := event
 	if str(event.get("kind", "")) == "ThreadResolved" and not event.has("survivor_alive"):
 		prepared = event.duplicate()
 		prepared["survivor_alive"] = _debtor_alive(event)
+	prepared = EventScript.with_paths(prepared, _path_of)
 	var plan := EventScript.plan(prepared)
 	if plan.is_empty():
 		return {}

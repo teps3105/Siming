@@ -78,12 +78,15 @@ func _main() -> void:
 	var cases := [
 		["ThreadCreated", {"x": "Mentor"}], ["ThreadResolved", {"x": "Mentor"}], ["Married", {}], ["ThreadResolved", {"x": "Love"}],
 		["ThreadResolved", {"x": "Grace"}], ["Died", {"x": "Age"}], ["Breakthrough", {}], ["SectSplit", {}],
+		["Killed", {"a_path": 0, "tag": "劍訣"}], ["Killed", {"a_path": 1, "tag": "劈"}], ["Killed", {"a_path": 2, "tag": "掌"}],
+		["ThreadResolved", {"x": "Feud", "b_path": 1, "survivor_alive": false, "tag": "倒"}], ["ThreadResolved", {"x": "Feud", "b_path": 2, "survivor_alive": true, "tag": "擋"}],
+		["ThreadResolved", {"x": "Grudge"}], ["Succession", {}], ["PowerFounded", {}], ["FellToDemon", {}], ["Died", {"x": "Plague"}],
 	]
 	_camera.look_at_map(focus, 30.0, true)
 	for i in 8:
 		await process_frame
 	for entry: Array in cases:
-		var label := "%s_%s" % [entry[0], str(entry[1].get("x", ""))]
+		var label := "%s_%s%s" % [entry[0], str(entry[1].get("x", "")), str(entry[1].get("tag", ""))]
 		if not _rows.is_empty() and not _rows.has(label):
 			continue
 		_stage.clear()

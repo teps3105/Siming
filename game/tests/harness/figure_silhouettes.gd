@@ -1,13 +1,14 @@
 extends SceneTree
 ## 全動作代表格的 64 像素高並排圖與剪影差異矩陣（8.11 驗收）。
 ## 用法：godot --path game --position 2600,40 --audio-driver Dummy -s res://tests/harness/figure_silhouettes.gd -- --out=<資料夾>
-## 產出 silhouettes_64.png（上色）、silhouettes_64_black.png（純黑剪影）；矩陣印在輸出。視窗要開。
+## 產出 silhouettes_64.png（上色）、silhouettes_64_black.png（純黑剪影），預設持杖；加 --noprop 改畫沒有持物的樣子，檔名加 _noprop；矩陣印在輸出。視窗要開。
 
 const S := preload("res://tests/harness/figure_silhouette.gd")
 const F := preload("res://modules/ui_kit/code/cultivator_figure.gd")
 const CELL := Vector2i(S.COLS, S.ROWS)
 
 var _out := ""
+var _suffix := ""
 var _view: SubViewport
 var _ticks := 0
 var _names: Array = []
@@ -33,10 +34,12 @@ func _initialize() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--out="):
 			_out = arg.trim_prefix("--out=")
+		elif arg == "--noprop":
+			_suffix = "_noprop"
 	DirAccess.make_dir_recursive_absolute(_out)
 	_names = S.REP.keys()
 	var strip := Strip.new()
-	strip.look = F.traits(S.SEED)
+	strip.look = S.look_of(_suffix == "")
 	strip.names = _names
 	var size := Vector2i(S.COLS * _names.size(), S.ROWS)
 	strip.size = Vector2(size)
@@ -45,7 +48,7 @@ func _initialize() -> void:
 	_view.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	root.add_child(_view)
 	_view.add_child(strip)
-	var masks := S.masks_of(_names)
+	var masks := S.masks_of(_names, _suffix == "")
 	var black := Image.create(size.x, size.y, false, Image.FORMAT_RGBA8)
 	black.fill(Color.WHITE)
 	for i in _names.size():
@@ -54,7 +57,7 @@ func _initialize() -> void:
 			for c in S.COLS:
 				if mask[r * S.COLS + c] == 1:
 					black.set_pixel(i * S.COLS + c, r, Color.BLACK)
-	black.save_png(_out.path_join("silhouettes_64_black.png"))
+	black.save_png(_out.path_join("silhouettes_64_black%s.png" % _suffix))
 	var header := "%-9s" % ""
 	for n: String in _names:
 		header += "%6s" % n.substr(0, 5)
@@ -70,7 +73,7 @@ func _initialize() -> void:
 func _process(_delta: float) -> bool:
 	_ticks += 1
 	if _ticks == 6:
-		_view.get_texture().get_image().save_png(_out.path_join("silhouettes_64.png"))
+		_view.get_texture().get_image().save_png(_out.path_join("silhouettes_64%s.png" % _suffix))
 		print("截圖：", _out)
 		quit()
 	return false

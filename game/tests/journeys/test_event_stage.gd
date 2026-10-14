@@ -68,21 +68,21 @@ func test_gdd_5_13_table_maps_each_event_to_its_action_sequence() -> void:
 	var cases := [
 		[_event("Killed"), [["strike"], ["fall"]]],
 		[_event("FeudEscalated"), [["strike"], ["fall"]]],
-		[_event("ThreadResolved", {"x": "Feud"}), [["strike"], ["fall"]]],
-		[_event("ThreadResolved", {"x": "Feud", "survivor_alive": true}), [["strike"], ["brace"]]],
+		[_event("ThreadResolved", {"x": "Feud"}), [["chop"], ["fall"]]],
+		[_event("ThreadResolved", {"x": "Feud", "survivor_alive": true}), [["chop"], ["guard"]]],
 		[_event("ThreadResolved", {"x": "Grace"}), [["offer"], ["receive"]]],
 		[_event("ThreadResolved", {"x": "Love"}), [["clasp", "away"], ["clasp", "away"]]],
-		[_event("ThreadResolved", {"x": "Grudge"}), [["bow"], ["bow"]]],
+		[_event("ThreadResolved", {"x": "Grudge"}), [["salute"], ["turn"]]],
 		[_event("ThreadResolved", {"x": "Mentor"}), [["kneel"], ["turn"]]],
 		[_event("Died", {"x": "Age"}), [["slump"]]],
-		[_event("Died", {"x": "Plague"}), [["fall"]]],
+		[_event("Died", {"x": "Plague"}), [["cough", "fall"]]],
 		[_event("Breakthrough", {"n": 2}), [["sit", "rise"]]],
 		[_event("Ascended"), [["rise"]]],
-		[_event("FellToDemon"), [["seal", "struck"]]],
+		[_event("FellToDemon"), [["writhe"]]],
 		[_event("ThreadCreated", {"x": "Mentor"}), [["kneel"], ["bless"]]],
 		[_event("Married"), [["bow", "clasp"], ["bow", "clasp"]]],
-		[_event("Succession"), [["bow"]]],
-		[_event("PowerFounded"), [["seal"]]],
+		[_event("Succession"), [["token"]]],
+		[_event("PowerFounded"), [["hail"]]],
 		[_event("SectSplit"), [["turn"]]],
 		[_event("Traveled", {"x": "Out", "q_province": 3}), [["walk"]]],
 		[_event("Traveled", {"x": "Back", "q_province": 3}), [["walk"]]],
@@ -112,7 +112,7 @@ func test_gdd_5_13_events_without_a_matching_action_have_zero_length() -> void:
 
 func test_gdd_5_13_the_fall_starts_at_the_strike_hit_and_the_action_spans_both() -> void:
 	var plan := EventScript.plan(_event("Killed"))
-	var hit := FigureMotion.event_time("strike", "hit")
+	var hit := FigureMotion.event_time(str(plan["actors"][0]["steps"][0]["do"]), "hit")
 	var fall: Dictionary = plan["actors"][1]["steps"][0]
 	assert_true(absf(float(fall["start"]) - hit) < 1e-4, "倒地從出手命中那一格開始")
 	assert_true(is_equal_approx(float(plan["action_len"]), hit + FigureMotion.length("fall")), "動作段到倒地播完")
@@ -177,9 +177,9 @@ func test_gdd_5_13_figure_appears_on_the_event_cell_plays_in_order_and_vanishes(
 	var shown := _camera.unproject_position(actor.global_position)
 	assert_lt(shown.distance_to(expected), 4.0, "棋子的腳底在事件所在格")
 	_stage.advance(INTRO + 0.3)
-	assert_eq(actor.action(), "bow", "定場之後行禮")
-	_stage.advance(FigureMotion.length("bow") + 0.5)
-	assert_eq(actor.action(), "bow", "餘韻停在行禮結束的姿勢")
+	assert_eq(actor.action(), "token", "定場之後傳承的舉信物")
+	_stage.advance(FigureMotion.length("token") + 0.5)
+	assert_eq(actor.action(), "token", "餘韻停在舉信物結束的姿勢")
 	_stage.advance(total)
 	assert_eq(_stage.figures().size(), 0, "播完棋子消失")
 	assert_eq(_stage.performances().size(), 0, "演出也移除")
@@ -223,7 +223,7 @@ func test_gdd_5_13_strike_and_fall_run_on_two_figures_with_the_fall_after_the_hi
 	_stage.post(_event_at_seat("Killed"))
 	var figures := _stage.figures()
 	_stage.advance(INTRO + 0.5)
-	assert_eq(figures[0].action(), "strike")
+	assert_true(figures[0].action() in EventScript.STRIKES, "出手者演三種出手之一：%s" % figures[0].action())
 	assert_eq(figures[1].action(), "stand", "被殺的人命中前站著")
 	_stage.advance(1.0)
 	assert_eq(figures[1].action(), "fall", "命中之後倒下")
@@ -389,9 +389,9 @@ func test_gdd_5_13_resolved_feud_shows_brace_when_the_other_side_lives() -> void
 	var alive := _sim.world.person(1)
 	var event := _event_at_seat("ThreadResolved", {"x": "Feud", "a_person": 1, "b_person": 0})
 	_stage.post(event)
-	var expected := "brace" if bool(alive.get("alive", false)) else "fall"
+	var expected := "guard" if bool(alive.get("alive", false)) else "fall"
 	_stage.advance(INTRO + 2.6)
-	assert_eq(_stage.figures()[1].action(), expected, "欠債方在世就迎擊，不在世就倒下")
+	assert_eq(_stage.figures()[1].action(), expected, "欠債方在世就後退格擋，不在世就倒下")
 
 
 # ── 師徒了結與轉世 ────────────────────────────────────────────
@@ -463,3 +463,29 @@ func test_gdd_5_13_rebirth_lights_obey_the_figure_cap_and_the_same_cell_queue() 
 		_stage.post(_event("Rebirth", {"pos": seat, "importance": 3}))
 	assert_eq(_stage.performances().size(), 4, "同格一件在播、最多排 3 件")
 	assert_eq(_stage.lights().size(), 1, "同格一次一道光")
+
+
+func test_gdd_5_13_the_three_strikes_follow_the_striker_path_else_the_person_id() -> void:
+	var by_id := []
+	for person in [0, 1, 2, 3, 4, 5]:
+		by_id.append(_actions(EventScript.plan(_event("Killed", {"a_person": person})))[0][0])
+	assert_eq(by_id, ["strike", "chop", "palm", "strike", "chop", "palm"], "沒有道途時人物編號除三的餘數：同一個人永遠同一種")
+	for path in 3:
+		var plan := EventScript.plan(_event("Killed", {"a_person": 5, "a_path": path}))
+		assert_eq(plan["actors"][0]["steps"][0]["do"], EventScript.STRIKES[path], "道途 %d 出手 %s" % [path, EventScript.STRIKES[path]])
+		var hit := FigureMotion.event_time(EventScript.STRIKES[path], "hit")
+		assert_lt(absf(float(plan["actors"][1]["steps"][0]["start"]) - hit), 1e-4, "倒地對到 %s 的命中" % EventScript.STRIKES[path])
+	_asked.clear()
+	var filled := EventScript.with_paths(_event("Killed", {"a_person": 7}), _ask_path)
+	assert_eq(_asked, [7], "只問出手者")
+	assert_eq(filled["a_path"], 2)
+	var plain := _event("Died", {"x": "Age"})
+	assert_eq(EventScript.with_paths(plain, _ask_path), plain, "沒有任選步驟的事件原樣回傳")
+
+
+var _asked := []
+
+
+func _ask_path(person: int) -> int:
+	_asked.append(person)
+	return 2

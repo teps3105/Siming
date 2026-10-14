@@ -3,7 +3,8 @@
 60 格、不循環。事件：`take` = 22（接住）、`hold` = 40（收到胸前）。
 
 ## 關鍵格
-0–10 雙手略前伸（預備）；10–22 屈膝、雙手在腹前低低攤開；22 take；28–40 收到胸前、頭低下看；60 立姿。ROWS 以 `sync: 0:offer:give`、`align: take` 讓 take 與奉物的 give 同一刻。
+0–8 雙臂前伸、微蹲；8–22 半蹲（髖降到 −0.23）、雙腳分開各 0.26、身略後仰 10°、雙手高舉過頭去接；22 take；28–40 收下來抱在胸前、頭低下看；60 立姿。
+與 `offer`（跨步前傾高托）一個後仰蹲低、一個前傾站高。
 
 ## 採用的原則與來源
 - 剪影測試：把姿勢塗黑、拉遠看，不看字卡也要看得出在做什麼；原文「if I have to explain my pose, it's not speaking loudly enough on its own」；一條動作線只說一件事；關鍵格必須在黑色剪影下讀得出，格與格之間可以鬆，重要姿勢停久、過渡加快。來源：https://anim.works/silhouette-in-animation/
